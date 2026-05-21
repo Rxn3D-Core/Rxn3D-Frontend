@@ -167,11 +167,8 @@ export interface VirtualSlipInitialState {
    * or `${arch}_fixed_${toothNumber}` for fixed restoration.
    */
   selectedStages: Record<string, string>;
-  /**
-   * Impression quantities keyed as `${productId}_${arch}_${impressionCode}`
-   * (e.g. "prep_4_maxillary_alginate").
-   */
-  selectedImpressions: Record<string, number>;
+  /** Slip-level impression selections (one list per jaw). */
+  selectedImpressions: import("./utils/impressionStorage").SlipImpressionSelections;
   /**
    * Completed field steps per tooth keyed as `${arch}_${toothNumber}`.
    * Value is an array of FieldStep strings (e.g. ["grade", "stage", "teeth_shade"]).
@@ -224,8 +221,8 @@ export interface NotesProps {
   toothProductCardMap?: Record<string, number>;
   /** Raw selected shades map — triggers note rebuild when shade changes */
   selectedShades?: Record<string, string>;
-  /** Raw selected impressions map — triggers note rebuild when impression changes */
-  selectedImpressions?: Record<string, number>;
+  /** Raw slip impression selections — triggers note rebuild when impression changes */
+  selectedImpressions?: import("./utils/impressionStorage").SlipImpressionSelections;
 }
 
 export type Arch = "maxillary" | "mandibular";
@@ -310,16 +307,13 @@ export interface ImpressionOptionForModal {
   label: string;
 }
 
-export interface ArchImpressionSelection {
-  id: string;
-  name: string;
-  qty: number;
-}
+export type {
+  ArchImpressionEntry,
+  SlipImpressionSelections,
+} from "./utils/impressionStorage";
 
-export interface ArchImpressionSelections {
-  maxillary: ArchImpressionSelection[];
-  mandibular: ArchImpressionSelection[];
-}
+/** @deprecated Use SlipImpressionSelections — kept for gradual migration in imports */
+export type ArchImpressionSelections = import("./utils/impressionStorage").SlipImpressionSelections;
 
 /** Convert product API impressions to modal options; uses code as value for stable keys. */
 export function productImpressionsToModalOptions(

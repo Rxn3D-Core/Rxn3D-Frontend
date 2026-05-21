@@ -735,7 +735,7 @@ interface MandibularPanelProps {
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
   /** Impression selections by key (productId_arch_impressionValue → qty) */
-  selectedImpressions?: Record<string, number>;
+  selectedImpressions?: import("../utils/impressionStorage").SlipImpressionSelections;
   /** When set, renders the opposing product accordion for Removable Restoration products with opposite_extractions */
   opposingProductData?: ProductApiData | null;
   /**
@@ -878,7 +878,7 @@ export function MandibularPanel({
   card0Extractions = [],
   removablesImpressionDone = false,
   noOpposingNeeded = {},
-  selectedImpressions = {},
+  selectedImpressions = { maxillary: [], mandibular: [] },
   opposingProductData = null,
   opposingToothExtractionMap = {},
   opposingClaspTeeth = [],
@@ -3397,12 +3397,8 @@ export function MandibularPanel({
             {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
               // Impression keys are `${productId}_${arch}_${code}` (e.g. "0_mandibular_<code>" or "12_mandibular_<code>").
               // Legacy keys used "maxillary_prep_<tooth>_mandibular_<code>".
-              const isMandibularImpressionKey = (key: string) =>
-                key.includes("_mandibular_") &&
-                (/^\d+_mandibular_/.test(key) || key.startsWith("maxillary_prep_"));
-              const hasOpposingImpressionSelected = Object.entries(selectedImpressions).some(
-                ([key, qty]) => isMandibularImpressionKey(key) && qty > 0
-              );
+              const hasOpposingImpressionSelected =
+                (selectedImpressions.mandibular?.length ?? 0) > 0;
               const isNoOpposing =
                 !hasOpposingImpressionSelected &&
                 Object.keys(noOpposingNeeded).some(
@@ -3411,21 +3407,11 @@ export function MandibularPanel({
                     (k.startsWith("maxillary_prep_") && k.includes("_maxillary_"))
                 );
               if (!hasOpposingImpressionSelected && !isNoOpposing) return null;
-              // Build impression display text directly from opposingProductData.impressions (the maxillary product),
-              // because getImpressionDisplayText looks up by tooth arch which would be wrong here.
-              const opposingImpressionText = (() => {
-                const entries = Object.entries(selectedImpressions).filter(
-                  ([key, qty]) => isMandibularImpressionKey(key) && qty > 0
-                );
-                if (entries.length === 0) return "";
-                return entries.map(([key, qty]) => {
-                  const afterMandibular = key.split("_mandibular_")[1] ?? "";
-                  const productImpression = opposingProductData.impressions?.find(
-                    (imp: { code?: string; name?: string }) => imp.code === afterMandibular
-                  );
-                  return `${qty}x ${productImpression?.name || afterMandibular}`;
-                }).join(", ");
-              })();
+              const opposingImpressionText =
+                selectedImpressions.mandibular
+                  ?.filter((e) => e.qty > 0)
+                  .map((e) => `${e.qty}x ${e.name}`)
+                  .join(", ") ?? "";
               return (
                 <OpposingRemovableAccordion
                   key="opposing-accordion"

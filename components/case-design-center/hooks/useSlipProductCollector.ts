@@ -84,13 +84,17 @@ export function useSlipProductCollector({
         });
         const teethSelection = filteredByExtraction.length > 0 ? filteredByExtraction : sortedTeeth;
 
-        const impressionPrefix = `${cardId}_${arch}_`;
         const impressions: Record<string, number> = {};
-        Object.entries(state.selectedImpressions ?? {}).forEach(([key, qty]) => {
-          if (key.startsWith(impressionPrefix) && qty > 0) {
-            impressions[key.slice(impressionPrefix.length)] = qty;
+        if (productApiData?.has_impression === "Yes") {
+          const archEntries = state.selectedImpressions?.[arch] ?? [];
+          for (const entry of archEntries) {
+            if (entry.qty <= 0) continue;
+            const catalog = productApiData.impressions ?? [];
+            const match = catalog.find((i) => i.code === entry.code);
+            const code = match?.code ?? entry.code;
+            impressions[code] = entry.qty;
           }
-        });
+        }
 
         const rushKey = `${arch}_${cardId}`;
         const rush = state.rushedProducts?.[rushKey] ?? null;

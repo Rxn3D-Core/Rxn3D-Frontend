@@ -198,7 +198,7 @@ export type OpposingRemovableAccordionProps = {
   opposingClaspTeeth: number[];
   opposingNoActiveBoxTeeth: number[];
   opposingSelectedTeeth: number[];
-  selectedImpressions: Record<string, number>;
+  selectedImpressions: import("../utils/impressionStorage").SlipImpressionSelections;
   opposingImpressionText: string;
   confirmDetailsChecked?: boolean;
   caseSubmitted?: boolean;

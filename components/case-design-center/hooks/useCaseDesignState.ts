@@ -66,16 +66,17 @@ import {
   resolveProductCardDisplayName,
 } from "../utils/archToothOwnership";
 import {
+  buildImpressionDisplayText,
   getImpressionOptionsForProduct,
+  reconcileArchSelectionsWithCatalog,
   resolveImpressionName,
   resolveProductForImpression,
 } from "../utils/impressionFieldSync";
 import {
-  buildImpressionDisplayTextForArch,
-  collectImpressionProductIdsForArch,
-  normalizeArchSharedImpressions,
-  resolveCanonicalImpressionProductId,
-} from "../utils/archSharedImpressions";
+  emptyImpressionSelections,
+  isSlipImpressionSelections,
+  migrateLegacyFlatImpressions,
+} from "../utils/impressionStorage";
 import {
   buildFixedShadeProductId,
   getDefaultShadeGuideFromProduct,
@@ -367,7 +368,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     if (addedProducts.length > prevAddedProductsLengthRef.current) {
       const newest = addedProducts[0];
       if (newest) {
-        focusAccordion(newest.arch, addedProductSlotId(newest.id), newest.id);
+        focusAccordion(newest.arch as Arch, addedProductSlotId(newest.id), newest.id);
       }
     } else if (addedProducts.length < prevAddedProductsLengthRef.current) {
       setActiveProductCardId((prev) => {
@@ -436,83 +437,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [initialProductDetails, toothFieldProgress.getToothProduct]
   );
 
-  const getImpressionProductIdsForArch = useCallback(
-    (arch: Arch) =>
-      collectImpressionProductIdsForArch(arch, {
-        card0IsRemovable: isCard0RemovableOnArch(arch),
-        addedProducts: props.addedProducts ?? [],
-        maxillaryRetentionTypes: teeth.maxillaryRetentionTypes,
-        mandibularRetentionTypes: teeth.mandibularRetentionTypes ?? {},
-        getToothProduct: toothFieldProgress.getToothProduct,
-        initialProductDetails,
-      }),
-    [
-      isCard0RemovableOnArch,
-      props.addedProducts,
-      teeth.maxillaryRetentionTypes,
-      teeth.mandibularRetentionTypes,
-      toothFieldProgress.getToothProduct,
-      initialProductDetails,
-    ]
-  );
-
-  const ARCHES: Arch[] = ["maxillary", "mandibular"];
-
-  const setSelectedImpressionsSynced = useCallback(
-    (updater: SetStateAction<Record<string, number>>) => {
-      modals.setSelectedImpressions((prev) => {
-        const next =
-          typeof updater === "function"
-            ? (updater as (p: Record<string, number>) => Record<string, number>)(prev)
-            : updater;
-        return normalizeArchSharedImpressions(
-          next,
-          ARCHES,
-          getImpressionProductIdsForArch
-        );
-      });
-    },
-    [modals.setSelectedImpressions, getImpressionProductIdsForArch]
-  );
-
   const handleOpenImpressionModal = useCallback(
     (arch: Arch, productId: string, toothNumber?: number) => {
-      let canonicalProductId = productId;
-      setSelectedImpressionsSynced((prev) => {
-        const next = normalizeArchSharedImpressions(
-          prev,
-          ARCHES,
-          getImpressionProductIdsForArch
-        );
-        canonicalProductId = resolveCanonicalImpressionProductId(
-          next,
-          arch,
-          productId
-        );
-        return next;
-      });
-      modals.setShowImpressionModal(false);
-      modals.setIsStageModalOpen(false);
-      modals.setShowAddOnsModal(false);
-      modals.setShowRushModal(false);
-      modals.setShowAttachModal(false);
-      modals.setCurrentImpressionArch(arch);
-      modals.setCurrentImpressionProductId(canonicalProductId);
-      modals.setCurrentImpressionToothNumber(toothNumber ?? null);
-      modals.setShowImpressionModal(true);
+      modals.handleOpenImpressionModal(arch, productId, toothNumber);
     },
-    [
-      setSelectedImpressionsSynced,
-      getImpressionProductIdsForArch,
-      modals.setShowImpressionModal,
-      modals.setIsStageModalOpen,
-      modals.setShowAddOnsModal,
-      modals.setShowRushModal,
-      modals.setShowAttachModal,
-      modals.setCurrentImpressionArch,
-      modals.setCurrentImpressionProductId,
-      modals.setCurrentImpressionToothNumber,
-    ]
+    [modals.handleOpenImpressionModal]
   );
 
   /** Mirror grade / stage / shades / addons to other removable products on the same arch. */
@@ -581,9 +510,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
         });
       }
 
-      if (step === "impression") {
-        setSelectedImpressionsSynced((prev) => prev);
-      }
     },
     [
       props.addedProducts,
@@ -591,7 +517,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
       toothFieldProgress,
       modals.selectedStages,
       modals.setSelectedStages,
-      setSelectedImpressionsSynced,
     ]
   );
 
@@ -667,7 +592,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         targetArch,
         modals.selectedImpressions
       );
-      if (nextImpressions) setSelectedImpressionsSynced(nextImpressions);
+      if (nextImpressions) modals.setSelectedImpressions(nextImpressions);
 
       const sourceAddonKey = `${sourceArch}_${sourceRepTooth}`;
       const targetAddonKey = `${targetArch}_${targetRepTooth}`;
@@ -695,7 +620,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       modals.selectedStages,
       modals.setSelectedStages,
       modals.selectedImpressions,
-      setSelectedImpressionsSynced,
+      modals.setSelectedImpressions,
       selectedAddonsByTooth,
       setSelectedAddonsByTooth,
       shades.selectedShades,
@@ -1146,13 +1071,23 @@ export function useCaseDesignState(props: CaseDesignProps) {
       fetchProductDetails(ap.productId, customerId).then((product) => {
         if (!product || !ap.productId) return;
         if (ap.arch !== "maxillary" && ap.arch !== "mandibular") return;
-        cachedProductRef.current.set(
-          ap.productId,
-          enrichProductWithGrades(ap.arch as Arch, product)
-        );
+        const arch = ap.arch as Arch;
+        const merged = enrichProductWithGrades(arch, product);
+        cachedProductRef.current.set(ap.productId, merged);
+        const catalog = getImpressionOptionsForProduct(merged);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
       });
     }
-  }, [props.addedProducts, props.caseSubmitted, enrichProductWithGrades]);
+  }, [
+    props.addedProducts,
+    props.caseSubmitted,
+    enrichProductWithGrades,
+    modals.setSelectedImpressions,
+  ]);
 
   /**
    * Shade-guide dropdown options derived from the active tooth's product detail.
@@ -1366,6 +1301,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
         applyResolvedStage(arch, toothNumber, merged);
         autoPopulateDefaultAddons(arch, toothNumber, merged);
         maybeMirrorFixedProgressFromOpposite(arch, merged);
+        const catalog = getImpressionOptionsForProduct(merged);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
         return;
       }
 
@@ -1393,6 +1334,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
         applyResolvedStage(arch, toothNumber, merged);
         autoPopulateDefaultAddons(arch, toothNumber, merged);
         maybeMirrorFixedProgressFromOpposite(arch, merged);
+        const catalog = getImpressionOptionsForProduct(merged);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
       }
       toothFieldProgress.setProductLoading(arch, toothNumber, false);
     },
@@ -1402,6 +1349,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       autoPopulateDefaultAddons,
       maybeMirrorFixedProgressFromOpposite,
       enrichProductWithGrades,
+      modals.setSelectedImpressions,
     ]
   );
 
@@ -1559,10 +1507,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (cardIds.length === 0) return;
 
       const targetStageKey = `${arch}_prep_${targetTooth}`;
-      const targetImpressionPrefix = `${String(targetCardId)}_${arch}_`;
-      const targetHasImpression = Object.entries(modals.selectedImpressions).some(
-        ([key, qty]) => key.startsWith(targetImpressionPrefix) && qty > 0
-      );
 
       for (const donorCardId of cardIds) {
         const donorTooth = getRepToothForRemovableCard(
@@ -1606,24 +1550,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
           modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: donorStage }));
         }
 
-        if (!targetHasImpression) {
-          const donorImpressionPrefix = `${String(donorCardId)}_${arch}_`;
-          const donorImpressionEntries = Object.entries(modals.selectedImpressions).filter(
-            ([key, qty]) => key.startsWith(donorImpressionPrefix) && qty > 0
-          );
-          if (donorImpressionEntries.length > 0) {
-            setSelectedImpressionsSynced((prev) => {
-              let next = prev;
-              for (const [sourceKey, qty] of donorImpressionEntries) {
-                const impressionCode = sourceKey.slice(donorImpressionPrefix.length);
-                const targetKey = `${targetImpressionPrefix}${impressionCode}`;
-                if ((next[targetKey] ?? 0) === qty) continue;
-                next = { ...next, [targetKey]: qty };
-              }
-              return next;
-            });
-          }
-        }
       }
     },
     [
@@ -1631,9 +1557,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       MAXILLARY_ALL,
       REMOVABLE_MIRROR_STEPS,
       isCard0RemovableOnArch,
-      modals.selectedImpressions,
       modals.selectedStages,
-      setSelectedImpressionsSynced,
       modals.setSelectedStages,
       props.addedProducts,
       toothFieldProgress,
@@ -1655,11 +1579,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
         isCard0RemovableOnArch(oppositeArch)
       );
       if (sourceCardIds.length === 0) return;
-
-      const targetImpressionPrefix = `${String(activeProductCardId)}_${arch}_`;
-      const targetHasImpression = Object.entries(modals.selectedImpressions).some(
-        ([key, qty]) => key.startsWith(targetImpressionPrefix) && qty > 0
-      );
 
       for (const sourceCardId of sourceCardIds) {
         const sourceTooth = getRepToothForRemovableCard(
@@ -1705,24 +1624,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
           modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: sourceStage }));
         }
 
-        if (!targetHasImpression) {
-          const sourceImpressionPrefix = `${String(sourceCardId)}_${oppositeArch}_`;
-          const sourceImpressionEntries = Object.entries(modals.selectedImpressions).filter(
-            ([key, qty]) => key.startsWith(sourceImpressionPrefix) && qty > 0
-          );
-          if (sourceImpressionEntries.length > 0) {
-            setSelectedImpressionsSynced((prev) => {
-              let next = prev;
-              for (const [sourceKey, qty] of sourceImpressionEntries) {
-                const impressionCode = sourceKey.slice(sourceImpressionPrefix.length);
-                const targetKey = `${targetImpressionPrefix}${impressionCode}`;
-                if ((next[targetKey] ?? 0) === qty) continue;
-                next = { ...next, [targetKey]: qty };
-              }
-              return next;
-            });
-          }
-        }
       }
     },
     [
@@ -1733,8 +1634,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
       REMOVABLE_MIRROR_STEPS,
       isCard0RemovableOnArch,
       activeProductCardId,
-      modals.selectedImpressions,
-      setSelectedImpressionsSynced,
       toothFieldProgress,
       shouldBackfillRemovableStep,
     ]
@@ -2236,15 +2135,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
       );
       const options = getImpressionOptionsForProduct(product);
       const list = options.length > 0 ? options : mockImpressions;
-      return buildImpressionDisplayTextForArch(
-        modals.selectedImpressionsByArch
-          ? Object.fromEntries(
-              modals.selectedImpressionsByArch[arch].map((entry) => [`x_${arch}_${entry.id}`, entry.qty])
-            )
-          : modals.selectedImpressions,
-        arch,
-        (code) => resolveImpressionName(code, list)
-      );
+      void product;
+      void list;
+      return buildImpressionDisplayText(modals.selectedImpressions, arch);
     },
     [
       toothFieldProgress.getToothProduct,
@@ -2288,15 +2181,18 @@ export function useCaseDesignState(props: CaseDesignProps) {
       modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, ...s.selectedStages }));
     }
 
-    // Impression quantities
-    if (Object.keys(s.selectedImpressions).length > 0) {
-      setSelectedImpressionsSynced(
-        normalizeArchSharedImpressions(
-          s.selectedImpressions,
-          ARCHES,
-          getImpressionProductIdsForArch
-        )
-      );
+    // Impression selections (arch lists; migrate legacy flat keys from API)
+    if (s.selectedImpressions) {
+      const raw = s.selectedImpressions;
+      const hydrated = isSlipImpressionSelections(raw)
+        ? raw
+        : migrateLegacyFlatImpressions(raw as Record<string, number>);
+      if (
+        hydrated.maxillary.length > 0 ||
+        hydrated.mandibular.length > 0
+      ) {
+        modals.setSelectedImpressions(hydrated);
+      }
     }
 
     // Completed fields and field values
@@ -2356,7 +2252,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     shadeGuideOptions, // Override: derived from the active tooth's product.teeth_shades brand.system_name
     handleShadeSelect, // Override: mark shade steps completed immediately (catalog IDs enriched in background)
     ...modals,
-    setSelectedImpressions: setSelectedImpressionsSynced,
+    setSelectedImpressions: modals.setSelectedImpressions,
     handleOpenImpressionModal,
     handleOpenStageModal, // Override: skip modal when product has no selectable stages
     getImpressionDisplayText, // Override: arch-wide shared impressions

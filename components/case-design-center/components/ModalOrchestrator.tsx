@@ -12,14 +12,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
-import type { Arch, ArchImpressionSelections, ImpressionOptionForModal, ProductApiData } from "../types";
+import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
 import { getResolvedStageName } from "../utils/categoryHelpers";
+import { getDualModalArches } from "../utils/impressionFieldSync";
 import {
   buildImpressionDisplayText,
-  getDualModalArches,
-  parseImpressionKey,
-} from "../utils/impressionFieldSync";
+  removeArchImpression,
+  setArchImpressionQty,
+  type SlipImpressionSelections,
+} from "../utils/impressionStorage";
 
 interface ModalOrchestratorProps {
   // Impression
@@ -34,10 +36,9 @@ interface ModalOrchestratorProps {
   currentImpressionOppositeImpression?: "Yes" | "No";
   /** Second grid options when dual-arch (defaults to primary list if omitted) */
   oppositeImpressions?: ImpressionOptionForModal[];
-  selectedImpressions: Record<string, number>;
-  selectedImpressionsByArch?: ArchImpressionSelections;
+  selectedImpressions: SlipImpressionSelections;
   setSelectedImpressions: React.Dispatch<
-    React.SetStateAction<Record<string, number>>
+    React.SetStateAction<SlipImpressionSelections>
   >;
   onImpressionConfirm: (displayText: string, targetArch?: Arch) => void;
   /** Called when user confirms with no impressions selected — clears the completed state */
@@ -170,7 +171,6 @@ export function ModalOrchestrator({
   currentImpressionOppositeImpression,
   oppositeImpressions,
   selectedImpressions,
-  selectedImpressionsByArch,
   setSelectedImpressions,
   onImpressionConfirm,
   onImpressionClear,
@@ -227,16 +227,13 @@ export function ModalOrchestrator({
       return;
     }
     const touched = new Set<Arch>();
-    for (const key of Object.keys(selectedImpressions)) {
-      const parsed = parseImpressionKey(key);
-      if (parsed) touched.add(parsed.arch);
-    }
+    if (selectedImpressions.maxillary.length > 0) touched.add("maxillary");
+    if (selectedImpressions.mandibular.length > 0) touched.add("mandibular");
     touchedArchesRef.current = touched;
-  }, [showImpressionModal]);
+  }, [showImpressionModal, selectedImpressions]);
 
-  const markArchTouchedFromKey = (key: string) => {
-    const parsed = parseImpressionKey(key);
-    if (parsed) touchedArchesRef.current.add(parsed.arch);
+  const markArchTouched = (arch: Arch) => {
+    touchedArchesRef.current.add(arch);
   };
 
   const impressionLookupForCommit = [
@@ -257,10 +254,10 @@ export function ModalOrchestrator({
   };
 
   const commitImpressionForArch = (archToProcess: Arch) => {
-    const hasSelections = (selectedImpressionsByArch?.[archToProcess]?.length ?? 0) > 0;
-    if (hasSelections) {
-      const displayText = (selectedImpressionsByArch?.[archToProcess] ?? [])
-        .map((entry) => `${entry.qty}x ${resolveImpressionLabel(entry.id)}`)
+    const entries = selectedImpressions[archToProcess] ?? [];
+    if (entries.length > 0) {
+      const displayText = entries
+        .map((entry) => `${entry.qty}x ${entry.name || resolveImpressionLabel(entry.code)}`)
         .join(", ");
       onImpressionConfirm(displayText, archToProcess);
     } else if (touchedArchesRef.current.has(archToProcess)) {
@@ -310,40 +307,22 @@ export function ModalOrchestrator({
         oppositeImpression={currentImpressionOppositeImpression}
         oppositeImpressions={oppositeImpressions}
         selectedImpressions={selectedImpressions}
-        selectedImpressionsByArch={selectedImpressionsByArch}
-        onUpdateQuantity={(key, qty) => {
-          markArchTouchedFromKey(key);
-          setSelectedImpressions((prev) => {
-            const next = { ...prev };
-            if (qty === 0) delete next[key];
-            else next[key] = qty;
-            return next;
-          });
+        onSetArchQty={(arch, option, qty) => {
+          markArchTouched(arch);
+          setSelectedImpressions((prev) => setArchImpressionQty(prev, arch, option, qty));
         }}
-        onRemoveImpression={(key) => {
-          markArchTouchedFromKey(key);
-          setSelectedImpressions((prev) => {
-            const updated = { ...prev };
-            delete updated[key];
-            return updated;
-          });
+        onRemoveArchImpression={(arch, code) => {
+          markArchTouched(arch);
+          setSelectedImpressions((prev) => removeArchImpression(prev, arch, code));
         }}
         productId={currentImpressionProductId}
         arch={currentImpressionArch}
         onSubmitNoOpposing={() => {
-          // Build display text from main arch selections, then close
-          const prefix = `${currentImpressionProductId}_${currentImpressionArch}_`;
-          const entries = Object.entries(selectedImpressions).filter(
-            ([key, qty]) => key.startsWith(prefix) && qty > 0
+          const displayText = buildImpressionDisplayText(
+            selectedImpressions,
+            currentImpressionArch
           );
-          if (entries.length > 0) {
-            const displayText = entries
-              .map(([key, qty]) => {
-                const identifier = key.replace(prefix, "");
-                const impression = impressionLookupForCommit.find((i) => i.value === identifier);
-                return `${qty}x ${impression?.name || identifier}`;
-              })
-              .join(", ");
+          if (displayText) {
             onImpressionConfirm(displayText, currentImpressionArch);
           }
           onSubmitNoOpposing?.();

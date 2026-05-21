@@ -8,10 +8,12 @@ import {
 } from "@/components/ui/dialog"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
-import type {
-  ArchImpressionSelections,
-  ImpressionOptionForModal as ImpressionOption,
-} from "@/components/case-design-center/types"
+import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
+import {
+  getArchImpressionQtyForOption,
+  impressionTouchKey,
+  type SlipImpressionSelections,
+} from "@/components/case-design-center/utils/impressionStorage"
 
 interface STLFile {
   file: File
@@ -24,10 +26,13 @@ interface ImpressionSelectionModalProps {
   onClose: () => void
   onConfirm?: () => void
   impressions: ImpressionOption[]
-  selectedImpressions: Record<string, number>
-  selectedImpressionsByArch?: ArchImpressionSelections
-  onUpdateQuantity: (impressionKey: string, quantity: number) => void
-  onRemoveImpression: (impressionKey: string) => void
+  selectedImpressions: SlipImpressionSelections
+  onSetArchQty: (
+    arch: "maxillary" | "mandibular",
+    option: ImpressionOption,
+    quantity: number
+  ) => void
+  onRemoveArchImpression: (arch: "maxillary" | "mandibular", code: string) => void
   onSTLFilesAttached?: (files: STLFile[], impressionKey: string) => void
   productId: string
   arch: "maxillary" | "mandibular"
@@ -50,7 +55,8 @@ interface ImpressionSelectionModalProps {
 function ImpressionGrid({
   impressions,
   selectedImpressions,
-  onUpdateQuantity,
+  onSetArchQty,
+  onRemoveArchImpression,
   onSTLFilesAttached,
   productId,
   arch,
@@ -63,8 +69,13 @@ function ImpressionGrid({
   onConfirmAllAndClose,
 }: {
   impressions: ImpressionOption[]
-  selectedImpressions: Record<string, number>
-  onUpdateQuantity: (key: string, qty: number) => void
+  selectedImpressions: SlipImpressionSelections
+  onSetArchQty: (
+    arch: "maxillary" | "mandibular",
+    option: ImpressionOption,
+    qty: number
+  ) => void
+  onRemoveArchImpression: (arch: "maxillary" | "mandibular", code: string) => void
   onSTLFilesAttached?: (files: STLFile[], key: string) => void
   productId: string
   arch: "maxillary" | "mandibular"
@@ -86,11 +97,14 @@ function ImpressionGrid({
 
   const touchKey = (key: string) => onRegisterTouch(key)
 
+  const getCode = (impression: ImpressionOption) =>
+    impression.code ?? impression.value ?? getImpressionLabel(impression)
+
   const getKey = (impression: ImpressionOption) =>
-    `${productId}_${arch}_${impression.value || getImpressionLabel(impression)}`
+    impressionTouchKey(arch, getCode(impression))
 
   const getQty = (impression: ImpressionOption) =>
-    selectedImpressions[getKey(impression)] || 0
+    getArchImpressionQtyForOption(selectedImpressions, arch, impression)
 
   const isSTL = (impression: ImpressionOption) => {
     const name = (impression.name ?? "").toLowerCase()
@@ -105,7 +119,7 @@ function ImpressionGrid({
       setSelectedSTLImpression(impression)
       setShowSTLModal(true)
     } else {
-      onUpdateQuantity(key, 1)
+      onSetArchQty(arch, impression, 1)
       touchKey(key)
     }
   }
@@ -117,7 +131,7 @@ function ImpressionGrid({
       setSelectedSTLImpression(impression)
       setShowSTLModal(true)
     } else {
-      onUpdateQuantity(key, getQty(impression) + 1)
+      onSetArchQty(arch, impression, getQty(impression) + 1)
       touchKey(key)
     }
   }
@@ -127,7 +141,7 @@ function ImpressionGrid({
     const key = getKey(impression)
     const qty = getQty(impression)
     if (qty > 1) {
-      onUpdateQuantity(key, qty - 1)
+      onSetArchQty(arch, impression, qty - 1)
       touchKey(key)
     }
   }
@@ -135,14 +149,15 @@ function ImpressionGrid({
   const handleRemove = (impression: ImpressionOption, e: React.MouseEvent) => {
     e.stopPropagation()
     const key = getKey(impression)
-    onUpdateQuantity(key, 0)
+    onSetArchQty(arch, impression, 0)
+    onRemoveArchImpression(arch, getCode(impression))
     onKeyRemoved(key)
   }
 
   const handleSTLConfirmed = (files: STLFile[]) => {
     if (!selectedSTLImpression || !onSTLFilesAttached) return
     const key = getKey(selectedSTLImpression)
-    onUpdateQuantity(key, files.length)
+    onSetArchQty(arch, selectedSTLImpression, files.length)
     onSTLFilesAttached(files, key)
     touchKey(key)
     setShowSTLModal(false)
@@ -320,9 +335,8 @@ export function ImpressionSelectionModal({
   onConfirm,
   impressions,
   selectedImpressions,
-  selectedImpressionsByArch,
-  onUpdateQuantity,
-  onRemoveImpression,
+  onSetArchQty,
+  onRemoveArchImpression,
   onSTLFilesAttached,
   productId,
   arch,
@@ -355,20 +369,9 @@ export function ImpressionSelectionModal({
     ? optionListForArch(bottomArch)
     : (oppositeImpressions ?? impressions)
 
-  const topPrefix = `${productId}_${topArch}_`
-  const hasTopSelection = selectedImpressionsByArch
-    ? selectedImpressionsByArch[topArch].length > 0
-    : Object.entries(selectedImpressions).some(
-        ([key, qty]) => key.startsWith(topPrefix) && qty > 0
-      )
-
-  const bottomPrefix = bottomArch ? `${productId}_${bottomArch}_` : ""
+  const hasTopSelection = selectedImpressions[topArch].length > 0
   const hasBottomSelection = bottomArch
-    ? selectedImpressionsByArch
-      ? selectedImpressionsByArch[bottomArch].length > 0
-      : Object.entries(selectedImpressions).some(
-          ([key, qty]) => key.startsWith(bottomPrefix) && qty > 0
-        )
+    ? selectedImpressions[bottomArch].length > 0
     : false
 
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
@@ -398,7 +401,14 @@ export function ImpressionSelectionModal({
         return (
           [...without]
             .reverse()
-            .find((k) => (selectedImpressions[k] ?? 0) > 0) ?? null
+            .find((k) => {
+              const [archPart, code] = k.split(":")
+              if (!archPart || !code) return false
+              const archKey = archPart as "maxillary" | "mandibular";
+              return (
+                selectedImpressions[archKey].find((e) => e.code === code)?.qty ?? 0
+              ) > 0
+            }) ?? null
         )
       })
     },
@@ -407,9 +417,12 @@ export function ImpressionSelectionModal({
 
   useEffect(() => {
     if (!isOpen) return
-    const activeKeys = Object.entries(selectedImpressions)
-      .filter(([, qty]) => qty > 0)
-      .map(([key]) => key)
+    const activeKeys: string[] = []
+    for (const archKey of ["maxillary", "mandibular"] as const) {
+      for (const entry of selectedImpressions[archKey]) {
+        if (entry.qty > 0) activeKeys.push(impressionTouchKey(archKey, entry.code))
+      }
+    }
     touchHistoryRef.current = activeKeys
     setLastTouchedKey((prev) => {
       if (prev && activeKeys.includes(prev)) return prev
@@ -424,8 +437,8 @@ export function ImpressionSelectionModal({
 
   const sharedGridProps = {
     selectedImpressions,
-    onUpdateQuantity,
-    onRemoveImpression,
+    onSetArchQty,
+    onRemoveArchImpression,
     onSTLFilesAttached,
     stlFilesByImpression,
     lastTouchedKey,

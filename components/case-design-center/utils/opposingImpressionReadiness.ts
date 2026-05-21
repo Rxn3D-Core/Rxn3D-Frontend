@@ -1,30 +1,13 @@
 import type { Arch } from "../types";
+import {
+  archHasImpressionSelections,
+  type SlipImpressionSelections,
+} from "./impressionStorage";
 
 export const MAXILLARY_SENTINEL = 1;
 export const MANDIBULAR_SENTINEL = 17;
 
 type InitialArch = Arch | "both";
-
-const IMPRESSION_KEY_RE = /^([^_]+)_(maxillary|mandibular)_(.+)$/;
-
-function parseImpressionKeyLocal(
-  key: string
-): { productId: string; arch: Arch; code: string } | null {
-  const match = key.match(IMPRESSION_KEY_RE);
-  if (!match) return null;
-  return { productId: match[1], arch: match[2] as Arch, code: match[3] };
-}
-
-function archHasActiveSelections(
-  selectedImpressions: Record<string, number>,
-  productId: string,
-  arch: Arch
-): boolean {
-  const prefix = `${productId}_${arch}_`;
-  return Object.entries(selectedImpressions).some(
-    ([key, qty]) => key.startsWith(prefix) && qty > 0
-  );
-}
 
 export function isOppositeImpressionEnabled(
   product: { opposite_impression?: unknown } | null | undefined
@@ -58,44 +41,25 @@ export function resolveOpposingFieldStorage(initialArch: InitialArch): {
   return { fieldArch: "mandibular", fieldTooth: MANDIBULAR_SENTINEL };
 }
 
-/** Product id prefix used in selectedImpressions keys for the opposing arch. */
+/** @deprecated Product id is no longer used in impression storage. */
 export function resolveOpposingImpressionProductId(
   product: { id?: number } | null | undefined,
-  selectedImpressions: Record<string, number>,
-  opposingArch: Arch
+  _selectedImpressions: SlipImpressionSelections,
+  _opposingArch: Arch
 ): string {
-  const fromProduct = product?.id?.toString();
-  if (
-    fromProduct &&
-    archHasActiveSelections(selectedImpressions, fromProduct, opposingArch)
-  ) {
-    return fromProduct;
-  }
-  if (archHasActiveSelections(selectedImpressions, "0", opposingArch)) {
-    return "0";
-  }
-  for (const key of Object.keys(selectedImpressions)) {
-    const parsed = parseImpressionKeyLocal(key);
-    if (parsed?.arch === opposingArch && (selectedImpressions[key] ?? 0) > 0) {
-      return parsed.productId;
-    }
-  }
-  return fromProduct ?? "0";
+  void _selectedImpressions;
+  void _opposingArch;
+  return product?.id?.toString() ?? "0";
 }
 
-/** True when any product has opposing-arch impression qty > 0. */
+/** True when the opposing jaw has at least one impression selection. */
 export function archHasOpposingImpressionSelections(
-  selectedImpressions: Record<string, number>,
+  selectedImpressions: SlipImpressionSelections,
   opposingArch: Arch,
-  productId?: string
+  _productId?: string
 ): boolean {
-  if (productId) {
-    return archHasActiveSelections(selectedImpressions, productId, opposingArch);
-  }
-  return Object.entries(selectedImpressions).some(([key, qty]) => {
-    const parsed = parseImpressionKeyLocal(key);
-    return parsed?.arch === opposingArch && qty > 0;
-  });
+  void _productId;
+  return archHasImpressionSelections(selectedImpressions, opposingArch);
 }
 
 export function hasSkippedOpposing(
@@ -129,7 +93,6 @@ export function getOpposingImpressionRequirement({
   noOpposingNeeded: Record<string, boolean>;
   getCard0TeethForArch: (arch: Arch) => number[];
 }): { required: boolean; arch: Arch | null; tooth: number | null } {
-  // Opposing impressions are always optional — never block slip readiness.
   void hasOppositeSection;
   void oppositeImpressionEnabled;
   void noOpposingNeeded;

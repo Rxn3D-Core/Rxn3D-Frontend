@@ -3,7 +3,6 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import type { CaseDesignProps } from "../types";
 import type { ImplantDetailData } from "./ImplantDetailSection";
-import { productImpressionsToModalOptions } from "../types";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
 import { resolveGroupStageToothNumber } from "../utils/implantDetailHelpers";
@@ -28,11 +27,14 @@ import {
   isOppositeImpressionEnabled,
 } from "../utils/opposingImpressionReadiness";
 import {
+  buildImpressionModalOptions,
+  collectImpressionCatalogForArch,
+  collectSlipWideImpressionCatalog,
   getImpressionOptionsForProduct,
   resolveImpressionName,
   resolveProductForImpression,
 } from "../utils/impressionFieldSync";
-import { buildImpressionDisplayTextForArch } from "../utils/archSharedImpressions";
+import { buildImpressionDisplayText } from "../utils/impressionStorage";
 import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
@@ -493,16 +495,151 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         state.initialProductDetails,
         repTooth
       );
-      const list = getImpressionOptionsForProduct(product);
-      const options = list.length > 0 ? list : mockImpressions;
+      const catalog = collectImpressionCatalogForArch(
+        arch,
+        state.getToothProduct,
+        arch === "maxillary"
+          ? state.maxillaryRetentionTypes
+          : state.mandibularRetentionTypes,
+        props.addedProducts,
+        state.initialProductDetails,
+        props.initialArch
+      );
+      const options = buildImpressionModalOptions(
+        arch,
+        state.selectedImpressions,
+        catalog,
+        mockImpressions
+      );
       return resolveImpressionName(code, options);
     },
     [
       resolveRemovableImpressionTooth,
       state.getToothProduct,
       state.initialProductDetails,
+      state.maxillaryRetentionTypes,
+      state.mandibularRetentionTypes,
+      props.addedProducts,
+      props.initialArch,
+      state.selectedImpressions,
     ]
   );
+
+  /** Dual-grid impression modal (maxillary + mandibular sections). */
+  const impressionModalShowsDualArches = useMemo(() => {
+    if (
+      props.initialArch === "both" &&
+      isNonRetentionCategory(state.initialProductDetails)
+    ) {
+      return true;
+    }
+    return (
+      props.initialArch !== "both" &&
+      isNonRetentionCategory(state.initialProductDetails) &&
+      initialProductHasOppositeSection &&
+      isOppositeImpressionEnabled(state.initialProductDetails)
+    );
+  }, [
+    props.initialArch,
+    state.initialProductDetails,
+    initialProductHasOppositeSection,
+  ]);
+
+  const slipWideImpressionCatalog = useMemo(
+    () =>
+      collectSlipWideImpressionCatalog(
+        state.getToothProduct,
+        state.maxillaryRetentionTypes,
+        state.mandibularRetentionTypes,
+        props.addedProducts,
+        state.initialProductDetails,
+        props.initialArch
+      ),
+    [
+      state.getToothProduct,
+      state.maxillaryRetentionTypes,
+      state.mandibularRetentionTypes,
+      props.addedProducts,
+      state.initialProductDetails,
+      props.initialArch,
+    ]
+  );
+
+  const impressionModalCatalog = useMemo(() => {
+    if (impressionModalShowsDualArches) {
+      return slipWideImpressionCatalog;
+    }
+    const arch = state.currentImpressionArch;
+    return collectImpressionCatalogForArch(
+      arch,
+      state.getToothProduct,
+      arch === "maxillary"
+        ? state.maxillaryRetentionTypes
+        : state.mandibularRetentionTypes,
+      props.addedProducts,
+      state.initialProductDetails,
+      props.initialArch
+    );
+  }, [
+    impressionModalShowsDualArches,
+    slipWideImpressionCatalog,
+    state.currentImpressionArch,
+    state.getToothProduct,
+    state.maxillaryRetentionTypes,
+    state.mandibularRetentionTypes,
+    props.addedProducts,
+    state.initialProductDetails,
+    props.initialArch,
+  ]);
+
+  const impressionModalOptions = useMemo(
+    () =>
+      buildImpressionModalOptions(
+        state.currentImpressionArch,
+        state.selectedImpressions,
+        impressionModalCatalog,
+        mockImpressions
+      ),
+    [
+      state.currentImpressionArch,
+      state.selectedImpressions,
+      impressionModalCatalog,
+    ]
+  );
+
+  const oppositeImpressionModalOptions = useMemo(() => {
+    const arch = state.currentImpressionArch;
+    const opposingArch = arch === "maxillary" ? "mandibular" : "maxillary";
+    const catalog = impressionModalShowsDualArches
+      ? slipWideImpressionCatalog
+      : collectImpressionCatalogForArch(
+          opposingArch,
+          state.getToothProduct,
+          opposingArch === "maxillary"
+            ? state.maxillaryRetentionTypes
+            : state.mandibularRetentionTypes,
+          props.addedProducts,
+          state.initialProductDetails,
+          props.initialArch
+        );
+    return buildImpressionModalOptions(
+      opposingArch,
+      state.selectedImpressions,
+      catalog,
+      mockImpressions
+    );
+  }, [
+    impressionModalShowsDualArches,
+    slipWideImpressionCatalog,
+    state.currentImpressionArch,
+    state.getToothProduct,
+    state.maxillaryRetentionTypes,
+    state.mandibularRetentionTypes,
+    props.addedProducts,
+    state.initialProductDetails,
+    props.initialArch,
+    state.selectedImpressions,
+  ]);
 
   // Re-attach impression completion when representative teeth move (e.g. after extractions).
   const maxillaryRepKey = maxillaryRepresentativeTeeth.join(",");
@@ -665,20 +802,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     if (state.showImpressionModal) return;
 
     for (const arch of ["maxillary", "mandibular"] as const) {
-      if ((state.selectedImpressionsByArch?.[arch]?.length ?? 0) === 0) {
+      if ((state.selectedImpressions[arch]?.length ?? 0) === 0) {
         continue;
       }
 
-      const displayText = buildImpressionDisplayTextForArch(
-        state.selectedImpressions,
-        arch,
-        (code) =>
-          resolveImpressionLabelForArchRef.current(
-            arch,
-            state.currentImpressionProductId || "0",
-            code
-          )
-      );
+      const displayText = buildImpressionDisplayText(state.selectedImpressions, arch);
       if (!displayText) continue;
       applyImpressionCompletionRef.current(arch, displayText, null);
     }
@@ -692,9 +820,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.keys(state.mandibularRetentionTypes || {}).length > 0 || mandibularHasRemovablesTeeth;
 
   const hasMaxillaryArchImpressionSelected =
-    (state.selectedImpressionsByArch?.maxillary?.length ?? 0) > 0;
+    (state.selectedImpressions.maxillary?.length ?? 0) > 0;
   const hasMandibularArchImpressionSelected =
-    (state.selectedImpressionsByArch?.mandibular?.length ?? 0) > 0;
+    (state.selectedImpressions.mandibular?.length ?? 0) > 0;
 
   // Main-side validation only: opposing impressions are optional and never blocking.
   const requireMaxillaryImpression =
@@ -1391,36 +1519,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         currentImpressionArch={state.currentImpressionArch}
         currentImpressionProductId={state.currentImpressionProductId}
         currentImpressionToothNumber={state.currentImpressionToothNumber}
-        impressionOptions={
-          (() => {
-            const toothNum = state.currentImpressionToothNumber;
-            const arch = state.currentImpressionArch;
-            if (toothNum === null) return mockImpressions;
-            let product = state.getToothProduct(arch, toothNum);
-            if (!product && state.currentImpressionProductId) {
-              const archKeys = arch === "maxillary"
-                ? Object.keys(state.maxillaryRetentionTypes || {})
-                : Object.keys(state.mandibularRetentionTypes || {});
-              for (const k of archKeys) {
-                const p = state.getToothProduct(arch, Number(k));
-                if (p?.id?.toString() === state.currentImpressionProductId) { product = p; break; }
-              }
-            }
-            // Single-arch removable: mandibular opposing impressions may run before any mand tooth product row exists
-            if (
-              !product &&
-              isNonRetentionCategory(state.initialProductDetails) &&
-              state.initialProductDetails &&
-              (state.initialProductDetails.id?.toString() === state.currentImpressionProductId ||
-                state.currentImpressionProductId === "0")
-            ) {
-              product = state.initialProductDetails;
-            }
-            const options = productImpressionsToModalOptions(product?.impressions);
-            return options.length > 0 ? options : mockImpressions;
-          })()
-        }
-        oppositeImpressions={productImpressionsToModalOptions(state.initialProductDetails?.impressions)}
+        impressionOptions={impressionModalOptions}
+        oppositeImpressions={oppositeImpressionModalOptions}
         currentImpressionOppositeImpression={
           (() => {
             // Removable + both arches: one dialog with maxillary and mandibular sections (no mirroring).
@@ -1473,7 +1573,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           })()
         }
         selectedImpressions={state.selectedImpressions}
-        selectedImpressionsByArch={state.selectedImpressionsByArch}
         setSelectedImpressions={state.setSelectedImpressions}
         onImpressionConfirm={(displayText, targetArch) => {
           const modalArch = targetArch || state.currentImpressionArch;
