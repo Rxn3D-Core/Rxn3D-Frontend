@@ -3,6 +3,7 @@
 import React from "react";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
+import { ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
 import { ProductImagePreview } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
 import { caseDesignInter, productAccordionTitleClass, productAccordionToothClass } from "../case-design-inter-font";
@@ -27,19 +28,30 @@ export interface ProductAccordionCardProps {
   confirmDetailsChecked?: boolean;
   caseSubmitted?: boolean;
 
-  /**
-   * When provided, replaces the default compact header button entirely.
-   * Used for removable products that need the large-image header with
-   * ToothStatusBoxes, bordered title box, and interactive extraction UI.
-   * The caller is responsible for rendering the chevron and wiring onToggle.
-   */
-  customHeader?: React.ReactNode;
-
-  /** Highlights this accordion as the product receiving chart / tooth-status input. */
+  /** Highlights this accordion as the product receiving chart / tooth-status input (blue card ring). */
   isCurrentlyActive?: boolean;
+
+  /** Removable multi-extraction: Done control before chevron (same slot as fixed retention Done). */
+  showExtractionsDone?: boolean;
+  extractionsAcknowledged?: boolean;
+  onExtractionsAcknowledgedChange?: (value: boolean) => void;
+
+  /**
+   * Optional block below the compact header row (e.g. ToothStatusBoxes).
+   * Clicks do not toggle expand/collapse.
+   */
+  headerExtension?: React.ReactNode;
 
   /** When false, accordion is dimmed and cannot be expanded (another arch/product is active). */
   interactionEnabled?: boolean;
+
+  /** Fixed restoration: Done after tooth-chart retention selection (same UX as removable extractions). */
+  showRetentionDone?: boolean;
+  retentionDoneAcknowledged?: boolean;
+  onRetentionDoneChange?: (value: boolean) => void;
+
+  /** Removable/fixed layout: large image, tags, active product box (replaces default compact header). */
+  customHeader?: React.ReactNode;
 
   children?: React.ReactNode;
 }
@@ -58,9 +70,16 @@ export function ProductAccordionCard({
   canDelete,
   onDelete,
   caseSubmitted = false,
-  customHeader,
   isCurrentlyActive = false,
   interactionEnabled = true,
+  showRetentionDone = false,
+  retentionDoneAcknowledged = false,
+  onRetentionDoneChange,
+  showExtractionsDone = false,
+  extractionsAcknowledged = false,
+  onExtractionsAcknowledgedChange,
+  headerExtension,
+  customHeader,
   children,
 }: ProductAccordionCardProps) {
   const outerBorderClass = isCurrentlyActive
@@ -72,8 +91,11 @@ export function ProductAccordionCard({
   return (
     <div className={`relative mt-2 ${!interactionEnabled ? "opacity-45 pointer-events-none" : ""}`}>
       <div className={`rounded-lg bg-white overflow-hidden ${outerBorderClass}`}>
-        {customHeader ?? (
-          /* Default compact header — fixed restoration style */
+        {customHeader ? (
+          <div className={headerExtension || isExpanded ? "" : "rounded-b-[5.4px]"}>
+            {customHeader}
+          </div>
+        ) : (
           <button
             type="button"
             disabled={!interactionEnabled}
@@ -84,12 +106,9 @@ export function ProductAccordionCard({
                 : hasRush
                   ? "bg-[#FCE4E4] hover:bg-[#f8d4d4]"
                   : "bg-white hover:bg-gray-50"
-            }`}
+            } ${headerExtension ? "" : isExpanded ? "" : "rounded-b-[5.4px]"}`}
           >
-            <ProductImagePreview
-              imageUrl={productImageUrl}
-              altText={productName}
-            />
+            <ProductImagePreview imageUrl={productImageUrl} altText={productName} />
             <div className="flex-1 min-w-0 text-left flex flex-col gap-0.5">
               <p className="flex items-center gap-1 truncate min-w-0">
                 <span className={`${productAccordionTitleClass} truncate`}>{productName}</span>
@@ -99,17 +118,24 @@ export function ProductAccordionCard({
                 {hasRush && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
               </p>
               <div className="flex items-center gap-[5px] flex-wrap">
+                {categoryName && <AccordionBadge>{categoryName}</AccordionBadge>}
                 {subcategoryName && <AccordionBadge>{subcategoryName}</AccordionBadge>}
-                {categoryName && !subcategoryName && <AccordionBadge>{categoryName}</AccordionBadge>}
                 {stageName && <AccordionBadge>{stageName}</AccordionBadge>}
                 <EstDaysLabel rushed={hasRush} text={hasRush ? "5 work days after submission" : estDaysText} />
                 {canDelete && !caseSubmitted && (
                   <span
                     role="button"
                     tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete?.();
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onDelete?.(); }
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDelete?.();
+                      }
                     }}
                     className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
                     title="Remove product"
@@ -119,11 +145,40 @@ export function ProductAccordionCard({
                 )}
               </div>
             </div>
-            <ChevronDown
-              size={21.6}
-              className={`text-black flex-shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-            />
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {showExtractionsDone && onExtractionsAcknowledgedChange && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ExtractionsDoneAcknowledgement
+                    acknowledged={extractionsAcknowledged}
+                    onAcknowledgedChange={onExtractionsAcknowledgedChange}
+                    caseSubmitted={caseSubmitted}
+                  />
+                </div>
+              )}
+              {showRetentionDone && onRetentionDoneChange && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ExtractionsDoneAcknowledgement
+                    acknowledged={retentionDoneAcknowledged}
+                    onAcknowledgedChange={onRetentionDoneChange}
+                    caseSubmitted={caseSubmitted}
+                  />
+                </div>
+              )}
+              <ChevronDown
+                size={21.6}
+                className={`text-black flex-shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              />
+            </div>
           </button>
+        )}
+
+        {headerExtension && (
+          <div
+            className="px-2 pb-2 border-t border-[#f0f0f0] bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {headerExtension}
+          </div>
         )}
 
         {/* Body */}

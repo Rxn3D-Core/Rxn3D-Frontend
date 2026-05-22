@@ -357,8 +357,18 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   const isAccordionEnabled = useCallback(
-    (arch: Arch, slotId: string) =>
-      !activeAccordionKey || activeAccordionKey === productAccordionKey(arch, slotId),
+    (arch: Arch, slotId: string) => {
+      const key = productAccordionKey(arch, slotId);
+      if (!activeAccordionKey || activeAccordionKey === key) return true;
+      // Card 0 fixed uses fixed0_* while default focus is still removable0 (no removable on arch).
+      if (
+        slotId.startsWith("fixed0_") &&
+        activeAccordionKey === productAccordionKey(arch, "removable0")
+      ) {
+        return true;
+      }
+      return false;
+    },
     [activeAccordionKey]
   );
 

@@ -83,6 +83,11 @@ export function removableCardAckKey(arch: "maxillary" | "mandibular", cardId: nu
   return `${arch}-removable-${cardId}`;
 }
 
+/** Card 0 fixed restoration: user acknowledged tooth chart retention picks. */
+export function fixedRetentionAckKey(arch: "maxillary" | "mandibular"): string {
+  return `${arch}-fixed-retention-0`;
+}
+
 /**
  * Multi-status removable products: user must acknowledge tooth/extraction picks
  * before grade / shade / impression fields appear.

@@ -50,6 +50,11 @@ import {
   getShadeGuideOptionsFromProduct,
   resolveFixedShadeProductId,
 } from "../utils/shadeGuideAdvanceFields";
+import type { SlipImpressionSelections } from "../utils/impressionStorage";
+import {
+  ARCH_IMPRESSION_PRODUCT_ID,
+  archHasActiveImpressionSelections,
+} from "../utils/impressionFieldSync";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -340,6 +345,8 @@ interface FixedRestorationFieldsProps {
   migrateFixedShadeProductId?: (fromProductId: string, toProductId: string, arch: Arch) => void;
   /** Implant details from the opposite arch (same product) for cross-arch mirroring. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
+  /** Arch-wide impression qty grid (shared by all fixed/removable products on this jaw). */
+  selectedImpressions?: SlipImpressionSelections;
 }
 
 /* ------------------------------------------------------------------ */
@@ -387,6 +394,7 @@ export function RetentionProductFields({
   setPanelGumShadePicker,
   migrateFixedShadeProductId,
   peerImplantDetailByTooth,
+  selectedImpressions = { maxillary: [], mandibular: [] },
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
@@ -447,7 +455,19 @@ export function RetentionProductFields({
       getFieldValue,
     ]
   );
-  const impressionProductId = selectedProduct?.id?.toString() || `fixed_${firstToothNumber}`;
+  const impressionModalProductId = ARCH_IMPRESSION_PRODUCT_ID;
+  const impressionDisplayText =
+    getImpressionDisplayText(impressionModalProductId, arch)?.trim() ?? "";
+  const impressionHasArchSelections = archHasActiveImpressionSelections(
+    selectedImpressions,
+    impressionModalProductId,
+    arch
+  );
+  const impressionComplete =
+    isFieldCompleted(arch, firstToothNumber, "fixed_impression") ||
+    impressionHasArchSelections ||
+    !!impressionDisplayText;
+  const impressionEmpty = !impressionDisplayText && !impressionHasArchSelections;
   const fixedShadeProductId = resolveFixedShadeProductId(
     selectedProduct?.id,
     groupStageToothNumber
@@ -514,7 +534,6 @@ export function RetentionProductFields({
     !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
   const impressionVisible =
     isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
-  const impressionEmpty = !isFieldCompleted(arch, firstToothNumber, "fixed_impression");
   const hasAutoOpenedImpressionRef = useRef(false);
   const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -568,7 +587,7 @@ export function RetentionProductFields({
     if (impressionTimerRef.current) clearTimeout(impressionTimerRef.current);
     impressionTimerRef.current = setTimeout(() => {
       impressionTimerRef.current = null;
-      handleOpenImpressionModal(arch, impressionProductId, firstToothNumber);
+      handleOpenImpressionModal(arch, impressionModalProductId, firstToothNumber);
     }, 150);
   }, [
     arch,
@@ -576,7 +595,7 @@ export function RetentionProductFields({
     firstToothNumber,
     handleOpenImpressionModal,
     impressionEmpty,
-    impressionProductId,
+    impressionModalProductId,
     impressionVisible,
     isExpanded,
   ]);
@@ -1428,20 +1447,20 @@ export function RetentionProductFields({
           <div className="flex flex-wrap gap-3">
             <fieldset
               className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors w-full ${
-                isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "border-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "border-[#b4b0b0]" : "border-[#CF0202]"
+                impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
               }`}
               onClick={() => {
-                handleOpenImpressionModal(arch, impressionProductId, firstToothNumber);
+                handleOpenImpressionModal(arch, impressionModalProductId, firstToothNumber);
               }}
             >
-              <legend className={`text-sm px-1 leading-none ${isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted ? "text-[#34a853]" : isFieldCompleted(arch, firstToothNumber, "fixed_impression") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+              <legend className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
                 Impression
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000] break-words">
-                  {getImpressionDisplayText(impressionProductId, arch, firstToothNumber)}
+                  {impressionDisplayText}
                 </span>
-                {isFieldCompleted(arch, firstToothNumber, "fixed_impression") && !caseSubmitted && (
+                {impressionComplete && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853] ml-auto" />
                 )}
               </div>

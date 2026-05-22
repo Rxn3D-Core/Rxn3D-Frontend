@@ -297,6 +297,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // When both arches already have their own removables products, the opposing accordion is redundant.
   const bothArchesHaveProducts = maxillaryHasRemovables && mandibularHasRemovables;
 
+  const slipHasMaxillaryProducts =
+    Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+    maxillaryHasRemovables ||
+    maxillaryHasFixedAdded ||
+    maxillaryHasFixedCard0;
+
+  const slipHasMandibularProducts =
+    Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
+    mandibularHasRemovables ||
+    mandibularHasFixedAdded ||
+    mandibularHasRemovablesCard0;
+
+  /** Multi-product slips: show maxillary + mandibular impression grids whenever both arches have work. */
+  const slipHasProductsOnBothArches =
+    slipHasMaxillaryProducts && slipHasMandibularProducts;
+
   // True when the initial product has an opposing section — either via opposite_impression flag
   // or via opposite_extractions being populated. Uses both signals so the panel shows even when
   // lab-specific opposite_extractions haven't been configured but the flag is set.
@@ -527,6 +543,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   /** Dual-grid impression modal (maxillary + mandibular sections). */
   const impressionModalShowsDualArches = useMemo(() => {
+    if (slipHasProductsOnBothArches) return true;
     if (
       props.initialArch === "both" &&
       isNonRetentionCategory(state.initialProductDetails)
@@ -540,6 +557,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       isOppositeImpressionEnabled(state.initialProductDetails)
     );
   }, [
+    slipHasProductsOnBothArches,
     props.initialArch,
     state.initialProductDetails,
     initialProductHasOppositeSection,
@@ -1523,6 +1541,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         oppositeImpressions={oppositeImpressionModalOptions}
         currentImpressionOppositeImpression={
           (() => {
+            // Multi-product / mixed arch: always show both impression grids.
+            if (slipHasProductsOnBothArches) {
+              return "Yes";
+            }
             // Removable + both arches: one dialog with maxillary and mandibular sections (no mirroring).
             if (
               props.initialArch === "both" &&
@@ -1596,17 +1618,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
         }}
         hideSkipOpposing={
-          props.initialArch === "both" &&
-          isNonRetentionCategory(state.initialProductDetails)
+          slipHasProductsOnBothArches ||
+          (props.initialArch === "both" &&
+            isNonRetentionCategory(state.initialProductDetails))
         }
         impressionModalHeading={
-          props.initialArch === "both" &&
-          isNonRetentionCategory(state.initialProductDetails)
+          slipHasProductsOnBothArches ||
+          (props.initialArch === "both" &&
+            isNonRetentionCategory(state.initialProductDetails))
             ? "Impressions"
             : undefined
         }
         dualImpressionPrimaryArch={
-          props.initialArch === "mandibular" ? "mandibular" : "maxillary"
+          slipHasMandibularProducts && !slipHasMaxillaryProducts
+            ? "mandibular"
+            : "maxillary"
         }
         showAddOnsModal={state.showAddOnsModal}
         setShowAddOnsModal={state.setShowAddOnsModal}
