@@ -74,7 +74,7 @@ export function FixedAccordionShadePicker({
   if (!fieldType) return null;
 
   return (
-    <div className="mt-3 border border-[#1162A8] rounded-lg p-4 bg-white min-w-0 overflow-x-hidden">
+    <div className="mt-3 border border-[#1162A8] rounded-lg p-4 bg-white min-w-0 overflow-visible">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="relative">
           <fieldset

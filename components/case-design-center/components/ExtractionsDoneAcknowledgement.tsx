@@ -50,6 +50,10 @@ interface AccordionHeaderActionsProps {
   showExtractionsDone?: boolean;
   extractionsAcknowledged?: boolean;
   onExtractionsAcknowledgedChange?: (value: boolean) => void;
+  /** Fixed restoration: Done after chart retention selection. */
+  showRetentionDone?: boolean;
+  retentionDoneAcknowledged?: boolean;
+  onRetentionDoneChange?: (value: boolean) => void;
   /** Expand/collapse accordion and activate this product for tooth-status selection. */
   onToggleExpand?: () => void;
   /** When false, chevron cannot switch accordion focus. */
@@ -63,6 +67,9 @@ export function AccordionHeaderActions({
   showExtractionsDone = false,
   extractionsAcknowledged = false,
   onExtractionsAcknowledgedChange,
+  showRetentionDone = false,
+  retentionDoneAcknowledged = false,
+  onRetentionDoneChange,
   onToggleExpand,
   expandEnabled = true,
 }: AccordionHeaderActionsProps) {
@@ -73,6 +80,15 @@ export function AccordionHeaderActions({
           <ExtractionsDoneAcknowledgement
             acknowledged={extractionsAcknowledged}
             onAcknowledgedChange={onExtractionsAcknowledgedChange}
+            caseSubmitted={caseSubmitted}
+          />
+        </div>
+      )}
+      {showRetentionDone && onRetentionDoneChange && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ExtractionsDoneAcknowledgement
+            acknowledged={retentionDoneAcknowledged}
+            onAcknowledgedChange={onRetentionDoneChange}
             caseSubmitted={caseSubmitted}
           />
         </div>

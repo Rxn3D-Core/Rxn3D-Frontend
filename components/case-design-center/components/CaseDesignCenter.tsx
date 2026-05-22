@@ -18,6 +18,7 @@ import {
   getPrimaryCardRepresentativeTooth,
   getRepresentativeTeethByCard,
 } from "../utils/productSelectionReadiness";
+import { AddProductFocusOverlay } from "./AddProductFocusOverlay";
 import { CaseDesignHeaderActions } from "./CaseDesignHeaderActions";
 import { CaseDesignSummarySection } from "./CaseDesignSummarySection";
 import { useSlipProductCollector } from "../hooks/useSlipProductCollector";
@@ -41,6 +42,7 @@ import {
 } from "../utils/archSharedRemovable";
 import { canShowAddProductButton } from "../utils/archAddProductReadiness";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
+import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import {
   findOppositeArchProductDonor,
   resolveProductStagesForDisplay,
@@ -297,6 +299,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // When both arches already have their own removables products, the opposing accordion is redundant.
   const bothArchesHaveProducts = maxillaryHasRemovables && mandibularHasRemovables;
 
+  const slipHasMaxillaryProducts =
+    Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+    maxillaryHasRemovables ||
+    maxillaryHasFixedAdded ||
+    maxillaryHasFixedCard0;
+
+  const slipHasMandibularProducts =
+    Object.keys(state.mandibularRetentionTypes || {}).length > 0 ||
+    mandibularHasRemovables ||
+    mandibularHasFixedAdded ||
+    mandibularHasRemovablesCard0;
+
+  /** Multi-product slips: show maxillary + mandibular impression grids whenever both arches have work. */
+  const slipHasProductsOnBothArches =
+    slipHasMaxillaryProducts && slipHasMandibularProducts;
+
   // True when the initial product has an opposing section — either via opposite_impression flag
   // or via opposite_extractions being populated. Uses both signals so the panel shows even when
   // lab-specific opposite_extractions haven't been configured but the flag is set.
@@ -527,6 +545,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   /** Dual-grid impression modal (maxillary + mandibular sections). */
   const impressionModalShowsDualArches = useMemo(() => {
+    if (slipHasProductsOnBothArches) return true;
     if (
       props.initialArch === "both" &&
       isNonRetentionCategory(state.initialProductDetails)
@@ -540,6 +559,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       isOppositeImpressionEnabled(state.initialProductDetails)
     );
   }, [
+    slipHasProductsOnBothArches,
     props.initialArch,
     state.initialProductDetails,
     initialProductHasOppositeSection,
@@ -1206,23 +1226,31 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     mandibularImplantDetail: mandibularImplantDetailRef.current,
   });
 
+  const inlineAddProductArch = props.inlineAddProductArch ?? null;
+  const isAddingMaxillaryProduct = inlineAddProductArch === "maxillary";
+  const isAddingMandibularProduct = inlineAddProductArch === "mandibular";
+  const addProductFocusActive = inlineAddProductArch != null && !props.caseSubmitted;
+
   return (
     <div className="px-1 md:px-2 py-2">
-      <CaseDesignHeaderActions
-        caseSubmitted={props.caseSubmitted}
-        onBackToProducts={props.onBackToProducts}
-        hasIncompleteAccordion={hasIncompleteAccordion}
-        onAddMaxillaryProduct={() => props.onAddProduct?.("maxillary")}
-        onAddMandibularProduct={() => props.onAddProduct?.("mandibular")}
-        showMaxillaryProductButton={showMaxillaryProductButton}
-        showMandibularProductButton={showMandibularProductButton}
-      />
+      <AddProductFocusOverlay active={addProductFocusActive}>
+        <CaseDesignHeaderActions
+          caseSubmitted={props.caseSubmitted}
+          onBackToProducts={props.onBackToProducts}
+          hasIncompleteAccordion={hasIncompleteAccordion}
+          onAddMaxillaryProduct={() => props.onAddProduct?.("maxillary")}
+          onAddMandibularProduct={() => props.onAddProduct?.("mandibular")}
+          showMaxillaryProductButton={showMaxillaryProductButton}
+          showMandibularProductButton={showMandibularProductButton}
+        />
+      </AddProductFocusOverlay>
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
         <div className="flex flex-col lg:flex-row lg:gap-0 gap-4">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
+          activeAccordionKey={state.activeAccordionKey}
           isAccordionExpanded={(slotId) => state.isAccordionExpanded("maxillary", slotId)}
           isAccordionEnabled={(slotId) => state.isAccordionEnabled("maxillary", slotId)}
           toggleAccordionFocus={(slotId, cardId) =>
@@ -1236,6 +1264,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             setShowMaxillary={state.setShowMaxillary}
             showDetails={showProductDetails}
           caseSubmitted={props.caseSubmitted}
+          disabled={!props.caseSubmitted && isAddingMandibularProduct}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
           handleMaxillaryToothClick={state.handleMaxillaryToothClick}
@@ -1313,10 +1342,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           noOpposingNeeded={state.noOpposingNeeded}
           selectedImpressions={state.selectedImpressions}
           opposingProductData={
-            initialProductHasOppositeSection &&
-            props.initialArch === "mandibular" &&
-            mandibularTeethSelected &&
-            !bothArchesHaveProducts
+            shouldShowOpposingProductMirror({
+              initialProductHasOppositeSection,
+              hostMatchesInitialArch: props.initialArch === "mandibular",
+              primaryArchTeethSelected: mandibularTeethSelected,
+              oppositeArch: "maxillary",
+              initialArch: props.initialArch,
+              selectedProductId: props.selectedProductId,
+              addedProducts: props.addedProducts,
+              bothArchesHaveRemovables: bothArchesHaveProducts,
+            })
               ? state.initialProductDetails
               : null
           }
@@ -1361,20 +1396,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           const noTeethSelected = state.maxillaryTeeth.length === 0 && state.mandibularTeeth.length === 0;
           const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && noTeethSelected && !activeProductIsFixed;
           return (
-            <CenterNavigation
-              showMaxillary={effectiveShowMax}
-              setShowMaxillary={state.setShowMaxillary}
-              showMandibular={effectiveShowMan}
-              setShowMandibular={handleSetShowMandibular}
-              showTeethInMouth={showTim}
-              showMaxillaryArrow={showTim && showMaxArrow}
-              showMandibularArrow={showTim && showManArrow}
-            />
+            <AddProductFocusOverlay active={addProductFocusActive}>
+              <CenterNavigation
+                showMaxillary={effectiveShowMax}
+                setShowMaxillary={state.setShowMaxillary}
+                showMandibular={effectiveShowMan}
+                setShowMandibular={handleSetShowMandibular}
+                showTeethInMouth={showTim}
+                showMaxillaryArrow={showTim && showMaxArrow}
+                showMandibularArrow={showTim && showManArrow}
+              />
+            </AddProductFocusOverlay>
           );
         })()}
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
+          activeAccordionKey={state.activeAccordionKey}
           isAccordionExpanded={(slotId) => state.isAccordionExpanded("mandibular", slotId)}
           isAccordionEnabled={(slotId) => state.isAccordionEnabled("mandibular", slotId)}
           toggleAccordionFocus={(slotId, cardId) =>
@@ -1388,7 +1426,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           setShowMandibular={handleSetShowMandibular}
           showDetails={showProductDetails}
           caseSubmitted={props.caseSubmitted}
-          disabled={props.caseSubmitted ? false : maxillaryIncomplete}
+          disabled={
+            props.caseSubmitted
+              ? false
+              : maxillaryIncomplete || isAddingMaxillaryProduct
+          }
+          blockedByOppositeAddProduct={isAddingMaxillaryProduct}
           // Tooth selection
           mandibularTeeth={state.mandibularTeeth}
           handleMandibularToothClick={state.handleMandibularToothClick}
@@ -1463,10 +1506,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           noOpposingNeeded={state.noOpposingNeeded}
           selectedImpressions={state.selectedImpressions}
           opposingProductData={
-            initialProductHasOppositeSection &&
-            props.initialArch === "maxillary" &&
-            maxillaryTeethSelected &&
-            !bothArchesHaveProducts
+            shouldShowOpposingProductMirror({
+              initialProductHasOppositeSection,
+              hostMatchesInitialArch: props.initialArch === "maxillary",
+              primaryArchTeethSelected: maxillaryTeethSelected,
+              oppositeArch: "mandibular",
+              initialArch: props.initialArch,
+              selectedProductId: props.selectedProductId,
+              addedProducts: props.addedProducts,
+              bothArchesHaveRemovables: bothArchesHaveProducts,
+            })
               ? state.initialProductDetails
               : null
           }
@@ -1503,14 +1552,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
       </div>
 
-      <CaseDesignSummarySection
-        state={state}
-        caseSubmitted={props.caseSubmitted}
-        rushCasesEnabled={props.rushCasesEnabled}
-        allProductsComplete={allTeethImpressionComplete}
-        maxillaryHasRemovables={maxillaryHasRemovables}
-        mandibularHasRemovables={mandibularHasRemovables}
-      />
+      <AddProductFocusOverlay active={addProductFocusActive}>
+        <CaseDesignSummarySection
+          state={state}
+          caseSubmitted={props.caseSubmitted}
+          rushCasesEnabled={props.rushCasesEnabled}
+          allProductsComplete={allTeethImpressionComplete}
+          maxillaryHasRemovables={maxillaryHasRemovables}
+          mandibularHasRemovables={mandibularHasRemovables}
+        />
+      </AddProductFocusOverlay>
 
       {/* All Modals */}
       <ModalOrchestrator
@@ -1523,6 +1574,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         oppositeImpressions={oppositeImpressionModalOptions}
         currentImpressionOppositeImpression={
           (() => {
+            // Multi-product / mixed arch: always show both impression grids.
+            if (slipHasProductsOnBothArches) {
+              return "Yes";
+            }
             // Removable + both arches: one dialog with maxillary and mandibular sections (no mirroring).
             if (
               props.initialArch === "both" &&
@@ -1596,17 +1651,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
         }}
         hideSkipOpposing={
-          props.initialArch === "both" &&
-          isNonRetentionCategory(state.initialProductDetails)
+          slipHasProductsOnBothArches ||
+          (props.initialArch === "both" &&
+            isNonRetentionCategory(state.initialProductDetails))
         }
         impressionModalHeading={
-          props.initialArch === "both" &&
-          isNonRetentionCategory(state.initialProductDetails)
+          slipHasProductsOnBothArches ||
+          (props.initialArch === "both" &&
+            isNonRetentionCategory(state.initialProductDetails))
             ? "Impressions"
             : undefined
         }
         dualImpressionPrimaryArch={
-          props.initialArch === "mandibular" ? "mandibular" : "maxillary"
+          slipHasMandibularProducts && !slipHasMaxillaryProducts
+            ? "mandibular"
+            : "maxillary"
         }
         showAddOnsModal={state.showAddOnsModal}
         setShowAddOnsModal={state.setShowAddOnsModal}
