@@ -1,6 +1,7 @@
 import type { SlipCreationPayload, SlipCreationProduct } from "@/services/slip-creation-service";
 import type { SlipProductSnapshot } from "../types";
 import { hasRetentionOptions } from "./categoryHelpers";
+import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
 
 interface BuildCaseSubmissionPayloadParams {
@@ -12,46 +13,6 @@ interface BuildCaseSubmissionPayloadParams {
   patientName: string;
   gender?: string;
   age?: string;
-}
-
-/** Build the case summary note string for a product snapshot (mirrors CaseSummaryNotes logic). */
-function buildProductNote(
-  snap: SlipProductSnapshot,
-  product: Record<string, any> | null,
-  stageName: string | null
-): string {
-  const productName = product?.name || "";
-  const teethStr = snap.teethNumbers.length
-    ? snap.teethNumbers.slice().sort((a, b) => a - b).join(", ")
-    : "";
-
-  const gradeRaw = snap.fieldValues["grade"] ?? "";
-  let gradeName = gradeRaw;
-  try {
-    const p = JSON.parse(gradeRaw);
-    if (p?.skipped === true) gradeName = "";
-    else gradeName = p.name ?? gradeRaw;
-  } catch {}
-
-  const teethShadeRaw = snap.fieldValues["teeth_shade"] ?? "";
-  let teethShade = teethShadeRaw;
-  try { const p = JSON.parse(teethShadeRaw); teethShade = p.name ?? teethShadeRaw; } catch {}
-  const gumShadeRaw = snap.fieldValues["gum_shade"] ?? "";
-  let gumShadeName = gumShadeRaw;
-  try { const p = JSON.parse(gumShadeRaw); gumShadeName = p.name ?? gumShadeRaw; } catch {}
-
-  const fixedNotes = snap.fieldValues["fixed_notes"] ?? "";
-
-  let note = productName
-    ? `Please fabricate a${gradeName ? ` ${gradeName}` : ""} ${productName} for teeth #${teethStr}${stageName ? `, in the ${stageName} stage` : ""}.`
-    : "";
-
-  if (teethShade || gumShadeName) {
-    note += ` Use${teethShade ? ` ${teethShade} denture teeth` : ""}${gumShadeName ? ` with ${gumShadeName} gingiva` : ""}.`;
-  }
-  if (fixedNotes) note += ` Notes: ${fixedNotes}.`;
-
-  return note || undefined as any;
 }
 
 function parseShadeDisplayName(raw: string): string {
@@ -156,7 +117,7 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
       ...(product?.is_single_stage !== "Yes" ? { stage_id } : {}),
       teeth_selection: (snap.checkedTeeth && snap.checkedTeeth.length > 0 ? snap.checkedTeeth : snap.teethNumbers).join(","),
       status: "In Progress",
-      notes: buildProductNote(snap, product, stageName),
+      notes: buildProductNoteFromSnapshot(snap) || undefined,
       ...(impressions.length > 0 ? { impressions } : {}),
       ...(addons.length > 0 ? { addons } : {}),
       ...(advance_fields.length > 0 ? { advance_fields } : {}),
@@ -215,7 +176,7 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
     ...(teeth_shade_id ? { teeth_shade_id, teeth_shade_brand_id } : {}),
     ...(gum_shade_id ? { gum_shade_id, gum_shade_brand_id } : {}),
     status: "In Progress",
-    notes: buildProductNote(snap, product, stageName),
+    notes: buildProductNoteFromSnapshot(snap) || undefined,
     ...(impressions.length > 0 ? { impressions } : {}),
     ...(addons.length > 0 ? { addons } : {}),
     ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0

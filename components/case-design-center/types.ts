@@ -223,6 +223,10 @@ export interface NotesProps {
   selectedShades?: Record<string, string>;
   /** Raw slip impression selections — triggers note rebuild when impression changes */
   selectedImpressions?: import("./utils/impressionStorage").SlipImpressionSelections;
+  /** Per-tooth implant form data for live notes (maxillary arch) */
+  maxillaryImplantDetailByTooth?: Record<number, import("./components/ImplantDetailSection").ImplantDetailData>;
+  /** Per-tooth implant form data for live notes (mandibular arch) */
+  mandibularImplantDetailByTooth?: Record<number, import("./components/ImplantDetailSection").ImplantDetailData>;
 }
 
 export type Arch = "maxillary" | "mandibular";

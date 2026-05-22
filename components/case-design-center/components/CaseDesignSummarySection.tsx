@@ -7,6 +7,8 @@ import { useCaseDesignState } from "../hooks/useCaseDesignState";
 
 type CaseDesignState = ReturnType<typeof useCaseDesignState>;
 
+import type { ImplantDetailData } from "./ImplantDetailSection";
+
 interface CaseDesignSummarySectionProps {
   state: CaseDesignState;
   caseSubmitted?: boolean;
@@ -14,6 +16,8 @@ interface CaseDesignSummarySectionProps {
   allProductsComplete: boolean;
   maxillaryHasRemovables: boolean;
   mandibularHasRemovables: boolean;
+  maxillaryImplantDetailByTooth?: Record<number, ImplantDetailData>;
+  mandibularImplantDetailByTooth?: Record<number, ImplantDetailData>;
 }
 
 export function CaseDesignSummarySection({
@@ -23,6 +27,8 @@ export function CaseDesignSummarySection({
   allProductsComplete,
   maxillaryHasRemovables,
   mandibularHasRemovables,
+  maxillaryImplantDetailByTooth,
+  mandibularImplantDetailByTooth,
 }: CaseDesignSummarySectionProps) {
   const showCaseSummaryNotes = shouldShowCaseSummaryNotes({
     caseSubmitted,
@@ -109,6 +115,8 @@ export function CaseDesignSummarySection({
         toothProductCardMap={state.toothProductCardMap}
         selectedShades={state.selectedShades}
         selectedImpressions={state.selectedImpressions}
+        maxillaryImplantDetailByTooth={maxillaryImplantDetailByTooth}
+        mandibularImplantDetailByTooth={mandibularImplantDetailByTooth}
       />
     </div>
   );

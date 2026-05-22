@@ -1560,6 +1560,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           allProductsComplete={allTeethImpressionComplete}
           maxillaryHasRemovables={maxillaryHasRemovables}
           mandibularHasRemovables={mandibularHasRemovables}
+          maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
+          mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
         />
       </AddProductFocusOverlay>
 
