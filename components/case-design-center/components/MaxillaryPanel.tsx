@@ -73,6 +73,7 @@ import {
 import { isArchRemovableProductDetailPending } from "../utils/productDetailLoading";
 import { useExtractionsAcknowledged } from "../hooks/useExtractionsAcknowledged";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
+import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
 import {
   ARCH_SHARED_REMOVABLE_ACK_CARD_ID,
   archHasRemovableProducts,
@@ -2186,7 +2187,13 @@ export function MaxillaryPanel({
                             apProduct,
                             caseSubmitted
                           )}
-                          onRetentionDoneChange={setFixedRetentionSetupComplete}
+                          onRetentionDoneChange={(value) => {
+                            setFixedRetentionSetupComplete(value);
+                            if (value && apProduct?.id) {
+                              if (!isExpanded) handleAddedProductAccordionToggle(ap);
+                              setActiveFixedGroupProductId(apProduct.id);
+                            }
+                          }}
                         />
                       ) : undefined
                     }
@@ -2539,9 +2546,48 @@ export function MaxillaryPanel({
                         apToothProduct?.advance_fields
                       );
                       const apGroupStageProductIdFixed = `maxillary_fixed_${apFirstTn}`;
+                      const apRetentionFieldsVisible = isFixedRetentionSetupComplete(
+                        apProduct,
+                        caseSubmitted
+                      );
 
                       return (
                         <>
+                          {apRetentionFieldsVisible && (
+                            <AutoOpenFirstFixedFieldAfterRetentionDone
+                              retentionFieldsVisible={apRetentionFieldsVisible}
+                              isExpanded={isExpanded}
+                              caseSubmitted={caseSubmitted}
+                              isStageVisible={
+                                !isSingleStageNoStages(apToothProduct) && apIsFixed("fixed_stage")
+                              }
+                              isStageEmpty={
+                                !isFieldCompleted("maxillary", apFirstTn, "fixed_stage") &&
+                                !selectedStages[apGroupStageProductIdFixed]
+                              }
+                              onOpenStage={handleOpenStageModal}
+                              stageProductId={apGroupStageProductIdFixed}
+                              arch="maxillary"
+                              stageToothNumber={apFirstTn}
+                              usesAccordionShadePicker={apUsesAccordionShadePicker}
+                              firstMissingShadeField={apFirstMissingShadeField}
+                              fixedShadeProductId={apFixedShadeProductId}
+                              storageToothNumber={apFirstTn}
+                              setShadeSelectionState={setShadeSelectionState}
+                              isLegacyShadeSectionVisible={
+                                apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")
+                              }
+                              legacyStumpShadeEmpty={
+                                apNeedsStumpShade &&
+                                !getSelectedShade(apFixedShadeProductId, "maxillary", "stump_shade")
+                              }
+                              legacyToothShadeEmpty={
+                                apNeedsToothShade &&
+                                !getSelectedShade(apFixedShadeProductId, "maxillary", "tooth_shade")
+                              }
+                              fixedShadesComplete={apFixedShadesComplete}
+                            />
+                          )}
                           {!isSingleStageNoStages(apToothProduct) && (
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
@@ -2877,10 +2923,49 @@ export function MaxillaryPanel({
                         }
                         showRetentionDone={showFixedRetentionDone}
                         retentionDoneAcknowledged={card0ShowFixedFields}
-                        onRetentionDoneChange={setFixedRetentionSetupComplete}
+                        onRetentionDoneChange={(value) => {
+                          setFixedRetentionSetupComplete(value);
+                          if (value && selectedProduct?.id) {
+                            if (!card0FixedExpanded) toggleAccordionFocus(slotId, 0);
+                            setActiveFixedGroupProductId(selectedProduct.id);
+                          }
+                        }}
                       />
                     }
                   >
+                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                      <AutoOpenFirstFixedFieldAfterRetentionDone
+                        retentionFieldsVisible={card0ShowFixedFields}
+                        isExpanded={card0FixedExpanded}
+                        caseSubmitted={caseSubmitted}
+                        isStageVisible={!isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage")}
+                        isStageEmpty={
+                          !(selectedStages[groupStageProductIdFixed] ||
+                            getFieldValue("maxillary", groupStageToothNumber, "fixed_stage"))
+                        }
+                        onOpenStage={handleOpenStageModal}
+                        stageProductId={groupStageProductIdFixed}
+                        arch="maxillary"
+                        stageToothNumber={groupStageToothNumber}
+                        usesAccordionShadePicker={usesAccordionShadePicker}
+                        firstMissingShadeField={firstMissingShadeField}
+                        fixedShadeProductId={_fixedShadeProductId}
+                        storageToothNumber={groupStageToothNumber}
+                        setShadeSelectionState={setShadeSelectionState}
+                        isLegacyShadeSectionVisible={
+                          isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")
+                        }
+                        legacyStumpShadeEmpty={
+                          _needsStumpShade &&
+                          !getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")
+                        }
+                        legacyToothShadeEmpty={
+                          _needsToothShade &&
+                          !getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade")
+                        }
+                        fixedShadesComplete={fixedShadesComplete}
+                      />
+                    )}
                     {card0ShowFixedFields && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}

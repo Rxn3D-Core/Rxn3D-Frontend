@@ -81,6 +81,7 @@ import {
   mergeArchRemovableExtractions,
 } from "../utils/archSharedRemovable";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
+import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
 import { hasVisibleAddonDisplay, parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import { hasImplantRetention } from "../utils/implantHelpers";
 import {
@@ -2190,7 +2191,13 @@ export function MandibularPanel({
                             apProduct,
                             caseSubmitted
                           )}
-                          onRetentionDoneChange={setFixedRetentionSetupComplete}
+                          onRetentionDoneChange={(value) => {
+                            setFixedRetentionSetupComplete(value);
+                            if (value && apProduct?.id) {
+                              if (!isExpanded) handleAddedProductAccordionToggle(ap);
+                              setActiveFixedGroupProductId(apProduct.id);
+                            }
+                          }}
                         />
                       ) : undefined
                     }
@@ -2537,9 +2544,48 @@ export function MandibularPanel({
                         apToothProduct?.advance_fields
                       );
                       const apGroupStageProductIdFixed = `mandibular_fixed_${apFirstTn}`;
+                      const apRetentionFieldsVisible = isFixedRetentionSetupComplete(
+                        apProduct,
+                        caseSubmitted
+                      );
 
                       return (
                         <>
+                          {apRetentionFieldsVisible && (
+                            <AutoOpenFirstFixedFieldAfterRetentionDone
+                              retentionFieldsVisible={apRetentionFieldsVisible}
+                              isExpanded={isAccordionExpanded(apSlotId)}
+                              caseSubmitted={caseSubmitted}
+                              isStageVisible={
+                                !isSingleStageNoStages(apToothProduct) && apIsFixed("fixed_stage")
+                              }
+                              isStageEmpty={
+                                !isFieldCompleted("mandibular", apFirstTn, "fixed_stage") &&
+                                !selectedStages[apGroupStageProductIdFixed]
+                              }
+                              onOpenStage={handleOpenStageModal}
+                              stageProductId={apGroupStageProductIdFixed}
+                              arch="mandibular"
+                              stageToothNumber={apFirstTn}
+                              usesAccordionShadePicker={apUsesAccordionShadePicker}
+                              firstMissingShadeField={apFirstMissingShadeField}
+                              fixedShadeProductId={apFixedShadeProductId}
+                              storageToothNumber={apFirstTn}
+                              setShadeSelectionState={setShadeSelectionState}
+                              isLegacyShadeSectionVisible={
+                                apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")
+                              }
+                              legacyStumpShadeEmpty={
+                                apNeedsStumpShade &&
+                                !getSelectedShade(apFixedShadeProductId, "mandibular", "stump_shade")
+                              }
+                              legacyToothShadeEmpty={
+                                apNeedsToothShade &&
+                                !getSelectedShade(apFixedShadeProductId, "mandibular", "tooth_shade")
+                              }
+                              fixedShadesComplete={apFixedShadesComplete}
+                            />
+                          )}
                           {!isSingleStageNoStages(apToothProduct) && (
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
@@ -2871,10 +2917,49 @@ export function MandibularPanel({
                         }
                         showRetentionDone={showFixedRetentionDone}
                         retentionDoneAcknowledged={card0ShowFixedFields}
-                        onRetentionDoneChange={setFixedRetentionSetupComplete}
+                        onRetentionDoneChange={(value) => {
+                          setFixedRetentionSetupComplete(value);
+                          if (value && selectedProduct?.id) {
+                            if (!card0FixedExpanded) toggleAccordionFocus(slotId, 0);
+                            setActiveFixedGroupProductId(selectedProduct.id);
+                          }
+                        }}
                       />
                     }
                   >
+                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                      <AutoOpenFirstFixedFieldAfterRetentionDone
+                        retentionFieldsVisible={card0ShowFixedFields}
+                        isExpanded={card0FixedExpanded}
+                        caseSubmitted={caseSubmitted}
+                        isStageVisible={!isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage")}
+                        isStageEmpty={
+                          !(selectedStages[groupStageProductIdFixed] ||
+                            getFieldValue("mandibular", groupStageToothNumber, "fixed_stage"))
+                        }
+                        onOpenStage={handleOpenStageModal}
+                        stageProductId={groupStageProductIdFixed}
+                        arch="mandibular"
+                        stageToothNumber={groupStageToothNumber}
+                        usesAccordionShadePicker={usesAccordionShadePicker}
+                        firstMissingShadeField={firstMissingShadeField}
+                        fixedShadeProductId={_mandFixedShadeProductId}
+                        storageToothNumber={groupStageToothNumber}
+                        setShadeSelectionState={setShadeSelectionState}
+                        isLegacyShadeSectionVisible={
+                          isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")
+                        }
+                        legacyStumpShadeEmpty={
+                          _needsStumpShade &&
+                          !getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade")
+                        }
+                        legacyToothShadeEmpty={
+                          _needsToothShade &&
+                          !getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade")
+                        }
+                        fixedShadesComplete={fixedShadesComplete}
+                      />
+                    )}
                     {card0ShowFixedFields && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
