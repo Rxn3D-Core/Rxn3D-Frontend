@@ -357,8 +357,18 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   const isAccordionEnabled = useCallback(
-    (arch: Arch, slotId: string) =>
-      !activeAccordionKey || activeAccordionKey === productAccordionKey(arch, slotId),
+    (arch: Arch, slotId: string) => {
+      const key = productAccordionKey(arch, slotId);
+      if (!activeAccordionKey || activeAccordionKey === key) return true;
+      // Card 0 fixed uses fixed0_* while default focus is still removable0 (no removable on arch).
+      if (
+        slotId.startsWith("fixed0_") &&
+        activeAccordionKey === productAccordionKey(arch, "removable0")
+      ) {
+        return true;
+      }
+      return false;
+    },
     [activeAccordionKey]
   );
 
@@ -974,6 +984,37 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ]
   );
 
+  /**
+   * Added removable with a single default extraction (or non-TIM default): mirror
+   * initial-product behavior — preselect arch teeth, stamp the map, and bind the card.
+   */
+  const applyAddedProductDefaultExtractions = useCallback(
+    (product: ProductApiData, arch: Arch, cardId: number) => {
+      if (!product?.id || props.caseSubmitted) return;
+
+      runMissingTeethAutoSelect(product, arch);
+
+      const isSingleDefault = isSingleDefaultOnlyExtractionList(product.extractions);
+      const shouldAutoDefault = shouldAutoSelectArchForDefaultExtraction(
+        product.extractions
+      );
+      if (!isSingleDefault && !shouldAutoDefault) return;
+
+      const archTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const virtualTn = -cardId;
+      const virtualProduct =
+        toothFieldProgress.getToothProduct(arch, virtualTn) ?? product;
+
+      for (const tn of archTeeth) {
+        toothFieldProgress.setToothProductCard(arch, tn, cardId);
+        if (!toothFieldProgress.getToothProduct(arch, tn)) {
+          toothFieldProgress.setToothProduct(arch, tn, virtualProduct);
+        }
+      }
+    },
+    [props.caseSubmitted, runMissingTeethAutoSelect, toothFieldProgress]
+  );
+
   const opposingAutoSelectedRef = useRef(false);
   const runOpposingExtractionsAutoSelect = useCallback(
     (product: ProductApiData | null | undefined, primaryArch: string | undefined) => {
@@ -1036,28 +1077,37 @@ export function useCaseDesignState(props: CaseDesignProps) {
     runOpposingExtractionsAutoSelect,
   ]);
 
-  // Added products — cache detail only.
-  // Do NOT auto-select or auto-stamp arch teeth here; each added product must keep
-  // its tooth ownership independent from other products on the same arch.
+  // Added products — cache detail; apply default-extraction auto-select per card when applicable.
   useEffect(() => {
     if (props.caseSubmitted) return;
     const list = props.addedProducts ?? [];
     for (const ap of list) {
       if (!ap.productId || !ap.arch) continue;
-      const key = `${ap.productId}_${ap.arch}`;
-      if (autoSelectedArchKeysRef.current.has(key)) continue;
-
+      if (ap.arch !== "maxillary" && ap.arch !== "mandibular") continue;
+      const arch = ap.arch as Arch;
+      const key = `${ap.productId}_${arch}`;
       const embedded = (ap.product && (ap.product as ProductApiData).extractions)
         ? (ap.product as ProductApiData)
         : null;
-      if (embedded && (ap.arch === "maxillary" || ap.arch === "mandibular")) {
-        const merged = enrichProductWithGrades(ap.arch as Arch, embedded);
+
+      const applyIfReady = (product: ProductApiData) => {
+        applyAddedProductDefaultExtractions(product, arch, ap.id);
+      };
+
+      if (embedded) {
+        const merged = enrichProductWithGrades(arch, embedded);
         cachedProductRef.current.set(ap.productId, merged);
+        if (!autoSelectedArchKeysRef.current.has(key)) {
+          applyIfReady(merged);
+        }
         continue;
       }
 
       const cached = cachedProductRef.current.get(ap.productId);
       if (cached) {
+        if (!autoSelectedArchKeysRef.current.has(key)) {
+          applyIfReady(enrichProductWithGrades(arch, cached));
+        }
         continue;
       }
 
@@ -1071,9 +1121,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
       fetchProductDetails(ap.productId, customerId).then((product) => {
         if (!product || !ap.productId) return;
         if (ap.arch !== "maxillary" && ap.arch !== "mandibular") return;
-        const arch = ap.arch as Arch;
         const merged = enrichProductWithGrades(arch, product);
         cachedProductRef.current.set(ap.productId, merged);
+        if (!autoSelectedArchKeysRef.current.has(key)) {
+          applyIfReady(merged);
+        }
         const catalog = getImpressionOptionsForProduct(merged);
         if (catalog.length > 0) {
           modals.setSelectedImpressions((prev) =>
@@ -1087,6 +1139,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     props.caseSubmitted,
     enrichProductWithGrades,
     modals.setSelectedImpressions,
+    applyAddedProductDefaultExtractions,
   ]);
 
   /**
@@ -1301,6 +1354,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
         applyResolvedStage(arch, toothNumber, merged);
         autoPopulateDefaultAddons(arch, toothNumber, merged);
         maybeMirrorFixedProgressFromOpposite(arch, merged);
+        if (toothNumber < 0) {
+          applyAddedProductDefaultExtractions(merged, arch, -toothNumber);
+        }
         const catalog = getImpressionOptionsForProduct(merged);
         if (catalog.length > 0) {
           modals.setSelectedImpressions((prev) =>
@@ -1334,6 +1390,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
         applyResolvedStage(arch, toothNumber, merged);
         autoPopulateDefaultAddons(arch, toothNumber, merged);
         maybeMirrorFixedProgressFromOpposite(arch, merged);
+        if (toothNumber < 0) {
+          applyAddedProductDefaultExtractions(merged, arch, -toothNumber);
+        }
         const catalog = getImpressionOptionsForProduct(merged);
         if (catalog.length > 0) {
           modals.setSelectedImpressions((prev) =>
@@ -1350,6 +1409,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       maybeMirrorFixedProgressFromOpposite,
       enrichProductWithGrades,
       modals.setSelectedImpressions,
+      applyAddedProductDefaultExtractions,
     ]
   );
 

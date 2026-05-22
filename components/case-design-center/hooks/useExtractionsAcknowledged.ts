@@ -2,7 +2,9 @@
 
 import { useCallback, useState } from "react";
 import type { Arch } from "../types";
+import { hasRetentionOptions } from "../utils/categoryHelpers";
 import {
+  fixedRetentionAckKey,
   removableCardAckKey,
   requiresExtractionsAcknowledgement,
   type ExtractionLike,
@@ -34,5 +36,32 @@ export function useExtractionsAcknowledged(arch: Arch) {
     [arch]
   );
 
-  return { isExtractionsSetupComplete, setExtractionsSetupComplete };
+  const isFixedRetentionSetupComplete = useCallback(
+    (
+      product: Parameters<typeof hasRetentionOptions>[0],
+      caseSubmitted?: boolean
+    ) => {
+      if (caseSubmitted) return true;
+      if (!product || !hasRetentionOptions(product)) return true;
+      return acknowledgedByCard[fixedRetentionAckKey(arch)] === true;
+    },
+    [arch, acknowledgedByCard]
+  );
+
+  const setFixedRetentionSetupComplete = useCallback(
+    (value: boolean) => {
+      setAcknowledgedByCard((prev) => ({
+        ...prev,
+        [fixedRetentionAckKey(arch)]: value,
+      }));
+    },
+    [arch]
+  );
+
+  return {
+    isExtractionsSetupComplete,
+    setExtractionsSetupComplete,
+    isFixedRetentionSetupComplete,
+    setFixedRetentionSetupComplete,
+  };
 }

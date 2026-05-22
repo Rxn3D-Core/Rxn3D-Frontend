@@ -121,6 +121,7 @@ import {
 } from "./AccordionBadge";
 import { ProductImagePreview } from "./ProductImagePreview";
 import { ProductAccordionCard } from "./ProductAccordionCard";
+import { RestorationAccordionHeader } from "./RestorationAccordionHeader";
 import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
 import { MANDIBULAR_SENTINEL } from "../utils/opposingImpressionReadiness";
 import { addedProductSlotId } from "../utils/productAccordionFocus";
@@ -925,17 +926,49 @@ export function MaxillaryPanel({
   const MAXILLARY_PRODUCT_SENTINEL = 1;
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
 
-  // Auto-select single default extraction for removable products
+  // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
-    if (activeProductIsRemovables && isSingleDefaultOnlyExtractionList(card0Extractions)) {
-      const active = (card0Extractions || []).filter(e => e.status === "Active" && e.name != null && e.code != null);
-      if (active.length === 1 && activeExtractionCode === null) {
-        setActiveExtractionCode(active[0].code);
-      }
+    if (!activeProductIsRemovables) return;
+    let exts: ProductExtraction[] = [];
+    if (activeProductCardId === 0) {
+      exts = card0Extractions ?? [];
+    } else {
+      const ap = addedProducts.find(
+        (p) => p.id === activeProductCardId && p.arch === "maxillary"
+      );
+      if (!ap) return;
+      const cardTeeth = MAXILLARY_ALL_TEETH.filter(
+        (tn) => getToothProductCard("maxillary", tn) === ap.id
+      );
+      const repTn =
+        cardTeeth.length > 0 ? cardTeeth[0] : -ap.id;
+      exts =
+        getToothProduct("maxillary", repTn)?.extractions ??
+        (ap.product as import("../types").ProductApiData | undefined)?.extractions ??
+        [];
     }
-  }, [activeProductIsRemovables, card0Extractions, activeExtractionCode]);
+    if (!isSingleDefaultOnlyExtractionList(exts)) return;
+    const active = exts.filter(
+      (e) => e.status === "Active" && e.name != null && e.code != null
+    );
+    if (active.length === 1) {
+      setActiveExtractionCode(active[0].code!);
+    }
+  }, [
+    activeProductIsRemovables,
+    activeProductCardId,
+    card0Extractions,
+    addedProducts,
+    getToothProduct,
+    getToothProductCard,
+  ]);
   const [activeExtractions, setActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
-  const { isExtractionsSetupComplete, setExtractionsSetupComplete } = useExtractionsAcknowledged("maxillary");
+  const {
+    isExtractionsSetupComplete,
+    setExtractionsSetupComplete,
+    isFixedRetentionSetupComplete,
+    setFixedRetentionSetupComplete,
+  } = useExtractionsAcknowledged("maxillary");
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
   const [toothStatusPopoverExtractions, setToothStatusPopoverExtractions] = useState<ProductExtraction[]>([]);
   const [maxillaryCheckedTeeth, setMaxillaryCheckedTeeth] = useState<number[]>([]);
@@ -1207,7 +1240,10 @@ export function MaxillaryPanel({
   /** Expanded accordion that owns chart + tooth-status box interactions. */
   const isCardActiveForToothStatus = (cardId: number) => {
     if (activeProductCardId !== cardId) return false;
-    if (cardId === 0) return isAccordionExpanded("removable0");
+    if (cardId === 0) {
+      if (maxillaryHasFixedCard0 && !maxillaryHasRemovablesCard0) return true;
+      return isAccordionExpanded("removable0");
+    }
     return isAccordionExpanded(addedProductSlotId(cardId));
   };
 
@@ -1220,6 +1256,22 @@ export function MaxillaryPanel({
     toggleAccordionFocus(slotId, ap.id);
     setActiveFixedGroupProductId(null);
     setActiveExtractionCode(null);
+  };
+
+  const handleAddedProductAccordionToggle = (ap: AddedProduct) => {
+    const slotId = addedProductSlotId(ap.id);
+    if (!isAccordionEnabled(slotId)) return;
+    if (!isAccordionExpanded(slotId)) {
+      setShadeSelectionState({ arch: null, fieldType: null, productId: null });
+    }
+    toggleAccordionFocus(slotId, ap.id);
+    if (hasRetentionOptions(ap.product)) {
+      setActiveFixedGroupProductId(ap.product?.id ?? null);
+      setActiveExtractionCode(null);
+    } else {
+      setActiveFixedGroupProductId(null);
+      setActiveExtractionCode(null);
+    }
   };
 
   const handleCard0RemovableAccordionToggle = () => {
@@ -1920,8 +1972,16 @@ export function MaxillaryPanel({
                     arch="maxillary"
                     isExpanded={isExpanded}
                     interactionEnabled={isAccordionEnabled(apSlotId)}
-                    isCurrentlyActive={isApRemovables && isCurrentlyActiveProduct}
-                    onToggle={() => handleAddedRemovableAccordionToggle(ap)}
+                    isCurrentlyActive={
+                      isApRemovables
+                        ? isCurrentlyActiveProduct
+                        : activeFixedGroupProductId === apProduct?.id
+                    }
+                    onToggle={() =>
+                      isApRemovables
+                        ? handleAddedRemovableAccordionToggle(ap)
+                        : handleAddedProductAccordionToggle(ap)
+                    }
                     productName={cardProductName}
                     productImageUrl={cardProductImage}
                     toothDisplay={cardToothDisplay}
@@ -1948,180 +2008,186 @@ export function MaxillaryPanel({
                     caseSubmitted={caseSubmitted}
                     customHeader={
                       isApRemovables ? (
-                        <div
-                          className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedAp ? "bg-[#FCE4E4]" : "bg-white"}`}
-                        >
-                          <AccordionHeaderActions
-                            isExpanded={isExpanded}
-                            caseSubmitted={caseSubmitted}
-                            showExtractionsDone={requiresExtractionsAcknowledgement(
-                              useMaxillaryArchSharedRemovable
-                                ? maxillaryMergedExtractions
-                                : removableCardExtractions
-                            )}
-                            extractionsAcknowledged={
-                              useMaxillaryArchSharedRemovable
-                                ? maxillaryArchExtractionsReady
-                                : isExtractionsSetupComplete(removableCardExtractions, ap.id, caseSubmitted)
-                            }
-                            onExtractionsAcknowledgedChange={(v) =>
-                              useMaxillaryArchSharedRemovable
-                                ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
-                                : setExtractionsSetupComplete(ap.id, v)
-                            }
-                            onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
-                            expandEnabled={isAccordionEnabled(apSlotId)}
-                          />
-                          <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                            <ProductImagePreview
-                              imageUrl={cardProductImage}
-                              altText={cardProductName}
-                              containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                              imgClassName="w-full h-full object-contain"
-                              fallback={
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <span className="text-[10px] text-gray-400">No img</span>
-                                </div>
-                              }
-                            />
-                            <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                              {shouldShowRemovableHeaderContent({
-                                hasProduct: !!apProduct,
-                                hasVariation: apProduct?.has_variation,
-                                teethCount: assignedTeeth.length,
-                                caseSubmitted,
-                              }) && (
-                                  <>
-                                    <div className="flex items-center gap-[4px] flex-wrap">
-                                      {isCurrentlyActiveProduct && <CurrentlyActiveProductBadge />}
-                                      {cardCategoryName && <AccordionBadge>{cardCategoryName}</AccordionBadge>}
-                                      {cardSubcategoryName && <AccordionBadge>{cardSubcategoryName}</AccordionBadge>}
-                                    </div>
-                                    {(() => {
-                                      const headerTextClass = "text-black";
-
-                                      return (
-                                        <div
-                                          className={`${caseDesignInter.className} ${removableProductTitleBoxClassName({
-                                            isCurrentlyActive: isCurrentlyActiveProduct,
-                                            confirmDetailsChecked,
-                                          })}`}
-                                        >
-                                          <p className={`${removableHeaderTitleClass} flex items-center gap-1 ${headerTextClass}`}>
-                                            {getRemovableHeaderTitle({
-                                              productName: cardProductName,
-                                              hasVariation: apProduct?.has_variation,
-                                              teethCount: assignedTeeth.length,
-                                              isFullDenture: removableIsFullDenture,
-                                              hasVariationMatch: removableHasVariationMatch,
-                                            })}
-                                            {hasRushedAp && <RushIcon className="inline w-[14px] h-[14px] ml-1 text-[#CF0202]" />}
-                                          </p>
-                                          <p className={`${removableHeaderToothClass} ${headerTextClass}`}>
-                                            {cardToothDisplay}
-                                          </p>
-                                        </div>
-                                      );
-                                    })()}
-                                    {isCardActiveForToothStatus(ap.id) &&
+                        <RestorationAccordionHeader
+                          isExpanded={isExpanded}
+                          caseSubmitted={caseSubmitted}
+                          hasRush={!!hasRushedAp}
+                          onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
+                          expandEnabled={isAccordionEnabled(apSlotId)}
+                          productImageUrl={cardProductImage}
+                          productName={getRemovableHeaderTitle({
+                            productName: cardProductName,
+                            hasVariation: apProduct?.has_variation,
+                            teethCount: assignedTeeth.length,
+                            isFullDenture: removableIsFullDenture,
+                            hasVariationMatch: removableHasVariationMatch,
+                          })}
+                          toothDisplay={cardToothDisplay}
+                          categoryName={cardCategoryName}
+                          subcategoryName={cardSubcategoryName}
+                          stageName={
+                            isDisplayableStageValue(apStageVal) &&
+                            !shouldSkipStageSelection(apProductForStage)
+                              ? apStageVal
+                              : undefined
+                          }
+                          stageProduct={apProductForStage}
+                          estDaysText={apEstDaysText}
+                          canDelete={!caseSubmitted}
+                          onDelete={() => {
+                            const wasFixed = hasRetentionOptions(apProduct);
+                            const remainingAdded =
+                              addedProducts.filter((p) => p.arch === "maxillary").length - 1;
+                            const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                            MAXILLARY_ALL_TEETH.filter(
+                              (tn) => getToothProductCard("maxillary", tn) === ap.id
+                            ).forEach((tn) => {
+                              clearToothProgress("maxillary", tn);
+                              handleMaxillaryToothDeselect(tn);
+                            });
+                            handleRemoveAddedProduct(ap.id);
+                            if (wasFixed && remainingAdded === 0 && !hasCard0)
+                              onBackToCategories?.("maxillary");
+                          }}
+                          isCurrentlyActive={isCurrentlyActiveProduct}
+                          confirmDetailsChecked={confirmDetailsChecked}
+                          showHeaderContent={shouldShowRemovableHeaderContent({
+                            hasProduct: !!apProduct,
+                            hasVariation: apProduct?.has_variation,
+                            teethCount: assignedTeeth.length,
+                            caseSubmitted,
+                          })}
+                          showExtractionsDone={requiresExtractionsAcknowledgement(
+                            useMaxillaryArchSharedRemovable
+                              ? maxillaryMergedExtractions
+                              : removableCardExtractions
+                          )}
+                          extractionsAcknowledged={
+                            useMaxillaryArchSharedRemovable
+                              ? maxillaryArchExtractionsReady
+                              : isExtractionsSetupComplete(
+                                  removableCardExtractions,
+                                  ap.id,
+                                  caseSubmitted
+                                )
+                          }
+                          onExtractionsAcknowledgedChange={(v) =>
+                            useMaxillaryArchSharedRemovable
+                              ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
+                              : setExtractionsSetupComplete(ap.id, v)
+                          }
+                          middleContent={
+                            isCardActiveForToothStatus(ap.id) &&
+                            (useMaxillaryArchSharedRemovable
+                              ? maxillaryMergedExtractions
+                              : removableCardExtractions
+                            ).length > 0 ? (
+                              <ToothStatusBoxes
+                                extractions={
+                                  useMaxillaryArchSharedRemovable
+                                    ? maxillaryMergedExtractions
+                                    : removableCardExtractions
+                                }
+                                selectedTeeth={
+                                  apIsSingleDefaultOnly
+                                    ? maxillaryTeeth
+                                    : useMaxillaryArchSharedRemovable
+                                      ? maxillaryTeeth
+                                      : assignedTeeth
+                                }
+                                allArchTeeth={MAXILLARY_ALL_TEETH}
+                                toothExtractionMap={maxillaryToothExtractionMap}
+                                claspTeeth={maxillaryClaspTeeth}
+                                displayTeethByCode={getToothStatusBoxDisplayMap({
+                                  extractions: useMaxillaryArchSharedRemovable
+                                    ? maxillaryMergedExtractions
+                                    : removableCardExtractions,
+                                  selectedTeeth: apIsSingleDefaultOnly
+                                    ? maxillaryTeeth
+                                    : useMaxillaryArchSharedRemovable
+                                      ? maxillaryTeeth
+                                      : assignedTeeth,
+                                  toothExtractionMap: maxillaryToothExtractionMap,
+                                  claspTeeth: maxillaryClaspTeeth,
+                                })}
+                                activeExtractionCode={activeExtractionCode}
+                                onActiveExtractionChange={(code, exts) => {
+                                  setActiveExtractionCode(code);
+                                  if (exts) setActiveExtractions(exts);
+                                  else if (useMaxillaryArchSharedRemovable) {
+                                    setActiveExtractions(maxillaryMergedExtractions);
+                                  }
+                                }}
+                                onToothExtractionToggle={(tn, code, extractions) =>
+                                  handleToothExtractionToggle(
+                                    "maxillary",
+                                    tn,
+                                    code,
+                                    extractions ??
                                       (useMaxillaryArchSharedRemovable
                                         ? maxillaryMergedExtractions
-                                        : removableCardExtractions
-                                      ).length > 0 &&
-                                      !isSingleDefaultOnlyExtractionList(
-                                        useMaxillaryArchSharedRemovable
-                                          ? maxillaryMergedExtractions
-                                          : removableCardExtractions
-                                      ) && (
-                                      <ToothStatusBoxes
-                                        extractions={
-                                          useMaxillaryArchSharedRemovable
-                                            ? maxillaryMergedExtractions
-                                            : removableCardExtractions
-                                        }
-                                        selectedTeeth={
-                                          useMaxillaryArchSharedRemovable
-                                            ? maxillaryTeeth
-                                            : assignedTeeth
-                                        }
-                                        allArchTeeth={MAXILLARY_ALL_TEETH}
-                                        toothExtractionMap={maxillaryToothExtractionMap}
-                                        claspTeeth={maxillaryClaspTeeth}
-                                        displayTeethByCode={getToothStatusBoxDisplayMap({
-                                          extractions: useMaxillaryArchSharedRemovable
-                                            ? maxillaryMergedExtractions
-                                            : removableCardExtractions,
-                                          selectedTeeth: useMaxillaryArchSharedRemovable
-                                            ? maxillaryTeeth
-                                            : assignedTeeth,
-                                          toothExtractionMap: maxillaryToothExtractionMap,
-                                          claspTeeth: maxillaryClaspTeeth,
-                                        })}
-                                        activeExtractionCode={activeExtractionCode}
-                                        onActiveExtractionChange={(code, exts) => {
-                                          setActiveExtractionCode(code);
-                                          if (exts) setActiveExtractions(exts);
-                                          else if (useMaxillaryArchSharedRemovable) {
-                                            setActiveExtractions(maxillaryMergedExtractions);
-                                          }
-                                        }}
-                                        onToothExtractionToggle={(tn, code, extractions) =>
-                                          handleToothExtractionToggle(
-                                            "maxillary",
-                                            tn,
-                                            code,
-                                            extractions ??
-                                              (useMaxillaryArchSharedRemovable
-                                                ? maxillaryMergedExtractions
-                                                : removableCardExtractions)
-                                          )
-                                        }
-                                        onSelectAllTeeth={selectAllMaxillaryTeeth}
-                                        onRequiredValidationChange={onToothStatusValidationChange}
-                                        isRemovable={true}
-                                        submitted={caseSubmitted}
-                                        hideDefaultBox={true}
-                                        disableRequiredValidation={true}
-                                        grayed={isActiveMaxillaryProductDetailPending}
-                                      />
-                                    )}
-                                    <div className="flex items-center gap-[4.97px] flex-wrap">
-                                      {isDisplayableStageValue(apStageVal) &&
-                                        !shouldSkipStageSelection(apProductForStage) && (
-                                        <AccordionBadge>{apStageVal}</AccordionBadge>
-                                      )}
-                                      <EstDaysLabel rushed={!!hasRushedAp} text={hasRushedAp ? "5 work days after submission" : apEstDaysText} />
-                                      {!caseSubmitted && (
-                                        <span
-                                          role="button"
-                                          tabIndex={0}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            const wasFixed = hasRetentionOptions(apProduct);
-                                            const remainingAdded = addedProducts.filter(p => p.arch === "maxillary").length - 1;
-                                            const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
-                                            MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === ap.id).forEach(tn => {
-                                              clearToothProgress("maxillary", tn);
-                                              handleMaxillaryToothDeselect(tn);
-                                            });
-                                            handleRemoveAddedProduct(ap.id);
-                                            if (wasFixed && remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
-                                          }}
-                                          onKeyDown={(e) => {
-                                            if (e.key === "Enter" || e.key === " ") e.currentTarget.click();
-                                          }}
-                                          className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
-                                          title="Remove product"
-                                        >
-                                          <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                                        </span>
-                                      )}
-                                    </div>
-                                  </>
-                                )}
-                            </div>
-                          </div>
-                        </div>
+                                        : removableCardExtractions)
+                                  )
+                                }
+                                onSelectAllTeeth={selectAllMaxillaryTeeth}
+                                onRequiredValidationChange={onToothStatusValidationChange}
+                                isRemovable={true}
+                                submitted={caseSubmitted}
+                                hideDefaultBox={true}
+                                disableRequiredValidation={true}
+                                grayed={
+                                  isActiveMaxillaryProductDetailPending || apIsSingleDefaultOnly
+                                }
+                              />
+                            ) : undefined
+                          }
+                        />
+                      ) : hasRetentionOptions(apProduct) ? (
+                        <RestorationAccordionHeader
+                          isExpanded={isExpanded}
+                          caseSubmitted={caseSubmitted}
+                          hasRush={!!hasRushedAp}
+                          onToggleExpand={() => handleAddedProductAccordionToggle(ap)}
+                          expandEnabled={isAccordionEnabled(apSlotId)}
+                          productImageUrl={cardProductImage}
+                          productName={cardProductName}
+                          toothDisplay={cardToothDisplay}
+                          categoryName={cardCategoryName}
+                          subcategoryName={cardSubcategoryName}
+                          stageName={
+                            isDisplayableStageValue(apStageVal) &&
+                            !shouldSkipStageSelection(apProductForStage)
+                              ? apStageVal
+                              : undefined
+                          }
+                          stageProduct={apProductForStage ?? apProduct}
+                          estDaysText={apEstDaysText}
+                          canDelete={!caseSubmitted}
+                          onDelete={() => {
+                            const remainingAdded =
+                              addedProducts.filter((p) => p.arch === "maxillary").length - 1;
+                            const hasCard0 = maxillaryHasFixedCard0 || maxillaryHasRemovablesCard0;
+                            MAXILLARY_ALL_TEETH.filter(
+                              (tn) => getToothProductCard("maxillary", tn) === ap.id
+                            ).forEach((tn) => {
+                              clearToothProgress("maxillary", tn);
+                              handleMaxillaryToothDeselect(tn);
+                            });
+                            handleRemoveAddedProduct(ap.id);
+                            if (remainingAdded === 0 && !hasCard0) onBackToCategories?.("maxillary");
+                          }}
+                          isCurrentlyActive={activeFixedGroupProductId === apProduct?.id}
+                          confirmDetailsChecked={confirmDetailsChecked}
+                          showHeaderContent={
+                            !!apProduct && (assignedTeeth.length > 0 || caseSubmitted)
+                          }
+                          showRetentionDone={!caseSubmitted}
+                          retentionDoneAcknowledged={isFixedRetentionSetupComplete(
+                            apProduct,
+                            caseSubmitted
+                          )}
+                          onRetentionDoneChange={setFixedRetentionSetupComplete}
+                        />
                       ) : undefined
                     }
                   >
@@ -2557,6 +2623,7 @@ export function MaxillaryPanel({
                             handleOpenImpressionModal={safeOpenImpressionModal}
                             handleOpenAddOnsModal={handleOpenAddOnsModal}
                             getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
+                            selectedImpressions={selectedImpressions}
                             setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                             peerImplantDetailByTooth={peerImplantDetailByTooth}
                           />
@@ -2711,16 +2778,26 @@ export function MaxillaryPanel({
                 const showActions = showFixedActions || showPrepActions;
 
                 const slotId = `fixed0_${groupKey}`;
+                const card0ShowFixedFields = isFixedRetentionSetupComplete(
+                  selectedProduct,
+                  caseSubmitted
+                );
+                const showFixedRetentionDone =
+                  hasRetentionOptions(selectedProduct) && !caseSubmitted;
+                const card0FixedExpanded = isAccordionExpanded(slotId);
                 return (
                   <ProductAccordionCard
                     key={`prep-pontic-group-${groupKey}`}
                     slotId={slotId}
                     arch="maxillary"
-                    isExpanded={isAccordionExpanded(slotId)}
+                    isExpanded={card0FixedExpanded}
                     interactionEnabled={isAccordionEnabled(slotId)}
+                    isCurrentlyActive={
+                      activeFixedGroupProductId === selectedProduct?.id && card0FixedExpanded
+                    }
                     onToggle={() => {
                       if (!isAccordionEnabled(slotId)) return;
-                      if (isAccordionExpanded(slotId)) {
+                      if (card0FixedExpanded) {
                         setShadeSelectionState({ arch: null, fieldType: null, productId: null });
                       }
                       toggleAccordionFocus(slotId, 0);
@@ -2750,25 +2827,78 @@ export function MaxillaryPanel({
                       if (noOtherProducts) onBackToCategories?.("maxillary");
                     }}
                     caseSubmitted={caseSubmitted}
+                    customHeader={
+                      <RestorationAccordionHeader
+                        isExpanded={card0FixedExpanded}
+                        caseSubmitted={caseSubmitted}
+                        hasRush={hasRushed}
+                        onToggleExpand={() => {
+                          if (!isAccordionEnabled(slotId)) return;
+                          if (card0FixedExpanded) {
+                            setShadeSelectionState({ arch: null, fieldType: null, productId: null });
+                          }
+                          toggleAccordionFocus(slotId, 0);
+                          setActiveFixedGroupProductId(selectedProduct?.id ?? null);
+                        }}
+                        expandEnabled={isAccordionEnabled(slotId)}
+                        productImageUrl={productImage}
+                        productName={productName}
+                        toothDisplay={toothNumbersDisplay}
+                        categoryName={categoryName}
+                        subcategoryName={subcategoryName}
+                        stageName={
+                          !isSingleStageNoStages(selectedProduct)
+                            ? fixedStageName || undefined
+                            : undefined
+                        }
+                        stageProduct={selectedProduct}
+                        estDaysText={estDays}
+                        canDelete={!caseSubmitted}
+                        onDelete={() => {
+                          const noOtherProducts =
+                            addedProducts.filter((p) => p.arch === "maxillary").length === 0;
+                          const teethToClear = MAXILLARY_ALL_TEETH.filter(
+                            (tn) =>
+                              getToothProduct("maxillary", tn) &&
+                              getToothProductCard("maxillary", tn) === 0
+                          );
+                          teethToClear.forEach((tn) => {
+                            clearToothProgress("maxillary", tn);
+                            handleMaxillaryToothDeselect(tn);
+                          });
+                          if (noOtherProducts) onBackToCategories?.("maxillary");
+                        }}
+                        isCurrentlyActive={
+                          activeFixedGroupProductId === selectedProduct?.id && card0FixedExpanded
+                        }
+                        confirmDetailsChecked={confirmDetailsChecked}
+                        showHeaderContent={
+                          !!selectedProduct && (toothNumbers.length > 0 || caseSubmitted)
+                        }
+                        showRetentionDone={showFixedRetentionDone}
+                        retentionDoneAcknowledged={card0ShowFixedFields}
+                        onRetentionDoneChange={setFixedRetentionSetupComplete}
+                      />
+                    }
                   >
-                    {!isSingleStageNoStages(selectedProduct) && (
+                    {card0ShowFixedFields && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
                         arch="maxillary"
                         toothNumber={hasRetentionOptions(selectedProduct) ? groupStageToothNumber : firstToothNumber}
-                        isExpanded={true}
+                        isExpanded={isAccordionExpanded(slotId)}
                         isStageVisible={hasRetentionOptions(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("maxillary", firstToothNumber, "stage")}
                         isStageEmpty={hasRetentionOptions(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("maxillary", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`maxillary_prep_${firstToothNumber}`] || getFieldValue("maxillary", firstToothNumber, "stage"))}
                         onOpenStage={handleOpenStageModal}
                         caseSubmitted={caseSubmitted}
                       />
                     )}
-                    {hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
                       <>
                         <AutoOpenShadeGuideIfEmpty
                           arch="maxillary"
                           productId={_fixedShadeProductId}
-                          isExpanded={true}
+                          isExpanded={isAccordionExpanded(slotId)}
                           isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
                           stumpShadeEmpty={_needsStumpShade && !getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")}
                           toothShadeEmpty={_needsToothShade && !getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade")}
@@ -2797,7 +2927,7 @@ export function MaxillaryPanel({
                       </>
                     )}
 
-                    {hasRetentionOptions(selectedProduct) ? (
+                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="maxillary"
                         isExpanded={isAccordionExpanded(slotId)}
@@ -2838,10 +2968,11 @@ export function MaxillaryPanel({
                         handleOpenImpressionModal={safeOpenImpressionModal}
                         handleOpenAddOnsModal={handleOpenAddOnsModal}
                         getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
+                        selectedImpressions={selectedImpressions}
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
-                    ) : (
+                    ) : card0ShowFixedFields ? (
                       <SelectionProductFields
                         arch="maxillary"
                         firstToothNumber={firstToothNumber}
@@ -2877,7 +3008,7 @@ export function MaxillaryPanel({
                         }
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
-                    )}
+                    ) : null}
                     <ScrollToBottom />
                   </ProductAccordionCard>
                 );
@@ -2961,151 +3092,119 @@ export function MaxillaryPanel({
                   canDelete={false}
                   caseSubmitted={caseSubmitted}
                   customHeader={
-                    <div
-                      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${hasRushedRemovables ? "bg-[#FCE4E4]" : "bg-white"}`}
-                    >
-                      <AccordionHeaderActions
-                        isExpanded={isAccordionExpanded(SLOT_ID)}
-                        caseSubmitted={caseSubmitted}
-                        showExtractionsDone={requiresExtractionsAcknowledgement(
+                    <RestorationAccordionHeader
+                      isExpanded={isAccordionExpanded(SLOT_ID)}
+                      caseSubmitted={caseSubmitted}
+                      hasRush={!!hasRushedRemovables}
+                      onToggleExpand={handleCard0RemovableAccordionToggle}
+                      expandEnabled={isAccordionEnabled(SLOT_ID)}
+                      productImageUrl={cardProductImage}
+                      productName={getRemovableHeaderTitle({
+                        productName: cardProductName,
+                        hasVariation: cardProduct?.has_variation,
+                        teethCount: displayTeeth.length,
+                        isFullDenture: cardIsFullDenture,
+                        hasVariationMatch,
+                      })}
+                      toothDisplay={cardToothDisplay}
+                      categoryName={cardProduct?.subcategory?.category?.name}
+                      subcategoryName={cardProduct?.subcategory?.name}
+                      stageName={
+                        isDisplayableStageValue(stageVal) &&
+                        !shouldSkipStageSelection(
+                          resolveProductForStageField(cardProduct, "maxillary", getToothProduct)
+                        )
+                          ? stageVal
+                          : undefined
+                      }
+                      stageProduct={resolveProductForStageField(
+                        cardProduct,
+                        "maxillary",
+                        getToothProduct
+                      )}
+                      estDaysText={estDays}
+                      isCurrentlyActive={isCurrentlyActiveProduct}
+                      confirmDetailsChecked={confirmDetailsChecked}
+                      showHeaderContent={shouldShowRemovableHeaderContent({
+                        hasProduct: !!cardProduct,
+                        hasVariation: cardProduct?.has_variation,
+                        teethCount: displayTeeth.length,
+                        caseSubmitted,
+                      })}
+                      showExtractionsDone={requiresExtractionsAcknowledgement(
+                        useMaxillaryArchSharedRemovable
+                          ? maxillaryMergedExtractions
+                          : cardExtractions
+                      )}
+                      extractionsAcknowledged={
+                        useMaxillaryArchSharedRemovable
+                          ? maxillaryArchExtractionsReady
+                          : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted)
+                      }
+                      onExtractionsAcknowledgedChange={(v) =>
+                        useMaxillaryArchSharedRemovable
+                          ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
+                          : setExtractionsSetupComplete(0, v)
+                      }
+                      middleContent={
+                        isCardActiveForToothStatus(0) &&
+                        (useMaxillaryArchSharedRemovable
+                          ? maxillaryMergedExtractions
+                          : cardExtractions
+                        ).length > 0 &&
+                        !isSingleDefaultOnlyExtractionList(
                           useMaxillaryArchSharedRemovable
                             ? maxillaryMergedExtractions
                             : cardExtractions
-                        )}
-                        extractionsAcknowledged={
-                          useMaxillaryArchSharedRemovable
-                            ? maxillaryArchExtractionsReady
-                            : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted)
-                        }
-                        onExtractionsAcknowledgedChange={(v) =>
-                          useMaxillaryArchSharedRemovable
-                            ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
-                            : setExtractionsSetupComplete(0, v)
-                        }
-                        onToggleExpand={handleCard0RemovableAccordionToggle}
-                        expandEnabled={isAccordionEnabled(SLOT_ID)}
-                      />
-                      <div className="flex items-stretch gap-[10px] px-[8px] py-[14px]" onClick={(e) => e.stopPropagation()}>
-                        <ProductImagePreview
-                          imageUrl={cardProductImage}
-                          altText={cardProductName}
-                          containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-                          imgClassName="w-full h-full object-contain"
-                          fallback={
-                            <div className="w-full h-full flex items-center justify-center">
-                              <span className="text-[10px] text-gray-400">No img</span>
-                            </div>
-                          }
-                        />
-                        <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
-                          {shouldShowRemovableHeaderContent({
-                            hasProduct: !!cardProduct,
-                            hasVariation: cardProduct?.has_variation,
-                            teethCount: cardIsFullDenture ? displayTeeth.length : displayTeeth.length,
-                            caseSubmitted,
-                          }) && (
-                              <>
-                                <div className="flex items-center gap-[4px] flex-wrap">
-                                  {isCurrentlyActiveProduct && <CurrentlyActiveProductBadge />}
-                                  {cardProduct?.subcategory?.category?.name && (
-                                    <AccordionBadge>{cardProduct.subcategory.category.name}</AccordionBadge>
-                                  )}
-                                  {cardProduct?.subcategory?.name && (
-                                    <AccordionBadge>{cardProduct.subcategory.name}</AccordionBadge>
-                                  )}
-                                </div>
-                                <div
-                                  className={`${caseDesignInter.className} ${removableProductTitleBoxClassName({
-                                    isCurrentlyActive: isCurrentlyActiveProduct,
-                                    confirmDetailsChecked,
-                                  })}`}
-                                >
-                                  <p className={`${removableHeaderTitleClass} text-black`}>
-                                    {getRemovableHeaderTitle({
-                                      productName: cardProductName,
-                                      hasVariation: cardProduct?.has_variation,
-                                      teethCount: displayTeeth.length,
-                                      isFullDenture: cardIsFullDenture,
-                                      hasVariationMatch,
-                                    })}
-                                    {hasRushedRemovables && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                                  </p>
-                                  {cardToothDisplay && (
-                                    <p className={`${removableHeaderToothClass} text-black`}>
-                                      {cardToothDisplay}
-                                    </p>
-                                  )}
-                                </div>
-                                {isCardActiveForToothStatus(0) &&
+                        ) ? (
+                          <ToothStatusBoxes
+                            extractions={
+                              useMaxillaryArchSharedRemovable
+                                ? maxillaryMergedExtractions
+                                : cardExtractions
+                            }
+                            selectedTeeth={rawDisplayTeeth}
+                            allArchTeeth={MAXILLARY_ALL_TEETH}
+                            toothExtractionMap={maxillaryToothExtractionMap}
+                            claspTeeth={maxillaryClaspTeeth}
+                            displayTeethByCode={getToothStatusBoxDisplayMap({
+                              extractions: useMaxillaryArchSharedRemovable
+                                ? maxillaryMergedExtractions
+                                : cardExtractions,
+                              selectedTeeth: rawDisplayTeeth,
+                              toothExtractionMap: maxillaryToothExtractionMap,
+                              claspTeeth: maxillaryClaspTeeth,
+                            })}
+                            activeExtractionCode={activeExtractionCode}
+                            onActiveExtractionChange={(code, exts) => {
+                              setActiveExtractionCode(code);
+                              if (exts) setActiveExtractions(exts);
+                              else if (useMaxillaryArchSharedRemovable) {
+                                setActiveExtractions(maxillaryMergedExtractions);
+                              }
+                            }}
+                            onToothExtractionToggle={(tn, code, extractions) =>
+                              handleToothExtractionToggle(
+                                "maxillary",
+                                tn,
+                                code,
+                                extractions ??
                                   (useMaxillaryArchSharedRemovable
                                     ? maxillaryMergedExtractions
-                                    : cardExtractions
-                                  ).length > 0 &&
-                                  !isSingleDefaultOnlyExtractionList(
-                                    useMaxillaryArchSharedRemovable
-                                      ? maxillaryMergedExtractions
-                                      : cardExtractions
-                                  ) && (
-                                  <ToothStatusBoxes
-                                    extractions={
-                                      useMaxillaryArchSharedRemovable
-                                        ? maxillaryMergedExtractions
-                                        : cardExtractions
-                                    }
-                                    selectedTeeth={rawDisplayTeeth}
-                                    allArchTeeth={MAXILLARY_ALL_TEETH}
-                                    toothExtractionMap={maxillaryToothExtractionMap}
-                                    claspTeeth={maxillaryClaspTeeth}
-                                    displayTeethByCode={getToothStatusBoxDisplayMap({
-                                      extractions: useMaxillaryArchSharedRemovable
-                                        ? maxillaryMergedExtractions
-                                        : cardExtractions,
-                                      selectedTeeth: rawDisplayTeeth,
-                                      toothExtractionMap: maxillaryToothExtractionMap,
-                                      claspTeeth: maxillaryClaspTeeth,
-                                    })}
-                                    activeExtractionCode={activeExtractionCode}
-                                    onActiveExtractionChange={(code, exts) => {
-                                      setActiveExtractionCode(code);
-                                      if (exts) setActiveExtractions(exts);
-                                      else if (useMaxillaryArchSharedRemovable) {
-                                        setActiveExtractions(maxillaryMergedExtractions);
-                                      }
-                                    }}
-                                    onToothExtractionToggle={(tn, code, extractions) =>
-                                      handleToothExtractionToggle(
-                                        "maxillary",
-                                        tn,
-                                        code,
-                                        extractions ??
-                                          (useMaxillaryArchSharedRemovable
-                                            ? maxillaryMergedExtractions
-                                            : cardExtractions)
-                                      )
-                                    }
-                                    onSelectAllTeeth={selectAllMaxillaryTeeth}
-                                    onRequiredValidationChange={onToothStatusValidationChange}
-                                    isRemovable={true}
-                                    submitted={caseSubmitted}
-                                    hideDefaultBox={true}
-                                    disableRequiredValidation={true}
-                                    grayed={isActiveMaxillaryProductDetailPending}
-                                  />
-                                )}
-                                <div className="flex items-center gap-[4.97px] flex-wrap">
-                                  {isDisplayableStageValue(stageVal) &&
-                                    !shouldSkipStageSelection(
-                                      resolveProductForStageField(cardProduct, "maxillary", getToothProduct)
-                                    ) && (
-                                    <AccordionBadge>{stageVal}</AccordionBadge>
-                                  )}
-                                  <EstDaysLabel rushed={!!hasRushedRemovables} text={hasRushedRemovables ? "5 work days after submission" : estDays} />
-                                </div>
-                              </>
-                            )}
-                        </div>
-                      </div>
-                    </div>
+                                    : cardExtractions)
+                              )
+                            }
+                            onSelectAllTeeth={selectAllMaxillaryTeeth}
+                            onRequiredValidationChange={onToothStatusValidationChange}
+                            isRemovable={true}
+                            submitted={caseSubmitted}
+                            hideDefaultBox={true}
+                            disableRequiredValidation={true}
+                            grayed={isActiveMaxillaryProductDetailPending}
+                          />
+                        ) : undefined
+                      }
+                    />
                   }
                 >
                   {(() => {
