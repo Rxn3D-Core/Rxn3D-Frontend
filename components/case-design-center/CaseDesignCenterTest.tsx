@@ -5,6 +5,7 @@ import NewCaseWizard from "@/components/new-case-wizard";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import type { SlipProductSnapshot } from "./types";
 import { TopBar } from "./components/TopBar";
+import { AddProductFocusOverlay } from "./components/AddProductFocusOverlay";
 import { PatientHeader } from "./components/PatientHeader";
 import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
@@ -142,21 +143,23 @@ export default function Page() {
 
         {caseDesignMounted && (
           <div style={{ display: wizardComplete ? undefined : "none" }}>
-            <PatientHeader
-              doctorImageUrl={completedDoctor?.img}
-              doctorName={completedDoctor?.name}
-              patientName={completedPatientName}
-              gender={completedGender}
-              age={completedAge}
-              caseSubmitted={caseSubmitted}
-              slipHeaderLoading={slipHeaderLoading}
-              slipResponseData={slipResponseData}
-              onEditDoctorClick={handleEditDoctor}
-              onPatientNameChange={setCompletedPatientName}
-              onGenderChange={setCompletedGender}
-              onAgeChange={setCompletedAge}
-              compactLayout={!caseSubmitted && slipHeaderCompact}
-            />
+            <AddProductFocusOverlay active={!caseSubmitted && inlineAddProductArch != null}>
+              <PatientHeader
+                doctorImageUrl={completedDoctor?.img}
+                doctorName={completedDoctor?.name}
+                patientName={completedPatientName}
+                gender={completedGender}
+                age={completedAge}
+                caseSubmitted={caseSubmitted}
+                slipHeaderLoading={slipHeaderLoading}
+                slipResponseData={slipResponseData}
+                onEditDoctorClick={handleEditDoctor}
+                onPatientNameChange={setCompletedPatientName}
+                onGenderChange={setCompletedGender}
+                onAgeChange={setCompletedAge}
+                compactLayout={!caseSubmitted && slipHeaderCompact}
+              />
+            </AddProductFocusOverlay>
             <CaseDesignCenter
               right1Brand={right1Brand}
               setRight1Brand={setRight1Brand}
@@ -195,15 +198,17 @@ export default function Page() {
       </main>
 
       {wizardComplete && !caseSubmitted && !isAnyModalOpen && (
-        <SlipCreationStepFooter
-          mode="submit"
-          confirmDetailsChecked={confirmDetailsChecked}
-          isAccordionComplete={() => caseReady}
-          incompleteFieldLabel={incompleteFieldLabel}
-          hasToothStatusValidation={hasToothStatusValidation}
-          onConfirmDetailsChange={setConfirmDetailsChecked}
-          onSubmit={submit}
-        />
+        <AddProductFocusOverlay active={inlineAddProductArch != null}>
+          <SlipCreationStepFooter
+            mode="submit"
+            confirmDetailsChecked={confirmDetailsChecked}
+            isAccordionComplete={() => caseReady}
+            incompleteFieldLabel={incompleteFieldLabel}
+            hasToothStatusValidation={hasToothStatusValidation}
+            onConfirmDetailsChange={setConfirmDetailsChecked}
+            onSubmit={submit}
+          />
+        </AddProductFocusOverlay>
       )}
 
       <CaseSubmissionOverlays submissionState={submissionState} />
