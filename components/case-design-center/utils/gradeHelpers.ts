@@ -174,6 +174,24 @@ export function mergeEnrichedProductFromDonor(
   if ((next.gum_shades?.length ?? 0) === 0 && (donor.gum_shades?.length ?? 0) > 0) {
     next = { ...next, gum_shades: donor.gum_shades };
   }
+  if (
+    (!next.advance_fields || next.advance_fields.length === 0) &&
+    (donor.advance_fields?.length ?? 0) > 0
+  ) {
+    next = { ...next, advance_fields: donor.advance_fields };
+  }
+  if (
+    (!next.teeth_shades || next.teeth_shades.length === 0) &&
+    (donor.teeth_shades?.length ?? 0) > 0
+  ) {
+    next = { ...next, teeth_shades: donor.teeth_shades };
+  }
+  if (next.has_teeth_shade == null && donor.has_teeth_shade != null) {
+    next = { ...next, has_teeth_shade: donor.has_teeth_shade };
+  }
+  if (next.has_gum_shade == null && donor.has_gum_shade != null) {
+    next = { ...next, has_gum_shade: donor.has_gum_shade };
+  }
   return next;
 }
 

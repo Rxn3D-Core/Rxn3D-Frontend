@@ -7,7 +7,6 @@ import {
   useSubcategoryProductCounts,
 } from "@/hooks/use-library-products";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProductImagePreview } from "./ProductImagePreview";
 import type { Arch } from "../types";
 import { resolveLibraryCustomerId } from "../utils/libraryCustomerId";
 
@@ -22,6 +21,42 @@ export type InlineAddProductResult = {
 
 type PickerStep = "category" | "subcategory" | "material";
 
+/** Product thumbnail — white label on top, dark stage below (matches new-case wizard cards). */
+function SelectionCardImage({
+  src,
+  alt,
+  name,
+}: {
+  src: string | null | undefined;
+  alt: string;
+  name: string;
+}) {
+  const [failed, setFailed] = useState(!src);
+  useEffect(() => {
+    setFailed(!src);
+  }, [src]);
+
+  return (
+    <div className="w-full h-[92px] sm:h-[100px] bg-[#080808] flex items-center justify-center overflow-hidden">
+      {failed || !src ? (
+        <span
+          className="text-[11px] font-semibold text-[#b4b0b0] text-center px-2 leading-tight"
+          style={{ fontFamily: "Verdana, sans-serif" }}
+        >
+          {name}
+        </span>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          className="max-w-[88%] max-h-[88%] w-auto h-auto object-contain"
+          onError={() => setFailed(true)}
+        />
+      )}
+    </div>
+  );
+}
+
 function SelectionGrid({
   items,
   selectedId,
@@ -32,25 +67,25 @@ function SelectionGrid({
   onSelect: (id: number) => void;
 }) {
   return (
-    <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+    <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
       {items.map((item) => (
         <button
           key={item.id}
           type="button"
           onClick={() => onSelect(item.id)}
-          className={`flex flex-col overflow-hidden rounded-[7px] border-2 w-[120px] sm:w-[140px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
+          className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[156px] sm:w-[172px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${
             selectedId === item.id
               ? "border-[#1162A8] bg-[#1162A8]/5"
               : "border-[#d9d9d9] bg-white"
           }`}
         >
           <span
-            className="text-[11px] sm:text-[12px] font-normal text-black text-center px-1 py-1.5 leading-tight"
+            className="text-[12px] sm:text-[13px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2 border-b border-[#d9d9d9] bg-white"
             style={{ fontFamily: "Verdana, sans-serif" }}
           >
             {item.name}
           </span>
-          <ProductImagePreview imageUrl={item.img} altText={item.name} />
+          <SelectionCardImage src={item.img} alt={item.name} name={item.name} />
         </button>
       ))}
     </div>
@@ -242,9 +277,9 @@ export function InlineAddProductPicker({
           <>
             <p className="text-[12px] text-[#7f7f7f] mb-2 text-center">Choose a category</p>
             {!canFetchLibrary || categoriesLoading ? (
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-3">
                 {[1, 2, 3].map((i) => (
-                  <Skeleton key={i} className="w-[120px] h-[100px] rounded-[7px]" />
+                  <Skeleton key={i} className="w-[156px] sm:w-[172px] h-[128px] sm:h-[136px] rounded-[7px]" />
                 ))}
               </div>
             ) : categoriesError ? (
@@ -284,9 +319,9 @@ export function InlineAddProductPicker({
               Choose product — {subProductName}
             </p>
             {productsLoading ? (
-              <div className="flex flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-3">
                 {[1, 2].map((i) => (
-                  <Skeleton key={i} className="w-[120px] h-[100px] rounded-[7px]" />
+                  <Skeleton key={i} className="w-[156px] sm:w-[172px] h-[128px] sm:h-[136px] rounded-[7px]" />
                 ))}
               </div>
             ) : productsError ? (

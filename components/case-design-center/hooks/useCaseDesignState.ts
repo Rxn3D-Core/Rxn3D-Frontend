@@ -32,6 +32,7 @@ import {
   SKIPPED_STAGE_LABEL,
   productHasSelectableStages,
 } from "../utils/categoryHelpers";
+import { addedProductAppliesToArch } from "../utils/activeProductChartMode";
 import {
   isSingleDefaultOnlyExtractionList,
   shouldAutoSelectArchForDefaultExtraction,
@@ -65,6 +66,7 @@ import {
   isToothLockedByAnotherProduct,
   resolveProductCardDisplayName,
 } from "../utils/archToothOwnership";
+import { isHydratedProductApiData } from "../utils/resolveAddedCardProduct";
 import {
   buildImpressionDisplayText,
   getImpressionOptionsForProduct,
@@ -255,39 +257,34 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, []);
 
   // Fetch initial product details (for retention_options used by retention popover)
-  // Declared here so isActiveNonRetentionProduct and getMirrorTargetArch can reference it.
   const [initialProductDetails, setInitialProductDetails] = useState<ProductApiData | null>(null);
   const [initialProductDetailsPending, setInitialProductDetailsPending] = useState(
     () => !!props.selectedProductId
   );
 
+  // Cache product data so we only fetch from API once (supports multiple products).
+  // Must be declared before isActiveNonRetentionProduct / enrichProductWithGrades.
+  const cachedProductRef = useRef<Map<number, ProductApiData>>(new Map());
+
+  const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+
   const isActiveNonRetentionProduct = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
-      // Still loading — don't assume removable; let the popover show once data arrives
       if (initialProductDetails === null) return false;
       if (hasRetentionOptions(initialProductDetails)) return false;
-      // Respect the arch selection from the wizard (e.g. user chose "maxillary" only)
       if (props.initialArch === "maxillary" && arch === "mandibular") return false;
       if (props.initialArch === "mandibular" && arch === "maxillary") return false;
       return true;
     }
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
-    if (!ap || ap.arch !== arch) return false;
-    const apHasRetention = hasRetentionOptions(ap.product);
-    // If details are not fully hydrated yet for an added product (e.g. network timing),
-    // do NOT assume removable. Conservative fallback avoids opening removable-only flows
-    // for fixed products like single crowns.
-    if (
-      !apHasRetention &&
-      ap.productId &&
-      !ap.product?.retention_options &&
-      ap.product?.has_retention == null
-    ) {
+    if (!addedProductAppliesToArch(ap, arch)) return false;
+    if (hasRetentionOptions(ap?.product)) return false;
+    if (ap?.productId) {
       const cached = cachedProductRef.current.get(ap.productId);
-      if (!cached) return false;
-      return !hasRetentionOptions(cached);
+      if (cached) return !hasRetentionOptions(cached);
     }
-    return !apHasRetention;
+    return !hasRetentionOptions(ap?.product);
   };
 
   // Only treat the arch as selection-only when the ACTIVE product card has no retention options.
@@ -407,9 +404,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
     "impression",
     "addons",
   ]);
-
-  const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-  const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
 
   const isCard0RemovableOnArch = useCallback(
     (arch: Arch): boolean => {
@@ -839,9 +833,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
     prevAddedCountRef.current = current.length;
   }, [props.addedProducts]);
 
-  // Cache product data so we only fetch from API once (supports multiple products)
-  const cachedProductRef = useRef<Map<number, ProductApiData>>(new Map());
-
   // Fetch initial product details (for retention_options used by retention popover)
   // Debounced by 300ms to prevent duplicate calls when selectedProductId changes rapidly
   useEffect(() => {
@@ -915,6 +906,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
    * so the user can manually deselect without the effect re-overriding them.
    */
   const autoSelectedArchKeysRef = useRef<Set<string>>(new Set());
+  /** One-time setup per added card (default extractions + tooth binding). */
+  const addedProductSetupDoneRef = useRef<Set<string>>(new Set());
   const {
     setMaxillaryToothExtractionMap,
     setMandibularToothExtractionMap,
@@ -1012,7 +1005,13 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
       }
     },
-    [props.caseSubmitted, runMissingTeethAutoSelect, toothFieldProgress]
+    [
+      props.caseSubmitted,
+      runMissingTeethAutoSelect,
+      toothFieldProgress.getToothProduct,
+      toothFieldProgress.setToothProduct,
+      toothFieldProgress.setToothProductCard,
+    ]
   );
 
   const opposingAutoSelectedRef = useRef(false);
@@ -1086,28 +1085,38 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (ap.arch !== "maxillary" && ap.arch !== "mandibular") continue;
       const arch = ap.arch as Arch;
       const key = `${ap.productId}_${arch}`;
-      const embedded = (ap.product && (ap.product as ProductApiData).extractions)
-        ? (ap.product as ProductApiData)
-        : null;
+      const stubProduct = ap.product as ProductApiData | undefined;
+      const embedded =
+        stubProduct?.extractions && isHydratedProductApiData(stubProduct)
+          ? stubProduct
+          : null;
 
+      const setupKey = `${arch}_${ap.id}`;
       const applyIfReady = (product: ProductApiData) => {
-        applyAddedProductDefaultExtractions(product, arch, ap.id);
+        if (!addedProductSetupDoneRef.current.has(setupKey)) {
+          addedProductSetupDoneRef.current.add(setupKey);
+          applyAddedProductDefaultExtractions(product, arch, ap.id);
+          if (!autoSelectedArchKeysRef.current.has(key)) {
+            autoSelectedArchKeysRef.current.add(key);
+          }
+        }
+        const virtualTooth = -ap.id;
+        const existing = toothFieldProgress.getToothProduct(arch, virtualTooth);
+        if (!existing || existing.id !== product.id) {
+          toothFieldProgress.setToothProduct(arch, virtualTooth, product);
+        }
       };
 
       if (embedded) {
         const merged = enrichProductWithGrades(arch, embedded);
         cachedProductRef.current.set(ap.productId, merged);
-        if (!autoSelectedArchKeysRef.current.has(key)) {
-          applyIfReady(merged);
-        }
+        applyIfReady(merged);
         continue;
       }
 
       const cached = cachedProductRef.current.get(ap.productId);
-      if (cached) {
-        if (!autoSelectedArchKeysRef.current.has(key)) {
-          applyIfReady(enrichProductWithGrades(arch, cached));
-        }
+      if (cached && isHydratedProductApiData(cached)) {
+        applyIfReady(enrichProductWithGrades(arch, cached));
         continue;
       }
 
@@ -1123,9 +1132,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         if (ap.arch !== "maxillary" && ap.arch !== "mandibular") return;
         const merged = enrichProductWithGrades(arch, product);
         cachedProductRef.current.set(ap.productId, merged);
-        if (!autoSelectedArchKeysRef.current.has(key)) {
-          applyIfReady(merged);
-        }
+        applyIfReady(merged);
         const catalog = getImpressionOptionsForProduct(merged);
         if (catalog.length > 0) {
           modals.setSelectedImpressions((prev) =>
@@ -1140,6 +1147,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     enrichProductWithGrades,
     modals.setSelectedImpressions,
     applyAddedProductDefaultExtractions,
+    toothFieldProgress.getToothProduct,
+    toothFieldProgress.setToothProduct,
   ]);
 
   /**
@@ -1343,9 +1352,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Fetch and assign product details when retention type is selected
   const fetchAndAssignProduct = useCallback(
     async (arch: Arch, toothNumber: number, productId: number) => {
-      // If we already fetched this product, reuse the cached data
+      // If we already fetched full product details, reuse the cache (skip wizard stubs).
       const cached = cachedProductRef.current.get(productId);
-      if (cached) {
+      if (cached && isHydratedProductApiData(cached)) {
         const merged = enrichProductWithGrades(arch, cached);
         if (merged !== cached) {
           cachedProductRef.current.set(productId, merged);
@@ -1738,24 +1747,34 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const assignToothToActiveProduct = useCallback(
     (arch: Arch, toothNumber: number) => {
-      if (!isActiveNonRetentionProduct(arch)) return;
+      const isRemovableActive = isActiveNonRetentionProduct(arch);
 
       if (activeProductCardId !== 0) {
         const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
-        if (ap?.productId && ap.arch === arch) {
-          toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+        if (!ap?.productId || !addedProductAppliesToArch(ap, arch)) return;
+
+        toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+
+        if (isRemovableActive) {
           migrateRemovableVirtualProgressToTooth(arch, activeProductCardId, toothNumber);
           void fetchAndAssignProduct(arch, toothNumber, ap.productId).then(() => {
             backfillRemovableFromExistingCard(arch, activeProductCardId, toothNumber);
             backfillRemovableFromOppositeArch(arch, toothNumber);
           });
+        } else {
+          void fetchAndAssignProduct(arch, toothNumber, ap.productId);
         }
-      } else if (props.selectedProductId) {
-        toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
-        void fetchAndAssignProduct(arch, toothNumber, props.selectedProductId).then(() => {
-          backfillRemovableFromOppositeArch(arch, toothNumber);
-        });
+        return;
       }
+
+      if (!props.selectedProductId) return;
+
+      toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
+      void fetchAndAssignProduct(arch, toothNumber, props.selectedProductId).then(() => {
+        if (isRemovableActive) {
+          backfillRemovableFromOppositeArch(arch, toothNumber);
+        }
+      });
     },
     [
       activeProductCardId,
