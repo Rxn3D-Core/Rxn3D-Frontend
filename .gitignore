@@ -26,8 +26,13 @@ dist/
 # JetBrains IDE
 .idea/
 
-# Cursor IDE
-.cursor/
+# Cursor IDE — track project rules/skills; never commit agent session logs
+.cursor/*
+# !.cursor/rules/
+# !.cursor/rules/**
+# !.cursor/skills/
+# !.cursor/skills/**
+.cursor/agent-logs/
 
 # Unit test reports
 TEST*.xml

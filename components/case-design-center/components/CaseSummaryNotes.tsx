@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   ClipboardList,
-  ClipboardCheck,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Maximize2,
@@ -55,6 +53,24 @@ export function CaseSummaryNotes(props: NotesProps) {
   }, [props.addedProducts?.length]);
 
   const noteText = manualOverride ?? dynamicNoteText;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const syncTextareaHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el || expanded) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, 56)}px`;
+  }, [expanded]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    if (expanded) {
+      el.style.height = "";
+    } else {
+      syncTextareaHeight();
+    }
+  }, [noteText, expanded, syncTextareaHeight]);
 
   return (
     <div
@@ -62,49 +78,64 @@ export function CaseSummaryNotes(props: NotesProps) {
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
       }`}
     >
-      <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 bg-[#F9FAFB] border-b border-[#E5E7EB]">
-          <div className="flex items-center gap-2">
+      <div className="rounded-xl pt-3 overflow-hidden">
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="flex w-full items-center justify-center gap-2 px-4 py-3 hover:bg-[#F9FAFB] transition-colors"
+            aria-label="Expand notes"
+          >
             <ClipboardList className="w-4 h-4 text-[#6B7280]" />
             <span className="text-sm font-semibold text-[#111827]">Case Summary Notes</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              className="p-1.5 rounded-md hover:bg-[#E5E7EB] text-[#6B7280]"
-              aria-label={expanded ? "Collapse editor" : "Expand editor"}
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setCollapsed((c) => !c)}
-              className="p-1.5 rounded-md hover:bg-[#E5E7EB] text-[#6B7280]"
-              aria-label={collapsed ? "Expand notes" : "Collapse notes"}
-            >
-              {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
-
-        {!collapsed && (
-          <div className={`p-4 ${expanded ? "min-h-[280px]" : ""}`}>
-            <textarea
-              value={noteText}
-              onChange={(e) => setManualOverride(e.target.value)}
-              className={`w-full resize-y rounded-lg border border-[#D1D5DB] p-3 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 ${
-                expanded ? "min-h-[240px]" : "min-h-[120px]"
-              }`}
-              placeholder="Notes will appear here as you complete product fields…"
-            />
-            {noteText && !manualOverride && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-[#059669]">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Auto-generated from your selections</span>
-                <ClipboardCheck className="w-3.5 h-3.5 ml-1 text-[#6B7280]" />
+            <ChevronDown className="w-4 h-4 text-[#6B7280]" />
+          </button>
+        ) : (
+          <div className="relative">
+            <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setExpanded((e) => !e)}
+                className="p-1.5 rounded-md hover:bg-[#E5E7EB] text-[#6B7280]"
+                aria-label={expanded ? "Collapse editor" : "Expand editor"}
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                className="p-1.5 rounded-md hover:bg-[#E5E7EB] text-[#6B7280]"
+                aria-label="Collapse notes"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 bg-white px-2"
+                aria-hidden
+              >
+                <ClipboardList className="w-4 h-4 text-[#6B7280]" />
+                <span className="text-sm font-semibold text-[#111827] whitespace-nowrap">
+                  Case Summary Notes
+                </span>
               </div>
-            )}
+              <textarea
+                ref={textareaRef}
+                value={noteText}
+                rows={expanded ? 10 : 2}
+                onChange={(e) => {
+                  setManualOverride(e.target.value);
+                  if (!expanded) {
+                    requestAnimationFrame(syncTextareaHeight);
+                  }
+                }}
+                className={`w-full rounded-lg border border-[#D1D5DB] px-3 pt-4 pb-3 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 overflow-hidden ${
+                  expanded ? "min-h-[200px] resize-y" : "resize-none"
+                }`}
+                placeholder="Notes will appear here as you complete product fields…"
+              />
+            </div>
           </div>
         )}
       </div>
