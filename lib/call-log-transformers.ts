@@ -36,6 +36,7 @@ export function flattenCaseCallLogs(caseData: any): FlattenedCallLogRow[] {
   const slips = Array.isArray(caseData?.slips) ? caseData.slips : [];
 
   return slips.flatMap((slip: any) => {
+    const slipId = Number(slip?.id);
     const callLogs = Array.isArray(slip?.call_logs) ? slip.call_logs : [];
     const productSummary = Array.isArray(slip?.products)
       ? slip.products
@@ -44,12 +45,22 @@ export function flattenCaseCallLogs(caseData: any): FlattenedCallLogRow[] {
           .join(", ")
       : "";
 
-    return callLogs.map((callLog: any) => {
+    if (!Number.isFinite(slipId) || slipId <= 0) {
+      return [];
+    }
+
+    return callLogs.flatMap((callLog: any) => {
+      const callLogId = Number(callLog?.id);
+
+      if (!Number.isFinite(callLogId) || callLogId <= 0) {
+        return [];
+      }
+
       const state = toCallLogActionStatus(callLog?.action_status ?? null);
 
-      return {
-        callLogId: Number(callLog?.id ?? 0),
-        slipId: Number(slip?.id ?? 0),
+      return [{
+        callLogId,
+        slipId,
         slipNumber: String(slip?.slip_number ?? ""),
         caseId: Number(caseData?.id ?? 0),
         timestamp: String(callLog?.call_date_time ?? ""),
@@ -69,7 +80,7 @@ export function flattenCaseCallLogs(caseData: any): FlattenedCallLogRow[] {
         officeName: String(caseData?.office?.name ?? ""),
         locationName: String(slip?.location?.name ?? ""),
         productSummary,
-      };
+      }];
     });
   });
 }
