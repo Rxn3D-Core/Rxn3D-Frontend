@@ -14,6 +14,11 @@ export type CallLogMutationPayload = {
   call_notes: string;
 };
 
+export type CallLogAttachmentUploadPayload = {
+  files: File[];
+  descriptions?: string[];
+};
+
 export type CallLogsApiResponse<T> = {
   success: boolean;
   message: string;
@@ -169,6 +174,27 @@ export type CallLogDetail = {
   updated_at: string;
 };
 
+export type CallLogAttachmentUser = {
+  id: number;
+  name: string;
+};
+
+export type CallLogAttachmentRecord = {
+  id: number;
+  file_name: string;
+  original_name: string | null;
+  file_type: string | null;
+  file_size: number | string | null;
+  file_url: string | null;
+  description: string | null;
+  is_archived: boolean;
+  archived_at: string | null;
+  uploaded_by: CallLogAttachmentUser;
+  archived_by?: CallLogAttachmentUser;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CaseCallLogsResponse = CallLogsApiResponse<CaseCallLogCase>;
 export type CallLogDetailResponse = CallLogsApiResponse<CallLogDetail>;
 export type CallLogMutationResponse = CallLogDetailResponse;
@@ -176,6 +202,7 @@ export type CallLogDeleteResponse = {
   success: boolean;
   message: string;
 };
+export type CallLogAttachmentsResponse = CallLogsApiResponse<CallLogAttachmentRecord[]>;
 
 function toQueryString(params: Record<string, string | number | undefined>) {
   const search = new URLSearchParams();
@@ -188,6 +215,21 @@ function toQueryString(params: Record<string, string | number | undefined>) {
 
   const query = search.toString();
   return query ? `?${query}` : "";
+}
+
+async function uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+  const headers: HeadersInit = {};
+  const token = typeof window === "undefined" ? null : localStorage.getItem("token");
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return ApiService.request<T>(endpoint, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
 }
 
 export const CallLogsService = {
@@ -226,6 +268,33 @@ export const CallLogsService = {
   markCallLogResolved(callLogId: number) {
     return ApiService.patch<CallLogMutationResponse>(
       `/v1/slip/call-logs/call-log/${callLogId}/resolved`
+    );
+  },
+  getCallLogAttachments(callLogId: number) {
+    return ApiService.get<CallLogAttachmentsResponse>(
+      `/v1/slip/call-logs/${callLogId}/attachments`
+    );
+  },
+  uploadCallLogAttachments(
+    callLogId: number,
+    payload: CallLogAttachmentUploadPayload | File[]
+  ) {
+    const formData = new FormData();
+    const files = Array.isArray(payload) ? payload : payload.files;
+    const descriptions = Array.isArray(payload) ? [] : (payload.descriptions ?? []);
+
+    files.forEach((file, index) => {
+      formData.append("files[]", file);
+
+      const description = descriptions[index];
+      if (description) {
+        formData.append("descriptions[]", description);
+      }
+    });
+
+    return uploadFormData<CallLogAttachmentsResponse>(
+      `/v1/slip/call-logs/${callLogId}/attachments`,
+      formData
     );
   },
 };

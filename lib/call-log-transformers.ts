@@ -9,6 +9,22 @@ export type CallLogFormValues = {
   callNotes: string;
 };
 
+export type CallLogAttachmentRecord = {
+  id: number;
+  file_name: string;
+  original_name?: string | null;
+  file_size: string | number | null;
+  file_url?: string | null;
+  file_path?: string | null;
+};
+
+export type CallLogAttachmentSummary = {
+  id: number;
+  name: string;
+  size: string;
+  url: string;
+};
+
 export type FlattenedCallLogRow = {
   callLogId: number;
   slipId: number;
@@ -49,6 +65,26 @@ export function toCallLogCreatePayload(values: CallLogFormValues) {
     caller_phone: values.callerPhone,
     call_notes: values.callNotes,
   };
+}
+
+export function toCallLogAttachmentSummary(
+  attachments: CallLogAttachmentRecord[]
+): CallLogAttachmentSummary[] {
+  return attachments.flatMap((attachment) => {
+    const id = Number(attachment?.id);
+    const url = attachment?.file_url ?? attachment?.file_path ?? "";
+
+    if (!Number.isFinite(id) || id <= 0 || !url) {
+      return [];
+    }
+
+    return [{
+      id,
+      name: String(attachment?.original_name || attachment?.file_name || ""),
+      size: String(attachment?.file_size ?? ""),
+      url: String(url),
+    }];
+  });
 }
 
 export function flattenCaseCallLogs(caseData: any): FlattenedCallLogRow[] {
