@@ -1,5 +1,14 @@
 export type BackendActionStatus = "follow_up" | "resolved" | null | undefined;
 
+export type CallLogFormValues = {
+  callType: "Incoming" | "Outgoing";
+  callDate: string;
+  callTime: string;
+  callerName: string;
+  callerPhone: string;
+  callNotes: string;
+};
+
 export type FlattenedCallLogRow = {
   callLogId: number;
   slipId: number;
@@ -29,6 +38,16 @@ export function toCallLogActionStatus(actionStatus: BackendActionStatus) {
     followUp: actionStatus === "follow_up",
     resolved: actionStatus === "resolved",
     pending: actionStatus == null,
+  };
+}
+
+export function toCallLogCreatePayload(values: CallLogFormValues) {
+  return {
+    call_type: values.callType === "Incoming" ? "incoming" : "outgoing",
+    call_date_time: `${values.callDate} ${values.callTime}:00`,
+    caller_name: values.callerName,
+    caller_phone: values.callerPhone,
+    call_notes: values.callNotes,
   };
 }
 
