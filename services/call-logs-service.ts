@@ -220,16 +220,31 @@ function toQueryString(params: Record<string, string | number | undefined>) {
 async function uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
   const headers: HeadersInit = {};
   const token = typeof window === "undefined" ? null : localStorage.getItem("token");
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  return ApiService.request<T>(endpoint, {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     method: "POST",
     headers,
     body: formData,
   });
+
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized - Redirecting to login");
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 export const CallLogsService = {
@@ -286,10 +301,7 @@ export const CallLogsService = {
     files.forEach((file, index) => {
       formData.append("files[]", file);
 
-      const description = descriptions[index];
-      if (description) {
-        formData.append("descriptions[]", description);
-      }
+      formData.append("descriptions[]", descriptions[index] ?? "");
     });
 
     return uploadFormData<CallLogAttachmentsResponse>(
