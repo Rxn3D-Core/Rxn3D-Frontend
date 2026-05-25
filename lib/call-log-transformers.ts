@@ -1,3 +1,5 @@
+import { endOfDay, format, isValid, parseISO, startOfDay } from "date-fns";
+
 export type BackendActionStatus = "follow_up" | "resolved" | null | undefined;
 
 export type CallLogFormValues = {
@@ -49,6 +51,17 @@ export type FlattenedCallLogRow = {
   productSummary: string;
 };
 
+export type FlattenedCallLogFilters = {
+  searchText?: string;
+  showFollowUpOnly?: boolean;
+  officeName?: string;
+  userName?: string;
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+};
+
 export function toCallLogActionStatus(actionStatus: BackendActionStatus) {
   return {
     followUp: actionStatus === "follow_up",
@@ -85,6 +98,86 @@ export function toCallLogAttachmentSummary(
       url: String(url),
     }];
   });
+}
+
+export function formatCallLogTimestamp(timestamp: string) {
+  const parsed = parseISO(timestamp);
+
+  if (!isValid(parsed)) {
+    return timestamp;
+  }
+
+  return format(parsed, "MM/dd/yy @ h:mm a");
+}
+
+export function filterFlattenedCallLogs(
+  rows: FlattenedCallLogRow[],
+  filters: FlattenedCallLogFilters,
+) {
+  const searchText = filters.searchText?.trim().toLowerCase() ?? "";
+  const officeName = filters.officeName ?? "All";
+  const userName = filters.userName ?? "All";
+
+  return rows
+    .filter((row) => {
+      if (filters.showFollowUpOnly && !row.followUp) {
+        return false;
+      }
+
+      if (searchText) {
+        const haystack = [
+          row.slipNumber,
+          row.patientName,
+          row.doctorName,
+          row.note,
+          row.callerName,
+          row.loggedByName,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(searchText)) {
+          return false;
+        }
+      }
+
+      if (officeName !== "All" && row.officeName !== officeName) {
+        return false;
+      }
+
+      if (userName !== "All" && row.loggedByName !== userName) {
+        return false;
+      }
+
+      const parsedTimestamp = parseISO(row.timestamp);
+      if (isValid(parsedTimestamp)) {
+        if (filters.dateRange?.start) {
+          const start = startOfDay(new Date(filters.dateRange.start));
+          if (parsedTimestamp < start) {
+            return false;
+          }
+        }
+
+        if (filters.dateRange?.end) {
+          const end = endOfDay(new Date(filters.dateRange.end));
+          if (parsedTimestamp > end) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    })
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.timestamp);
+      const rightTime = Date.parse(right.timestamp);
+
+      if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
+        return right.timestamp.localeCompare(left.timestamp);
+      }
+
+      return rightTime - leftTime;
+    });
 }
 
 export function flattenCaseCallLogs(caseData: any): FlattenedCallLogRow[] {
