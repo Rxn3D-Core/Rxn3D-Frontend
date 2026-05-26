@@ -1,4 +1,5 @@
 import { endOfDay, format, isValid, parseISO, startOfDay } from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 export type BackendActionStatus = "follow_up" | "resolved" | null | undefined;
 
@@ -108,6 +109,18 @@ export function formatCallLogTimestamp(timestamp: string) {
   }
 
   return format(parsed, "MM/dd/yy @ h:mm a");
+}
+
+export function formatCallLogDateRangeLabel(range: DateRange | undefined) {
+  if (!range?.from) {
+    return "Select date range";
+  }
+
+  if (!range.to) {
+    return format(range.from, "MMM d, yyyy");
+  }
+
+  return `${format(range.from, "MMM d, yyyy")} - ${format(range.to, "MMM d, yyyy")}`;
 }
 
 export function filterFlattenedCallLogs(

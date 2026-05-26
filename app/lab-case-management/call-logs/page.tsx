@@ -2,15 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, ChevronDown, Filter, MoreHorizontal, Paperclip, Phone } from "lucide-react";
+import { format } from "date-fns";
+import { CheckCircle2, ChevronDown, Filter, MoreHorizontal, Paperclip, Phone, Calendar as CalendarIcon } from "lucide-react";
+import type { DateRange } from "react-day-picker";
+import CallLogModal from "@/components/call-log-modal";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CallLogsService } from "@/services/call-logs-service";
 import {
   filterFlattenedCallLogs,
   flattenCaseCallLogs,
+  formatCallLogDateRangeLabel,
   formatCallLogTimestamp,
   type FlattenedCallLogRow,
 } from "@/lib/call-log-transformers";
@@ -110,11 +115,13 @@ export default function CallLogTable() {
   const [filterText, setFilterText] = useState("");
   const [filterCallType, setFilterCallType] = useState<string[]>([]);
   const [filterDate, setFilterDate] = useState<{ start?: string; end?: string }>({});
+  const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [showFollowUpOnly, setShowFollowUpOnly] = useState(false);
   const [filterOffice, setFilterOffice] = useState("All");
   const [filterUser, setFilterUser] = useState("All");
   const [actionRow, setActionRow] = useState<number | null>(null);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [showCallLogModal, setShowCallLogModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [rows, setRows] = useState<FlattenedCallLogRow[]>([]);
@@ -196,6 +203,16 @@ export default function CallLogTable() {
   const showNoResults = !loading && filteredCalls.length === 0;
   const hasValidCaseId = caseId != null;
   const hasRows = rows.length > 0;
+  const selectedDateRange = useMemo<DateRange | undefined>(() => {
+    const from = filterDate.start ? new Date(`${filterDate.start}T12:00:00`) : undefined;
+    const to = filterDate.end ? new Date(`${filterDate.end}T12:00:00`) : undefined;
+
+    if (!from && !to) {
+      return undefined;
+    }
+
+    return { from, to };
+  }, [filterDate.end, filterDate.start]);
 
   const clearFilters = () => {
     setFilterText("");
@@ -204,6 +221,22 @@ export default function CallLogTable() {
     setFilterDate({});
     setFilterOffice("All");
     setFilterUser("All");
+  };
+
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    if (!range?.from) {
+      setFilterDate({});
+      return;
+    }
+
+    setFilterDate({
+      start: format(range.from, "yyyy-MM-dd"),
+      end: range.to ? format(range.to, "yyyy-MM-dd") : undefined,
+    });
+
+    if (range.to) {
+      setDateRangeOpen(false);
+    }
   };
 
   const handleSelect = (callLogId: number) => {
@@ -261,7 +294,7 @@ export default function CallLogTable() {
           value={filterText}
           onChange={(event) => setFilterText(event.target.value)}
         />
-        <Button className="bg-blue-700 px-4 text-white" onClick={() => {}}>
+        <Button className="bg-blue-700 px-4 text-white" onClick={() => setShowCallLogModal(true)}>
           <Phone className="mr-1 h-4 w-4" /> Add Call log
         </Button>
         <Button variant="outline" className="ml-auto" disabled>
@@ -297,33 +330,28 @@ export default function CallLogTable() {
           </Button>
         </div>
 
-        <label className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-          Date from
-          <input
-            type="date"
-            value={filterDate.start ?? ""}
-            onChange={(event) =>
-              setFilterDate((current) => ({
-                ...current,
-                start: event.target.value || undefined,
-              }))
-            }
-          />
-        </label>
-
-        <label className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-          Date to
-          <input
-            type="date"
-            value={filterDate.end ?? ""}
-            onChange={(event) =>
-              setFilterDate((current) => ({
-                ...current,
-                end: event.target.value || undefined,
-              }))
-            }
-          />
-        </label>
+        <Popover open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 min-w-[280px] justify-start rounded-2xl border-gray-300 bg-white px-4 text-left text-base font-normal text-gray-900 shadow-sm"
+            >
+              <CalendarIcon className="mr-3 h-5 w-5 shrink-0 text-gray-500" />
+              <span className="truncate">{formatCallLogDateRangeLabel(selectedDateRange)}</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              defaultMonth={selectedDateRange?.from}
+              selected={selectedDateRange}
+              onSelect={handleDateRangeSelect}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
 
         <label className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
           Office
@@ -498,6 +526,12 @@ export default function CallLogTable() {
       <div className="mt-3 text-xs text-gray-500">
         Showing case-level call logs from the backend. Actions remain placeholder-only on this screen for now.
       </div>
+
+      <CallLogModal
+        isOpen={showCallLogModal}
+        onClose={() => setShowCallLogModal(false)}
+        slipNumber={rows[0]?.slipNumber ?? ""}
+      />
     </div>
   );
 }
