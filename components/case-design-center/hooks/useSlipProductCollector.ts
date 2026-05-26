@@ -65,9 +65,10 @@ export function useSlipProductCollector({
         const fieldValues: Record<string, string> = {};
         const allSteps = [
           "grade", "stage", "teeth_shade", "gum_shade", "impression", "addons",
+          "material", "retention", "retention_option",
           "fixed_stage", "fixed_stump_shade", "fixed_shade_trio", "fixed_characterization",
           "fixed_contact_icons", "fixed_margin", "fixed_metal", "fixed_proximal_contact",
-          "fixed_impression", "fixed_addons", "fixed_notes",
+          "fixed_impression", "fixed_addons", "fixed_notes", "fixed_retention_type",
         ] as const;
         for (const step of allSteps) {
           const val = state.getFieldValue(arch, repTooth, step as any);
@@ -99,6 +100,22 @@ export function useSlipProductCollector({
         const rushKey = `${arch}_${cardId}`;
         const rush = state.rushedProducts?.[rushKey] ?? null;
 
+        const retentionTypesByTooth =
+          arch === "maxillary"
+            ? Object.fromEntries(
+                sortedTeeth
+                  .filter((tn) => state.maxillaryRetentionTypes[tn]?.length)
+                  .map((tn) => [tn, [...(state.maxillaryRetentionTypes[tn] ?? [])]])
+              )
+            : Object.fromEntries(
+                sortedTeeth
+                  .filter((tn) => (state.mandibularRetentionTypes?.[tn] ?? []).length)
+                  .map((tn) => [tn, [...(state.mandibularRetentionTypes?.[tn] ?? [])]])
+              );
+
+        const claspTeeth =
+          arch === "maxillary" ? state.maxillaryClaspTeeth : state.mandibularClaspTeeth ?? [];
+
         let oppositeExtractions: Array<{ extraction_id: number; teeth_numbers: number[] }> | undefined;
         if (
           Object.keys(state.opposingToothExtractionMap).length > 0 &&
@@ -112,7 +129,9 @@ export function useSlipProductCollector({
           });
           oppositeExtractions = Array.from(grouped.entries()).map(([code, toothNums]) => {
             const opExt = productApiData.opposite_extractions!.find((e: any) => e.code === code);
-            return { extraction_id: opExt?.id ?? 0, teeth_numbers: toothNums.sort((a, b) => a - b) };
+            const extraction_id =
+              (opExt as { extraction_id?: number })?.extraction_id ?? opExt?.id ?? 0;
+            return { extraction_id, teeth_numbers: toothNums.sort((a, b) => a - b) };
           }).filter((entry) => entry.extraction_id !== 0);
         }
 
@@ -131,12 +150,16 @@ export function useSlipProductCollector({
           productId,
           productApiData: productApiData ?? null,
           teethNumbers: teethSelection,
+          allCardTeeth: sortedTeeth,
           repToothNumber: repTooth,
           fieldValues,
           stageName,
           impressions,
           rush,
           cardId,
+          toothExtractionMap: { ...(extractionMap ?? {}) },
+          claspTeeth: claspTeeth.filter((tn) => sortedTeeth.includes(tn)),
+          retentionTypesByTooth,
           selectedShades: { ...(state.selectedShades ?? {}) },
           shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
@@ -158,9 +181,11 @@ export function useSlipProductCollector({
     state.getFieldValue,
     state.getToothProduct,
     state.getToothProductCard,
+    state.mandibularClaspTeeth,
     state.mandibularRetentionTypes,
     state.mandibularTeeth,
     state.mandibularToothExtractionMap,
+    state.maxillaryClaspTeeth,
     state.maxillaryRetentionTypes,
     state.maxillaryTeeth,
     state.maxillaryToothExtractionMap,
