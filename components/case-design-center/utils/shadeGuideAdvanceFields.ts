@@ -1,4 +1,8 @@
 import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType } from "../types";
+import {
+  CLASSICAL_FALLBACK_SHADES,
+  type ShadeGuideDisplayShade,
+} from "@/components/tooth-shade-guide-layout";
 
 /** Stable shade storage key per product (not per tooth). */
 export function buildFixedShadeProductId(productApiId: number | string): string {
@@ -208,6 +212,79 @@ export function getShadeGuideOptionsFromProduct(
     }
   }
   return systemNames;
+}
+
+function normalizeGuideName(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function mapRawShadeEntry(entry: Record<string, unknown>): ShadeGuideDisplayShade | null {
+  const name = String(entry.name ?? entry.shade_name ?? "").trim();
+  if (!name) return null;
+
+  return {
+    name,
+    color_code_incisal: (entry.color_code_incisal ?? entry.color_code_top) as string | undefined,
+    color_code_body: (entry.color_code_body ?? entry.color_code_middle) as string | undefined,
+    color_code_cervical: (entry.color_code_cervical ?? entry.color_code_bottom) as string | undefined,
+  };
+}
+
+/** Shades for the SVG picker: filtered by selected guide system_name, sorted by sequence. */
+export function getTeethShadesForSelectedGuide(
+  product: ProductApiData | null | undefined,
+  selectedGuideSystemName: string
+): ShadeGuideDisplayShade[] {
+  const teethShades = product?.teeth_shades;
+  if (!teethShades?.length || !selectedGuideSystemName) {
+    return CLASSICAL_FALLBACK_SHADES;
+  }
+
+  const targetGuide = normalizeGuideName(selectedGuideSystemName);
+  const collected: Array<ShadeGuideDisplayShade & { sequence: number }> = [];
+
+  for (const raw of teethShades as Array<Record<string, unknown>>) {
+    const nestedShades = raw.shades as Array<Record<string, unknown>> | undefined;
+    const brandSystemName =
+      (raw.brand as { system_name?: string } | undefined)?.system_name ??
+      (raw.system_name as string | undefined);
+
+    if (Array.isArray(nestedShades) && nestedShades.length > 0) {
+      if (normalizeGuideName(brandSystemName) !== targetGuide) continue;
+      for (const nested of nestedShades) {
+        const mapped = mapRawShadeEntry(nested);
+        if (mapped) {
+          collected.push({
+            ...mapped,
+            sequence: Number(nested.sequence ?? nestedShadeSequence(nested) ?? 0),
+          });
+        }
+      }
+      continue;
+    }
+
+    if (normalizeGuideName(brandSystemName) !== targetGuide) continue;
+    const mapped = mapRawShadeEntry(raw);
+    if (mapped) {
+      collected.push({
+        ...mapped,
+        sequence: Number(raw.sequence ?? 0),
+      });
+    }
+  }
+
+  if (collected.length === 0) {
+    return CLASSICAL_FALLBACK_SHADES;
+  }
+
+  return collected
+    .sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name))
+    .map(({ sequence: _sequence, ...shade }) => shade);
+}
+
+function nestedShadeSequence(entry: Record<string, unknown>): number | undefined {
+  const value = entry.sequence;
+  return typeof value === "number" ? value : undefined;
 }
 
 export function getDefaultShadeGuideFromProduct(

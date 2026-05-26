@@ -1888,6 +1888,7 @@ export function MandibularPanel({
                 advanceFields={shadeProduct?.advance_fields}
                 hasGumShadeFlag={shadeProduct?.has_gum_shade === "Yes"}
                 hasTeethShadeFlag={shadeProduct?.has_teeth_shade === "Yes"}
+                productForShades={shadeProduct}
               />
             );
           })()}

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
-import type { Arch, ShadeFieldType, ShadeSelectionState, ProductAdvanceField } from "../types";
-import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
+import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
+import { getShadeGuideAdvanceFields, getShadeFieldType, getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
 import { ShadeField } from "./fields/ShadeField";
 
 const EMPTY_SHADE_STATE: ShadeSelectionState = {
@@ -33,6 +33,8 @@ interface ShadeSelectionGuideProps {
   hasGumShadeFlag?: boolean;
   /** Whether the product has_teeth_shade flag (used when no advance_fields match) */
   hasTeethShadeFlag?: boolean;
+  /** Product used to resolve shade list for the SVG picker */
+  productForShades?: ProductApiData | null;
 }
 
 function getShadeLabels(
@@ -74,6 +76,7 @@ export function ShadeSelectionGuide({
   advanceFields,
   hasGumShadeFlag,
   hasTeethShadeFlag,
+  productForShades,
 }: ShadeSelectionGuideProps) {
   const shadeGuideFields = useMemo(
     () => getShadeGuideAdvanceFields(advanceFields),
@@ -225,6 +228,11 @@ export function ShadeSelectionGuide({
   const activeShadeSelection = useMemo(
     () => (activeShade ? [activeShade] : []),
     [activeShade]
+  );
+
+  const guideShades = useMemo(
+    () => getTeethShadesForSelectedGuide(productForShades, selectedShadeGuide),
+    [productForShades, selectedShadeGuide]
   );
 
   const handleNamedFieldClick = useCallback(
@@ -441,9 +449,11 @@ export function ShadeSelectionGuide({
         {/* Shade SVG picker — only shown when current active field is a shade_guide type */}
         {selectedShadeGuide && activeFieldIsShadeGuide && (
           <ToothShadeSelectionSVG
-            key={`${productId}-${activeAdvanceFieldId ?? activeField}`}
+            key={`${productId}-${activeAdvanceFieldId ?? activeField}-${selectedShadeGuide}`}
             selectedShades={activeShadeSelection}
             onShadeClick={handleShadeSelectWithAdvance}
+            shades={guideShades}
+            guideLabel={selectedShadeGuide}
             className="w-full"
           />
         )}
