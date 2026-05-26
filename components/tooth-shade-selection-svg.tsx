@@ -203,9 +203,10 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
       fill="none"
       viewBox={`0 ${SHADE_LAYOUT.viewBoxY} ${layout.viewBoxWidth} ${SHADE_LAYOUT.viewBoxHeight}`}
       width="100%"
-      height="auto"
+      height="180"
       preserveAspectRatio="xMidYMid meet"
-      className={showRequired ? "ring-2 ring-[#cf0202] rounded" : undefined}
+      className={showRequired ? "ring-2 ring-[#cf0202] rounded" : undefined} 
+      style={{ overflow: "visible" }}
     >
   <defs>
         <clipPath id="shade-guide-clip-a">
@@ -317,8 +318,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 
   return (
     <div
-      className={`relative z-30 ${needsHorizontalScroll ? "overflow-x-auto overflow-y-visible" : "overflow-visible"} ${className}`}
-      style={{ overflowY: "visible" }}
+      className={`relative z-30  overflow-visible ${className}`}
     >
       {svg}
       </div>
