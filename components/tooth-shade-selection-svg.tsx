@@ -55,7 +55,8 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 
   return (
     <div
-    
+      className={`overflow-visible relative z-30 ${className}`}
+      style={{ overflow: 'visible' }}
     >
       <style>{`
         .shade-stick {
