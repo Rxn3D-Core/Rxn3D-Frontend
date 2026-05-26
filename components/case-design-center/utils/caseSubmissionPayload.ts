@@ -1,8 +1,23 @@
-import type { SlipCreationPayload, SlipCreationProduct } from "@/services/slip-creation-service";
+import type {
+  SlipCreationMultipartFile,
+  SlipCreationPayload,
+  SlipCreationProduct,
+} from "@/services/slip-creation-service";
+import type { ProductImplant } from "@/services/implant-api";
 import type { SlipProductSnapshot } from "../types";
 import { hasRetentionOptions } from "./categoryHelpers";
 import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
+import {
+  buildImplantAndAbutmentDetails,
+  buildProductExtractions,
+  buildRetentions,
+  buildRetentionOptions,
+  normalizeRush,
+  partitionAdvanceFieldsForMultipart,
+  prefetchImplantCatalogsForSnapshots,
+  resolveMaterialId,
+} from "./slipPayloadMappers";
 
 interface BuildCaseSubmissionPayloadParams {
   snapshots: SlipProductSnapshot[];
@@ -13,24 +28,43 @@ interface BuildCaseSubmissionPayloadParams {
   patientName: string;
   gender?: string;
   age?: string;
+  /** Lab customer id for implant prefetch (`/slip/product/implants`) */
+  labCustomerId?: number;
 }
 
 function parseShadeDisplayName(raw: string): string {
-  try { return JSON.parse(raw).name ?? raw; } catch { return raw; }
+  try {
+    return JSON.parse(raw).name ?? raw;
+  } catch {
+    return raw;
+  }
 }
 
-export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduct {
+function resolveStageId(
+  product: SlipProductSnapshot["productApiData"],
+  stageName: string | null
+): number | undefined {
+  if (!product || product.has_stage === "No" || product.is_single_stage === "Yes") {
+    return undefined;
+  }
+  if (!stageName) return undefined;
+  const stageObj = product.stages?.find((s: { name?: string }) => s.name === stageName);
+  const stage_id = stageObj?.stage_id ?? 0;
+  return stage_id > 0 ? stage_id : undefined;
+}
+
+export function snapshotToProduct(
+  snap: SlipProductSnapshot,
+  implantCatalog?: ProductImplant[]
+): SlipCreationProduct {
   const product = snap.productApiData;
   const isFixed = hasRetentionOptions(product);
-
-  const stageName = snap.stageName ?? snap.fieldValues["stage"] ?? snap.fieldValues["fixed_stage"] ?? null;
-  const stageObj = product?.stages?.find((s: any) => s.name === stageName);
-  const stage_id = stageObj?.stage_id ?? 0;
+  const stage_id = resolveStageId(product, snap.stageName);
 
   const impressions = Object.entries(snap.impressions)
     .filter(([, qty]) => qty > 0)
     .map(([code, qty]) => {
-      const imp = product?.impressions?.find((i: any) => i.code === code);
+      const imp = product?.impressions?.find((i: { code?: string }) => i.code === code);
       return { impression_id: imp?.impression_id ?? imp?.id ?? 0, quantity: qty };
     })
     .filter((i) => i.impression_id > 0);
@@ -42,8 +76,62 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
     .filter((a) => a.qty > 0)
     .map((a) => ({ addon_id: a.addon_id, quantity: a.qty }));
 
+  const cardTeeth =
+    snap.allCardTeeth && snap.allCardTeeth.length > 0
+      ? snap.allCardTeeth
+      : snap.checkedTeeth && snap.checkedTeeth.length > 0
+        ? snap.checkedTeeth
+        : snap.teethNumbers;
+
+  const retentionTypesByTooth = snap.retentionTypesByTooth ?? {};
+  const toothExtractionMap = snap.toothExtractionMap ?? {};
+  const claspTeeth = snap.claspTeeth ?? [];
+
+  const extractions = buildProductExtractions(
+    product,
+    toothExtractionMap,
+    claspTeeth,
+    cardTeeth
+  );
+  const retention_options = buildRetentionOptions(
+    product,
+    retentionTypesByTooth,
+    cardTeeth
+  );
+  const retentions = buildRetentions(
+    product,
+    snap.fieldValues,
+    retentionTypesByTooth,
+    cardTeeth
+  );
+  const material_id = resolveMaterialId(product, snap.fieldValues);
+  const rush = normalizeRush(snap.rush);
+
+  const teeth_selection = cardTeeth.join(",");
+
+  const sharedProductFields = {
+    type: snap.type as "Upper" | "Lower",
+    category_id: product?.subcategory?.category_id ?? 0,
+    product_id: snap.productId,
+    subcategory_id: product?.subcategory?.id ?? 0,
+    ...(stage_id !== undefined ? { stage_id } : {}),
+    teeth_selection,
+    status: "In Progress" as const,
+    notes: buildProductNoteFromSnapshot(snap) || undefined,
+    ...(impressions.length > 0 ? { impressions } : {}),
+    ...(addons.length > 0 ? { addons } : {}),
+    ...(extractions.length > 0 ? { extractions } : {}),
+    ...(retention_options.length > 0 ? { retention_options } : {}),
+    ...(retentions.length > 0 ? { retentions } : {}),
+    ...(material_id ? { material_id } : {}),
+    ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
+      ? { opposite_extractions: snap.oppositeExtractions }
+      : {}),
+    ...(rush ? { rush } : {}),
+  };
+
   if (isFixed) {
-    const advance_fields: Array<{ teeth_number: number | null; advance_field_id: number; advance_field_value: string }> = [];
+    const advance_fields: SlipCreationProduct["advance_fields"] = [];
     const fixedShadeProductId = product?.id
       ? `fixed_p_${product.id}`
       : `fixed_${snap.repToothNumber}`;
@@ -52,9 +140,15 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
     if (shadeGuideFields.length > 0) {
       for (const field of shadeGuideFields) {
         const fieldType = getShadeFieldType(field);
-        const selectedShade = snap.selectedShades[
-          buildShadeSelectionKey(fixedShadeProductId, snapArch as "maxillary" | "mandibular", fieldType, field.id)
-        ];
+        const selectedShade =
+          snap.selectedShades[
+            buildShadeSelectionKey(
+              fixedShadeProductId,
+              snapArch as "maxillary" | "mandibular",
+              fieldType,
+              field.id
+            )
+          ];
         if (!selectedShade) continue;
         advance_fields.push({
           teeth_number: null,
@@ -66,31 +160,59 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
 
     const advanceFieldKeys: Array<[string, (n: string) => boolean, boolean]> = [
       ["fixed_characterization", (n) => n.includes("characterization"), false],
-      ["fixed_contact_icons", (n) => n.includes("occlusal") || n.includes("pontic") || n.includes("embrasure"), false],
+      [
+        "fixed_contact_icons",
+        (n) => n.includes("occlusal") || n.includes("pontic") || n.includes("embrasure"),
+        false,
+      ],
       ["fixed_margin", (n) => n.includes("margin"), false],
       ["fixed_metal", (n) => n.includes("metal"), false],
       ["fixed_proximal_contact", (n) => n.includes("proximal") && n.includes("contact"), false],
       ["fixed_notes", (n) => n.includes("note") || n.includes("additional"), false],
+      ["fixed_retention_type", (n) => n.includes("retention"), false],
     ];
 
     for (const [key, matcher, isShadeJson] of advanceFieldKeys) {
       const raw = snap.fieldValues[key];
       if (!raw) continue;
-      const advField = product?.advance_fields?.find((af: any) => {
+      const advField = product?.advance_fields?.find((af: { name?: string; field_type?: string }) => {
         if (shadeGuideFields.length > 0 && af.field_type === "shade_guide") return false;
         return matcher((af.name ?? "").toLowerCase());
       });
       if (!advField) continue;
       const value = isShadeJson ? parseShadeDisplayName(raw) : raw;
-      advance_fields.push({ teeth_number: null, advance_field_id: advField.id, advance_field_value: value });
+      advance_fields.push({
+        teeth_number: null,
+        advance_field_id: advField.id,
+        advance_field_value: value,
+      });
+    }
+
+    if (snap.advanceFieldFiles) {
+      for (const [stepKey, file] of Object.entries(snap.advanceFieldFiles)) {
+        const advField = product?.advance_fields?.find(
+          (af: { name?: string; field_type?: string }) =>
+            (af.field_type ?? "").toLowerCase() === "file" ||
+            (af.name ?? "").toLowerCase().includes(stepKey.replace("fixed_", ""))
+        );
+        if (!advField) continue;
+        advance_fields.push({
+          teeth_number: null,
+          advance_field_id: advField.id,
+          file,
+        });
+      }
     }
 
     const implantLibraryField = product?.advance_fields?.find(
-      (af: any) => (af.field_type ?? "").toLowerCase() === "implant_library"
+      (af: { field_type?: string }) => (af.field_type ?? "").toLowerCase() === "implant_library"
     );
     if (implantLibraryField && snap.implantDetailByTooth) {
       for (const [toothKey, implantDetail] of Object.entries(snap.implantDetailByTooth)) {
-        if (!implantDetail || !(implantDetail.brand || implantDetail.platform || implantDetail.size)) {
+        if (
+          !implantDetail ||
+          !(implantDetail.brand || implantDetail.platform || implantDetail.size)
+        ) {
           continue;
         }
         advance_fields.push({
@@ -109,32 +231,48 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
       }
     }
 
+    const { implant_details, abutment_details } = buildImplantAndAbutmentDetails(
+      product,
+      snap.implantDetailByTooth,
+      implantCatalog
+    );
+
+    const gradeRaw = snap.fieldValues["grade"] ?? "";
+    let grade_id: number | undefined;
+    if (gradeRaw) {
+      try {
+        const parsed = JSON.parse(gradeRaw);
+        const id = Number(parsed.grade_id ?? 0);
+        if (id > 0) grade_id = id;
+      } catch {
+        const id =
+          product?.grades?.find((g: { name?: string; grade_id?: number }) => g.name === gradeRaw)
+            ?.grade_id ?? 0;
+        if (id > 0) grade_id = id;
+      }
+    }
+
     return {
-      type: snap.type as "Upper" | "Lower",
-      category_id: product?.subcategory?.category_id ?? 0,
-      product_id: snap.productId,
-      subcategory_id: product?.subcategory?.id ?? 0,
-      ...(product?.is_single_stage !== "Yes" ? { stage_id } : {}),
-      teeth_selection: (snap.checkedTeeth && snap.checkedTeeth.length > 0 ? snap.checkedTeeth : snap.teethNumbers).join(","),
-      status: "In Progress",
-      notes: buildProductNoteFromSnapshot(snap) || undefined,
-      ...(impressions.length > 0 ? { impressions } : {}),
-      ...(addons.length > 0 ? { addons } : {}),
+      ...sharedProductFields,
+      ...(grade_id ? { grade_id } : {}),
       ...(advance_fields.length > 0 ? { advance_fields } : {}),
-      ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
-        ? { opposite_extractions: snap.oppositeExtractions }
-        : {}),
-      ...(snap.rush?.is_rush
-        ? { rush: { is_rush: true, requested_rush_date: snap.rush.requested_rush_date ?? "" } }
-        : {}),
+      ...(implant_details.length > 0 ? { implant_details } : {}),
+      ...(abutment_details.length > 0 ? { abutment_details } : {}),
     } as SlipCreationProduct;
   }
 
   const gradeRaw = snap.fieldValues["grade"] ?? "";
-  let grade_id = 0;
+  let grade_id: number | undefined;
   if (gradeRaw) {
-    try { grade_id = JSON.parse(gradeRaw).grade_id ?? 0; }
-    catch { grade_id = product?.grades?.find((g: any) => g.name === gradeRaw)?.grade_id ?? 0; }
+    try {
+      const id = Number(JSON.parse(gradeRaw).grade_id ?? 0);
+      if (id > 0) grade_id = id;
+    } catch {
+      const id =
+        product?.grades?.find((g: { name?: string; grade_id?: number }) => g.name === gradeRaw)
+          ?.grade_id ?? 0;
+      if (id > 0) grade_id = id;
+    }
   }
 
   const teethShadeRaw = snap.fieldValues["teeth_shade"] ?? "";
@@ -145,7 +283,9 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
       const parsed = JSON.parse(teethShadeRaw);
       teeth_shade_id = parsed.teeth_shade_id ?? 0;
       teeth_shade_brand_id = parsed.brand_id ?? 0;
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }
 
   const gumShadeStr = snap.fieldValues["gum_shade"] ?? "";
@@ -157,7 +297,9 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
       gum_shade_id = parsed.gum_shade_id ?? 0;
       gum_shade_brand_id = parsed.brand_id ?? 0;
     } catch {
-      const matchedGumShade = product?.gum_shades?.find((s: any) => s.name === gumShadeStr);
+      const matchedGumShade = product?.gum_shades?.find(
+        (s: { name?: string }) => s.name === gumShadeStr
+      );
       if (matchedGumShade) {
         gum_shade_id = matchedGumShade.gum_shade_id ?? matchedGumShade.id;
         gum_shade_brand_id = matchedGumShade.brand?.id ?? 0;
@@ -166,52 +308,121 @@ export function snapshotToProduct(snap: SlipProductSnapshot): SlipCreationProduc
   }
 
   return {
-    type: snap.type as "Upper" | "Lower",
-    category_id: product?.subcategory?.category_id ?? 0,
-    product_id: snap.productId,
-    subcategory_id: product?.subcategory?.id ?? 0,
-    ...(product?.is_single_stage !== "Yes" ? { stage_id } : {}),
+    ...sharedProductFields,
     ...(grade_id ? { grade_id } : {}),
-    teeth_selection: (snap.checkedTeeth && snap.checkedTeeth.length > 0 ? snap.checkedTeeth : snap.teethNumbers).join(","),
     ...(teeth_shade_id ? { teeth_shade_id, teeth_shade_brand_id } : {}),
     ...(gum_shade_id ? { gum_shade_id, gum_shade_brand_id } : {}),
-    status: "In Progress",
-    notes: buildProductNoteFromSnapshot(snap) || undefined,
-    ...(impressions.length > 0 ? { impressions } : {}),
-    ...(addons.length > 0 ? { addons } : {}),
-    ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
-      ? { opposite_extractions: snap.oppositeExtractions }
-      : {}),
-    ...(snap.rush?.is_rush
-      ? { rush: { is_rush: true, requested_rush_date: snap.rush.requested_rush_date ?? "" } }
-      : {}),
   } as SlipCreationProduct;
 }
 
-export function buildCaseSubmissionPayload({
-  snapshots,
-  role,
-  customerId,
-  completedLabId,
-  completedDoctorId,
-  patientName,
-  gender,
-  age,
-}: BuildCaseSubmissionPayloadParams): SlipCreationPayload {
-  const filteredSnapshots = snapshots.filter((s) => s.teethNumbers.length > 0 || s.productId > 0);
-  const products = filteredSnapshots.map(snapshotToProduct);
+export interface BuildCaseSubmissionResult {
+  payload: SlipCreationPayload;
+  multipartFiles: SlipCreationMultipartFile[];
+}
+
+export async function buildCaseSubmissionPayloadAsync(
+  params: BuildCaseSubmissionPayloadParams
+): Promise<BuildCaseSubmissionResult> {
+  const {
+    snapshots,
+    role,
+    customerId,
+    completedLabId,
+    completedDoctorId,
+    patientName,
+    gender,
+    age,
+    labCustomerId,
+  } = params;
+
+  const filteredSnapshots = snapshots.filter(
+    (s) => s.teethNumbers.length > 0 || s.productId > 0
+  );
+
+  const implantCustomerId =
+    labCustomerId ??
+    (role === "lab_admin" ? customerId : completedLabId ?? customerId);
+  const implantCatalogs = await prefetchImplantCatalogsForSnapshots(
+    filteredSnapshots,
+    implantCustomerId
+  );
+
+  const products = filteredSnapshots.map((snap) =>
+    snapshotToProduct(snap, implantCatalogs.get(snap.productId))
+  );
+
+  const multipartFiles: SlipCreationMultipartFile[] = [];
+  products.forEach((product, productIndex) => {
+    const { jsonFields, fileSlots } = partitionAdvanceFieldsForMultipart(
+      product.advance_fields,
+      0,
+      productIndex
+    );
+    if (fileSlots.length > 0) {
+      product.advance_fields = jsonFields;
+      multipartFiles.push(
+        ...fileSlots.map((s) => ({ formKey: s.formKey, file: s.file }))
+      );
+    }
+  });
 
   const labId = role === "lab_admin" ? customerId : completedLabId ?? 0;
   const officeId = role === "lab_admin" ? completedLabId ?? 0 : customerId;
+
+  if (process.env.NODE_ENV === "development") {
+    console.debug("[case-design-center] slip/create payload", {
+      case: { lab_id: labId, office_id: officeId },
+      products,
+      multipartFileKeys: multipartFiles.map((f) => f.formKey),
+    });
+  }
+
+  return {
+    payload: {
+      case: {
+        lab_id: labId,
+        office_id: officeId,
+        doctor: completedDoctorId ?? 0,
+        patient_name: patientName,
+        ...(gender ? { gender } : {}),
+        ...(age ? { age: Number(age) } : {}),
+        case_status: "In Progress",
+      },
+      slips: [
+        {
+          status: "In Progress",
+          products,
+          notes: products
+            .map((p) => p.notes)
+            .filter((note): note is string => Boolean(note))
+            .map((note) => ({ note })),
+        },
+      ],
+    },
+    multipartFiles,
+  };
+}
+
+/** @deprecated Use buildCaseSubmissionPayloadAsync for implant prefetch and multipart files */
+export function buildCaseSubmissionPayload(
+  params: BuildCaseSubmissionPayloadParams
+): SlipCreationPayload {
+  const filteredSnapshots = params.snapshots.filter(
+    (s) => s.teethNumbers.length > 0 || s.productId > 0
+  );
+  const products = filteredSnapshots.map((snap) => snapshotToProduct(snap));
+  const labId = params.role === "lab_admin" ? params.customerId : params.completedLabId ?? 0;
+  const officeId =
+    params.role === "lab_admin" ? params.completedLabId ?? 0 : params.customerId;
 
   return {
     case: {
       lab_id: labId,
       office_id: officeId,
-      doctor: completedDoctorId ?? 0,
-      patient_name: patientName,
-      ...(gender ? { gender } : {}),
-      ...(age ? { age: Number(age) } : {}),
+      doctor: params.completedDoctorId ?? 0,
+      patient_name: params.patientName,
+      ...(params.gender ? { gender: params.gender } : {}),
+      ...(params.age ? { age: Number(params.age) } : {}),
       case_status: "In Progress",
     },
     slips: [
@@ -219,7 +430,7 @@ export function buildCaseSubmissionPayload({
         status: "In Progress",
         products,
         notes: products
-          .map((product) => product.notes)
+          .map((p) => p.notes)
           .filter((note): note is string => Boolean(note))
           .map((note) => ({ note })),
       },

@@ -93,6 +93,10 @@ export default function Page() {
     completedPatientName,
     completedGender,
     completedAge,
+    labCustomerId:
+      typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin"
+        ? Number(localStorage.getItem("customerId")) || null
+        : completedLab?.id ?? null,
   });
 
   useEffect(() => {
