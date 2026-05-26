@@ -730,53 +730,6 @@ export default function ChargeManagementPage() {
       }))
   }, [charges, selectedItems])
 
-  const handleStatementAutoMarkBilledToggle = useCallback(async () => {
-    if (statementAutoMarking) return
-
-    if (statementAutoMarkBilled) {
-      setStatementAutoMarkBilled(false)
-      return
-    }
-
-    const billingIds = Array.from(
-      new Set(selectedStatementGroups.flatMap((group) => group.billingIds)),
-    )
-
-    if (billingIds.length === 0) {
-      toast({
-        title: "No billing lines selected",
-        description: "Select at least one charge before enabling auto mark as billed.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setStatementAutoMarking(true)
-    try {
-      await bulkAction({ billing_ids: billingIds, action: "mark_billed" }).unwrap()
-      setStatementAutoMarkBilled(true)
-      await onRefresh()
-      toast({
-        title: "Selected charges marked as billed",
-      })
-    } catch (error) {
-      toast({
-        title: "Unable to mark charges as billed",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setStatementAutoMarking(false)
-    }
-  }, [
-    bulkAction,
-    onRefresh,
-    selectedStatementGroups,
-    statementAutoMarkBilled,
-    statementAutoMarking,
-    toast,
-  ])
-
   const currentSendStatement = generatedStatements[sendQueueIndex] ?? null
   const currentSendGroup = useMemo(() => {
     if (!currentSendStatement) return null
@@ -1074,6 +1027,53 @@ export default function ChargeManagementPage() {
     }
     await refetchList()
   }, [activeSource, advancedBody, advancedPage, advancedSearch, refetchList, toast])
+
+  const handleStatementAutoMarkBilledToggle = useCallback(async () => {
+    if (statementAutoMarking) return
+
+    if (statementAutoMarkBilled) {
+      setStatementAutoMarkBilled(false)
+      return
+    }
+
+    const billingIds = Array.from(
+      new Set(selectedStatementGroups.flatMap((group) => group.billingIds)),
+    )
+
+    if (billingIds.length === 0) {
+      toast({
+        title: "No billing lines selected",
+        description: "Select at least one charge before enabling auto mark as billed.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setStatementAutoMarking(true)
+    try {
+      await bulkAction({ billing_ids: billingIds, action: "mark_billed" }).unwrap()
+      setStatementAutoMarkBilled(true)
+      await onRefresh()
+      toast({
+        title: "Selected charges marked as billed",
+      })
+    } catch (error) {
+      toast({
+        title: "Unable to mark charges as billed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setStatementAutoMarking(false)
+    }
+  }, [
+    bulkAction,
+    onRefresh,
+    selectedStatementGroups,
+    statementAutoMarkBilled,
+    statementAutoMarking,
+    toast,
+  ])
 
   const handleBulk = async (action: BulkBillingActionBody["action"]) => {
     if (selectedBillingIds.length === 0) {
