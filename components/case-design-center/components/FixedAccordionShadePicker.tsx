@@ -3,7 +3,8 @@
 import { useEffect, useMemo } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
-import type { Arch, ShadeFieldType, ShadeSelectionState } from "../types";
+import type { Arch, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
+import { getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
 
 interface FixedAccordionShadePickerProps {
   arch: Arch;
@@ -20,6 +21,7 @@ interface FixedAccordionShadePickerProps {
     advanceFieldId?: number | null
   ) => string;
   onShadeSelect: (shade: string) => void;
+  productForShades?: ProductApiData | null;
 }
 
 export function FixedAccordionShadePicker({
@@ -32,6 +34,7 @@ export function FixedAccordionShadePicker({
   shadeGuideOptions,
   getSelectedShade,
   onShadeSelect,
+  productForShades,
 }: FixedAccordionShadePickerProps) {
   useEffect(() => {
     if (!shadeGuideOptions.length) return;
@@ -67,6 +70,11 @@ export function FixedAccordionShadePicker({
   const activeShadeSelection = useMemo(
     () => (activeShade ? [activeShade] : []),
     [activeShade]
+  );
+
+  const guideShades = useMemo(
+    () => getTeethShadesForSelectedGuide(productForShades, selectedShadeGuide),
+    [productForShades, selectedShadeGuide]
   );
 
   const activeLabel = shadeSelectionState.advanceFieldLabel || "Shade";
@@ -146,9 +154,11 @@ export function FixedAccordionShadePicker({
 
       {selectedShadeGuide && (
         <ToothShadeSelectionSVG
-          key={`${productId}-${advanceFieldId ?? fieldType}`}
+          key={`${productId}-${advanceFieldId ?? fieldType}-${selectedShadeGuide}`}
           selectedShades={activeShadeSelection}
           onShadeClick={onShadeSelect}
+          shades={guideShades}
+          guideLabel={selectedShadeGuide}
           className="w-full"
         />
       )}
