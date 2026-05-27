@@ -172,6 +172,11 @@ function formatMoney(value: number | string | null | undefined): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
 }
 
+function isRefundLikeStatus(status: string | null | undefined): boolean {
+  const normalized = (status ?? "").trim().toLowerCase()
+  return normalized === "refund" || normalized === "refunded"
+}
+
 function parseMoneyValue(value: string | null | undefined): number {
   if (!value) return 0
   const n = Number.parseFloat(value.replace(/[^0-9.-]/g, ""))
@@ -222,6 +227,11 @@ function mapInvoiceStatusToLabel(status: string | null | undefined): string {
   if (s === "overdue") return "Overdue"
   if (s === "cancelled") return "Cancelled"
   return status
+}
+
+function statementSignedAmount(charge: Pick<ChargeRow, "gross" | "status">): number {
+  const amount = parseMoneyValue(charge.gross)
+  return isRefundLikeStatus(charge.status) ? -amount : amount
 }
 
 function parseDateInput(value: string): Date | undefined {
@@ -605,17 +615,19 @@ export default function ChargeManagementPage() {
     return response.blob()
   }, [])
 
-  const openBlobInNewTab = useCallback((blob: Blob, filename: string): string => {
+  const createBlobUrl = useCallback((blob: Blob): string => {
+    return URL.createObjectURL(blob)
+  }, [])
+
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.target = "_blank"
-    anchor.rel = "noopener noreferrer"
     anchor.download = filename
     document.body.appendChild(anchor)
     anchor.click()
     document.body.removeChild(anchor)
-    return url
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }, [])
 
   const closePdfViewer = useCallback(() => {
@@ -693,7 +705,7 @@ export default function ChargeManagementPage() {
           existing.invoiceCount += 1
         }
         existing.chargeCount += 1
-        existing.totalAmount += parseMoneyValue(charge.gross)
+        existing.totalAmount += statementSignedAmount(charge)
         return
       }
 
@@ -706,7 +718,7 @@ export default function ChargeManagementPage() {
         chargeCount: 1,
         invoiceCount: 1,
         invoiceLabel: charge.invoiceNumber,
-        totalAmount: parseMoneyValue(charge.gross),
+        totalAmount: statementSignedAmount(charge),
       })
     })
 
@@ -726,7 +738,7 @@ export default function ChargeManagementPage() {
         patient: charge.patient,
         product: charge.product,
         chargeCount: 1,
-        totalAmount: parseMoneyValue(charge.gross),
+        totalAmount: statementSignedAmount(charge),
       }))
   }, [charges, selectedItems])
 
@@ -1249,18 +1261,17 @@ export default function ChargeManagementPage() {
     [generateStatement, statementAutoMarkBilled],
   )
 
-  const openStatementPdfForStatement = useCallback(
+  const downloadStatementPdfForStatement = useCallback(
     async (statement: StatementRecord, officeName: string): Promise<string> => {
       const result = await generateStatementPdf(statement.id).unwrap()
       const downloadPath = result?.data?.download_url || result?.data?.pdf_url
       if (!downloadPath) throw new Error("No statement PDF URL returned by the server")
       const blob = await fetchAuthorizedBlob(downloadPath)
-      return openBlobInNewTab(
-        blob,
-        buildStatementPdfFilename(officeName, statement.statement_id || statement.id),
-      )
+      const filename = buildStatementPdfFilename(officeName, statement.statement_id || statement.id)
+      downloadBlob(blob, filename)
+      return createBlobUrl(blob)
     },
-    [fetchAuthorizedBlob, generateStatementPdf, openBlobInNewTab],
+    [createBlobUrl, downloadBlob, fetchAuthorizedBlob, generateStatementPdf],
   )
 
   const handleGenerateOnlyStatements = useCallback(async () => {
@@ -1289,10 +1300,10 @@ export default function ChargeManagementPage() {
             statement,
           })
 
-          const pdfUrl = await openStatementPdfForStatement(statement, group.officeName)
+          const pdfUrl = await downloadStatementPdfForStatement(statement, group.officeName)
           updateStatementJobStatus(group.officeId, {
             status: "opened",
-            label: "PDF opened",
+            label: "PDF downloaded",
             statement,
             pdfUrl,
           })
@@ -1321,6 +1332,8 @@ export default function ChargeManagementPage() {
             : `Created ${successCount} statement${successCount === 1 ? "" : "s"} and ${failureCount} office group${failureCount === 1 ? "" : "s"} failed.`,
         variant: failureCount === 0 ? "default" : "destructive",
       })
+
+      setStatementModalOpen(false)
     } finally {
       setGeneratingStatements(false)
       setStatementActionLoading(null)
@@ -1328,7 +1341,7 @@ export default function ChargeManagementPage() {
   }, [
     generateStatementForGroup,
     onRefresh,
-    openStatementPdfForStatement,
+    downloadStatementPdfForStatement,
     selectedStatementGroups,
     updateStatementJobStatus,
   ])
@@ -1377,10 +1390,12 @@ export default function ChargeManagementPage() {
         try {
           const statement = await generateStatementForGroup(group)
           createdStatements.push(statement)
+          const pdfUrl = await downloadStatementPdfForStatement(statement, group.officeName)
           updateStatementJobStatus(group.officeId, {
             status: "generated",
-            label: "Ready to send",
+            label: "Downloaded and ready to send",
             statement,
+            pdfUrl,
           })
         } catch (error) {
           updateStatementJobStatus(group.officeId, {
@@ -1405,7 +1420,14 @@ export default function ChargeManagementPage() {
       setGeneratingStatements(false)
       setStatementActionLoading(null)
     }
-  }, [generateStatementForGroup, loadSendPreviewForStatement, onRefresh, selectedStatementGroups, updateStatementJobStatus])
+  }, [
+    generateStatementForGroup,
+    loadSendPreviewForStatement,
+    onRefresh,
+    downloadStatementPdfForStatement,
+    selectedStatementGroups,
+    updateStatementJobStatus,
+  ])
 
   const handleSkipCurrentEmail = useCallback(async () => {
     if (!currentSendStatement) return
@@ -2045,11 +2067,7 @@ export default function ChargeManagementPage() {
           }}
         >
           <DialogContent
-            className={`w-[min(96vw,68rem)] overflow-hidden rounded-[20px] p-0 ${
-              statementModalStep === "sending"
-                ? "flex h-[92vh] max-h-[92vh] flex-col gap-0"
-                : "max-h-[90vh] gap-0"
-            }`}
+            className="flex h-[92vh] max-h-[92vh] w-[min(96vw,68rem)] flex-col gap-0 overflow-hidden rounded-[20px] p-0"
             showCloseButton={false}
           >
             <DialogClose className="absolute right-5 top-5 z-10 rounded-sm p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
@@ -2059,13 +2077,13 @@ export default function ChargeManagementPage() {
 
             {statementModalStep === "confirm" ? (
               <>
-                <DialogHeader className="border-b px-7 py-6 text-left">
+                <DialogHeader className="shrink-0 border-b px-5 py-5 text-left sm:px-6 sm:py-6 lg:px-7">
                   <div className="flex items-start gap-4 pr-14">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#1565b3] text-white">
                       <FileText className="h-5 w-5" />
                     </div>
                     <div className="space-y-3">
-                      <DialogTitle className="text-[28px] font-bold tracking-tight text-black">
+                      <DialogTitle className="text-[24px] font-bold tracking-tight text-black sm:text-[28px]">
                         Confirm Statement Generation
                       </DialogTitle>
                       <DialogDescription className="text-[14px] text-black">
@@ -2077,61 +2095,63 @@ export default function ChargeManagementPage() {
                   </div>
                 </DialogHeader>
 
-                <div className="space-y-6 px-8 py-6">
-                  {selectedStatementPreviewItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between rounded-[18px] border border-gray-100 bg-gray-50/70 px-8 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-                    >
-                      <div>
-                        <h3 className="text-[24px] font-bold text-black">{item.officeName}</h3>
-                        <p className="mt-2 text-[14px] text-gray-400">
-                          {item.invoiceLabel} • {item.officeCode} • {item.patient} • {item.product}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-6 text-right">
-                        <div className="text-[15px] text-black">
-                          <span className="mr-2.5">Total:</span>
-                          <span className="text-[17px]">{formatMoney(item.totalAmount)}</span>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+                    {selectedStatementPreviewItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex flex-col gap-4 rounded-[18px] border border-gray-100 bg-gray-50/70 px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+                      >
+                        <div className="min-w-0">
+                          <h3 className="text-[22px] font-bold text-black sm:text-[24px]">{item.officeName}</h3>
+                          <p className="mt-2 text-[14px] leading-6 text-gray-400">
+                            {item.invoiceLabel} • {item.officeCode} • {item.patient} • {item.product}
+                          </p>
                         </div>
-                        <Eye className="h-4.5 w-4.5 text-black/80" />
+                        <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
+                          <div className="text-[15px] text-black sm:text-right">
+                            <span className="mr-2.5">Total:</span>
+                            <span className="text-[17px]">{formatMoney(item.totalAmount)}</span>
+                          </div>
+                          <Eye className="h-4.5 w-4.5 shrink-0 text-black/80" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
 
-                  <div className="flex items-center gap-4 px-2 pt-1">
-                    <button
-                      type="button"
-                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                        statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
-                      }`}
-                      onClick={() => void handleStatementAutoMarkBilledToggle()}
-                      disabled={statementAutoMarking}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                          statementAutoMarkBilled ? "translate-x-8" : "translate-x-1"
+                    <div className="flex items-center gap-4 px-2 pt-1">
+                      <button
+                        type="button"
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                          statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
                         }`}
-                      />
-                    </button>
-                    <span className="text-[15px] text-black">
-                      {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
-                    </span>
+                        onClick={() => void handleStatementAutoMarkBilledToggle()}
+                        disabled={statementAutoMarking}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            statementAutoMarkBilled ? "translate-x-8" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                      <span className="text-[15px] text-black">
+                        {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <DialogFooter className="border-t px-8 py-5 sm:justify-center sm:space-x-4">
+                <DialogFooter className="shrink-0 border-t bg-white px-4 py-4 sm:px-6 sm:py-5 sm:justify-center sm:space-x-4 lg:px-8">
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-11 min-w-[170px] border-gray-300 text-lg text-gray-600"
+                    className="h-11 w-full border-gray-300 text-base text-gray-600 sm:min-w-[170px] sm:w-auto sm:text-lg"
                     onClick={() => setStatementModalOpen(false)}
                   >
                     Cancel
                   </Button>
                   <Button
                     type="button"
-                    className="h-11 min-w-[215px] gap-2.5 text-lg"
+                    className="h-11 w-full gap-2.5 text-base sm:min-w-[215px] sm:w-auto sm:text-lg"
                     onClick={() => void handleGenerateOnlyStatements()}
                     disabled={statementActionLoading != null}
                   >
@@ -2140,7 +2160,7 @@ export default function ChargeManagementPage() {
                   </Button>
                   <Button
                     type="button"
-                    className="h-11 min-w-[235px] gap-2.5 text-lg"
+                    className="h-11 w-full gap-2.5 text-base sm:min-w-[235px] sm:w-auto sm:text-lg"
                     onClick={() => void handleGenerateAndSendStatements()}
                     disabled={statementActionLoading != null}
                   >
@@ -2165,7 +2185,7 @@ export default function ChargeManagementPage() {
                       <DialogDescription className="text-[19px] text-black">
                         {statementActionLoading === "send"
                           ? "Creating statements before sending them to each office."
-                          : "Creating and opening PDF statements for each office."}
+                          : "Creating and downloading PDF statements for each office."}
                       </DialogDescription>
                     </div>
                   </div>
@@ -2205,7 +2225,7 @@ export default function ChargeManagementPage() {
                               className="inline-flex items-center gap-2 text-[18px] text-black hover:text-[#1565b3]"
                               onClick={() => window.open(job.pdfUrl ?? "", "_blank", "noopener,noreferrer")}
                             >
-                              PDF opened
+                              PDF ready
                               <ExternalLink className="h-5 w-5" />
                             </button>
                           ) : (

@@ -319,8 +319,8 @@ export default function GenerateStatementsPage() {
     try {
       const result = await generateStatementPdf(statement.id).unwrap()
       const candidatePaths = [
-        result?.data?.pdf_url,
         result?.data?.download_url,
+        result?.data?.pdf_url,
         statement.pdf_path,
       ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index)
 
