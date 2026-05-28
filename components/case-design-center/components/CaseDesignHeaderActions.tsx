@@ -1,35 +1,87 @@
 "use client";
 
+export interface BackToProductsControlProps {
+  onBackToProducts: () => void;
+  hasIncompleteAccordion: boolean;
+  className?: string;
+}
+
+export function BackToProductsControl({
+  onBackToProducts,
+  hasIncompleteAccordion,
+  className = "",
+}: BackToProductsControlProps) {
+  return (
+    <button
+      type="button"
+      onClick={!hasIncompleteAccordion ? onBackToProducts : undefined}
+      title={hasIncompleteAccordion ? "Complete all required fields before going back" : "Back to Products"}
+      aria-label="Back to Products"
+      disabled={hasIncompleteAccordion}
+      className={`flex items-center gap-2 text-sm font-semibold ${
+        hasIncompleteAccordion
+          ? "text-[#b4b0b0] cursor-not-allowed"
+          : "text-[#1162A8] hover:underline cursor-pointer"
+      } ${className}`}
+    >
+      <BackToProductsIcon muted={hasIncompleteAccordion} />
+    </button>
+  );
+}
+
 interface CaseDesignHeaderActionsProps {
   caseSubmitted?: boolean;
-  onBackToProducts?: () => void;
-  hasIncompleteAccordion: boolean;
   onAddMaxillaryProduct?: () => void;
   onAddMandibularProduct?: () => void;
   showMaxillaryProductButton?: boolean;
   showMandibularProductButton?: boolean;
 }
 
+function BackToProductsIcon({ muted = false }: { muted?: boolean }) {
+  return (
+    <svg
+      width="27"
+      height="25"
+      viewBox="0 0 27 25"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={`flex-shrink-0 ${muted ? "opacity-40" : ""}`}
+      aria-hidden
+    >
+      <path
+        d="M12.3958 22.6042L2.1875 12.3958L12.3958 2.1875M24.0625 22.6042L13.8542 12.3958L24.0625 2.1875"
+        stroke="url(#backToProductsIconGradient)"
+        strokeWidth="4.375"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <defs>
+        <linearGradient
+          id="backToProductsIconGradient"
+          x1="29.9926"
+          y1="2.46022"
+          x2="0.157808"
+          y2="27.922"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#2AA6DE" />
+          <stop offset="0.5" stopColor="#82298D" />
+          <stop offset="1" stopColor="#C9539F" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
 export function CaseDesignHeaderActions({
   caseSubmitted,
-  onBackToProducts,
-  hasIncompleteAccordion,
   onAddMaxillaryProduct,
   onAddMandibularProduct,
   showMaxillaryProductButton = false,
   showMandibularProductButton = false,
 }: CaseDesignHeaderActionsProps) {
   return (
-    <div className="relative flex items-center mb-1 md:mb-2 px-2 md:px-4">
-      {onBackToProducts && !caseSubmitted && (
-        <button
-          onClick={!hasIncompleteAccordion ? onBackToProducts : undefined}
-          title={hasIncompleteAccordion ? "Complete all required fields before going back" : undefined}
-          className={`absolute left-3 text-sm font-semibold ${hasIncompleteAccordion ? "text-[#b4b0b0] cursor-not-allowed" : "text-[#1162A8] hover:underline cursor-pointer"}`}
-        >
-          ← Back to Products
-        </button>
-      )}
+    <div className="relative flex items-center mb-1 md:mb-2">
       <div className="flex-1 flex items-center justify-center">
         {!caseSubmitted && showMaxillaryProductButton ? (
           <button

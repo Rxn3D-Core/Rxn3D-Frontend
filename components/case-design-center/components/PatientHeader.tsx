@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, type FocusEvent, type MouseEvent } from "react";
 import { Pencil } from "lucide-react";
 import { FieldInput, SelectField } from "./fields";
 import type { SlipCreationResponse } from "@/services/slip-creation-service";
@@ -23,6 +23,8 @@ export interface PatientHeaderProps {
   slipResponseData?: SlipCreationResponse["data"] | null;
   /** Called when the user clicks the pencil to change doctor selection. */
   onEditDoctorClick?: () => void;
+  /** When false, hide doctor edit (e.g. only one doctor available). */
+  canEditDoctor?: boolean;
   /** Called when the user edits the patient name inline. */
   onPatientNameChange?: (value: string) => void;
   /** Called when the user edits the gender inline. */
@@ -31,9 +33,9 @@ export interface PatientHeaderProps {
   onAgeChange?: (value: string) => void;
   /** When true, show Patient name + Gender + Age in one row and compact Created By (during product field selection). */
   compactLayout?: boolean;
-  /** Override the "Created By" name shown after submission (falls back to localStorage). */
+  /** Override the "Created By" name (falls back to localStorage user). */
   createdByName?: string | null;
-  /** Override the "Created By" image URL shown after submission (falls back to localStorage). */
+  /** Override the "Created By" image URL (falls back to localStorage user). */
   createdByImageUrl?: string | null;
 }
 
@@ -53,7 +55,19 @@ const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
 const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
 
-export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, age, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, onPatientNameChange, onGenderChange, onAgeChange, compactLayout = false, createdByName: createdByNameProp, createdByImageUrl: createdByImageUrlProp }: PatientHeaderProps = {}) {
+/** Slow, smooth hover expand — height + opacity only (avoid animating layout props). */
+const HEADER_ANIM_MS = 1000;
+const HEADER_EASE = "ease-in-out";
+const HEADER_HEIGHT_TRANSITION = `transition-[height] duration-[${HEADER_ANIM_MS}ms] ${HEADER_EASE}`;
+const HEADER_FADE_TRANSITION = `transition-opacity duration-[${HEADER_ANIM_MS}ms] ${HEADER_EASE}`;
+const HEADER_SHELL_PADDING_Y_PX = 12; // pt-2 (8) + pb-1 (4)
+
+const PATIENT_NAME_FIELD_WIDTH = "w-[330px] max-w-[330px] shrink-0";
+/** Compact product-mode header: keep avatars small on collapse and hover expand. */
+const COMPACT_DOCTOR_AVATAR = "w-[48px] h-[48px] sm:w-[50px] sm:h-[50px]";
+const COMPACT_CREATED_BY_AVATAR = "w-[45px] h-[45px] sm:w-[48px] sm:h-[48px]";
+
+export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, age, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, canEditDoctor = false, onPatientNameChange, onGenderChange, onAgeChange, compactLayout = false, createdByName: createdByNameProp, createdByImageUrl: createdByImageUrlProp }: PatientHeaderProps = {}) {
   const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
   const isEditable = !caseSubmitted;
@@ -108,67 +122,156 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
 
   const createdByName = createdByNameProp ?? createdByNameLocal;
   const createdByImage = createdByImageUrlProp ?? createdByImageLocal;
-  const showCreatedBy = caseSubmitted || (compactLayout && !caseSubmitted);
-  const createdByCompact = compactLayout && !caseSubmitted;
+  const canUseCompactLayout = compactLayout && !caseSubmitted;
+  const [headerExpanded, setHeaderExpanded] = useState(false);
 
-  const createdBySection = showCreatedBy ? (
-    <div
-      className={`flex flex-col justify-center items-center flex-shrink-0 ${
-        createdByCompact
-          ? "gap-1 w-auto max-w-[140px] ml-auto"
-          : "gap-[15px] w-[160px] min-w-[160px] ml-2 lg:ml-4 border-l border-[#d9d9d9] pl-4"
-      }`}
-    >
+  const compactLayerRef = useRef<HTMLDivElement>(null);
+  const expandedLayerRef = useRef<HTMLDivElement>(null);
+  const [shellContentHeight, setShellContentHeight] = useState(56);
+
+  const measureShellContentHeight = useCallback(() => {
+    if (!canUseCompactLayout) return;
+    const layer = headerExpanded ? expandedLayerRef.current : compactLayerRef.current;
+    if (layer) setShellContentHeight(layer.offsetHeight);
+  }, [canUseCompactLayout, headerExpanded]);
+
+  useLayoutEffect(() => {
+    measureShellContentHeight();
+  }, [
+    measureShellContentHeight,
+    displayPatientName,
+    displayGender,
+    displayAge,
+    displayName,
+    createdByName,
+    canEditDoctor,
+  ]);
+
+  useEffect(() => {
+    if (!canUseCompactLayout) return;
+    const layers = [compactLayerRef.current, expandedLayerRef.current].filter(
+      (node): node is HTMLDivElement => node != null,
+    );
+    if (layers.length === 0) return;
+    const observer = new ResizeObserver(measureShellContentHeight);
+    layers.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [canUseCompactLayout, measureShellContentHeight]);
+
+  const renderHeaderBody = (forceCompact: boolean) => {
+    const compact = forceCompact;
+
+    const avatarSizeClass = caseSubmitted
+      ? "w-[90px] h-[90px] sm:w-[130px] sm:h-[130px]"
+      : canUseCompactLayout
+        ? COMPACT_DOCTOR_AVATAR
+        : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]";
+
+    const createdByAvatarSizeClass = caseSubmitted
+      ? avatarSizeClass
+      : canUseCompactLayout
+        ? COMPACT_CREATED_BY_AVATAR
+        : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]";
+
+    const createdByNameClass = `font-medium text-[#1d1d1b] ${
+      compact
+        ? "text-sm leading-tight truncate max-w-[88px] sm:max-w-[120px] text-left"
+        : caseSubmitted
+          ? "text-lg text-center whitespace-nowrap"
+          : "text-[18px] text-center whitespace-nowrap"
+    }`;
+
+    const editablePatientFields = (
       <div
-        className={`rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center ${
-          createdByCompact ? "w-[40px] h-[40px] sm:w-[50px] sm:h-[50px]" : "w-[60px] h-[60px] sm:w-[72px] sm:h-[72px]"
+        className={`grid min-w-0 shrink-0 ${
+          compact
+            ? "[grid-template-areas:'patient_gender_age'] grid-cols-[330px_minmax(88px,120px)_72px] grid-rows-1 gap-x-2 sm:gap-x-3 items-center w-auto"
+            : "[grid-template-areas:'patient_patient'_'gender_age'] grid-cols-2 grid-rows-[auto_auto] gap-y-3 w-[330px]"
         }`}
       >
-        {createdByImage ? (
-          <img
-            src={createdByImage}
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = "/images/created-by.png";
-            }}
-            alt="Creator"
-            className="w-full h-full object-cover"
+        <FieldInput
+          label="Patient name"
+          value={displayPatientName}
+          submitted={false}
+          onChange={onPatientNameChange}
+          className={`[grid-area:patient] ${PATIENT_NAME_FIELD_WIDTH} ${!compact ? "col-span-2" : ""}`}
+          smartPatientLabel
+        />
+        {onGenderChange ? (
+          <SelectField
+            label="Gender"
+            value={displayGender}
+            options={["Male", "Female"]}
+            onChange={onGenderChange}
+            caseSubmitted={false}
+            className={`[grid-area:gender] ${compact ? "w-full min-w-0" : "min-w-0"}`}
           />
         ) : (
-          <span className={`font-medium text-gray-500 ${createdByCompact ? "text-sm" : "text-xl font-bold"}`}>
-            {createdByName.split(" ").map((n) => n[0]).join("").toUpperCase()}
-          </span>
+          <FieldInput
+            label="Gender"
+            value={displayGender}
+            submitted={false}
+            className={`[grid-area:gender] ${compact ? "w-full min-w-0" : "min-w-0"}`}
+          />
         )}
+        <FieldInput
+          label="Age"
+          value={displayAge}
+          submitted={false}
+          onChange={onAgeChange}
+          className={`[grid-area:age] ${compact ? "w-full min-w-0" : "min-w-0"}`}
+          type="number"
+        />
       </div>
-      {createdByCompact ? (
-        <p className="text-sm leading-[18px] text-[#1d1d1b] text-center truncate max-w-full px-0.5">
-          {createdByName || "—"}
-        </p>
-      ) : (
-        <fieldset className="w-full border border-[#7f7f7f] rounded-[7px] bg-white flex items-center overflow-hidden h-[38px] px-[11.2px] py-0">
-          <legend className="text-[#7f7f7f] px-1 leading-none text-sm leading-[15px]">
-            Created By
-          </legend>
-          <span className="text-[#000000] truncate text-base leading-[20px]">
-            {createdByName || "—"}
-          </span>
-        </fieldset>
-      )}
-    </div>
-  ) : null;
+    );
 
-  return (
-    <div className={`${caseDesignInter.className} bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 ${compactLayout && !caseSubmitted ? "py-1" : "py-2"}`}>
+    const createdBySection = (
       <div
-        className={`flex min-w-0 w-full ${
-          compactLayout && !caseSubmitted
-            ? "flex-row flex-wrap items-start gap-2 sm:gap-3"
-            : "flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6"
+        className={`flex flex-shrink-0 ml-auto ${
+          compact
+            ? "flex-row items-center gap-2"
+            : "flex-col items-center gap-1 w-[160px] min-w-[160px] sm:w-[170px] sm:min-w-[170px]"
         }`}
       >
-        {/* Doctor photo + name */}
-        <div className="flex flex-col items-center gap-1 flex-shrink-0">
-          <div className={`${caseSubmitted ? "w-[90px] h-[90px] sm:w-[130px] sm:h-[130px]" : compactLayout ? "w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer" : "w-[70px] h-[70px] sm:w-[100px] sm:h-[100px]"} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
+        <div
+          className={`rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center ${createdByAvatarSizeClass}`}
+        >
+          {createdByImage ? (
+            <img
+              src={createdByImage}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/images/created-by.png";
+              }}
+              alt="Creator"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span
+              className={`font-medium text-gray-500 ${compact ? "text-xs" : "text-xl font-bold"}`}
+            >
+              {createdByName.split(" ").map((n) => n[0]).join("").toUpperCase()}
+            </span>
+          )}
+        </div>
+        <p className={createdByNameClass}>{createdByName || "—"}</p>
+      </div>
+    );
+
+    return (
+      <div
+        className={`flex min-w-0 w-full ${
+          compact
+            ? "flex-row items-center gap-2 sm:gap-3"
+            : "flex-col lg:flex-row lg:items-start items-center gap-4 lg:gap-6"
+        }`}
+      >
+        <div
+          className={`flex flex-shrink-0 ${
+            compact ? "flex-row items-center gap-2" : "flex-col items-center gap-1"
+          }`}
+        >
+          <div className={`${avatarSizeClass} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
             <img
               src={imgSrc}
               onError={(e) => {
@@ -178,7 +281,7 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               alt="Doctor"
               className="w-full h-full object-cover"
             />
-            {!caseSubmitted && (
+            {!caseSubmitted && canEditDoctor && onEditDoctorClick && (
               <button
                 type="button"
                 onClick={onEditDoctorClick}
@@ -189,92 +292,28 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
               </button>
             )}
           </div>
-          {caseSubmitted && (
-            <p className="text-lg font-medium text-[#1d1d1b] whitespace-nowrap">
-              {displayName}
-            </p>
-          )}
+          <p
+            className={`font-medium text-[#1d1d1b] ${
+              compact
+                ? "text-sm leading-tight truncate max-w-[88px] sm:max-w-[120px] text-left"
+                : caseSubmitted
+                  ? "text-lg text-center whitespace-nowrap"
+                  : "text-[18px] text-center whitespace-nowrap"
+            }`}
+          >
+            {displayName}
+          </p>
         </div>
 
-        {/* Form fields */}
         <div
-          className={`min-w-0 flex flex-col gap-3 justify-center lg:justify-start ${
-            compactLayout && !caseSubmitted ? "flex-1 basis-0" : "flex-1 w-full lg:w-auto"
+          className={`min-w-0 flex justify-center lg:justify-start ${
+            compact ? "shrink-0" : "flex-col gap-3 flex-1 w-full lg:w-auto"
           }`}
         >
           {!caseSubmitted ? (
-            compactLayout ? (
-              /* Compact: Patient name + Gender + Age in one row (product fields selection) */
-              <div className="flex flex-wrap gap-2 sm:gap-3 items-start justify-start">
-                <FieldInput
-                  label="Patient name"
-                  value={displayPatientName}
-                  submitted={false}
-                  onChange={onPatientNameChange}
-                  className="w-full min-w-[200px] max-w-[330px] flex-1"
-                  smartPatientLabel
-                />
-                {onGenderChange ? (
-                  <SelectField
-                    label="Gender"
-                    value={displayGender}
-                    options={["Male", "Female"]}
-                    onChange={onGenderChange}
-                    caseSubmitted={false}
-                    className="w-[130px] sm:w-[155px] flex-shrink-0"
-                  />
-                ) : (
-                  <FieldInput label="Gender" value={displayGender} submitted={false} className="w-[130px] sm:w-[155px] flex-shrink-0" />
-                )}
-                <FieldInput
-                  label="Age"
-                  value={displayAge}
-                  submitted={false}
-                  onChange={onAgeChange}
-                  className="w-[100px] sm:w-[155px] flex-shrink-0"
-                  type="number"
-                />
-              </div>
-            ) : (
-              /* Default: Patient name and Gender stacked (fixed restoration) */
-              <>
-                <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
-                  <FieldInput
-                    label="Patient name"
-                    value={displayPatientName}
-                    submitted={false}
-                    onChange={onPatientNameChange}
-                    className="w-[330px]"
-                    smartPatientLabel
-                  />
-                </div>
-                <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
-                  {onGenderChange ? (
-                    <SelectField
-                      label="Gender"
-                      value={displayGender}
-                      options={["Male", "Female"]}
-                      onChange={onGenderChange}
-                      caseSubmitted={false}
-                      className="flex-1"
-                    />
-                  ) : (
-                    <FieldInput label="Gender" value={displayGender} submitted={false} className="flex-1" />
-                  )}
-                  <FieldInput
-                    label="Age"
-                    value={displayAge}
-                    submitted={false}
-                    onChange={onAgeChange}
-                    className="flex-1"
-                    type="number"
-                  />
-                </div>
-              </>
-            )
+            editablePatientFields
           ) : (
             <>
-              {/* Row 1: Patient name, Slip number, Case number, Pan number, Status */}
               <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
                 <FieldInput
                   label="Patient name"
@@ -298,7 +337,6 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
                   </>
                 )}
               </div>
-              {/* Row 2: Gender, Age, Pick up Date, Due Date, Delivery Time, Location */}
               <div className="flex flex-wrap gap-3 sm:gap-4 items-start justify-center lg:justify-start">
                 <FieldInput label="Gender" value={displayGender} submitted className="flex-1 min-w-[90px]" />
                 <FieldInput label="Age" value={displayAge} submitted className="flex-1 min-w-[70px]" />
@@ -324,6 +362,60 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
 
         {createdBySection}
       </div>
+    );
+  };
+
+  const compactHoverHandlers = canUseCompactLayout
+    ? {
+        onMouseEnter: () => setHeaderExpanded(true),
+        onMouseLeave: (e: MouseEvent<HTMLDivElement>) => {
+          if (e.currentTarget.contains(document.activeElement)) return;
+          setHeaderExpanded(false);
+        },
+        onFocusCapture: () => setHeaderExpanded(true),
+        onBlurCapture: (e: FocusEvent<HTMLDivElement>) => {
+          const next = e.relatedTarget;
+          if (next instanceof Node && e.currentTarget.contains(next)) return;
+          if (e.currentTarget.contains(document.activeElement)) return;
+          setHeaderExpanded(false);
+        },
+      }
+    : {};
+
+  return (
+    <div
+      className={`${caseDesignInter.className} bg-white border-b border-[#d9d9d9] px-4 sm:px-6 overflow-hidden ${
+        canUseCompactLayout ? "" : "pt-2 pb-2"
+      }`}
+      {...compactHoverHandlers}
+    >
+      {canUseCompactLayout ? (
+        <div
+          className={`relative pt-2 pb-1 overflow-hidden ${HEADER_HEIGHT_TRANSITION}`}
+          style={{ height: shellContentHeight + HEADER_SHELL_PADDING_Y_PX }}
+        >
+          <div
+            ref={compactLayerRef}
+            aria-hidden={headerExpanded}
+            className={`absolute inset-x-0 top-2 transform-gpu ${HEADER_FADE_TRANSITION} ${
+              headerExpanded ? "opacity-0 pointer-events-none z-0" : "opacity-100 pointer-events-auto z-10"
+            }`}
+          >
+            {renderHeaderBody(true)}
+          </div>
+          <div
+            ref={expandedLayerRef}
+            aria-hidden={!headerExpanded}
+            className={`absolute inset-x-0 top-2 transform-gpu ${HEADER_FADE_TRANSITION} ${
+              headerExpanded ? "opacity-100 pointer-events-auto z-10" : "opacity-0 pointer-events-none z-0"
+            }`}
+          >
+            {renderHeaderBody(false)}
+          </div>
+        </div>
+      ) : (
+        renderHeaderBody(false)
+      )}
     </div>
   );
 }

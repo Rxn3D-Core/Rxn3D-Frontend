@@ -8,9 +8,9 @@ export default function CaseDesignCenterLayout({
 }) {
   return (
     <ProtectedRoute>
-      <div className="flex h-[100dvh] overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto" style={{ scrollbarGutter: 'stable' }}>
+      <div className="flex h-[100dvh] overflow-hidden bg-white">
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          <main className="flex-1 overflow-auto bg-white">
             {children}
           </main>
         </div>

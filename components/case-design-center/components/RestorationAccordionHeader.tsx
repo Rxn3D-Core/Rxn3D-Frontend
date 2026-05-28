@@ -14,7 +14,7 @@ import {
   removableProductTitleBoxClassName,
 } from "./AccordionBadge";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
-import { ProductImagePreview } from "./ProductImagePreview";
+import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
 import { isDisplayableStageValue, shouldSkipStageSelection } from "../utils/categoryHelpers";
 import type { ProductApiData } from "../types";
@@ -90,7 +90,7 @@ export function RestorationAccordionHeader({
 
   return (
     <div
-      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative ${
+      className={`w-full flex flex-col transition-colors rounded-t-[5.4px] relative ${
         hasRush ? "bg-[#FCE4E4]" : "bg-white"
       }`}
     >
@@ -113,7 +113,7 @@ export function RestorationAccordionHeader({
         <ProductImagePreview
           imageUrl={productImageUrl}
           altText={productName}
-          containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+          containerClassName={productAccordionLargeImageContainerClass}
           imgClassName="w-full h-full object-contain"
           fallback={
             <div className="w-full h-full flex items-center justify-center">
@@ -124,11 +124,14 @@ export function RestorationAccordionHeader({
         <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
           {showHeaderContent && (
             <>
-              <div className="flex items-center gap-[4px] flex-wrap">
-                {isCurrentlyActive && <CurrentlyActiveProductBadge />}
-                {categoryName && <AccordionBadge>{categoryName}</AccordionBadge>}
-                {subcategoryName && <AccordionBadge>{subcategoryName}</AccordionBadge>}
-              </div>
+              {/* Hidden: Currently active + category/subcategory badges — set to true to restore */}
+              {false && (
+                <div className="flex items-center gap-[4px] flex-wrap">
+                  {isCurrentlyActive && <CurrentlyActiveProductBadge />}
+                  {categoryName && <AccordionBadge>{categoryName}</AccordionBadge>}
+                  {subcategoryName && <AccordionBadge>{subcategoryName}</AccordionBadge>}
+                </div>
+              )}
               <div
                 className={`${caseDesignInter.className} ${removableProductTitleBoxClassName({
                   isCurrentlyActive,
@@ -149,7 +152,8 @@ export function RestorationAccordionHeader({
               </div>
               {middleContent}
               <div className="flex items-center gap-[4.97px] flex-wrap">
-                {showStageBadge && stageName && <AccordionBadge>{stageName}</AccordionBadge>}
+                {/* Hidden: stage badge — set to true to restore */}
+                {false && showStageBadge && stageName && <AccordionBadge>{stageName}</AccordionBadge>}
                 <EstDaysLabel
                   rushed={hasRush}
                   text={hasRush ? "5 work days after submission" : estDaysText}

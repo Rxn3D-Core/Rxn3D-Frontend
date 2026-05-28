@@ -201,7 +201,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
-      viewBox={`0 ${SHADE_LAYOUT.viewBoxY} ${layout.viewBoxWidth} ${SHADE_LAYOUT.viewBoxHeight}`}
+      // viewBox={`0 ${SHADE_LAYOUT.viewBoxY} ${layout.viewBoxWidth} ${SHADE_LAYOUT.viewBoxHeight}`}
       width="100%"
       height="180"
       preserveAspectRatio="xMidYMid meet"
@@ -251,7 +251,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
           />
         </g>
 
-        <g id="shade-blocks">
+        <g id="shade-blocks" transform={`translate(${layout.sticksOffsetX}, 0)`}>
           {displayShades.map((shade, index) => (
             <ShadeStickBlock
               key={`${shade.name}-${index}`}
@@ -292,7 +292,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
         </g>
       </g>
 
-      <g id="hit-areas">
+      <g id="hit-areas" transform={`translate(${layout.sticksOffsetX}, 0)`}>
         {displayShades.map((shade, index) => {
           const x = slotX(index);
           return (

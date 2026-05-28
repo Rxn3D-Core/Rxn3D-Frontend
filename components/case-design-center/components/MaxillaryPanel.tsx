@@ -1416,8 +1416,9 @@ export function MaxillaryPanel({
         />
       )}
 
-      {/* Eye toggle + Teeth row */}
+      {/* Eye toggle hidden — restore by removing false && wrapper */}
       <div className="relative">
+        {false && (
         <button
           onClick={() => setShowMaxillary(!showMaxillary)}
           className="absolute left-0 top-0 z-10 flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
@@ -1429,8 +1430,9 @@ export function MaxillaryPanel({
             <EyeOff size={13.5} className="text-[#b4b0b0]" />
           )}
         </button>
+        )}
         {showMaxillary && (
-          <div className="pl-9">
+          <div>
             {activeProductIsRemovables && !confirmDetailsChecked ? (() => {
               const activeExtractions = activeProductCardId !== 0
                 ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions
@@ -2833,7 +2835,7 @@ export function MaxillaryPanel({
                 const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("maxillary", t.toothNumber));
                 if (isLoading) {
                   return (
-                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-4">
+                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden mt-4">
                       <div className="w-full flex items-center py-[14px] px-2 gap-[10px] rounded-t-[5.4px]">
                         <div className="w-[50px] h-[50px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
                         <div className="flex-1 min-w-0 flex flex-col gap-2">

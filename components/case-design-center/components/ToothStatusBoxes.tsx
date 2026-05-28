@@ -37,17 +37,7 @@ interface ToothStatusBoxesProps {
   grayed?: boolean;
   /** Optional UI-only display override keyed by extraction code. */
   displayTeethByCode?: Record<string, number[]>;
-  /**
-   * Hint below status boxes (removable accordion). Defaults to true when
-   * `hideDefaultBox && isRemovable`.
-   */
-  showStatusReferenceHint?: boolean;
 }
-
-const STATUS_REFERENCE_HINT_LEAD =
-  "Use the boxes above to mark teeth status for reference.";
-const STATUS_REFERENCE_HINT_EMPHASIS =
-  "Selection will not be included in the partial.";
 
 /** Unassigned teeth (not in toothExtractionMap) belong to the is_tim extraction bucket. */
 function isDefaultExtraction(extraction: ProductExtraction): boolean {
@@ -90,9 +80,7 @@ export function ToothStatusBoxes({
   disableRequiredValidation = false,
   grayed = false,
   displayTeethByCode,
-  showStatusReferenceHint,
 }: ToothStatusBoxesProps) {
-  const showHint = showStatusReferenceHint ?? (hideDefaultBox && isRemovable);
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
@@ -250,12 +238,6 @@ export function ToothStatusBoxes({
         );
       })}
       </div>
-      {showHint && (
-        <p className="font-[Verdana] text-[13px] sm:text-[14px] leading-relaxed px-0.5">
-          <span className="text-[#5C3D00]">{STATUS_REFERENCE_HINT_LEAD} </span>
-          <span className="font-bold text-[#C2410C]">{STATUS_REFERENCE_HINT_EMPHASIS}</span>
-        </p>
-      )}
     </div>
   );
 }

@@ -2827,7 +2827,7 @@ export function MandibularPanel({
                 const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("mandibular", t.toothNumber));
                 if (isLoading) {
                   return (
-                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-4">
+                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden mt-4">
                       <div className="w-full flex items-center py-[14px] px-2 gap-[10px] rounded-t-[5.4px]">
                         <div className="w-[50px] h-[50px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
                         <div className="flex-1 min-w-0 flex flex-col gap-2">

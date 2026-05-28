@@ -13,13 +13,21 @@ interface ProductImagePreviewProps {
   fallback?: React.ReactNode;
 }
 
+/** Compact product thumbnail in accordion header rows (50×50). */
+export const productAccordionThumbnailContainerClass =
+  "w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden";
+
+/** Large product image in removable/fixed accordion headers (130×130). */
+export const productAccordionLargeImageContainerClass =
+  "w-[130px] h-[130px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden";
+
 /**
  * Wraps a product thumbnail so that hovering shows a larger preview popover.
  */
 export function ProductImagePreview({
   imageUrl,
   altText,
-  containerClassName = "w-[50px] h-[50px] rounded-md bg-white flex items-center justify-center flex-shrink-0 overflow-hidden",
+  containerClassName = productAccordionThumbnailContainerClass,
   imgClassName = "w-[50px] h-[50px] object-contain",
   fallback,
 }: ProductImagePreviewProps) {

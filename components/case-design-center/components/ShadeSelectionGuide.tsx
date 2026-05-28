@@ -268,7 +268,7 @@ export function ShadeSelectionGuide({
   };
 
   return (
-    <div className="mb-4 border border-[#1162A8] rounded-lg p-4 bg-white min-w-0 overflow-visible">
+    <div className="mb-4 p-4 bg-white min-w-0 overflow-visible relative">
       <div className="relative">
         <div className="grid grid-cols-2 gap-3 mb-3">
 

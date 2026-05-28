@@ -5,7 +5,7 @@ import { ChevronDown, Check } from "lucide-react";
 import type { Arch, ProductApiData, ProductExtraction, ProductGrade, ShadeFieldType } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
-import { ProductImagePreview } from "./ProductImagePreview";
+import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
 import { RushIcon } from "./CenterActionIcons";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
@@ -344,9 +344,9 @@ export function OpposingRemovableAccordion({
 
   return (
     <PanelDiv className="relative mt-4">
-      <PanelDiv className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
+      <PanelDiv className="rounded-lg bg-white overflow-hidden">
         <PanelDiv
-          className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushed ? "bg-[#FCE4E4]" : "bg-white"}`}
+          className={`w-full flex flex-col transition-colors rounded-t-[5.4px] relative cursor-pointer ${hasRushed ? "bg-[#FCE4E4]" : "bg-white"}`}
           onClick={() => setExpanded((e) => !e)}
         >
           <PanelDiv className="absolute top-3 right-2 z-10">
@@ -363,7 +363,7 @@ export function OpposingRemovableAccordion({
               <ProductImagePreview
                 imageUrl={productImage}
                 altText={productName}
-                containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                containerClassName={productAccordionLargeImageContainerClass}
                 imgClassName="w-full h-full object-contain"
                 fallback={
                   <PanelDiv className="w-full h-full flex items-center justify-center">
@@ -409,7 +409,6 @@ export function OpposingRemovableAccordion({
                       submitted={caseSubmitted}
                       hideDefaultBox
                       disableRequiredValidation
-                      showStatusReferenceHint={!opposingOnlyLayout}
                     />
                   )}
                   {showOpposingImpressionField && (
@@ -507,11 +506,11 @@ export function OpposingRemovableAccordion({
                         submitted={caseSubmitted}
                         hideDefaultBox
                         disableRequiredValidation
-                        showStatusReferenceHint={!opposingOnlyLayout}
                       />
                     )}
                     <PanelDiv className="flex items-center gap-[4.97px] flex-wrap">
-                      {stageVal && !singleStageSkip && <AccordionBadge>{stageVal}</AccordionBadge>}
+                      {/* Hidden: stage badge — set to true to restore */}
+                      {false && stageVal && !singleStageSkip && <AccordionBadge>{stageVal}</AccordionBadge>}
                       <EstDaysLabel
                         rushed={hasRushed}
                         text={hasRushed ? "5 work days after submission" : estDays}
