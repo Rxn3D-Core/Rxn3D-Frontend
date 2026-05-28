@@ -26,7 +26,7 @@ import { GlobalExtractionToothImagesPanel } from "@/components/product-managemen
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 const MAX_EXTRACTION_IMAGE_BYTES = 5120 * 1024
-const SHOW_EXTRACTION_IMAGE_FIELD = false
+const SHOW_EXTRACTION_IMAGE_FIELD = true
 
 // Use the CreateExtractionSchema from schemas.ts
 type ToothStatusForm = z.infer<typeof CreateExtractionSchema>

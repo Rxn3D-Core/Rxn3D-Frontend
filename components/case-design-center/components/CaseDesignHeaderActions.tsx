@@ -18,11 +18,10 @@ export function BackToProductsControl({
       title={hasIncompleteAccordion ? "Complete all required fields before going back" : "Back to Products"}
       aria-label="Back to Products"
       disabled={hasIncompleteAccordion}
-      className={`flex items-center gap-2 text-sm font-semibold ${
-        hasIncompleteAccordion
-          ? "text-[#b4b0b0] cursor-not-allowed"
-          : "text-[#1162A8] hover:underline cursor-pointer"
-      } ${className}`}
+      className={`flex items-center gap-2 text-sm font-semibold ${hasIncompleteAccordion
+        ? "text-[#b4b0b0] cursor-not-allowed"
+        : "text-[#1162A8] hover:underline cursor-pointer"
+        } ${className}`}
     >
       <BackToProductsIcon muted={hasIncompleteAccordion} />
     </button>
@@ -81,7 +80,7 @@ export function CaseDesignHeaderActions({
   showMandibularProductButton = false,
 }: CaseDesignHeaderActionsProps) {
   return (
-    <div className="relative flex items-center mb-1 md:mb-2">
+    <div className="relative flex items-center mb-1 md:mb-2" style={{ justifyContent: "space-evenly" }}>
       <div className="flex-1 flex items-center justify-center">
         {!caseSubmitted && showMaxillaryProductButton ? (
           <button
@@ -89,7 +88,7 @@ export function CaseDesignHeaderActions({
             onClick={onAddMaxillaryProduct}
             className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MAXILLARY PRODUCT</span>
           </button>
         ) : (
@@ -106,7 +105,7 @@ export function CaseDesignHeaderActions({
             onClick={onAddMandibularProduct}
             className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MANDIBULAR PRODUCT</span>
           </button>
         ) : (
