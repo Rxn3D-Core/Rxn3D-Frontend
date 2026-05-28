@@ -5,7 +5,7 @@ import { ChevronDown, Check } from "lucide-react";
 import type { Arch, ProductApiData, ProductExtraction, ProductGrade, ShadeFieldType } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
-import { ProductImagePreview } from "./ProductImagePreview";
+import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
 import { RushIcon } from "./CenterActionIcons";
 import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
@@ -344,9 +344,9 @@ export function OpposingRemovableAccordion({
 
   return (
     <PanelDiv className="relative mt-4">
-      <PanelDiv className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9]">
+      <PanelDiv className="rounded-lg bg-white overflow-hidden">
         <PanelDiv
-          className={`w-full flex flex-col transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] relative cursor-pointer ${hasRushed ? "bg-[#FCE4E4]" : "bg-white"}`}
+          className={`w-full flex flex-col transition-colors rounded-t-[5.4px] relative cursor-pointer ${hasRushed ? "bg-[#FCE4E4]" : "bg-white"}`}
           onClick={() => setExpanded((e) => !e)}
         >
           <PanelDiv className="absolute top-3 right-2 z-10">
@@ -363,7 +363,7 @@ export function OpposingRemovableAccordion({
               <ProductImagePreview
                 imageUrl={productImage}
                 altText={productName}
-                containerClassName="w-[162px] h-[152px] rounded-[6px] bg-white flex items-center justify-center flex-shrink-0 overflow-hidden shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
+                containerClassName={productAccordionLargeImageContainerClass}
                 imgClassName="w-full h-full object-contain"
                 fallback={
                   <PanelDiv className="w-full h-full flex items-center justify-center">
@@ -409,7 +409,6 @@ export function OpposingRemovableAccordion({
                       submitted={caseSubmitted}
                       hideDefaultBox
                       disableRequiredValidation
-                      showStatusReferenceHint={!opposingOnlyLayout}
                     />
                   )}
                   {showOpposingImpressionField && (
@@ -454,10 +453,47 @@ export function OpposingRemovableAccordion({
                         <AccordionBadge>{opposingProductData.subcategory.name}</AccordionBadge>
                       )}
                     </PanelDiv>
-                    <PanelDiv
-                      className={`${caseDesignInter.className} flex flex-col items-center text-center gap-[5px] border rounded-[7px] p-[10px] mr-8 ${confirmDetailsChecked ? "border-[#34C759]" : "border-[#F97316]"}`}
+                    <fieldset
+                      className={`${caseDesignInter.className} rounded-[6px] px-[12px] py-[10px] min-h-[48px] flex items-center justify-center text-center relative`}
+                      style={{
+                        border: opposingActiveExtractionCode === null
+                          ? "2px solid rgb(211, 211, 211)"
+                          : "1px solid rgb(217, 217, 217)",
+                        boxShadow: opposingActiveExtractionCode === null
+                          ? "rgb(219, 234, 254) 0px 0px 0px 2px"
+                          : "none"
+                      }}
                     >
-                      <p className={`${removableHeaderTitleClass} text-black`}>
+                      <div
+                        className="absolute left-[16px] top-1/2 transform -translate-y-1/2 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpposingActiveExtractionCode(null);
+                        }}
+                        title="Activate product tooth selections"
+                      >
+                        <svg width="24" height="24" viewBox="0 0 248 248" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path
+                            d="M127.118 20.6655C135.297 20.6656 141.928 27.2961 141.928 35.4751V105.36H212.524C220.704 105.36 227.334 111.99 227.334 120.169V126.307C227.334 134.486 220.704 141.118 212.524 141.118H141.928V212.525C141.927 220.704 135.297 227.334 127.118 227.334H120.98C112.801 227.334 106.171 220.704 106.171 212.525V141.118H35.4756C27.2964 141.118 20.666 134.486 20.666 126.307V120.169C20.6661 111.99 27.2965 105.36 35.4756 105.36H106.171V35.4751C106.171 27.2961 112.801 20.6655 120.98 20.6655H127.118Z"
+                            fill="url(#paint0_linear_removable_plus_opposing)"
+                          />
+                          <defs>
+                            <linearGradient
+                              id="paint0_linear_removable_plus_opposing"
+                              x1="283.36"
+                              y1="23.4262"
+                              x2="-14.7"
+                              y2="260.838"
+                              gradientUnits="userSpaceOnUse"
+                            >
+                              <stop stopColor="#2AA6DE" />
+                              <stop offset="0.5" stopColor="#82298D" />
+                              <stop offset="1" stopColor="#C9539F" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </div>
+                      <legend className={`${removableHeaderTitleClass} px-[8px] text-center text-[#555555] flex items-center justify-center gap-1`}>
                         {getRemovableHeaderTitle({
                           productName,
                           hasVariation: opposingProductData.has_variation,
@@ -466,13 +502,13 @@ export function OpposingRemovableAccordion({
                           hasVariationMatch,
                         })}
                         {hasRushed && <RushIcon className="inline w-[14px] h-[14px] ml-1" />}
-                      </p>
+                      </legend>
                       {cardToothDisplay && (
-                        <p className={`${removableHeaderToothClass} text-black`}>
+                        <p className={`${removableHeaderToothClass} text-[#666666]`}>
                           {cardToothDisplay}
                         </p>
                       )}
-                    </PanelDiv>
+                    </fieldset>
                     {showOpposingExtractions && (
                       <ToothStatusBoxes
                         extractions={opposingExtractions}
@@ -507,11 +543,11 @@ export function OpposingRemovableAccordion({
                         submitted={caseSubmitted}
                         hideDefaultBox
                         disableRequiredValidation
-                        showStatusReferenceHint={!opposingOnlyLayout}
                       />
                     )}
                     <PanelDiv className="flex items-center gap-[4.97px] flex-wrap">
-                      {stageVal && !singleStageSkip && <AccordionBadge>{stageVal}</AccordionBadge>}
+                      {/* Hidden: stage badge — set to true to restore */}
+                      {false && stageVal && !singleStageSkip && <AccordionBadge>{stageVal}</AccordionBadge>}
                       <EstDaysLabel
                         rushed={hasRushed}
                         text={hasRushed ? "5 work days after submission" : estDays}
@@ -532,256 +568,256 @@ export function OpposingRemovableAccordion({
                 isF("teeth_shade") ||
                 isF("gum_shade") ||
                 isF("addons")))) && (
-          <PanelDiv className="px-[14px] py-[14px] flex flex-col gap-[10px]">
-            <PanelDiv className="rounded-lg p-3 space-y-3">
-              {!opposingOnlyLayout && (isF("grade") || (isF("stage") && !singleStageSkip)) && (() => {
-                const gradeProducts = resolveProductGradesForDisplay(opposingProductData);
-                const hasGradesRow =
-                  gradeProducts.length > 0 || (isF("grade") && productHasGrades(opposingProductData));
-                return (
-                  <PanelDiv className={`grid grid-cols-1 ${hasGradesRow ? "sm:grid-cols-2" : ""} gap-3`}>
-                    {isF("grade") &&
-                      (gradeProducts.length > 0 || productHasGrades(opposingProductData)) &&
-                      (() => {
-                      const gradeRaw = fVal("grade") || "";
-                      const gradeVal = parseGradeDisplayName(gradeRaw);
-                      const isGradeComplete = isGradeStepCompleteForDisplay(
-                        gradeRaw,
-                        isFComplete("grade"),
-                        opposingProductData
-                      );
-                      const showGradeGreen = isGradeComplete && !caseSubmitted;
-                      return (
-                        <fieldset
-                          className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${showGradeGreen ? "border-[#34a853]" : isGradeComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                        >
-                          <legend
-                            className={`text-sm px-1 leading-none ${showGradeGreen ? "text-[#34a853]" : isGradeComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}
-                          >
-                            Grade
-                          </legend>
-                          <GradeHoverSelector
-                            grades={gradeProducts}
-                            currentGradeName={gradeVal}
-                            disabled={caseSubmitted}
-                            onSelect={(g) =>
-                              completeFieldStep(
-                                fieldArch,
-                                fieldRepTn,
-                                "grade",
-                                JSON.stringify({ grade_id: g.grade_id, name: g.name })
-                              )
-                            }
-                          />
-                          {showGradeGreen && <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />}
-                        </fieldset>
-                      );
-                    })()}
-                    {isF("stage") && !singleStageSkip && (() => {
-                      const stageValue = fVal("stage") || selectedStages[productKey] || "";
-                      const isStageComplete = isFComplete("stage") || !!(stageValue && stageValue.trim());
-                      const showGreen = isStageComplete && !caseSubmitted;
-                      return (
-                        <fieldset
-                          className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                          onClick={() =>
-                            !caseSubmitted && handleOpenStageModal(productKey, fieldArch, fieldRepTn)
-                          }
-                        >
-                          <legend
-                            className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}
-                          >
-                            Stage
-                          </legend>
-                          <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageValue}</span>
-                          {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
-                        </fieldset>
-                      );
-                    })()}
-                  </PanelDiv>
-                );
-              })()}
-
-              {!opposingOnlyLayout && (isF("teeth_shade") || isF("gum_shade")) && (
-                <PanelDiv className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {isF("teeth_shade") && isFComplete("teeth_shade") && (
-                    <fieldset
-                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                      onClick={() =>
-                        handleShadeFieldClick(fieldArch, "tooth_shade", `prep_${fieldRepTn}`)
-                      }
-                    >
-                      <legend
-                        className={`text-sm px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}
-                      >
-                        Teeth shade
-                      </legend>
-                      <PanelDiv className="flex items-center gap-2 w-full">
-                        <span className="text-[14px] sm:text-lg text-[#000000]">
-                          {(() => {
-                            const r = fVal("teeth_shade");
-                            try {
-                              return JSON.parse(r).name ?? r;
-                            } catch {
-                              return r;
-                            }
-                          })()}
-                        </span>
-                        {isFComplete("teeth_shade") && !caseSubmitted && (
-                          <Check size={16} className="text-[#34a853] ml-auto" />
-                        )}
-                      </PanelDiv>
-                    </fieldset>
-                  )}
-                  {isF("gum_shade") && isFComplete("teeth_shade") && (
-                    <fieldset
-                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
-                      onClick={() => {
-                        if (!caseSubmitted) {
-                          const currentGumShade = fVal("gum_shade");
-                          let currentName: string | null = null;
-                          if (currentGumShade) {
-                            try {
-                              currentName = JSON.parse(currentGumShade).name ?? null;
-                            } catch {
-                              /* ignore */
-                            }
-                          }
-                          setPanelGumShadePicker({
-                            toothNumber: fieldRepTn,
-                            gumShades: opposingProductData.gum_shades || [],
-                            selectedName: currentName,
-                          });
-                        }
-                      }}
-                    >
-                      <legend
-                        className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}
-                      >
-                        Gum Shade
-                      </legend>
-                      <PanelDiv className="flex items-center gap-2 w-full">
-                        {isFComplete("gum_shade") ? (
-                          (() => {
-                            const raw = fVal("gum_shade");
-                            let displayName = raw;
-                            let color: string | null = null;
-                            try {
-                              const p = JSON.parse(raw);
-                              displayName = p.name ?? raw;
-                            } catch {
-                              /* plain */
-                            }
-                            const matchedShade = opposingProductData.gum_shades?.find(
-                              (s) => s.name === displayName
-                            );
-                            if (matchedShade) color = matchedShade.color_code_middle;
-                            return (
-                              <>
-                                <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
-                                {color && (
-                                  <svg
-                                    width="29"
-                                    height="29"
-                                    viewBox="0 0 29 29"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="flex-shrink-0 ml-auto"
-                                  >
-                                    <rect width="28.0391" height="28.0391" rx="6" fill={color} />
-                                  </svg>
-                                )}
-                              </>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-[#CF0202] text-base font-medium">Select Gum Shade</span>
-                        )}
-                        {isFComplete("gum_shade") && !caseSubmitted && (
-                          <Check size={16} className="text-[#34a853] flex-shrink-0" />
-                        )}
-                      </PanelDiv>
-                    </fieldset>
-                  )}
-                </PanelDiv>
-              )}
-
-              {showOpposingImpressionField && (
-                <fieldset
-                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
-                  onClick={() => {
-                    if (caseSubmitted) return;
-                    handleOpenImpressionModal(
-                      opposingArch,
-                      impressionModalProductId,
-                      opposingRepTn
-                    );
-                  }}
-                >
-                  <legend
-                    className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
-                  >
-                    Impression
-                  </legend>
-                  <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
-                    {impressionDisplay || "No Opposing"}
-                  </span>
-                  {impressionComplete && !caseSubmitted && (
-                    <Check size={14} className="text-[#34a853] flex-shrink-0" />
-                  )}
-                </fieldset>
-              )}
-              {!impressionDisplay && showOpposingImpressionField && (
-                <p className="font-['Verdana'] text-sm text-[#7f7f7f]">
-                  Opposing impression is optional for this product.
-                </p>
-              )}
-
-              {!opposingOnlyLayout && isF("addons") && (() => {
-                const addonsVal = fVal("addons") || "";
-                const addonItems = parseAddonDisplayItems(addonsVal);
-                const borderClass =
-                  isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
-                const legendClass =
-                  isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
-                const onClickAddon = () =>
-                  handleOpenAddOnsModal(
-                    fieldArch,
-                    opposingProductData.id?.toString() || `prep_${fieldRepTn}`,
-                    fieldRepTn
-                  );
-                if (addonItems.length === 0) {
+            <PanelDiv className="px-[14px] py-[14px] flex flex-col gap-[10px]">
+              <PanelDiv className="rounded-lg p-3 space-y-3">
+                {!opposingOnlyLayout && (isF("grade") || (isF("stage") && !singleStageSkip)) && (() => {
+                  const gradeProducts = resolveProductGradesForDisplay(opposingProductData);
+                  const hasGradesRow =
+                    gradeProducts.length > 0 || (isF("grade") && productHasGrades(opposingProductData));
                   return (
-                    <fieldset
-                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
-                      onClick={onClickAddon}
-                    >
-                      <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
-                      <span className="text-[14px] sm:text-lg text-[#000000]">Select add ons</span>
-                    </fieldset>
+                    <PanelDiv className={`grid grid-cols-1 ${hasGradesRow ? "sm:grid-cols-2" : ""} gap-3`}>
+                      {isF("grade") &&
+                        (gradeProducts.length > 0 || productHasGrades(opposingProductData)) &&
+                        (() => {
+                          const gradeRaw = fVal("grade") || "";
+                          const gradeVal = parseGradeDisplayName(gradeRaw);
+                          const isGradeComplete = isGradeStepCompleteForDisplay(
+                            gradeRaw,
+                            isFComplete("grade"),
+                            opposingProductData
+                          );
+                          const showGradeGreen = isGradeComplete && !caseSubmitted;
+                          return (
+                            <fieldset
+                              className={`border rounded px-3 py-0 relative h-[42px] flex items-center transition-colors ${showGradeGreen ? "border-[#34a853]" : isGradeComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                            >
+                              <legend
+                                className={`text-sm px-1 leading-none ${showGradeGreen ? "text-[#34a853]" : isGradeComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}
+                              >
+                                Grade
+                              </legend>
+                              <GradeHoverSelector
+                                grades={gradeProducts}
+                                currentGradeName={gradeVal}
+                                disabled={caseSubmitted}
+                                onSelect={(g) =>
+                                  completeFieldStep(
+                                    fieldArch,
+                                    fieldRepTn,
+                                    "grade",
+                                    JSON.stringify({ grade_id: g.grade_id, name: g.name })
+                                  )
+                                }
+                              />
+                              {showGradeGreen && <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />}
+                            </fieldset>
+                          );
+                        })()}
+                      {isF("stage") && !singleStageSkip && (() => {
+                        const stageValue = fVal("stage") || selectedStages[productKey] || "";
+                        const isStageComplete = isFComplete("stage") || !!(stageValue && stageValue.trim());
+                        const showGreen = isStageComplete && !caseSubmitted;
+                        return (
+                          <fieldset
+                            className={`border rounded px-3 py-0 relative h-[42px] flex items-center pointer-events-auto cursor-pointer hover:bg-gray-50 ${showGreen ? "border-[#34a853]" : isStageComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                            onClick={() =>
+                              !caseSubmitted && handleOpenStageModal(productKey, fieldArch, fieldRepTn)
+                            }
+                          >
+                            <legend
+                              className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}
+                            >
+                              Stage
+                            </legend>
+                            <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageValue}</span>
+                            {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
+                          </fieldset>
+                        );
+                      })()}
+                    </PanelDiv>
                   );
-                }
-                return (
-                  <PanelDiv className="flex flex-wrap gap-3">
-                    {addonItems.map((item: string, idx: number) => (
+                })()}
+
+                {!opposingOnlyLayout && (isF("teeth_shade") || isF("gum_shade")) && (
+                  <PanelDiv className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {isF("teeth_shade") && isFComplete("teeth_shade") && (
                       <fieldset
-                        key={idx}
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                        onClick={() =>
+                          handleShadeFieldClick(fieldArch, "tooth_shade", `prep_${fieldRepTn}`)
+                        }
+                      >
+                        <legend
+                          className={`text-sm px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}
+                        >
+                          Teeth shade
+                        </legend>
+                        <PanelDiv className="flex items-center gap-2 w-full">
+                          <span className="text-[14px] sm:text-lg text-[#000000]">
+                            {(() => {
+                              const r = fVal("teeth_shade");
+                              try {
+                                return JSON.parse(r).name ?? r;
+                              } catch {
+                                return r;
+                              }
+                            })()}
+                          </span>
+                          {isFComplete("teeth_shade") && !caseSubmitted && (
+                            <Check size={16} className="text-[#34a853] ml-auto" />
+                          )}
+                        </PanelDiv>
+                      </fieldset>
+                    )}
+                    {isF("gum_shade") && isFComplete("teeth_shade") && (
+                      <fieldset
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                        onClick={() => {
+                          if (!caseSubmitted) {
+                            const currentGumShade = fVal("gum_shade");
+                            let currentName: string | null = null;
+                            if (currentGumShade) {
+                              try {
+                                currentName = JSON.parse(currentGumShade).name ?? null;
+                              } catch {
+                                /* ignore */
+                              }
+                            }
+                            setPanelGumShadePicker({
+                              toothNumber: fieldRepTn,
+                              gumShades: opposingProductData.gum_shades || [],
+                              selectedName: currentName,
+                            });
+                          }
+                        }}
+                      >
+                        <legend
+                          className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}
+                        >
+                          Gum Shade
+                        </legend>
+                        <PanelDiv className="flex items-center gap-2 w-full">
+                          {isFComplete("gum_shade") ? (
+                            (() => {
+                              const raw = fVal("gum_shade");
+                              let displayName = raw;
+                              let color: string | null = null;
+                              try {
+                                const p = JSON.parse(raw);
+                                displayName = p.name ?? raw;
+                              } catch {
+                                /* plain */
+                              }
+                              const matchedShade = opposingProductData.gum_shades?.find(
+                                (s) => s.name === displayName
+                              );
+                              if (matchedShade) color = matchedShade.color_code_middle;
+                              return (
+                                <>
+                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                  {color && (
+                                    <svg
+                                      width="29"
+                                      height="29"
+                                      viewBox="0 0 29 29"
+                                      fill="none"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className="flex-shrink-0 ml-auto"
+                                    >
+                                      <rect width="28.0391" height="28.0391" rx="6" fill={color} />
+                                    </svg>
+                                  )}
+                                </>
+                              );
+                            })()
+                          ) : (
+                            <span className="text-[#CF0202] text-base font-medium">Select Gum Shade</span>
+                          )}
+                          {isFComplete("gum_shade") && !caseSubmitted && (
+                            <Check size={16} className="text-[#34a853] flex-shrink-0" />
+                          )}
+                        </PanelDiv>
+                      </fieldset>
+                    )}
+                  </PanelDiv>
+                )}
+
+                {showOpposingImpressionField && (
+                  <fieldset
+                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
+                    onClick={() => {
+                      if (caseSubmitted) return;
+                      handleOpenImpressionModal(
+                        opposingArch,
+                        impressionModalProductId,
+                        opposingRepTn
+                      );
+                    }}
+                  >
+                    <legend
+                      className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                    >
+                      Impression
+                    </legend>
+                    <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                      {impressionDisplay || "No Opposing"}
+                    </span>
+                    {impressionComplete && !caseSubmitted && (
+                      <Check size={14} className="text-[#34a853] flex-shrink-0" />
+                    )}
+                  </fieldset>
+                )}
+                {!impressionDisplay && showOpposingImpressionField && (
+                  <p className="font-['Verdana'] text-sm text-[#7f7f7f]">
+                    Opposing impression is optional for this product.
+                  </p>
+                )}
+
+                {!opposingOnlyLayout && isF("addons") && (() => {
+                  const addonsVal = fVal("addons") || "";
+                  const addonItems = parseAddonDisplayItems(addonsVal);
+                  const borderClass =
+                    isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
+                  const legendClass =
+                    isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
+                  const onClickAddon = () =>
+                    handleOpenAddOnsModal(
+                      fieldArch,
+                      opposingProductData.id?.toString() || `prep_${fieldRepTn}`,
+                      fieldRepTn
+                    );
+                  if (addonItems.length === 0) {
+                    return (
+                      <fieldset
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${borderClass}`}
                         onClick={onClickAddon}
                       >
-                        <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
-                        <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
-                        {!caseSubmitted && isFComplete("addons") && idx === addonItems.length - 1 && (
-                          <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
-                        )}
+                        <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add ons</legend>
+                        <span className="text-[14px] sm:text-lg text-[#000000]">Select add ons</span>
                       </fieldset>
-                    ))}
-                  </PanelDiv>
-                );
-              })()}
+                    );
+                  }
+                  return (
+                    <PanelDiv className="flex flex-wrap gap-3">
+                      {addonItems.map((item: string, idx: number) => (
+                        <fieldset
+                          key={idx}
+                          className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
+                          onClick={onClickAddon}
+                        >
+                          <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
+                          <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                          {!caseSubmitted && isFComplete("addons") && idx === addonItems.length - 1 && (
+                            <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
+                          )}
+                        </fieldset>
+                      ))}
+                    </PanelDiv>
+                  );
+                })()}
+              </PanelDiv>
             </PanelDiv>
-          </PanelDiv>
-        )}
+          )}
       </PanelDiv>
     </PanelDiv>
   );

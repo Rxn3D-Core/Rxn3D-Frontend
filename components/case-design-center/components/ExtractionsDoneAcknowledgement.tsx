@@ -17,31 +17,7 @@ export function ExtractionsDoneAcknowledgement({
   onAcknowledgedChange,
   caseSubmitted = false,
 }: ExtractionsDoneAcknowledgementProps) {
-  if (caseSubmitted) return null;
-
-  if (acknowledged) {
-    return (
-      <button
-        type="button"
-        onClick={() => onAcknowledgedChange(false)}
-        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[#f0fdf4] transition-colors"
-        title="Extractions confirmed — click to edit"
-        aria-label="Extractions confirmed — click to edit"
-      >
-        <Check size={22} className="text-[#34C759]" strokeWidth={2.5} aria-hidden />
-      </button>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => onAcknowledgedChange(true)}
-      className="px-3 py-1 rounded-[6px] font-['Verdana'] font-bold text-[13px] text-white bg-[#1162A8] hover:bg-[#0d4d85] transition-colors shadow-sm"
-    >
-      Done
-    </button>
-  );
+  return null;
 }
 
 interface AccordionHeaderActionsProps {

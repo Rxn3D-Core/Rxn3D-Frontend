@@ -76,6 +76,8 @@ export interface ShadeGuideLayout {
   rackBarWidth: number;
   rackClipRight: number;
   centerX: number;
+  /** Horizontal offset to center sticks when count is below base guide capacity. */
+  sticksOffsetX: number;
 }
 
 export function sanitizeStickId(name: string): string {
@@ -103,6 +105,13 @@ export function getGuideLayout(shadeCount: number): ShadeGuideLayout {
     SHADE_LAYOUT.baseViewBoxWidth - (SHADE_LAYOUT.baseLastSlotX + SHADE_LAYOUT.stickWidth);
   const viewBoxWidth = Math.max(SHADE_LAYOUT.baseViewBoxWidth, lastStickRight + viewBoxRightPadding);
 
+  const baseSticksRight = SHADE_LAYOUT.baseLastSlotX + SHADE_LAYOUT.stickWidth;
+  const sticksCenter = (SHADE_LAYOUT.firstSlotX + lastStickRight) / 2;
+  const sticksOffsetX =
+    lastStickRight < baseSticksRight
+      ? SHADE_LAYOUT.baseViewBoxWidth / 2 - sticksCenter
+      : 0;
+
   return {
     total,
     lastSlotX,
@@ -115,6 +124,7 @@ export function getGuideLayout(shadeCount: number): ShadeGuideLayout {
       (SHADE_LAYOUT.baseViewBoxWidth - SHADE_LAYOUT.rackLeft - SHADE_LAYOUT.rackBarWidthAtBase),
     rackClipRight: viewBoxWidth - SHADE_LAYOUT.rackRightInset,
     centerX: viewBoxWidth / 2,
+    sticksOffsetX,
   };
 }
 

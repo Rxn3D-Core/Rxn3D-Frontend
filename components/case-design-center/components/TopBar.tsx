@@ -83,7 +83,7 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
   const logoAlt = selectedLab?.name ? `${selectedLab.name} logo` : "Lab or office logo";
 
   return (
-    <div className="h-14 sm:h-16 md:h-[80px] border-b border-[#d9d9d9] bg-[#fdfdfd] flex items-center justify-between px-3 sm:px-4 md:px-6 flex-shrink-0">
+    <div className="h-14 sm:h-16 md:h-[80px] border-b border-[#d9d9d9] bg-white flex items-center justify-between px-3 sm:px-4 md:px-6 flex-shrink-0">
       {/* Left: Creating For / Sending To — only shown after a lab/office is selected */}
       <div className="flex items-center gap-1.5 sm:gap-3 md:gap-4 min-w-0 flex-shrink-0 max-w-[45%] sm:max-w-none sm:w-44 md:w-[360px]">
         {selectedLab && (

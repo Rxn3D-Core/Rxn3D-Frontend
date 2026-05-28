@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WizardDoctorShape, WizardLabShape } from "@/components/new-case-wizard";
 import type { AddedProduct } from "../types";
 import type { CaseDesignProductDetails } from "../utils/caseDesignProductDetails";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
+import { useOfficeDoctors } from "@/hooks/use-slip-data";
+import { mapOfficeDoctorsToWizardShape } from "../components/DoctorEditModal";
 
 type WizardMode = "initial" | "addProduct" | "backToProducts";
 
@@ -50,7 +52,7 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
   const [completedGender, setCompletedGender] = useState("");
   const [completedAge, setCompletedAge] = useState("");
   const [labEditMode, setLabEditMode] = useState(false);
-  const [doctorEditMode, setDoctorEditMode] = useState(false);
+  const [doctorEditModalOpen, setDoctorEditModalOpen] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   const [wizardKey, setWizardKey] = useState(0);
   const [wizardMode, setWizardMode] = useState<WizardMode>("initial");
@@ -73,6 +75,25 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     setRole(currentRole);
     localStorage.removeItem("cdc_added_products");
   }, []);
+
+  const customerId = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const stored = localStorage.getItem("customerId");
+    return stored ? Number(stored) : null;
+  }, []);
+
+  const officeIdForDoctors = useMemo(() => {
+    if (role === "office_admin" && customerId != null) return customerId;
+    if (role === "lab_admin" && completedLab?.id != null) return completedLab.id;
+    return undefined;
+  }, [role, customerId, completedLab?.id]);
+
+  const { data: officeDoctorsRaw = [], isSuccess: doctorsLoaded, isLoading: doctorsLoading, error: doctorsError } = useOfficeDoctors(officeIdForDoctors);
+  const canEditDoctor = doctorsLoaded && officeDoctorsRaw.length > 1;
+  const doctorsForPicker = useMemo(
+    () => mapOfficeDoctorsToWizardShape(officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string }[]),
+    [officeDoctorsRaw]
+  );
 
   const handleWizardComplete = async (result: any) => {
     if (wizardCompletingRef.current) return;
@@ -117,7 +138,7 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
         setCompletedAge(result?.age ?? "");
         if (result?.arch) setInitialArch(result.arch);
         setLabEditMode(false);
-        setDoctorEditMode(false);
+        setDoctorEditModalOpen(false);
         setWizardComplete(true);
         setCaseDesignMounted(true);
       }
@@ -200,22 +221,27 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
   const handleTopBarEditLab = () => {
     setWizardMode("initial");
     setLabEditMode(true);
-    setDoctorEditMode(false);
+    setDoctorEditModalOpen(false);
     setWizardComplete(false);
     setWizardKey((key) => key + 1);
   };
 
   const handleEditDoctor = () => {
-    setWizardMode("initial");
-    setDoctorEditMode(true);
-    setLabEditMode(false);
-    setWizardComplete(false);
-    setWizardKey((key) => key + 1);
+    if (!canEditDoctor) return;
+    setDoctorEditModalOpen(true);
+  };
+
+  const handleDoctorEditClose = () => {
+    setDoctorEditModalOpen(false);
+  };
+
+  const handleDoctorEditSelect = (doctor: WizardDoctorShape) => {
+    setCompletedDoctor(doctor);
+    setDoctorEditModalOpen(false);
   };
 
   const handleEditDone = () => {
     setLabEditMode(false);
-    setDoctorEditMode(false);
     setWizardComplete(true);
   };
 
@@ -225,9 +251,7 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
       ? 4
       : labEditMode
         ? (role === "office_admin" ? 2 : 1)
-        : doctorEditMode
-          ? (role === "office_admin" ? 1 : 2)
-          : 1;
+        : 1;
 
   return {
     wizardComplete,
@@ -250,7 +274,10 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     addedProducts,
     caseDesignMounted,
     labEditMode,
-    doctorEditMode,
+    doctorEditModalOpen,
+    doctorsForPicker,
+    doctorsLoading,
+    doctorsError,
     wizardStartStep,
     setCompletedLab,
     setCompletedPatientName,
@@ -265,6 +292,9 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     handleBackToCategories,
     handleTopBarEditLab,
     handleEditDoctor,
+    handleDoctorEditClose,
+    handleDoctorEditSelect,
     handleEditDone,
+    canEditDoctor,
   };
 }

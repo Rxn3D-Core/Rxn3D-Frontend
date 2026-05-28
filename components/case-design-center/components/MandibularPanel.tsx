@@ -918,6 +918,9 @@ export function MandibularPanel({
   const MANDIBULAR_ALL_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
   const MANDIBULAR_PRODUCT_SENTINEL = 17;
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
+  // Tracks whether any selection mode (extraction box or product plus) is explicitly active.
+  // False after Done is clicked; true when extraction box or plus icon is activated.
+  const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
 
   // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
@@ -1454,15 +1457,20 @@ export function MandibularPanel({
                   : 0;
               if (requiresExtractionsAcknowledgement(hintExtractions)) {
                 if (isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) return null;
+                const isExtractionBoxSelected = activeExtractionCode !== null;
                 return (
                   <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                    Select teeth on the chart for {removableProductName}
+                    {isExtractionBoxSelected
+                      ? `Select teeth for reference (not added to ${removableProductName})`
+                      : `Select teeth to replace with "${removableProductName}"`}
                   </p>
                 );
               }
               return (
                 <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                  Select teeth that will be included in {removableProductName}
+                  {activeExtractionCode !== null
+                    ? `Select teeth for reference (not added to ${removableProductName})`
+                    : `Select teeth to replace with "${removableProductName}"`}
                 </p>
               );
             })() : (() => {
@@ -1497,6 +1505,15 @@ export function MandibularPanel({
                         return;
                       }
                       if (!isCardActiveForToothStatus(activeProductCardId)) {
+                        return;
+                      }
+                      // If the user has clicked Done (acknowledged), lock tooth selection until
+                      // they re-activate by clicking an extraction box or the plus icon.
+                      const currentAckExtractions = activeProductCardId !== 0
+                        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions ?? [])
+                        : card0Extractions;
+                      const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : activeProductCardId;
+                      if (isExtractionsSetupComplete(currentAckExtractions, ackCardId, caseSubmitted)) {
                         return;
                       }
                       // Rule 1: active box selected → assign directly, skip popover
@@ -2079,6 +2096,14 @@ export function MandibularPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
+                          onPlusClick={() => {
+                            setActiveExtractionCode(null);
+                            // Re-activating product selection resets Done so the button re-appears
+                            const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
+                            setExtractionsSetupComplete(ackCardId, false);
+                            setIsSelectionModeActive(true);
+                          }}
+                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
@@ -2149,7 +2174,8 @@ export function MandibularPanel({
                             (useMandibularArchSharedRemovable
                               ? mandibularMergedExtractions
                               : apExtractions
-                            ).length > 0 ? (
+                            ).length > 0 &&
+                            mandibularTeeth.length > 0 ? (
                               <ToothStatusBoxes
                                 extractions={
                                   useMandibularArchSharedRemovable
@@ -2185,6 +2211,12 @@ export function MandibularPanel({
                                   else if (useMandibularArchSharedRemovable) {
                                     setActiveExtractions(mandibularMergedExtractions);
                                   }
+                                  // Re-activating an extraction box resets Done so the button re-appears
+                                  if (code !== null) {
+                                    const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
+                                    setExtractionsSetupComplete(ackCardId, false);
+                                    setIsSelectionModeActive(true);
+                                  }
                                 }}
                                 onToothExtractionToggle={(tn, code, extractions) =>
                                   handleToothExtractionToggle(
@@ -2206,6 +2238,25 @@ export function MandibularPanel({
                                 grayed={
                                   isActiveMandibularProductDetailPending || apIsSingleDefaultOnly
                                 }
+                                acknowledged={
+                                  useMandibularArchSharedRemovable
+                                    ? mandibularArchExtractionsReady
+                                    : isExtractionsSetupComplete(
+                                        removableCardExtractions,
+                                        ap.id,
+                                        caseSubmitted
+                                      )
+                                }
+                                onAcknowledgedChange={(v) => {
+                                  if (v) {
+                                    // Done clicked — clear active borders
+                                    setActiveExtractionCode(null);
+                                    setIsSelectionModeActive(false);
+                                  }
+                                  useMandibularArchSharedRemovable
+                                    ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
+                                    : setExtractionsSetupComplete(ap.id, v);
+                                }}
                               />
                             ) : undefined
                           }
@@ -2216,6 +2267,14 @@ export function MandibularPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedProductAccordionToggle(ap)}
+                          onPlusClick={() => {
+                            setActiveExtractionCode(null);
+                            // Re-activating product selection resets Done so the button re-appears
+                            const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
+                            setExtractionsSetupComplete(ackCardId, false);
+                            setIsSelectionModeActive(true);
+                          }}
+                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
@@ -2827,7 +2886,7 @@ export function MandibularPanel({
                 const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("mandibular", t.toothNumber));
                 if (isLoading) {
                   return (
-                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-4">
+                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden mt-4">
                       <div className="w-full flex items-center py-[14px] px-2 gap-[10px] rounded-t-[5.4px]">
                         <div className="w-[50px] h-[50px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
                         <div className="flex-1 min-w-0 flex flex-col gap-2">
@@ -2954,6 +3013,13 @@ export function MandibularPanel({
                         isExpanded={card0FixedExpanded}
                         caseSubmitted={caseSubmitted}
                         hasRush={hasRushed}
+                        onPlusClick={() => {
+                          setActiveExtractionCode(null);
+                          // Re-activating product selection resets Done so the button re-appears
+                          setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, false);
+                          setIsSelectionModeActive(true);
+                        }}
+                        isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                         onToggleExpand={() => {
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
@@ -3259,6 +3325,14 @@ export function MandibularPanel({
                       caseSubmitted={caseSubmitted}
                       hasRush={!!hasRushedRemovables}
                       onToggleExpand={handleCard0RemovableAccordionToggle}
+                      onPlusClick={() => {
+                        setActiveExtractionCode(null);
+                        // Re-activating product selection resets Done so the button re-appears
+                        const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
+                        setExtractionsSetupComplete(ackCardId, false);
+                        setIsSelectionModeActive(true);
+                      }}
+                      isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                       expandEnabled={isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({
@@ -3336,7 +3410,8 @@ export function MandibularPanel({
                           useMandibularArchSharedRemovable
                             ? mandibularMergedExtractions
                             : cardExtractions
-                        ) ? (
+                        ) &&
+                        mandibularTeeth.length > 0 ? (
                           <ToothStatusBoxes
                             extractions={
                               useMandibularArchSharedRemovable
@@ -3362,6 +3437,12 @@ export function MandibularPanel({
                               else if (useMandibularArchSharedRemovable) {
                                 setActiveExtractions(mandibularMergedExtractions);
                               }
+                              // Re-activating an extraction box resets Done so the button re-appears
+                              if (code !== null) {
+                                const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
+                                setExtractionsSetupComplete(ackCardId, false);
+                                setIsSelectionModeActive(true);
+                              }
                             }}
                             onToothExtractionToggle={(tn, code, extractions) =>
                               handleToothExtractionToggle(
@@ -3381,6 +3462,21 @@ export function MandibularPanel({
                             hideDefaultBox={true}
                             disableRequiredValidation={true}
                             grayed={isActiveMandibularProductDetailPending}
+                            acknowledged={
+                              useMandibularArchSharedRemovable
+                                ? mandibularArchExtractionsReady
+                                : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted)
+                            }
+                            onAcknowledgedChange={(v) => {
+                              if (v) {
+                                // Done clicked — clear active borders
+                                setActiveExtractionCode(null);
+                                setIsSelectionModeActive(false);
+                              }
+                              useMandibularArchSharedRemovable
+                                ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
+                                : setExtractionsSetupComplete(0, v);
+                            }}
                           />
                         ) : undefined
                       }

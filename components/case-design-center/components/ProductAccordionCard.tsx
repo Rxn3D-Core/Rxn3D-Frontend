@@ -82,15 +82,9 @@ export function ProductAccordionCard({
   customHeader,
   children,
 }: ProductAccordionCardProps) {
-  const outerBorderClass = isCurrentlyActive
-    ? "border-2 border-[#1162A8] ring-2 ring-[#1162A8]/15"
-    : hasRush
-      ? "border-2 border-[#CF0202]"
-      : "border border-[#d9d9d9]";
-
   return (
     <div className={`relative mt-2 ${!interactionEnabled ? "opacity-45 pointer-events-none" : ""}`}>
-      <div className={`rounded-lg bg-white overflow-hidden ${outerBorderClass}`}>
+      <div className="rounded-lg bg-white overflow-hidden">
         {customHeader ? (
           <div className={headerExtension || isExpanded ? "" : "rounded-b-[5.4px]"}>
             {customHeader}
@@ -100,7 +94,7 @@ export function ProductAccordionCard({
             type="button"
             disabled={!interactionEnabled}
             onClick={interactionEnabled ? onToggle : undefined}
-            className={`${caseDesignInter.className} w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] shadow-[0.9px_0.9px_3.6px_rgba(0,0,0,0.25)] ${
+            className={`${caseDesignInter.className} w-full flex items-center py-[14px] px-2 gap-[10px] transition-colors rounded-t-[5.4px] ${
               !interactionEnabled
                 ? "cursor-not-allowed bg-white"
                 : hasRush
@@ -120,7 +114,8 @@ export function ProductAccordionCard({
               <div className="flex items-center gap-[5px] flex-wrap">
                 {categoryName && <AccordionBadge>{categoryName}</AccordionBadge>}
                 {subcategoryName && <AccordionBadge>{subcategoryName}</AccordionBadge>}
-                {stageName && <AccordionBadge>{stageName}</AccordionBadge>}
+                {/* Hidden: stage badge — set to true to restore */}
+                {false && stageName && <AccordionBadge>{stageName}</AccordionBadge>}
                 <EstDaysLabel rushed={hasRush} text={hasRush ? "5 work days after submission" : estDaysText} />
                 {canDelete && !caseSubmitted && (
                   <span
@@ -174,7 +169,7 @@ export function ProductAccordionCard({
 
         {headerExtension && (
           <div
-            className="px-2 pb-2 border-t border-[#f0f0f0] bg-white"
+            className="px-2 pb-2 bg-white"
             onClick={(e) => e.stopPropagation()}
           >
             {headerExtension}
@@ -184,7 +179,7 @@ export function ProductAccordionCard({
         {/* Body */}
         {isExpanded && children && (
           <div
-            className={`border-t border-[#d9d9d9] p-2.5 sm:p-4 bg-white space-y-3 min-w-0 overflow-x-hidden${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+            className={`bg-white space-y-3 min-w-0 overflow-x-hidden${caseSubmitted ? " pointer-events-none select-none" : ""}`}
           >
             {children}
           </div>
