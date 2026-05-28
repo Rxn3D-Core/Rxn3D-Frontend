@@ -429,6 +429,7 @@ export default function ChargeManagementPage() {
   const [sendToValue, setSendToValue] = useState("")
   const [sendCcValue, setSendCcValue] = useState("")
   const [sendBccValue, setSendBccValue] = useState("")
+  const [showCcBcc, setShowCcBcc] = useState(false)
   const [sendSubjectValue, setSendSubjectValue] = useState("")
   const [sendMessageValue, setSendMessageValue] = useState("")
   const [sendPreviewHtml, setSendPreviewHtml] = useState("")
@@ -1450,6 +1451,54 @@ export default function ChargeManagementPage() {
     toast({ title: "Remaining emails cancelled" })
   }, [toast])
 
+  const handleSendAllRemaining = useCallback(async () => {
+    for (let i = sendQueueIndex; i < generatedStatements.length; i++) {
+      const stmt = generatedStatements[i]
+      const officeId = stmt.office?.id ?? stmt.id
+      const toEmails = i === sendQueueIndex ? splitEmails(sendToValue) : [stmt.office?.email ?? ""]
+      if (toEmails.length === 0 || !toEmails[0]) continue
+      updateStatementJobStatus(officeId, { status: "sending", label: "Sending..." })
+      try {
+        await sendStatement({
+          id: stmt.id,
+          body: {
+            recipient_email: toEmails[0],
+            cc_emails: i === sendQueueIndex ? splitEmails(sendCcValue) : [],
+            bcc_emails: i === sendQueueIndex ? splitEmails(sendBccValue) : [],
+            subject: sendSubjectValue,
+            message: sendMessageValue,
+            template: stmt.template_used ?? "default",
+            include_pdf: statementAttachPdf,
+          },
+        }).unwrap()
+        updateStatementJobStatus(officeId, { status: "sent", label: "Email sent" })
+      } catch (error) {
+        updateStatementJobStatus(officeId, {
+          status: "error",
+          label: "Send failed",
+          error: error instanceof Error ? error.message : "Request failed",
+        })
+      }
+    }
+    setStatementModalOpen(false)
+    setSelectedItems([])
+    toast({ title: "All remaining statements sent" })
+    await onRefresh()
+  }, [
+    generatedStatements,
+    onRefresh,
+    sendBccValue,
+    sendCcValue,
+    sendMessageValue,
+    sendQueueIndex,
+    sendStatement,
+    sendSubjectValue,
+    sendToValue,
+    statementAttachPdf,
+    toast,
+    updateStatementJobStatus,
+  ])
+
   const handlePreviewEmailInNewTab = useCallback(async () => {
     if (!currentSendStatement) return
     const previewWindow = window.open("", "_blank", "noopener,noreferrer")
@@ -2067,7 +2116,7 @@ export default function ChargeManagementPage() {
           }}
         >
           <DialogContent
-            className="flex h-[92vh] max-h-[92vh] w-[min(96vw,68rem)] flex-col gap-0 overflow-hidden rounded-[20px] p-0"
+            className="flex h-[95vh] max-h-[95vh] w-[min(96vw,68rem)] flex-col gap-0 overflow-hidden rounded-[16px] p-0 sm:h-[92vh] sm:max-h-[92vh] sm:rounded-[20px]"
             showCloseButton={false}
           >
             <DialogClose className="absolute right-5 top-5 z-10 rounded-sm p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
@@ -2173,63 +2222,64 @@ export default function ChargeManagementPage() {
 
             {statementModalStep === "generating" ? (
               <>
-                <DialogHeader className="px-8 py-8 text-left">
-                  <div className="flex items-start gap-5 pr-16">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1565b3] text-white">
-                      <FileText className="h-7 w-7" />
+                <DialogHeader className="shrink-0 px-5 py-5 text-left sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+                  <div className="flex items-start gap-4 pr-12 sm:gap-5 sm:pr-16">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#1565b3] text-white sm:h-14 sm:w-14 sm:rounded-2xl">
+                      <FileText className="h-5 w-5 sm:h-7 sm:w-7" />
                     </div>
-                    <div className="space-y-4">
-                      <DialogTitle className="text-4xl font-bold tracking-tight text-black">
+                    <div className="space-y-2 sm:space-y-4">
+                      <DialogTitle className="text-2xl font-bold tracking-tight text-black sm:text-3xl lg:text-4xl">
                         Generating statements
                       </DialogTitle>
-                      <DialogDescription className="text-[19px] text-black">
+                      <DialogDescription className="text-sm text-black sm:text-base lg:text-[19px]">
                         {statementActionLoading === "send"
                           ? "Creating statements before sending them to each office."
-                          : "Creating and downloading PDF statements for each office."}
+                          : "Creating and opening PDF Statements for each office."}
                       </DialogDescription>
                     </div>
                   </div>
                 </DialogHeader>
 
-                <div className="px-10 pb-8">
-                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+                <div className="shrink-0 px-5 pb-5 sm:px-6 lg:px-10 lg:pb-8">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 sm:h-2.5">
                     <div className="h-full rounded-full bg-[#1565b3] transition-all" style={{ width: `${statementProgressPercent}%` }} />
                   </div>
                 </div>
 
-                <div className="space-y-5 px-10 pb-10">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-6 sm:space-y-4 sm:px-6 lg:space-y-5 lg:px-10 lg:pb-10">
                   {selectedStatementGroups.map((group) => {
                     const job = statementJobStatuses.find((item) => item.officeId === group.officeId)
+                    const isDone = job?.status === "opened" || job?.status === "sent"
+                    const isWorking = job?.status === "generating" || job?.status === "sending"
                     return (
-                      <div key={group.officeId} className="flex items-center justify-between rounded-2xl bg-gray-50 px-10 py-7">
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <h3 className="text-3xl font-bold text-black">{group.officeName}</h3>
-                            {job?.status === "opened" || job?.status === "sent" ? (
-                              <CheckCircle className="h-6 w-6 text-green-500" />
+                      <div key={group.officeId} className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-4 sm:rounded-2xl sm:px-6 sm:py-5 lg:px-10 lg:py-7">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <h3 className="text-lg font-bold text-black sm:text-xl lg:text-2xl">{group.officeName}</h3>
+                            {isDone ? (
+                              <CheckCircle className="h-5 w-5 shrink-0 text-green-500 sm:h-6 sm:w-6" />
                             ) : null}
-                            {job?.status === "generating" || job?.status === "sending" ? (
-                              <Loader2 className="h-6 w-6 animate-spin text-[#1565b3]" />
+                            {isWorking ? (
+                              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[#1565b3] sm:h-6 sm:w-6" />
                             ) : null}
                           </div>
-                          <p className="mt-3 text-[18px] text-gray-400">
+                          <p className="mt-1.5 text-sm text-gray-400 sm:mt-2 sm:text-base">
                             {group.invoiceLabel} • {group.officeCode} • {group.chargeCount} charge{group.chargeCount === 1 ? "" : "s"}
                           </p>
-                          <p className="mt-2 text-sm text-gray-600">{job?.label ?? "Queued"}</p>
-                          {job?.error ? <p className="mt-1 text-sm text-red-600">{job.error}</p> : null}
+                          {job?.error ? <p className="mt-1 text-xs text-red-600 sm:text-sm">{job.error}</p> : null}
                         </div>
-                        <div className="flex items-center gap-6 text-right">
+                        <div className="ml-4 shrink-0 text-right">
                           {job?.pdfUrl ? (
                             <button
                               type="button"
-                              className="inline-flex items-center gap-2 text-[18px] text-black hover:text-[#1565b3]"
+                              className="inline-flex items-center gap-1.5 text-sm font-medium text-black hover:text-[#1565b3] sm:gap-2 sm:text-base"
                               onClick={() => window.open(job.pdfUrl ?? "", "_blank", "noopener,noreferrer")}
                             >
-                              PDF ready
-                              <ExternalLink className="h-5 w-5" />
+                              PDF opened
+                              <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />
                             </button>
                           ) : (
-                            <span className="text-[18px] text-gray-500">
+                            <span className="text-sm text-gray-500 sm:text-base">
                               {job?.status === "error" ? "Failed" : job?.label ?? "Queued"}
                             </span>
                           )}
@@ -2261,12 +2311,12 @@ export default function ChargeManagementPage() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5 lg:px-6 lg:pb-6">
                   <div className="rounded-2xl bg-gray-50 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
-                    <div className="flex items-center justify-between gap-6">
-                      <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         {sendQueueCircleItems.map((item) => (
                           <div
                             key={item.key}
-                            className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold ${
+                            className={`flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold sm:h-8 sm:min-w-8 sm:text-sm ${
                               item.active || item.done ? "bg-[#1565b3] text-white" : "bg-gray-200 text-gray-500"
                             }`}
                           >
@@ -2274,94 +2324,122 @@ export default function ChargeManagementPage() {
                           </div>
                         ))}
                       </div>
+                      {generatedStatements.length > 1 && sendQueueIndex < generatedStatements.length - 1 ? (
+                        <button
+                          type="button"
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+                          disabled={sendingStatementNow}
+                          onClick={() => void handleSendAllRemaining()}
+                        >
+                          <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          Send all remaining
+                        </button>
+                      ) : null}
                     </div>
 
-                    <div className="mt-5">
-                      <h3 className="text-xl font-bold text-black sm:text-2xl">
+                    <div className="mt-4 sm:mt-5">
+                      <h3 className="text-lg font-bold text-black sm:text-xl lg:text-2xl">
                         {currentSendGroup?.officeName ?? currentSendStatement.office?.name ?? "Selected office"}
                       </h3>
-                      <p className="mt-2 text-sm text-gray-400 sm:text-base">
+                      <p className="mt-1.5 text-sm text-gray-400 sm:mt-2 sm:text-base">
                         {currentSendGroup?.invoiceLabel ?? currentSendStatement.statement_id ?? `ST-${currentSendStatement.id}`} • {currentSendGroup?.officeCode ?? currentSendStatement.office?.code ?? "—"} • {currentSendGroup?.chargeCount ?? currentSendStatement.billing_items?.length ?? 0} charge{(currentSendGroup?.chargeCount ?? currentSendStatement.billing_items?.length ?? 0) === 1 ? "" : "s"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-black">To:</label>
-                      <Input value={sendToValue} onChange={(e) => setSendToValue(e.target.value)} placeholder="office@example.com, another@example.com" />
+                  <div className="mt-4 space-y-3 sm:mt-5">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+                      <div>
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <label className="text-sm font-semibold text-black">To:</label>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-[#1565b3] hover:underline"
+                            onClick={() => setShowCcBcc((v) => !v)}
+                          >
+                            CC/BCC
+                          </button>
+                        </div>
+                        <Input value={sendToValue} onChange={(e) => setSendToValue(e.target.value)} placeholder="office@example.com, another@example.com" />
+                      </div>
+                      <div className="hidden sm:block" />
+                      <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-black">Subject:</label>
+                        <Input value={sendSubjectValue} onChange={(e) => setSendSubjectValue(e.target.value)} placeholder="Your monthly statement is ready" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-black">Subject:</label>
-                      <Input value={sendSubjectValue} onChange={(e) => setSendSubjectValue(e.target.value)} placeholder="Your monthly statement is ready" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-black">CC:</label>
-                      <Input value={sendCcValue} onChange={(e) => setSendCcValue(e.target.value)} placeholder="cc@example.com" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-black">BCC:</label>
-                      <Input value={sendBccValue} onChange={(e) => setSendBccValue(e.target.value)} placeholder="bcc@example.com" />
-                    </div>
+
+                    {showCcBcc ? (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-sm font-semibold text-black">CC:</label>
+                          <Input value={sendCcValue} onChange={(e) => setSendCcValue(e.target.value)} placeholder="cc@example.com" />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-semibold text-black">BCC:</label>
+                          <Input value={sendBccValue} onChange={(e) => setSendBccValue(e.target.value)} placeholder="bcc@example.com" />
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="mt-5 rounded-xl border bg-white">
+                  <div className="mt-4 overflow-hidden rounded-xl border bg-white sm:mt-5">
                     {sendPreviewLoading ? (
-                      <div className="flex h-[12rem] items-center justify-center sm:h-[14rem] lg:h-[18rem]">
+                      <div className="flex h-[14rem] items-center justify-center sm:h-[16rem] lg:h-[20rem]">
                         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                       </div>
                     ) : sendPreviewHtml ? (
-                      <iframe title="Statement email preview" srcDoc={sendPreviewHtml} className="h-[12rem] w-full border-0 sm:h-[14rem] lg:h-[18rem]" />
+                      <iframe title="Statement email preview" srcDoc={sendPreviewHtml} className="h-[14rem] w-full border-0 sm:h-[16rem] lg:h-[20rem]" />
                     ) : (
-                      <div className="flex h-[12rem] items-center justify-center text-sm text-gray-500 sm:h-[14rem] lg:h-[18rem]">
+                      <div className="flex h-[14rem] items-center justify-center text-sm text-gray-500 sm:h-[16rem] lg:h-[20rem]">
                         No preview available.
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-6 space-y-4">
-                    <div className="flex items-center gap-4">
+                  <div className="mt-5 space-y-3 sm:space-y-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
                       <button
                         type="button"
-                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:w-14 ${
                           statementAttachPdf ? "bg-[#1565b3]" : "bg-slate-300"
                         }`}
                         onClick={() => setStatementAttachPdf((value) => !value)}
                       >
-                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${statementAttachPdf ? "translate-x-8" : "translate-x-1"}`} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform sm:h-5 sm:w-5 ${statementAttachPdf ? "translate-x-7 sm:translate-x-8" : "translate-x-1"}`} />
                       </button>
-                      <span className="text-[15px] text-black sm:text-[18px]">Attach PDF Statement</span>
+                      <span className="text-sm text-black sm:text-[15px] lg:text-[18px]">Attach PDF Statement</span>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4">
                       <button
                         type="button"
-                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:w-14 ${
                           statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
                         }`}
                         onClick={() => void handleStatementAutoMarkBilledToggle()}
                         disabled={statementAutoMarking}
                       >
-                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${statementAutoMarkBilled ? "translate-x-8" : "translate-x-1"}`} />
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform sm:h-5 sm:w-5 ${statementAutoMarkBilled ? "translate-x-7 sm:translate-x-8" : "translate-x-1"}`} />
                       </button>
-                      <span className="text-[15px] text-black sm:text-[18px]">
+                      <span className="text-sm text-black sm:text-[15px] lg:text-[18px]">
                         {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <DialogFooter className="shrink-0 border-t bg-white px-4 py-4 sm:px-5 lg:px-8">
-                  <Button type="button" variant="outline" className="w-full sm:min-w-[160px] sm:w-auto" onClick={handleCancelAllEmails}>
+                <DialogFooter className="shrink-0 border-t bg-white px-4 py-3 sm:px-5 sm:py-4 lg:px-8">
+                  <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleCancelAllEmails}>
                     Cancel All
                   </Button>
-                  <Button type="button" variant="outline" className="w-full sm:min-w-[160px] sm:w-auto" onClick={() => void handleSkipCurrentEmail()}>
+                  <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => void handleSkipCurrentEmail()}>
                     Skip this email
                   </Button>
-                  <Button type="button" variant="outline" className="w-full gap-2 sm:min-w-[160px] sm:w-auto" onClick={() => void handlePreviewEmailInNewTab()}>
+                  <Button type="button" variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => void handlePreviewEmailInNewTab()}>
                     <Eye className="h-4 w-4" />
                     Preview Email
                   </Button>
-                  <Button type="button" className="w-full gap-2 sm:min-w-[160px] sm:w-auto" disabled={sendingStatementNow || sendPreviewLoading} onClick={() => void handleSendCurrentEmail()}>
+                  <Button type="button" size="sm" className="w-full gap-2 sm:w-auto" disabled={sendingStatementNow || sendPreviewLoading} onClick={() => void handleSendCurrentEmail()}>
                     {sendingStatementNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     Send email
                   </Button>
