@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Eye, Filter, Search } from "lucide-react"
+import { AuditEntryDetailsDialog } from "@/components/lab-administrator/audit-entry-details-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -30,6 +31,7 @@ export default function ActivityLogTab({ customerId }: ActivityLogTabProps) {
   const [totalPages, setTotalPages] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedAudit, setSelectedAudit] = useState<AuditEntry | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 400)
@@ -81,6 +83,16 @@ export default function ActivityLogTab({ customerId }: ActivityLogTabProps) {
 
   return (
     <div className="p-6">
+      <AuditEntryDetailsDialog
+        entry={selectedAudit}
+        open={selectedAudit !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedAudit(null)
+          }
+        }}
+      />
+
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">Show</span>
@@ -176,7 +188,13 @@ export default function ActivityLogTab({ customerId }: ActivityLogTabProps) {
                       : "—"}
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 w-9 rounded-full border border-transparent p-0 text-slate-500 transition hover:border-sky-100 hover:bg-sky-50 hover:text-sky-700"
+                      onClick={() => setSelectedAudit(entry)}
+                      aria-label={`View activity details for audit ${entry.id}`}
+                    >
                       <Eye className="h-4 w-4" />
                     </Button>
                   </TableCell>

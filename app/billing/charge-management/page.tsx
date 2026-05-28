@@ -5,7 +5,7 @@ import { LabBillingPageHeader } from "@/components/billing/lab-billing-page-head
 import {
   Filter,
   Search,
-  Calendar,
+  Calendar as CalendarIcon,
   Download,
   RefreshCw,
   Send,
@@ -15,9 +15,15 @@ import {
   Printer,
   Pencil,
   RotateCcw,
+  Mail,
+  X,
+  ExternalLink,
+  FileText,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -45,6 +51,10 @@ import {
   useGetBillingStatisticsQuery,
   useAdvancedBillingSearchMutation,
   useBulkBillingActionMutation,
+  useGenerateStatementMutation,
+  useGenerateStatementPdfMutation,
+  useLazyPreviewStatementEmailQuery,
+  useSendStatementMutation,
   useGenerateBillingPdfMutation,
   useLazyDownloadBillingPdfQuery,
   useSendStatementEmailMutation,
@@ -57,6 +67,8 @@ import type {
   BillingListResult,
   AdvancedBillingSearchBody,
   BulkBillingActionBody,
+  StatementRecord,
+  StatementEmailPreview,
 } from "@/lib/redux/api/billingApi"
 import { useAuth } from "@/contexts/auth-context"
 import { useCustomer } from "@/contexts/customer-context"
@@ -64,7 +76,9 @@ import { useConnectedOffices } from "@/hooks/use-connected-offices"
 import { pdfBlobFromBase64 } from "@/lib/open-pdf-from-base64"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -72,6 +86,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
 import { EditBillingInvoiceDialog } from "@/components/billing/edit-billing-invoice-dialog"
+import { format } from "date-fns"
+import type { DateRange } from "react-day-picker"
 
 function resolveBillingAssetUrl(href: string): string {
   if (href.startsWith("http://") || href.startsWith("https://")) return href
@@ -116,11 +132,55 @@ type ChargeRow = {
   status: string
 }
 
+type StatementOfficeGroup = {
+  officeId: number
+  officeName: string
+  officeCode: string
+  recipientEmail: string
+  billingIds: number[]
+  chargeCount: number
+  invoiceCount: number
+  invoiceLabel: string
+  totalAmount: number
+}
+
+type StatementPreviewItem = {
+  id: string
+  officeId: number
+  officeName: string
+  officeCode: string
+  invoiceLabel: string
+  patient: string
+  product: string
+  chargeCount: number
+  totalAmount: number
+}
+
+type StatementJobStatus = {
+  officeId: number
+  status: "pending" | "generating" | "generated" | "opened" | "sending" | "sent" | "skipped" | "error"
+  label: string
+  statement?: StatementRecord | null
+  pdfUrl?: string | null
+  error?: string | null
+}
+
 function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "—"
   const n = typeof value === "string" ? Number.parseFloat(value) : value
   if (Number.isNaN(n)) return "—"
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n)
+}
+
+function isRefundLikeStatus(status: string | null | undefined): boolean {
+  const normalized = (status ?? "").trim().toLowerCase()
+  return normalized === "refund" || normalized === "refunded"
+}
+
+function parseMoneyValue(value: string | null | undefined): number {
+  if (!value) return 0
+  const n = Number.parseFloat(value.replace(/[^0-9.-]/g, ""))
+  return Number.isNaN(n) ? 0 : n
 }
 
 function formatShortDate(iso: string | null | undefined): string {
@@ -157,10 +217,58 @@ function mapInvoiceStatusToLabel(status: string | null | undefined): string {
   if (!status) return "—"
   const s = status.toLowerCase()
   if (s === "pending") return "Pending"
+  if (s === "unbilled") return "Unbilled"
+  if (s === "checked") return "Checked"
+  if (s === "billed") return "Billed"
   if (s === "paid") return "Paid"
+  if (s === "refunded") return "Refunded"
+  if (s === "disputed") return "Disputed"
+  if (s === "sent") return "Sent"
   if (s === "overdue") return "Overdue"
   if (s === "cancelled") return "Cancelled"
   return status
+}
+
+function statementSignedAmount(charge: Pick<ChargeRow, "gross" | "status">): number {
+  const amount = parseMoneyValue(charge.gross)
+  return isRefundLikeStatus(charge.status) ? -amount : amount
+}
+
+function parseDateInput(value: string): Date | undefined {
+  if (!value) return undefined
+  const date = new Date(`${value}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+function formatDateInput(date: Date): string {
+  return format(date, "yyyy-MM-dd")
+}
+
+function formatToolbarDateRange(range: DateRange | undefined): string {
+  if (!range?.from) return "Select date range"
+  if (!range.to) return format(range.from, "MMM d, yyyy")
+  return `${format(range.from, "MMM d, yyyy")} - ${format(range.to, "MMM d, yyyy")}`
+}
+
+function splitEmails(value: string): string[] {
+  return value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function joinEmails(values: string[] | null | undefined): string {
+  return (values ?? []).filter(Boolean).join(", ")
+}
+
+function buildStatementPdfFilename(office: string, statementId: string | number): string {
+  const seg = (s: string) =>
+    s
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 48) || "statement"
+  return `${seg(office)}-${seg(String(statementId))}.pdf`
 }
 
 /** Apply preset to YYYY-MM-DD range for toolbar / advanced search */
@@ -247,6 +355,8 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
         ? `${Number(p.rush_percentage)}%`
         : "—"
 
+    const rowStatus = mapInvoiceStatusToLabel(p.item_status ?? p.status ?? inv.status)
+
     return {
       id: `${inv.id}-p-${p.id}-${idx}`,
       billingInvoiceId: inv.id,
@@ -267,7 +377,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       rPercent: rush,
       gross: formatMoney(p.total_price),
       dueDate: due,
-      status: invStatus,
+      status: rowStatus,
     }
   })
 }
@@ -301,13 +411,40 @@ export default function ChargeManagementPage() {
   const [showCasesWithAddon, setShowCasesWithAddon] = useState(false)
   const [showOnlyChecked, setShowOnlyChecked] = useState(false)
   const [advDateRange, setAdvDateRange] = useState<string>("custom")
+  const [customDateRangeOpen, setCustomDateRangeOpen] = useState(false)
+  const [statementModalOpen, setStatementModalOpen] = useState(false)
+  const [statementModalStep, setStatementModalStep] = useState<"confirm" | "generating" | "sending">("confirm")
+  const [statementAutoMarkBilled, setStatementAutoMarkBilled] = useState(false)
+  const [statementAutoMarking, setStatementAutoMarking] = useState(false)
+  const [statementAttachPdf, setStatementAttachPdf] = useState(true)
+  const [statementPreviewOpen, setStatementPreviewOpen] = useState(false)
+  const [statementPreviewLoading, setStatementPreviewLoading] = useState(false)
+  const [statementPreviewOfficeId, setStatementPreviewOfficeId] = useState<number | null>(null)
+  const [statementPreviewTitle, setStatementPreviewTitle] = useState("")
+  const [statementPreviewRecipient, setStatementPreviewRecipient] = useState("")
+  const [statementPreviewHtml, setStatementPreviewHtml] = useState("")
+  const [statementJobStatuses, setStatementJobStatuses] = useState<StatementJobStatus[]>([])
+  const [generatedStatements, setGeneratedStatements] = useState<StatementRecord[]>([])
+  const [sendQueueIndex, setSendQueueIndex] = useState(0)
+  const [sendToValue, setSendToValue] = useState("")
+  const [sendCcValue, setSendCcValue] = useState("")
+  const [sendBccValue, setSendBccValue] = useState("")
+  const [sendSubjectValue, setSendSubjectValue] = useState("")
+  const [sendMessageValue, setSendMessageValue] = useState("")
+  const [sendPreviewHtml, setSendPreviewHtml] = useState("")
+  const [sendPreviewLoading, setSendPreviewLoading] = useState(false)
+  const [statementActionLoading, setStatementActionLoading] = useState<"generate" | "send" | null>(null)
 
   const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false)
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
   const [pdfViewerTitle, setPdfViewerTitle] = useState("")
   const [pdfViewerLoading, setPdfViewerLoading] = useState(false)
+  const [sendToOfficeOpen, setSendToOfficeOpen] = useState(false)
+  const [sendToOfficeBillingId, setSendToOfficeBillingId] = useState<number | null>(null)
+  const [sendToOfficeEmail, setSendToOfficeEmail] = useState("")
   const pdfViewerBlobUrlRef = useRef<string | null>(null)
+  const statementPreviewCacheRef = useRef<Map<number, StatementRecord>>(new Map())
   const pdfIframeRef = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
@@ -323,6 +460,28 @@ export default function ChargeManagementPage() {
       setDateTo(r.to)
     }
   }, [advDateRange])
+
+  const selectedCustomDateRange = useMemo<DateRange | undefined>(() => {
+    const from = parseDateInput(dateFrom)
+    const to = parseDateInput(dateTo)
+    if (!from && !to) return undefined
+    return { from, to: to ?? from }
+  }, [dateFrom, dateTo])
+
+  const handleCustomDateRangeSelect = useCallback((range: DateRange | undefined) => {
+    setAdvDateRange("custom")
+    setPage(1)
+    if (!range?.from) {
+      setDateFrom("")
+      setDateTo("")
+      return
+    }
+    setDateFrom(formatDateInput(range.from))
+    setDateTo(range.to ? formatDateInput(range.to) : "")
+    if (range.to) {
+      setCustomDateRangeOpen(false)
+    }
+  }, [])
 
   const customerId = useMemo((): number | null => {
     if (typeof window === "undefined") return null
@@ -412,10 +571,15 @@ export default function ChargeManagementPage() {
   const [bulkAction, { isLoading: bulkLoading }] = useBulkBillingActionMutation()
   const [downloadPdf] = useLazyDownloadBillingPdfQuery()
   const [generatePdf] = useGenerateBillingPdfMutation()
+  const [generateStatement] = useGenerateStatementMutation()
+  const [generateStatementPdf] = useGenerateStatementPdfMutation()
+  const [previewStatementEmail] = useLazyPreviewStatementEmailQuery()
+  const [sendStatement, { isLoading: sendingStatementNow }] = useSendStatementMutation()
   const [sendStatementEmail, { isLoading: sendEmailLoading }] = useSendStatementEmailMutation()
   const [regenerateSlipInvoice, { isLoading: regenerateInvoiceLoading }] = useRegenerateSlipInvoiceMutation()
 
   const [regeneratingSlipId, setRegeneratingSlipId] = useState<number | null>(null)
+  const [generatingStatements, setGeneratingStatements] = useState(false)
 
   const fetchInvoicePdfBlob = useCallback(
     async (billingId: number): Promise<Blob> => {
@@ -442,6 +606,30 @@ export default function ChargeManagementPage() {
     [generatePdf, downloadPdf],
   )
 
+  const fetchAuthorizedBlob = useCallback(async (pathOrUrl: string): Promise<Blob> => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+    const response = await fetch(resolveBillingAssetUrl(pathOrUrl), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return response.blob()
+  }, [])
+
+  const createBlobUrl = useCallback((blob: Blob): string => {
+    return URL.createObjectURL(blob)
+  }, [])
+
+  const downloadBlob = useCallback((blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }, [])
+
   const closePdfViewer = useCallback(() => {
     if (pdfViewerBlobUrlRef.current) {
       URL.revokeObjectURL(pdfViewerBlobUrlRef.current)
@@ -462,6 +650,12 @@ export default function ChargeManagementPage() {
     if (!displayResult?.data?.length) return []
     return displayResult.data.flatMap((inv) => billingInvoiceToRows(inv))
   }, [displayResult])
+  const sendToOfficeCharge = useMemo(
+    () => charges.find((charge) => charge.billingInvoiceId === sendToOfficeBillingId) ?? null,
+    [charges, sendToOfficeBillingId],
+  )
+  const sendToOfficeEmailValid =
+    sendToOfficeEmail.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sendToOfficeEmail.trim())
 
   const pagination = displayResult?.pagination
 
@@ -472,6 +666,115 @@ export default function ChargeManagementPage() {
     })
     return Array.from(set)
   }, [charges, selectedItems])
+
+  const selectedBillingInvoices = useMemo(() => {
+    const invoices = displayResult?.data ?? []
+    const selectedIdSet = new Set(selectedBillingIds)
+    return invoices.filter((invoice) => selectedIdSet.has(invoice.id))
+  }, [displayResult, selectedBillingIds])
+
+  const selectedStatementOfficeSummary = useMemo(() => {
+    const officeNames = Array.from(
+      new Set(
+        selectedBillingInvoices
+          .map((invoice) => invoice.office?.name?.trim())
+          .filter((name): name is string => Boolean(name)),
+      ),
+    )
+
+    return {
+      officeCount: officeNames.length,
+      officeNames,
+    }
+  }, [selectedBillingInvoices])
+
+  const selectedStatementGroups = useMemo<StatementOfficeGroup[]>(() => {
+    const selectedChargeRows = charges.filter((charge) => selectedItems.includes(charge.id))
+    const invoiceMap = new Map(selectedBillingInvoices.map((invoice) => [invoice.id, invoice] as const))
+    const grouped = new Map<number, StatementOfficeGroup>()
+
+    selectedChargeRows.forEach((charge) => {
+      const invoice = invoiceMap.get(charge.billingInvoiceId)
+      const officeId = invoice?.office?.id
+      if (officeId == null) return
+
+      const existing = grouped.get(officeId)
+      if (existing) {
+        if (!existing.billingIds.includes(charge.billingInvoiceId)) {
+          existing.billingIds.push(charge.billingInvoiceId)
+          existing.invoiceCount += 1
+        }
+        existing.chargeCount += 1
+        existing.totalAmount += statementSignedAmount(charge)
+        return
+      }
+
+      grouped.set(officeId, {
+        officeId,
+        officeName: invoice?.office?.name?.trim() || charge.officeName,
+        officeCode: charge.officeCode,
+        recipientEmail: invoice?.office?.email?.trim() || "",
+        billingIds: [charge.billingInvoiceId],
+        chargeCount: 1,
+        invoiceCount: 1,
+        invoiceLabel: charge.invoiceNumber,
+        totalAmount: statementSignedAmount(charge),
+      })
+    })
+
+    return Array.from(grouped.values())
+  }, [charges, selectedBillingInvoices, selectedItems])
+
+  const selectedStatementPreviewItems = useMemo<StatementPreviewItem[]>(() => {
+    return charges
+      .filter((charge) => selectedItems.includes(charge.id))
+      .map((charge) => ({
+        id: charge.id,
+        officeId:
+          selectedBillingInvoices.find((invoice) => invoice.id === charge.billingInvoiceId)?.office?.id ?? 0,
+        officeName: charge.officeName,
+        officeCode: charge.officeCode,
+        invoiceLabel: charge.invoiceNumber,
+        patient: charge.patient,
+        product: charge.product,
+        chargeCount: 1,
+        totalAmount: statementSignedAmount(charge),
+      }))
+  }, [charges, selectedItems])
+
+  const currentSendStatement = generatedStatements[sendQueueIndex] ?? null
+  const currentSendGroup = useMemo(() => {
+    if (!currentSendStatement) return null
+    return (
+      selectedStatementGroups.find((group) => group.officeId === currentSendStatement.office?.id) ?? null
+    )
+  }, [currentSendStatement, selectedStatementGroups])
+  const sendQueueCircleItems = useMemo(() => {
+    const total = generatedStatements.length
+    if (total <= 4) {
+      return generatedStatements.map((statement, index) => ({
+        key: `statement-${statement.id}`,
+        label: String(index + 1),
+        active: index === sendQueueIndex,
+        done: index < sendQueueIndex,
+      }))
+    }
+
+    return [
+      { key: "circle-1", label: "1", active: sendQueueIndex === 0, done: sendQueueIndex > 0 },
+      { key: "circle-2", label: "2", active: sendQueueIndex === 1, done: sendQueueIndex > 1 },
+      { key: "circle-3", label: "3", active: sendQueueIndex === 2, done: sendQueueIndex > 2 },
+      { key: "circle-4", label: `${total - 2}+`, active: sendQueueIndex >= 3, done: sendQueueIndex >= total - 1 },
+    ]
+  }, [generatedStatements, sendQueueIndex])
+
+  const statementProgressPercent = useMemo(() => {
+    if (statementJobStatuses.length === 0) return 0
+    const completeCount = statementJobStatuses.filter((item) =>
+      ["generated", "opened", "sent", "skipped", "error"].includes(item.status),
+    ).length
+    return Math.round((completeCount / statementJobStatuses.length) * 100)
+  }, [statementJobStatuses])
 
   const resetToList = useCallback(() => {
     setActiveSource("list")
@@ -737,6 +1040,53 @@ export default function ChargeManagementPage() {
     await refetchList()
   }, [activeSource, advancedBody, advancedPage, advancedSearch, refetchList, toast])
 
+  const handleStatementAutoMarkBilledToggle = useCallback(async () => {
+    if (statementAutoMarking) return
+
+    if (statementAutoMarkBilled) {
+      setStatementAutoMarkBilled(false)
+      return
+    }
+
+    const billingIds = Array.from(
+      new Set(selectedStatementGroups.flatMap((group) => group.billingIds)),
+    )
+
+    if (billingIds.length === 0) {
+      toast({
+        title: "No billing lines selected",
+        description: "Select at least one charge before enabling auto mark as billed.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setStatementAutoMarking(true)
+    try {
+      await bulkAction({ billing_ids: billingIds, action: "mark_billed" }).unwrap()
+      setStatementAutoMarkBilled(true)
+      await onRefresh()
+      toast({
+        title: "Selected charges marked as billed",
+      })
+    } catch (error) {
+      toast({
+        title: "Unable to mark charges as billed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setStatementAutoMarking(false)
+    }
+  }, [
+    bulkAction,
+    onRefresh,
+    selectedStatementGroups,
+    statementAutoMarkBilled,
+    statementAutoMarking,
+    toast,
+  ])
+
   const handleBulk = async (action: BulkBillingActionBody["action"]) => {
     if (selectedBillingIds.length === 0) {
       toast({ title: "Select at least one row", variant: "destructive" })
@@ -834,16 +1184,357 @@ export default function ChargeManagementPage() {
     win.print()
   }
 
-  const handleSendEmail = async (billingId: number) => {
-    const email = window.prompt("Recipient email address")
-    if (!email?.trim()) return
+  const closeSendToOfficeDialog = useCallback(() => {
+    if (sendEmailLoading) return
+    setSendToOfficeOpen(false)
+    setSendToOfficeBillingId(null)
+    setSendToOfficeEmail("")
+  }, [sendEmailLoading])
+
+  const openSendToOfficeDialog = (billingId: number) => {
+    setSendToOfficeBillingId(billingId)
+    setSendToOfficeEmail("")
+    setSendToOfficeOpen(true)
+  }
+
+  const handleSendEmail = async () => {
+    const billingId = sendToOfficeBillingId
+    const email = sendToOfficeEmail.trim()
+    if (!billingId || !email) return
     try {
-      await sendStatementEmail({ billingId, body: { email: email.trim() } }).unwrap()
+      await sendStatementEmail({ billingId, body: { email } }).unwrap()
       toast({ title: "Email sent" })
+      closeSendToOfficeDialog()
     } catch {
       toast({ title: "Send failed", variant: "destructive" })
     }
   }
+
+  const handleGenerateStatements = async () => {
+    if (selectedBillingInvoices.length === 0 || selectedStatementGroups.length === 0) {
+      toast({ title: "Select at least one invoice", variant: "destructive" })
+      return
+    }
+
+    setStatementAutoMarkBilled(false)
+    setStatementAttachPdf(true)
+    setStatementJobStatuses(
+      selectedStatementGroups.map((group) => ({
+        officeId: group.officeId,
+        status: "pending",
+        label: "Ready to generate",
+      })),
+    )
+    setGeneratedStatements([])
+    setSendQueueIndex(0)
+    setSendPreviewHtml("")
+    setSendToValue("")
+    setSendCcValue("")
+    setSendBccValue("")
+    setSendSubjectValue("")
+    setSendMessageValue("")
+    setStatementModalStep("confirm")
+    setStatementModalOpen(true)
+  }
+
+  const updateStatementJobStatus = useCallback((officeId: number, patch: Partial<StatementJobStatus>) => {
+    setStatementJobStatuses((current) =>
+      current.map((item) => (item.officeId === officeId ? { ...item, ...patch } : item)),
+    )
+  }, [])
+
+  const generateStatementForGroup = useCallback(
+    async (group: StatementOfficeGroup): Promise<StatementRecord> => {
+      return generateStatement({
+        billing_ids: group.billingIds,
+        office_id: group.officeId,
+        direction: "outgoing",
+        template: "default",
+        auto_mark_billed: statementAutoMarkBilled,
+      })
+        .unwrap()
+        .then((result) => {
+          if (!result?.data) throw new Error("Statement generation returned no data")
+          return result.data
+        })
+    },
+    [generateStatement, statementAutoMarkBilled],
+  )
+
+  const downloadStatementPdfForStatement = useCallback(
+    async (statement: StatementRecord, officeName: string): Promise<string> => {
+      const result = await generateStatementPdf(statement.id).unwrap()
+      const downloadPath = result?.data?.download_url || result?.data?.pdf_url
+      if (!downloadPath) throw new Error("No statement PDF URL returned by the server")
+      const blob = await fetchAuthorizedBlob(downloadPath)
+      const filename = buildStatementPdfFilename(officeName, statement.statement_id || statement.id)
+      downloadBlob(blob, filename)
+      return createBlobUrl(blob)
+    },
+    [createBlobUrl, downloadBlob, fetchAuthorizedBlob, generateStatementPdf],
+  )
+
+  const handleGenerateOnlyStatements = useCallback(async () => {
+    if (selectedStatementGroups.length === 0) return
+    setStatementActionLoading("generate")
+    setStatementModalStep("generating")
+    setGeneratingStatements(true)
+    setStatementJobStatuses(
+      selectedStatementGroups.map((group) => ({
+        officeId: group.officeId,
+        status: "pending",
+        label: "Queued",
+      })),
+    )
+
+    try {
+      const createdStatements: StatementRecord[] = []
+      for (const group of selectedStatementGroups) {
+        updateStatementJobStatus(group.officeId, { status: "generating", label: "Generating statement..." })
+        try {
+          const statement = await generateStatementForGroup(group)
+          createdStatements.push(statement)
+          updateStatementJobStatus(group.officeId, {
+            status: "generated",
+            label: "Statement created",
+            statement,
+          })
+
+          const pdfUrl = await downloadStatementPdfForStatement(statement, group.officeName)
+          updateStatementJobStatus(group.officeId, {
+            status: "opened",
+            label: "PDF downloaded",
+            statement,
+            pdfUrl,
+          })
+
+        } catch (error) {
+          updateStatementJobStatus(group.officeId, {
+            status: "error",
+            label: "Generation failed",
+            error: error instanceof Error ? error.message : "Request failed",
+          })
+        }
+      }
+
+      setGeneratedStatements(createdStatements)
+      setSelectedItems([])
+      await onRefresh()
+
+      const successCount = createdStatements.length
+      const failureCount = selectedStatementGroups.length - successCount
+
+      toast({
+        title: failureCount === 0 ? "Statements created" : "Statements partially created",
+        description:
+          failureCount === 0
+            ? `Created ${successCount} statement${successCount === 1 ? "" : "s"} across ${selectedStatementGroups.length} office${selectedStatementGroups.length === 1 ? "" : "s"}.`
+            : `Created ${successCount} statement${successCount === 1 ? "" : "s"} and ${failureCount} office group${failureCount === 1 ? "" : "s"} failed.`,
+        variant: failureCount === 0 ? "default" : "destructive",
+      })
+
+      setStatementModalOpen(false)
+    } finally {
+      setGeneratingStatements(false)
+      setStatementActionLoading(null)
+    }
+  }, [
+    generateStatementForGroup,
+    onRefresh,
+    downloadStatementPdfForStatement,
+    selectedStatementGroups,
+    updateStatementJobStatus,
+  ])
+
+  const buildSendDraftFromPreview = useCallback((statement: StatementRecord, preview: StatementEmailPreview) => {
+    setSendToValue(preview.recipient_email || statement.recipient_email || statement.office?.email || "")
+    setSendCcValue(joinEmails(preview.cc_emails))
+    setSendBccValue(joinEmails(preview.bcc_emails))
+    setSendSubjectValue(
+      preview.subject || statement.subject || `Your statement from ${statement.lab?.name || statement.office?.name || "RXn3D"} is ready`,
+    )
+    setSendMessageValue(preview.message || statement.message || "")
+    setSendPreviewHtml(preview.preview_html || "")
+  }, [])
+
+  const loadSendPreviewForStatement = useCallback(async (statement: StatementRecord) => {
+    setSendPreviewLoading(true)
+    try {
+      const preview = await previewStatementEmail(statement.id).unwrap()
+      buildSendDraftFromPreview(statement, preview)
+    } catch {
+      setSendPreviewHtml("")
+      buildSendDraftFromPreview(statement, {})
+    } finally {
+      setSendPreviewLoading(false)
+    }
+  }, [buildSendDraftFromPreview, previewStatementEmail])
+
+  const handleGenerateAndSendStatements = useCallback(async () => {
+    if (selectedStatementGroups.length === 0) return
+    setStatementActionLoading("send")
+    setStatementModalStep("generating")
+    setGeneratingStatements(true)
+    setStatementJobStatuses(
+      selectedStatementGroups.map((group) => ({
+        officeId: group.officeId,
+        status: "pending",
+        label: "Queued",
+      })),
+    )
+
+    const createdStatements: StatementRecord[] = []
+    try {
+      for (const group of selectedStatementGroups) {
+        updateStatementJobStatus(group.officeId, { status: "generating", label: "Generating statement..." })
+        try {
+          const statement = await generateStatementForGroup(group)
+          createdStatements.push(statement)
+          const pdfUrl = await downloadStatementPdfForStatement(statement, group.officeName)
+          updateStatementJobStatus(group.officeId, {
+            status: "generated",
+            label: "Downloaded and ready to send",
+            statement,
+            pdfUrl,
+          })
+        } catch (error) {
+          updateStatementJobStatus(group.officeId, {
+            status: "error",
+            label: "Generation failed",
+            error: error instanceof Error ? error.message : "Request failed",
+          })
+        }
+      }
+
+      if (createdStatements.length === 0) {
+        toast({ title: "Statement generation failed", variant: "destructive" })
+        return
+      }
+
+      setGeneratedStatements(createdStatements)
+      setSendQueueIndex(0)
+      setStatementModalStep("sending")
+      await loadSendPreviewForStatement(createdStatements[0])
+      await onRefresh()
+    } finally {
+      setGeneratingStatements(false)
+      setStatementActionLoading(null)
+    }
+  }, [
+    generateStatementForGroup,
+    loadSendPreviewForStatement,
+    onRefresh,
+    downloadStatementPdfForStatement,
+    selectedStatementGroups,
+    updateStatementJobStatus,
+  ])
+
+  const handleSkipCurrentEmail = useCallback(async () => {
+    if (!currentSendStatement) return
+    updateStatementJobStatus(currentSendStatement.office?.id ?? currentSendStatement.id, {
+      status: "skipped",
+      label: "Skipped",
+    })
+    const nextIndex = sendQueueIndex + 1
+    if (nextIndex >= generatedStatements.length) {
+      setStatementModalOpen(false)
+      toast({ title: "Email sending finished" })
+      return
+    }
+    setSendQueueIndex(nextIndex)
+    await loadSendPreviewForStatement(generatedStatements[nextIndex])
+  }, [currentSendStatement, generatedStatements, loadSendPreviewForStatement, sendQueueIndex, updateStatementJobStatus, toast])
+
+  const handleCancelAllEmails = useCallback(() => {
+    setStatementModalOpen(false)
+    toast({ title: "Remaining emails cancelled" })
+  }, [toast])
+
+  const handlePreviewEmailInNewTab = useCallback(async () => {
+    if (!currentSendStatement) return
+    const previewWindow = window.open("", "_blank", "noopener,noreferrer")
+    try {
+      const preview = await previewStatementEmail(currentSendStatement.id).unwrap()
+      const html = preview.preview_html || sendPreviewHtml || "<p>No preview available.</p>"
+      if (!previewWindow) throw new Error("Preview window was blocked")
+      previewWindow.document.open()
+      previewWindow.document.write(html)
+      previewWindow.document.close()
+    } catch (error) {
+      previewWindow?.close()
+      toast({
+        title: "Unable to preview email",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [currentSendStatement, previewStatementEmail, sendPreviewHtml, toast])
+
+  const handleSendCurrentEmail = useCallback(async () => {
+    if (!currentSendStatement) return
+    const toEmails = splitEmails(sendToValue)
+    if (toEmails.length === 0) {
+      toast({ title: "Add at least one recipient email", variant: "destructive" })
+      return
+    }
+    const ccEmails = splitEmails(sendCcValue)
+    const bccEmails = splitEmails(sendBccValue)
+
+    const officeId = currentSendStatement.office?.id ?? currentSendStatement.id
+    updateStatementJobStatus(officeId, { status: "sending", label: "Sending..." })
+    try {
+      await sendStatement({
+        id: currentSendStatement.id,
+        body: {
+          recipient_email: toEmails[0],
+          cc_emails: [...toEmails.slice(1), ...ccEmails],
+          bcc_emails: bccEmails,
+          subject: sendSubjectValue,
+          message: sendMessageValue,
+          template: currentSendStatement.template_used ?? "default",
+          include_pdf: statementAttachPdf,
+        },
+      }).unwrap()
+
+      updateStatementJobStatus(officeId, { status: "sent", label: "Email sent" })
+      const nextIndex = sendQueueIndex + 1
+      if (nextIndex >= generatedStatements.length) {
+        setStatementModalOpen(false)
+        setSelectedItems([])
+        toast({ title: "All statement emails sent" })
+        await onRefresh()
+        return
+      }
+      setSendQueueIndex(nextIndex)
+      await loadSendPreviewForStatement(generatedStatements[nextIndex])
+    } catch (error) {
+      updateStatementJobStatus(officeId, {
+        status: "error",
+        label: "Send failed",
+        error: error instanceof Error ? error.message : "Request failed",
+      })
+      toast({
+        title: "Unable to send statement",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }, [
+    currentSendStatement,
+    generatedStatements,
+    loadSendPreviewForStatement,
+    onRefresh,
+    sendBccValue,
+    sendCcValue,
+    sendMessageValue,
+    sendQueueIndex,
+    sendStatement,
+    sendSubjectValue,
+    sendToValue,
+    statementAttachPdf,
+    toast,
+    updateStatementJobStatus,
+  ])
 
   const goAdvancedPage = async (next: number) => {
     if (activeSource !== "advanced" || !advancedBody) return
@@ -857,7 +1548,7 @@ export default function ChargeManagementPage() {
   }
 
   const filterBarDisabled = !customerId
-  const actionDisabled = !customerId || bulkLoading || sendEmailLoading
+  const actionDisabled = !customerId || bulkLoading || sendEmailLoading || generatingStatements
 
   return (
     <div className="w-full min-h-full bg-white">
@@ -946,7 +1637,7 @@ export default function ChargeManagementPage() {
                 disabled={filterBarDisabled}
               >
                 <SelectTrigger className="w-[200px] shrink-0 h-10 text-sm bg-white">
-                  <Calendar className="h-4 w-4 mr-2 text-gray-400 shrink-0" />
+                  <CalendarIcon className="h-4 w-4 mr-2 text-gray-400 shrink-0" />
                   <SelectValue
                     placeholder={t("chargeManagement.selectDateRange", { defaultValue: "Select date range" })}
                   />
@@ -970,31 +1661,33 @@ export default function ChargeManagementPage() {
                 </SelectContent>
               </Select>
               {advDateRange === "custom" && (
-                <>
-                  <Input
-                    type="date"
-                    className="w-[140px] shrink-0 h-10 text-sm"
-                    value={dateFrom}
-                    onChange={(e) => {
-                      setDateFrom(e.target.value)
-                      setAdvDateRange("custom")
-                      setPage(1)
-                    }}
-                    disabled={filterBarDisabled}
-                  />
-                  <span className="text-sm text-gray-500 shrink-0">to</span>
-                  <Input
-                    type="date"
-                    className="w-[140px] shrink-0 h-10 text-sm"
-                    value={dateTo}
-                    onChange={(e) => {
-                      setDateTo(e.target.value)
-                      setAdvDateRange("custom")
-                      setPage(1)
-                    }}
-                    disabled={filterBarDisabled}
-                  />
-                </>
+                <Popover open={customDateRangeOpen} onOpenChange={setCustomDateRangeOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-[280px] shrink-0 h-10 justify-start text-sm font-normal"
+                      disabled={filterBarDisabled}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="truncate">
+                        {selectedCustomDateRange?.from
+                          ? formatToolbarDateRange(selectedCustomDateRange)
+                          : t("chargeManagement.selectDateRange", { defaultValue: "Select date range" })}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="range"
+                      numberOfMonths={2}
+                      defaultMonth={selectedCustomDateRange?.from}
+                      selected={selectedCustomDateRange}
+                      onSelect={handleCustomDateRangeSelect}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               )}
 
               {isLabScope && (
@@ -1021,6 +1714,7 @@ export default function ChargeManagementPage() {
                 type="button"
                 variant={showAdvancedFilters ? "secondary" : "outline"}
                 className="h-10 shrink-0 text-sm gap-2 ml-auto border-gray-300"
+                title="Open advanced search and filter options. Narrow by date, office, product, and more."
                 onClick={() =>
                   setShowAdvancedFilters((v) => {
                     const next = !v
@@ -1068,13 +1762,14 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled || selectedBillingIds.length === 0}
-                onClick={() => {
-                  const id = selectedBillingIds[0]
-                  const row = charges.find((c) => c.billingInvoiceId === id)
-                  void handleDownloadPdf(id, row)
-                }}
+                title="Generate a billing statement per office. Even if multiple lines are selected, each office gets a separate statement."
+                onClick={() => void handleGenerateStatements()}
               >
-                <Download className="h-4 w-4" />
+                {statementActionLoading != null ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
                 {t("chargeManagement.generateStatement", { defaultValue: "Generate Statement" })}
               </Button>
               <Button
@@ -1082,7 +1777,8 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled || selectedBillingIds.length === 0}
-                onClick={() => handleSendEmail(selectedBillingIds[0])}
+                title="Send selected case(s) or statement to the connected office + automatically generate statement"
+                onClick={() => void handleGenerateStatements()}
               >
                 <Send className="h-4 w-4" />
                 {t("chargeManagement.sendToOffice", { defaultValue: "Send to Office" })}
@@ -1092,6 +1788,7 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled}
+                title="Mark selected lines as “Checked”. The review icon will disappear. No changes to billing."
                 onClick={() => void handleBulk("mark_checked")}
               >
                 {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
@@ -1102,6 +1799,7 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled}
+                title="Update selected lines to “Billed” status without generating a statement."
                 onClick={() => void handleBulk("mark_billed")}
               >
                 <CheckCircle className="h-4 w-4" />
@@ -1112,11 +1810,23 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled}
+                title="Mark selected line(s) as refunded. These amounts will be deducted from future statements."
                 onClick={() => void handleBulk("mark_refund")}
               >
                 <CheckCircle className="h-4 w-4" />
                 {t("chargeManagement.markRefund", { defaultValue: "Mark as Refund" })}
               </Button>
+              <p className="w-full text-xs text-gray-500">
+                {selectedStatementOfficeSummary.officeCount <= 1
+                  ? t("chargeManagement.statementGroupingHintSingle", {
+                      defaultValue: "This action creates 1 combined statement for {{office}}.",
+                      office: selectedStatementOfficeSummary.officeNames[0] ?? "the selected office",
+                    })
+                  : t("chargeManagement.statementGroupingHintMulti", {
+                      defaultValue: "This action creates {{count}} statements, grouped by office.",
+                      count: selectedStatementOfficeSummary.officeCount,
+                    })}
+              </p>
             </div>
           )}
         </div>
@@ -1145,6 +1855,7 @@ export default function ChargeManagementPage() {
               type="button"
               onClick={() => void onRefresh()}
               disabled={!customerId || isFetching}
+              title="Revert charges to default system settings. Manual edits will be undone. Due date will not be affected."
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
               {t("chargeManagement.refreshCharges", { defaultValue: "Refresh Charges" })}
@@ -1166,12 +1877,12 @@ export default function ChargeManagementPage() {
                 <TableHead className="py-3 text-xs font-semibold text-gray-700">Product</TableHead>
                 <TableHead className="py-3 text-xs font-semibold text-gray-700">Grade</TableHead>
                 <TableHead className="py-3 text-xs font-semibold text-gray-700">Stage</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Base total</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Add-on</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">QTY</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Sub Total</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">R%</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Gross</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
+                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">Gross</TableHead>
                 <TableHead className="py-3 text-xs font-semibold text-gray-700">Due Date</TableHead>
                 <TableHead className="py-3 text-xs font-semibold text-gray-700">Status</TableHead>
                 <TableHead className="py-3 text-xs font-semibold text-gray-700">Actions</TableHead>
@@ -1345,6 +2056,372 @@ export default function ChargeManagementPage() {
           billingInvoiceId={editInvoiceId}
           onSaved={() => void onRefresh()}
         />
+
+        <Dialog
+          open={statementModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStatementModalOpen(false)
+              setStatementActionLoading(null)
+            }
+          }}
+        >
+          <DialogContent
+            className="flex h-[92vh] max-h-[92vh] w-[min(96vw,68rem)] flex-col gap-0 overflow-hidden rounded-[20px] p-0"
+            showCloseButton={false}
+          >
+            <DialogClose className="absolute right-5 top-5 z-10 rounded-sm p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+              <X className="h-6 w-6 stroke-[1.5]" />
+              <span className="sr-only">Close</span>
+            </DialogClose>
+
+            {statementModalStep === "confirm" ? (
+              <>
+                <DialogHeader className="shrink-0 border-b px-5 py-5 text-left sm:px-6 sm:py-6 lg:px-7">
+                  <div className="flex items-start gap-4 pr-14">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#1565b3] text-white">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-3">
+                      <DialogTitle className="text-[24px] font-bold tracking-tight text-black sm:text-[28px]">
+                        Confirm Statement Generation
+                      </DialogTitle>
+                      <DialogDescription className="text-[14px] text-black">
+                        {selectedStatementGroups.length <= 1
+                          ? `You are generating 1 statement for ${selectedStatementGroups[0]?.officeName ?? "the selected office"}.`
+                          : `You are generating ${selectedStatementGroups.length} statements for the following offices.`}
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+                    {selectedStatementPreviewItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex flex-col gap-4 rounded-[18px] border border-gray-100 bg-gray-50/70 px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+                      >
+                        <div className="min-w-0">
+                          <h3 className="text-[22px] font-bold text-black sm:text-[24px]">{item.officeName}</h3>
+                          <p className="mt-2 text-[14px] leading-6 text-gray-400">
+                            {item.invoiceLabel} • {item.officeCode} • {item.patient} • {item.product}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
+                          <div className="text-[15px] text-black sm:text-right">
+                            <span className="mr-2.5">Total:</span>
+                            <span className="text-[17px]">{formatMoney(item.totalAmount)}</span>
+                          </div>
+                          <Eye className="h-4.5 w-4.5 shrink-0 text-black/80" />
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="flex items-center gap-4 px-2 pt-1">
+                      <button
+                        type="button"
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                          statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
+                        }`}
+                        onClick={() => void handleStatementAutoMarkBilledToggle()}
+                        disabled={statementAutoMarking}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            statementAutoMarkBilled ? "translate-x-8" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                      <span className="text-[15px] text-black">
+                        {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="shrink-0 border-t bg-white px-4 py-4 sm:px-6 sm:py-5 sm:justify-center sm:space-x-4 lg:px-8">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full border-gray-300 text-base text-gray-600 sm:min-w-[170px] sm:w-auto sm:text-lg"
+                    onClick={() => setStatementModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-11 w-full gap-2.5 text-base sm:min-w-[215px] sm:w-auto sm:text-lg"
+                    onClick={() => void handleGenerateOnlyStatements()}
+                    disabled={statementActionLoading != null}
+                  >
+                    <FileText className="h-4.5 w-4.5" />
+                    Generate only
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-11 w-full gap-2.5 text-base sm:min-w-[235px] sm:w-auto sm:text-lg"
+                    onClick={() => void handleGenerateAndSendStatements()}
+                    disabled={statementActionLoading != null}
+                  >
+                    <Send className="h-4.5 w-4.5" />
+                    Generate & send
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : null}
+
+            {statementModalStep === "generating" ? (
+              <>
+                <DialogHeader className="px-8 py-8 text-left">
+                  <div className="flex items-start gap-5 pr-16">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1565b3] text-white">
+                      <FileText className="h-7 w-7" />
+                    </div>
+                    <div className="space-y-4">
+                      <DialogTitle className="text-4xl font-bold tracking-tight text-black">
+                        Generating statements
+                      </DialogTitle>
+                      <DialogDescription className="text-[19px] text-black">
+                        {statementActionLoading === "send"
+                          ? "Creating statements before sending them to each office."
+                          : "Creating and downloading PDF statements for each office."}
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                <div className="px-10 pb-8">
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+                    <div className="h-full rounded-full bg-[#1565b3] transition-all" style={{ width: `${statementProgressPercent}%` }} />
+                  </div>
+                </div>
+
+                <div className="space-y-5 px-10 pb-10">
+                  {selectedStatementGroups.map((group) => {
+                    const job = statementJobStatuses.find((item) => item.officeId === group.officeId)
+                    return (
+                      <div key={group.officeId} className="flex items-center justify-between rounded-2xl bg-gray-50 px-10 py-7">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-3xl font-bold text-black">{group.officeName}</h3>
+                            {job?.status === "opened" || job?.status === "sent" ? (
+                              <CheckCircle className="h-6 w-6 text-green-500" />
+                            ) : null}
+                            {job?.status === "generating" || job?.status === "sending" ? (
+                              <Loader2 className="h-6 w-6 animate-spin text-[#1565b3]" />
+                            ) : null}
+                          </div>
+                          <p className="mt-3 text-[18px] text-gray-400">
+                            {group.invoiceLabel} • {group.officeCode} • {group.chargeCount} charge{group.chargeCount === 1 ? "" : "s"}
+                          </p>
+                          <p className="mt-2 text-sm text-gray-600">{job?.label ?? "Queued"}</p>
+                          {job?.error ? <p className="mt-1 text-sm text-red-600">{job.error}</p> : null}
+                        </div>
+                        <div className="flex items-center gap-6 text-right">
+                          {job?.pdfUrl ? (
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-2 text-[18px] text-black hover:text-[#1565b3]"
+                              onClick={() => window.open(job.pdfUrl ?? "", "_blank", "noopener,noreferrer")}
+                            >
+                              PDF ready
+                              <ExternalLink className="h-5 w-5" />
+                            </button>
+                          ) : (
+                            <span className="text-[18px] text-gray-500">
+                              {job?.status === "error" ? "Failed" : job?.label ?? "Queued"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            ) : null}
+
+            {statementModalStep === "sending" && currentSendStatement ? (
+              <>
+                <DialogHeader className="shrink-0 px-5 py-5 text-left sm:px-6 lg:px-8">
+                  <div className="flex items-start gap-3 pr-10 sm:gap-4 sm:pr-14">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1565b3] text-white sm:h-12 sm:w-12">
+                      <Mail className="h-5 w-5 sm:h-6 sm:w-6" />
+                    </div>
+                    <div className="space-y-2 sm:space-y-3">
+                      <DialogTitle className="text-[28px] font-bold text-black sm:text-[32px] lg:text-[40px]">
+                        Send Statement {sendQueueIndex + 1} of {generatedStatements.length}
+                      </DialogTitle>
+                      <DialogDescription className="text-sm text-black sm:text-base lg:text-[18px]">
+                        Configure and send statement via email to {currentSendGroup?.officeName ?? currentSendStatement.office?.name ?? "the selected office"}.
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5 sm:pb-5 lg:px-6 lg:pb-6">
+                  <div className="rounded-2xl bg-gray-50 px-4 py-4 sm:px-5 sm:py-5 lg:px-6">
+                    <div className="flex items-center justify-between gap-6">
+                      <div className="flex items-center gap-3">
+                        {sendQueueCircleItems.map((item) => (
+                          <div
+                            key={item.key}
+                            className={`flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold ${
+                              item.active || item.done ? "bg-[#1565b3] text-white" : "bg-gray-200 text-gray-500"
+                            }`}
+                          >
+                            {item.label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mt-5">
+                      <h3 className="text-xl font-bold text-black sm:text-2xl">
+                        {currentSendGroup?.officeName ?? currentSendStatement.office?.name ?? "Selected office"}
+                      </h3>
+                      <p className="mt-2 text-sm text-gray-400 sm:text-base">
+                        {currentSendGroup?.invoiceLabel ?? currentSendStatement.statement_id ?? `ST-${currentSendStatement.id}`} • {currentSendGroup?.officeCode ?? currentSendStatement.office?.code ?? "—"} • {currentSendGroup?.chargeCount ?? currentSendStatement.billing_items?.length ?? 0} charge{(currentSendGroup?.chargeCount ?? currentSendStatement.billing_items?.length ?? 0) === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-black">To:</label>
+                      <Input value={sendToValue} onChange={(e) => setSendToValue(e.target.value)} placeholder="office@example.com, another@example.com" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-black">Subject:</label>
+                      <Input value={sendSubjectValue} onChange={(e) => setSendSubjectValue(e.target.value)} placeholder="Your monthly statement is ready" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-black">CC:</label>
+                      <Input value={sendCcValue} onChange={(e) => setSendCcValue(e.target.value)} placeholder="cc@example.com" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-black">BCC:</label>
+                      <Input value={sendBccValue} onChange={(e) => setSendBccValue(e.target.value)} placeholder="bcc@example.com" />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border bg-white">
+                    {sendPreviewLoading ? (
+                      <div className="flex h-[12rem] items-center justify-center sm:h-[14rem] lg:h-[18rem]">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : sendPreviewHtml ? (
+                      <iframe title="Statement email preview" srcDoc={sendPreviewHtml} className="h-[12rem] w-full border-0 sm:h-[14rem] lg:h-[18rem]" />
+                    ) : (
+                      <div className="flex h-[12rem] items-center justify-center text-sm text-gray-500 sm:h-[14rem] lg:h-[18rem]">
+                        No preview available.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                          statementAttachPdf ? "bg-[#1565b3]" : "bg-slate-300"
+                        }`}
+                        onClick={() => setStatementAttachPdf((value) => !value)}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${statementAttachPdf ? "translate-x-8" : "translate-x-1"}`} />
+                      </button>
+                      <span className="text-[15px] text-black sm:text-[18px]">Attach PDF Statement</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <button
+                        type="button"
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                          statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
+                        }`}
+                        onClick={() => void handleStatementAutoMarkBilledToggle()}
+                        disabled={statementAutoMarking}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${statementAutoMarkBilled ? "translate-x-8" : "translate-x-1"}`} />
+                      </button>
+                      <span className="text-[15px] text-black sm:text-[18px]">
+                        {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter className="shrink-0 border-t bg-white px-4 py-4 sm:px-5 lg:px-8">
+                  <Button type="button" variant="outline" className="w-full sm:min-w-[160px] sm:w-auto" onClick={handleCancelAllEmails}>
+                    Cancel All
+                  </Button>
+                  <Button type="button" variant="outline" className="w-full sm:min-w-[160px] sm:w-auto" onClick={() => void handleSkipCurrentEmail()}>
+                    Skip this email
+                  </Button>
+                  <Button type="button" variant="outline" className="w-full gap-2 sm:min-w-[160px] sm:w-auto" onClick={() => void handlePreviewEmailInNewTab()}>
+                    <Eye className="h-4 w-4" />
+                    Preview Email
+                  </Button>
+                  <Button type="button" className="w-full gap-2 sm:min-w-[160px] sm:w-auto" disabled={sendingStatementNow || sendPreviewLoading} onClick={() => void handleSendCurrentEmail()}>
+                    {sendingStatementNow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Send email
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={sendToOfficeOpen} onOpenChange={(open) => !open && closeSendToOfficeDialog()}>
+          <DialogContent className="w-[min(92vw,32rem)] gap-0 overflow-hidden rounded-2xl p-0">
+            <DialogHeader className="border-b px-6 py-5 text-left">
+              <DialogTitle>{t("chargeManagement.sendToOffice", { defaultValue: "Send to Office" })}</DialogTitle>
+              <DialogDescription className="pt-1">
+                {sendToOfficeCharge
+                  ? `Enter the recipient email for ${sendToOfficeCharge.invoiceNumber} · ${sendToOfficeCharge.officeName}.`
+                  : "Enter the recipient email address for this statement."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 px-6 py-5">
+              <label htmlFor="send-to-office-email" className="text-sm font-medium text-gray-700">
+                Recipient email address
+              </label>
+              <Input
+                id="send-to-office-email"
+                type="email"
+                autoFocus
+                value={sendToOfficeEmail}
+                onChange={(e) => setSendToOfficeEmail(e.target.value)}
+                placeholder="name@office.com"
+                className="h-11"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && sendToOfficeEmailValid && !sendEmailLoading) {
+                    e.preventDefault()
+                    void handleSendEmail()
+                  }
+                }}
+              />
+              {sendToOfficeEmail.trim().length > 0 && !sendToOfficeEmailValid ? (
+                <p className="text-sm text-red-600">Enter a valid email address.</p>
+              ) : null}
+            </div>
+            <DialogFooter className="border-t px-6 py-4 sm:justify-end">
+              <Button type="button" variant="outline" onClick={closeSendToOfficeDialog} disabled={sendEmailLoading}>
+                {t("chargeManagement.cancel", { defaultValue: "Cancel" })}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleSendEmail()}
+                disabled={!sendToOfficeEmailValid || sendEmailLoading}
+                className="gap-2"
+              >
+                {sendEmailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendEmailLoading
+                  ? t("chargeManagement.sending", { defaultValue: "Sending..." })
+                  : t("chargeManagement.send", { defaultValue: "Send" })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={pdfViewerOpen} onOpenChange={(open) => !open && closePdfViewer()}>
           <DialogContent className="flex max-h-[90vh] w-[min(96vw,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">

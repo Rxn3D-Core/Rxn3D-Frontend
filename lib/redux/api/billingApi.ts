@@ -88,6 +88,8 @@ export interface BillingProduct {
   product_id?: number
   /** Some APIs expose slip billing item id for `POST /billing/items/{id}/notes` */
   billing_item_id?: number
+  status?: string | null
+  item_status?: string | null
   product_name?: string | null
   product_code?: string | null
   product_type?: string | null
@@ -173,6 +175,143 @@ export interface BillingListResult {
   pagination: BillingPagination
 }
 
+export interface StatementListParams {
+  search?: string
+  office_code?: string
+  recipient_email?: string
+  statement_id?: string
+  direction?: "outgoing" | "incoming"
+  payment_status?: "sent" | "billed" | "paid" | "overdue" | "disputed" | "refunded"
+  is_disputed?: boolean
+  is_overdue?: boolean
+  date_from?: string
+  date_to?: string
+  due_date_from?: string
+  due_date_to?: string
+  amount_min?: number
+  amount_max?: number
+  sort_by?:
+    | "created_at"
+    | "updated_at"
+    | "statement_id"
+    | "office_name"
+    | "lab_name"
+    | "recipient_email"
+    | "date_sent"
+    | "due_date"
+    | "amount_due"
+    | "direction"
+    | "payment_status"
+  sort_direction?: "asc" | "desc"
+  per_page?: number
+  page?: number
+}
+
+export interface StatementParty {
+  id?: number | null
+  name?: string | null
+  email?: string | null
+  phone?: string | null
+  code?: string | null
+  address?: string | null
+}
+
+export interface StatementHistoryEntry {
+  id?: number
+  action?: string | null
+  old_status?: string | null
+  new_status?: string | null
+  notes?: string | null
+  created_at?: string | null
+}
+
+export interface StatementBillingItem {
+  id?: number
+  amount?: number | string | null
+  status?: string | null
+  patient_name?: string | null
+  product_name?: string | null
+}
+
+export interface StatementRecord {
+  id: number
+  statement_id?: string | null
+  office_id?: number | null
+  lab_id?: number | null
+  direction?: "outgoing" | "incoming" | string | null
+  recipient_email?: string | null
+  cc_emails?: string[]
+  bcc_emails?: string[]
+  subject?: string | null
+  message?: string | null
+  amount_due?: number | string | null
+  date_sent?: string | null
+  due_date?: string | null
+  payment_status?: "sent" | "billed" | "paid" | "overdue" | "disputed" | "refunded" | string | null
+  status?: string | null
+  statement_type?: string | null
+  template_used?: string | null
+  pdf_path?: string | null
+  is_disputed?: boolean | null
+  dispute_reason?: string | null
+  dispute_notes?: string | null
+  auto_mark_billed?: boolean | null
+  is_overdue?: boolean | null
+  created_at?: string | null
+  updated_at?: string | null
+  office?: StatementParty | null
+  lab?: StatementParty | null
+  billing_items?: StatementBillingItem[]
+  history?: StatementHistoryEntry[]
+}
+
+export interface StatementListResult {
+  data: StatementRecord[]
+  pagination: BillingPagination
+}
+
+export interface StatementSummary {
+  outgoing?: number
+  incoming?: number
+  overdue?: number
+  disputed?: number
+  total_amount?: number | string
+  total_statements?: number
+}
+
+export interface StatementEmailPreview {
+  subject?: string | null
+  recipient_email?: string | null
+  cc_emails?: string[]
+  bcc_emails?: string[]
+  message?: string | null
+  template?: string | null
+  preview_html?: string | null
+}
+
+export interface SendStatementBody {
+  recipient_email: string
+  cc_emails?: string[]
+  bcc_emails?: string[]
+  subject: string
+  message?: string
+  template?: string
+  include_pdf?: boolean
+}
+
+export interface GenerateStatementBody {
+  billing_ids: number[]
+  office_id: number
+  direction: "outgoing" | "incoming"
+  template?: string
+  auto_mark_billed?: boolean
+}
+
+export interface StatementPdfResult {
+  pdf_url?: string
+  download_url?: string
+}
+
 /** GET /billing/statistics — backend returns scoped aggregates */
 export interface BillingStatistics {
   total_invoices?: number
@@ -251,6 +390,24 @@ function unwrapBillingList(response: { success?: boolean; data?: BillingListResu
   }
 }
 
+function unwrapStatementList(response: {
+  success?: boolean
+  data?: StatementRecord[]
+  meta?: Partial<BillingPagination> & { total?: number }
+}): StatementListResult {
+  return {
+    data: Array.isArray(response?.data) ? response.data : [],
+    pagination: {
+      current_page: response?.meta?.current_page ?? 1,
+      last_page: response?.meta?.last_page ?? 1,
+      per_page: response?.meta?.per_page ?? 15,
+      total: response?.meta?.total ?? 0,
+      from: null,
+      to: null,
+    },
+  }
+}
+
 export interface CreditTransaction {
   id: string
   type: "purchase" | "usage" | "refund"
@@ -272,6 +429,84 @@ export const billingApi = apiSlice.injectEndpoints({
         data?: BillingListResult
       }): BillingListResult => unwrapBillingList(response),
       providesTags: [{ type: "Billing", id: "LIST" }],
+    }),
+
+    listStatements: builder.query<StatementListResult, StatementListParams | void>({
+      query: (params) => `/statements${params ? buildBillingQueryString(params) : ""}`,
+      transformResponse: (response: {
+        success?: boolean
+        data?: StatementRecord[]
+        meta?: Partial<BillingPagination> & { total?: number }
+      }): StatementListResult => unwrapStatementList(response),
+      providesTags: [{ type: "Statements", id: "LIST" }],
+    }),
+
+    getStatementSummary: builder.query<StatementSummary, void>({
+      query: () => "/statements/summary",
+      transformResponse: (response: { success?: boolean; data?: StatementSummary }): StatementSummary => {
+        return response?.data ?? {}
+      },
+      providesTags: [{ type: "Statements", id: "SUMMARY" }],
+    }),
+
+    getStatementById: builder.query<StatementRecord, number>({
+      query: (id) => `/statements/${id}`,
+      transformResponse: (response: { success?: boolean; data?: StatementRecord }): StatementRecord => {
+        const data = response?.data
+        if (!data) {
+          throw new Error("Statement not found")
+        }
+        return data
+      },
+      providesTags: (result, error, id) => [{ type: "Statements", id: String(id) }],
+    }),
+
+    previewStatementEmail: builder.query<StatementEmailPreview, number>({
+      query: (id) => `/statements/${id}/preview-email`,
+      transformResponse: (response: { success?: boolean; data?: StatementEmailPreview }): StatementEmailPreview => {
+        return response?.data ?? {}
+      },
+    }),
+
+    sendStatement: builder.mutation<
+      { success?: boolean; data?: unknown; message?: string },
+      { id: number; body: SendStatementBody }
+    >({
+      query: ({ id, body }) => ({
+        url: `/statements/${id}/send`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Statements", id: "LIST" },
+        { type: "Statements", id: "SUMMARY" },
+        { type: "Statements", id: String(id) },
+      ],
+    }),
+
+    generateStatement: builder.mutation<
+      { success?: boolean; data?: StatementRecord; message?: string },
+      GenerateStatementBody
+    >({
+      query: (body) => ({
+        url: "/statements/generate",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: [
+        { type: "Statements", id: "LIST" },
+        { type: "Statements", id: "SUMMARY" },
+      ],
+    }),
+
+    generateStatementPdf: builder.mutation<
+      { success?: boolean; data?: StatementPdfResult; message?: string },
+      number
+    >({
+      query: (id) => ({
+        url: `/statements/${id}/generate-pdf`,
+        method: "GET",
+      }),
     }),
 
     getBillingStatistics: builder.query<BillingStatistics, BillingListParams | void>({
@@ -618,6 +853,14 @@ export const billingApi = apiSlice.injectEndpoints({
 export const {
   useListBillingInvoicesQuery,
   useLazyListBillingInvoicesQuery,
+  useListStatementsQuery,
+  useGetStatementSummaryQuery,
+  useGetStatementByIdQuery,
+  useLazyGetStatementByIdQuery,
+  useLazyPreviewStatementEmailQuery,
+  useSendStatementMutation,
+  useGenerateStatementMutation,
+  useGenerateStatementPdfMutation,
   useGetBillingStatisticsQuery,
   useAdvancedBillingSearchMutation,
   useGetBillingInvoiceByIdQuery,
