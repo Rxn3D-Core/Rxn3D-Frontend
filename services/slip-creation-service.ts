@@ -80,12 +80,34 @@ export interface SlipCreationAddon {
   notes?: string;
 }
 
+export interface SlipCreationRetention {
+  retention_id: number;
+  teeth_number?: number;
+}
+
+export interface SlipCreationRetentionOption {
+  retention_option_id: number;
+  teeth_number: number;
+}
+
+export interface SlipCreationImplantDetail {
+  teeth_number: number;
+  implant_id: number;
+  implant_platform_id?: number;
+  implant_platform_size_id?: number;
+}
+
+export interface SlipCreationAbutmentDetail {
+  teeth_number: number;
+  abutment_type_id: number;
+}
+
 export interface SlipCreationAdvanceField {
   teeth_number?: number | null;
   advance_field_id: number;
   advance_field_value?: string | null;
+  /** Present only while building payload; stripped before JSON and sent as nested multipart file keys. */
   file?: File;
-  file_index?: number; // For multipart form data
 }
 
 export interface SlipCreationNote {
@@ -104,8 +126,6 @@ export interface SlipCreationProduct {
   teeth_shade_id?: number;
   gum_shade_brand_id?: number;
   gum_shade_id?: number;
-  retention_id?: number;
-  retention_option_id?: number;
   material_id?: number;
   status?: string;
   notes?: string;
@@ -114,11 +134,19 @@ export interface SlipCreationProduct {
   extractions?: SlipCreationExtraction[];
   opposite_extractions?: SlipCreationExtraction[];
   addons?: SlipCreationAddon[];
+  retentions?: SlipCreationRetention[];
+  retention_options?: SlipCreationRetentionOption[];
   advance_fields?: SlipCreationAdvanceField[];
+  implant_details?: SlipCreationImplantDetail[];
+  abutment_details?: SlipCreationAbutmentDetail[];
 }
 
 export interface SlipCreationSlip {
+  slip_number?: string;
+  status?: string;
   location_id?: number;
+  casepan_id?: number;
+  casepan_number?: string;
   created_by?: number;
   products: SlipCreationProduct[];
   notes?: SlipCreationNote[];
@@ -130,6 +158,63 @@ export interface SlipCreationSlip {
 export interface SlipCreationPayload {
   case: SlipCreationCase;
   slips: SlipCreationSlip[];
+}
+
+/** Nested multipart file attachment for POST /slip/create */
+export interface SlipCreationMultipartFile {
+  formKey: string;
+  file: File;
+}
+
+function appendFormDataValue(formData: FormData, key: string, value: unknown): void {
+  if (value === undefined || value === null) return;
+  if (value instanceof File) return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      if (typeof item === "object" && item !== null && !(item instanceof File)) {
+        Object.entries(item).forEach(([childKey, childValue]) => {
+          appendFormDataValue(formData, `${key}[${index}][${childKey}]`, childValue);
+        });
+      } else {
+        appendFormDataValue(formData, `${key}[${index}]`, item);
+      }
+    });
+    return;
+  }
+  if (typeof value === "object") {
+    Object.entries(value).forEach(([childKey, childValue]) => {
+      appendFormDataValue(formData, `${key}[${childKey}]`, childValue);
+    });
+    return;
+  }
+  formData.append(key, String(value));
+}
+
+export function buildSlipCreateFormData(
+  payload: SlipCreationPayload,
+  multipartFiles: SlipCreationMultipartFile[] = []
+): FormData {
+  const formData = new FormData();
+  appendFormDataValue(formData, "case", payload.case);
+  payload.slips.forEach((slip, slipIndex) => {
+    Object.entries(slip).forEach(([key, value]) => {
+      if (key === "products" && Array.isArray(value)) return;
+      appendFormDataValue(formData, `slips[${slipIndex}][${key}]`, value);
+    });
+    slip.products.forEach((product, productIndex) => {
+      Object.entries(product).forEach(([key, value]) => {
+        appendFormDataValue(
+          formData,
+          `slips[${slipIndex}][products][${productIndex}][${key}]`,
+          value
+        );
+      });
+    });
+  });
+  for (const { formKey, file } of multipartFiles) {
+    formData.append(formKey, file);
+  }
+  return formData;
 }
 
 export interface SlipCreationResponse {
@@ -170,7 +255,7 @@ class SlipCreationService {
    */
   async createSlip(
     payload: SlipCreationPayload,
-    files?: File[]
+    multipartFiles?: SlipCreationMultipartFile[] | File[]
   ): Promise<SlipCreationResponse> {
     try {
       const token = getToken();
@@ -178,12 +263,22 @@ class SlipCreationService {
         throw new Error("No authentication token found");
       }
 
-      // Check if we have files to upload
-      const hasFiles = files && files.length > 0;
+      const normalizedFiles: SlipCreationMultipartFile[] = (() => {
+        if (!multipartFiles?.length) return [];
+        const first = multipartFiles[0] as SlipCreationMultipartFile | File;
+        if (first && typeof first === "object" && "formKey" in first && "file" in first) {
+          return multipartFiles as SlipCreationMultipartFile[];
+        }
+        return (multipartFiles as File[]).map((file, index) => ({
+          formKey: `files[${index}]`,
+          file,
+        }));
+      })();
+
+      const hasFiles = normalizedFiles.length > 0;
 
       if (hasFiles) {
-        // Use multipart/form-data for file uploads
-        return await this.createSlipWithFiles(payload, files);
+        return await this.createSlipWithFiles(payload, normalizedFiles);
       } else {
         // Use JSON for regular requests
         return await this.createSlipJSON(payload);
@@ -234,17 +329,9 @@ class SlipCreationService {
    */
   private async createSlipWithFiles(
     payload: SlipCreationPayload,
-    files: File[]
+    multipartFiles: SlipCreationMultipartFile[]
   ): Promise<SlipCreationResponse> {
-    const formData = new FormData();
-
-    // Add JSON data as a form field
-    formData.append("data", JSON.stringify(payload));
-
-    // Add files with indexed keys
-    files.forEach((file, index) => {
-      formData.append(`files[${index}]`, file);
-    });
+    const formData = buildSlipCreateFormData(payload, multipartFiles);
 
     const url = ensureAbsoluteUrl("/slip/create");
     const response = await fetch(url, {

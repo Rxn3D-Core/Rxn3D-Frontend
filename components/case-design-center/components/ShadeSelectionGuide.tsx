@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
-import type { Arch, ShadeFieldType, ShadeSelectionState, ProductAdvanceField } from "../types";
-import { getShadeGuideAdvanceFields, getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
+import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
+import { getShadeGuideAdvanceFields, getShadeFieldType, getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
 import { ShadeField } from "./fields/ShadeField";
 
 const EMPTY_SHADE_STATE: ShadeSelectionState = {
@@ -33,6 +33,8 @@ interface ShadeSelectionGuideProps {
   hasGumShadeFlag?: boolean;
   /** Whether the product has_teeth_shade flag (used when no advance_fields match) */
   hasTeethShadeFlag?: boolean;
+  /** Product used to resolve shade list for the SVG picker */
+  productForShades?: ProductApiData | null;
 }
 
 function getShadeLabels(
@@ -74,6 +76,7 @@ export function ShadeSelectionGuide({
   advanceFields,
   hasGumShadeFlag,
   hasTeethShadeFlag,
+  productForShades,
 }: ShadeSelectionGuideProps) {
   const shadeGuideFields = useMemo(
     () => getShadeGuideAdvanceFields(advanceFields),
@@ -91,8 +94,8 @@ export function ShadeSelectionGuide({
 
     const matchingOption = selectedShadeGuide
       ? shadeGuideOptions.find(
-          (option) => option.trim().toLowerCase() === selectedShadeGuide.trim().toLowerCase()
-        ) ?? null
+        (option) => option.trim().toLowerCase() === selectedShadeGuide.trim().toLowerCase()
+      ) ?? null
       : null;
 
     if (matchingOption) {
@@ -227,6 +230,11 @@ export function ShadeSelectionGuide({
     [activeShade]
   );
 
+  const guideShades = useMemo(
+    () => getTeethShadesForSelectedGuide(productForShades, selectedShadeGuide),
+    [productForShades, selectedShadeGuide]
+  );
+
   const handleNamedFieldClick = useCallback(
     (field: ProductAdvanceField) => {
       const fieldType = getShadeFieldType(field);
@@ -260,7 +268,7 @@ export function ShadeSelectionGuide({
   };
 
   return (
-    <div className="mb-4 border border-[#1162A8] rounded-lg p-4 bg-white min-w-0 overflow-visible">
+    <div className="bg-white min-w-0 overflow-visible relative">
       <div className="relative">
         <div className="grid grid-cols-2 gap-3 mb-3">
 
@@ -291,9 +299,8 @@ export function ShadeSelectionGuide({
                       setSelectedShadeGuide(option);
                       setShowShadeGuideDropdown(false);
                     }}
-                    className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors flex items-center gap-2 ${
-                      selectedShadeGuide === option ? 'bg-gray-50' : ''
-                    }`}
+                    className={`w-full px-4 py-2.5 text-left text-xs hover:bg-gray-50 transition-colors flex items-center gap-2 ${selectedShadeGuide === option ? 'bg-gray-50' : ''
+                      }`}
                   >
                     {selectedShadeGuide === option && (
                       <Check size={16} className="text-[#34a853]" />
@@ -403,12 +410,12 @@ export function ShadeSelectionGuide({
                     <div
                       className="relative border border-[#34a853] rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors"
                       onClick={() =>
-                    setShadeSelectionState((prev) => ({
-                      ...prev,
-                      fieldType: "tooth_shade",
-                      fillMode: toothShade ? "edit" : "sequence",
-                    }))
-                  }
+                        setShadeSelectionState((prev) => ({
+                          ...prev,
+                          fieldType: "tooth_shade",
+                          fillMode: toothShade ? "edit" : "sequence",
+                        }))
+                      }
                     >
                       <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
                         {toothLabel}
@@ -422,12 +429,12 @@ export function ShadeSelectionGuide({
                     <span
                       className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
                       onClick={() =>
-                    setShadeSelectionState((prev) => ({
-                      ...prev,
-                      fieldType: "tooth_shade",
-                      fillMode: toothShade ? "edit" : "sequence",
-                    }))
-                  }
+                        setShadeSelectionState((prev) => ({
+                          ...prev,
+                          fieldType: "tooth_shade",
+                          fillMode: toothShade ? "edit" : "sequence",
+                        }))
+                      }
                     >
                       {`Select ${toothLabel.toLowerCase()}`}
                     </span>
@@ -441,9 +448,11 @@ export function ShadeSelectionGuide({
         {/* Shade SVG picker — only shown when current active field is a shade_guide type */}
         {selectedShadeGuide && activeFieldIsShadeGuide && (
           <ToothShadeSelectionSVG
-            key={`${productId}-${activeAdvanceFieldId ?? activeField}`}
+            key={`${productId}-${activeAdvanceFieldId ?? activeField}-${selectedShadeGuide}`}
             selectedShades={activeShadeSelection}
             onShadeClick={handleShadeSelectWithAdvance}
+            shades={guideShades}
+            guideLabel={selectedShadeGuide}
             className="w-full"
           />
         )}

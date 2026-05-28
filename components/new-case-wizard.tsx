@@ -1395,7 +1395,7 @@ function PatientMiniHeader({
   }, []);
 
   return (
-    <div className="bg-[#fdfdfd] border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-4">
+    <div className="bg-white border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-4">
       <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
@@ -2011,7 +2011,7 @@ export default function NewCaseWizard({
 
       {/* Bottom bar for steps 1-3 (doctor, lab, patient info) */}
       {step <= 3 && (
-        <div className="border-t border-[#d9d9d9] bg-[#fdfdfd] px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="border-t border-[#d9d9d9] bg-white px-6 py-3 flex items-center justify-between flex-shrink-0">
           <div />
 
           <div className="flex items-center gap-3">

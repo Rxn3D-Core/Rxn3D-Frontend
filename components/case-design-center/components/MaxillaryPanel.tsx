@@ -938,6 +938,9 @@ export function MaxillaryPanel({
   const MAXILLARY_ALL_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const MAXILLARY_PRODUCT_SENTINEL = 1;
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
+  // Tracks whether any selection mode (extraction box or product plus) is explicitly active.
+  // False after Done is clicked; true when extraction box or plus icon is activated.
+  const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
 
   // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
@@ -1416,8 +1419,9 @@ export function MaxillaryPanel({
         />
       )}
 
-      {/* Eye toggle + Teeth row */}
+      {/* Eye toggle hidden — restore by removing false && wrapper */}
       <div className="relative">
+        {false && (
         <button
           onClick={() => setShowMaxillary(!showMaxillary)}
           className="absolute left-0 top-0 z-10 flex-shrink-0 w-[28.5px] h-[28.5px] flex items-center justify-center bg-white rounded-full shadow-[0.75px_0.75px_3px_rgba(0,0,0,0.25)] hover:shadow-[0.75px_0.75px_5px_rgba(0,0,0,0.35)] transition-shadow"
@@ -1429,8 +1433,9 @@ export function MaxillaryPanel({
             <EyeOff size={13.5} className="text-[#b4b0b0]" />
           )}
         </button>
+        )}
         {showMaxillary && (
-          <div className="pl-9">
+          <div>
             {activeProductIsRemovables && !confirmDetailsChecked ? (() => {
               const activeExtractions = activeProductCardId !== 0
                 ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions
@@ -1469,15 +1474,20 @@ export function MaxillaryPanel({
                   : 0;
               if (requiresExtractionsAcknowledgement(hintExtractions)) {
                 if (isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) return null;
+                const isExtractionBoxSelected = activeExtractionCode !== null;
                 return (
                   <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                    Select teeth on the chart for {removableProductName}
+                    {isExtractionBoxSelected
+                      ? `Select teeth for reference (not added to ${removableProductName})`
+                      : `Select teeth to replace with "${removableProductName}"`}
                   </p>
                 );
               }
               return (
                 <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                  Select teeth that will be included in {removableProductName}
+                  {activeExtractionCode !== null
+                    ? `Select teeth for reference (not added to ${removableProductName})`
+                    : `Select teeth to replace with "${removableProductName}"`}
                 </p>
               );
             })() : (() => {
@@ -1514,6 +1524,15 @@ export function MaxillaryPanel({
                         return;
                       }
                       if (!isCardActiveForToothStatus(activeProductCardId)) {
+                        return;
+                      }
+                      // If the user has clicked Done (acknowledged), lock tooth selection until
+                      // they re-activate by clicking an extraction box or the plus icon.
+                      const currentAckExtractions = activeProductCardId !== 0
+                        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions ?? [])
+                        : card0Extractions;
+                      const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : activeProductCardId;
+                      if (isExtractionsSetupComplete(currentAckExtractions, ackCardId, caseSubmitted)) {
                         return;
                       }
                       // Rule 1: active box selected → assign directly, skip popover
@@ -1921,6 +1940,7 @@ export function MaxillaryPanel({
                 advanceFields={shadeProduct?.advance_fields}
                 hasGumShadeFlag={shadeProduct?.has_gum_shade === "Yes"}
                 hasTeethShadeFlag={shadeProduct?.has_teeth_shade === "Yes"}
+                productForShades={shadeProduct}
               />
             );
           })()}
@@ -2078,6 +2098,13 @@ export function MaxillaryPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
+                          onPlusClick={() => {
+                            setActiveExtractionCode(null);
+                            // Re-activating product selection resets Done so the button re-appears
+                            const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
+                            setExtractionsSetupComplete(ackCardId, false);
+                          }}
+                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
@@ -2148,7 +2175,8 @@ export function MaxillaryPanel({
                             (useMaxillaryArchSharedRemovable
                               ? maxillaryMergedExtractions
                               : removableCardExtractions
-                            ).length > 0 ? (
+                            ).length > 0 &&
+                            maxillaryTeeth.length > 0 ? (
                               <ToothStatusBoxes
                                 extractions={
                                   useMaxillaryArchSharedRemovable
@@ -2184,6 +2212,12 @@ export function MaxillaryPanel({
                                   else if (useMaxillaryArchSharedRemovable) {
                                     setActiveExtractions(maxillaryMergedExtractions);
                                   }
+                                  // Re-activating an extraction box resets Done so the button re-appears
+                                  if (code !== null) {
+                                    const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
+                                    setExtractionsSetupComplete(ackCardId, false);
+                                    setIsSelectionModeActive(true);
+                                  }
                                 }}
                                 onToothExtractionToggle={(tn, code, extractions) =>
                                   handleToothExtractionToggle(
@@ -2205,6 +2239,25 @@ export function MaxillaryPanel({
                                 grayed={
                                   isActiveMaxillaryProductDetailPending || apIsSingleDefaultOnly
                                 }
+                                acknowledged={
+                                  useMaxillaryArchSharedRemovable
+                                    ? maxillaryArchExtractionsReady
+                                    : isExtractionsSetupComplete(
+                                        removableCardExtractions,
+                                        ap.id,
+                                        caseSubmitted
+                                      )
+                                }
+                                onAcknowledgedChange={(v) => {
+                                  if (v) {
+                                    // Done clicked — clear active borders
+                                    setActiveExtractionCode(null);
+                                    setIsSelectionModeActive(false);
+                                  }
+                                  useMaxillaryArchSharedRemovable
+                                    ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
+                                    : setExtractionsSetupComplete(ap.id, v);
+                                }}
                               />
                             ) : undefined
                           }
@@ -2215,6 +2268,14 @@ export function MaxillaryPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedProductAccordionToggle(ap)}
+                          onPlusClick={() => {
+                            setActiveExtractionCode(null);
+                            // Re-activating product selection resets Done so the button re-appears
+                            const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
+                            setExtractionsSetupComplete(ackCardId, false);
+                            setIsSelectionModeActive(true);
+                          }}
+                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
@@ -2529,7 +2590,7 @@ export function MaxillaryPanel({
                                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                   onClick={() => safeOpenImpressionModal("maxillary", impressionModalProductId, repTn)}
                                 >
-                                  <legend className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Impression</legend>
+                                  <legend className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : "border-[#CF0202]"}`}>Impression</legend>
                                   <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{impressionDisplay}</span>
                                   {impressionComplete && !caseSubmitted && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                 </fieldset>
@@ -2832,7 +2893,7 @@ export function MaxillaryPanel({
                 const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("maxillary", t.toothNumber));
                 if (isLoading) {
                   return (
-                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden border border-[#d9d9d9] mt-4">
+                    <div key={`loading-group-${groupKey}`} className="rounded-lg bg-white overflow-hidden mt-4">
                       <div className="w-full flex items-center py-[14px] px-2 gap-[10px] rounded-t-[5.4px]">
                         <div className="w-[50px] h-[50px] rounded-md flex-shrink-0 animate-pulse bg-gray-200" />
                         <div className="flex-1 min-w-0 flex flex-col gap-2">
@@ -2961,6 +3022,13 @@ export function MaxillaryPanel({
                         isExpanded={card0FixedExpanded}
                         caseSubmitted={caseSubmitted}
                         hasRush={hasRushed}
+                        onPlusClick={() => {
+                          setActiveExtractionCode(null);
+                          // Re-activating product selection resets Done so the button re-appears
+                          setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, false);
+                          setIsSelectionModeActive(true);
+                        }}
+                        isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                         onToggleExpand={() => {
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
@@ -3267,6 +3335,14 @@ export function MaxillaryPanel({
                       caseSubmitted={caseSubmitted}
                       hasRush={!!hasRushedRemovables}
                       onToggleExpand={handleCard0RemovableAccordionToggle}
+                      onPlusClick={() => {
+                        setActiveExtractionCode(null);
+                        // Re-activating product selection resets Done so the button re-appears
+                        const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
+                        setExtractionsSetupComplete(ackCardId, false);
+                        setIsSelectionModeActive(true);
+                      }}
+                      isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
                       expandEnabled={isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({
@@ -3328,7 +3404,8 @@ export function MaxillaryPanel({
                           useMaxillaryArchSharedRemovable
                             ? maxillaryMergedExtractions
                             : cardExtractions
-                        ) ? (
+                        ) &&
+                        maxillaryTeeth.length > 0 ? (
                           <ToothStatusBoxes
                             extractions={
                               useMaxillaryArchSharedRemovable
@@ -3354,6 +3431,12 @@ export function MaxillaryPanel({
                               else if (useMaxillaryArchSharedRemovable) {
                                 setActiveExtractions(maxillaryMergedExtractions);
                               }
+                              // Re-activating an extraction box resets Done so the button re-appears
+                              if (code !== null) {
+                                const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
+                                setExtractionsSetupComplete(ackCardId, false);
+                                setIsSelectionModeActive(true);
+                              }
                             }}
                             onToothExtractionToggle={(tn, code, extractions) =>
                               handleToothExtractionToggle(
@@ -3373,6 +3456,21 @@ export function MaxillaryPanel({
                             hideDefaultBox={true}
                             disableRequiredValidation={true}
                             grayed={isActiveMaxillaryProductDetailPending}
+                            acknowledged={
+                              useMaxillaryArchSharedRemovable
+                                ? maxillaryArchExtractionsReady
+                                : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted)
+                            }
+                            onAcknowledgedChange={(v) => {
+                              if (v) {
+                                // Done clicked — clear active borders
+                                setActiveExtractionCode(null);
+                                setIsSelectionModeActive(false);
+                              }
+                              useMaxillaryArchSharedRemovable
+                                ? setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, v)
+                                : setExtractionsSetupComplete(0, v);
+                            }}
                           />
                         ) : undefined
                       }

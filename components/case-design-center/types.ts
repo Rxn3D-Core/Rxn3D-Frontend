@@ -8,8 +8,10 @@ export interface SlipProductSnapshot {
   type: string;
   productId: number;
   productApiData: ProductApiData | null;
-  /** Tooth numbers selected for this product card on this arch */
+  /** Tooth numbers used for teeth_selection (may be extraction-filtered subset) */
   teethNumbers: number[];
+  /** All teeth on this product card (for extractions / retention_options grouping) */
+  allCardTeeth?: number[];
   /** Representative tooth number (first in group — field values are keyed here) */
   repToothNumber: number;
   /** Field values keyed by step name */
@@ -18,8 +20,16 @@ export interface SlipProductSnapshot {
   stageName: string | null;
   /** Impression selections: { impressionCode: quantity } */
   impressions: Record<string, number>;
-  /** Rush data if applicable */
-  rush: Record<string, any> | null;
+  /** Rush data if applicable (UI: `targetDate`; normalized at submit) */
+  rush: Record<string, unknown> | null;
+  /** Per-tooth extraction code assignments for this card */
+  toothExtractionMap?: Record<number, string>;
+  /** Teeth with overlay/clasp extraction */
+  claspTeeth?: number[];
+  /** Per-tooth retention chart types (Prep / Pontic / Implant) */
+  retentionTypesByTooth?: Record<number, string[]>;
+  /** Advance field file uploads keyed by step name */
+  advanceFieldFiles?: Record<string, File>;
   /** Product card ID (0 = initial, otherwise AddedProduct.id) */
   cardId: number;
   /**
@@ -223,6 +233,10 @@ export interface NotesProps {
   selectedShades?: Record<string, string>;
   /** Raw slip impression selections — triggers note rebuild when impression changes */
   selectedImpressions?: import("./utils/impressionStorage").SlipImpressionSelections;
+  /** Per-tooth implant form data for live notes (maxillary arch) */
+  maxillaryImplantDetailByTooth?: Record<number, import("./components/ImplantDetailSection").ImplantDetailData>;
+  /** Per-tooth implant form data for live notes (mandibular arch) */
+  mandibularImplantDetailByTooth?: Record<number, import("./components/ImplantDetailSection").ImplantDetailData>;
 }
 
 export type Arch = "maxillary" | "mandibular";
@@ -562,6 +576,13 @@ export interface ProductApiData {
   has_retention?: "Yes" | "No" | null;
   has_advance_field?: "Yes" | "No" | null;
   has_material?: "Yes" | "No" | null;
+  materials?: Array<{
+    id?: number;
+    material_id?: number;
+    name?: string;
+    code?: string;
+    status?: string;
+  }>;
   has_impression?: "Yes" | "No" | null;
   has_variation?: string | boolean | null;
   variations?: Array<{

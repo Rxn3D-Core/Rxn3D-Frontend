@@ -19,7 +19,7 @@ import {
   getRepresentativeTeethByCard,
 } from "../utils/productSelectionReadiness";
 import { AddProductFocusOverlay } from "./AddProductFocusOverlay";
-import { CaseDesignHeaderActions } from "./CaseDesignHeaderActions";
+import { BackToProductsControl, CaseDesignHeaderActions } from "./CaseDesignHeaderActions";
 import { CaseDesignSummarySection } from "./CaseDesignSummarySection";
 import { useSlipProductCollector } from "../hooks/useSlipProductCollector";
 import { getFirstMissingShadeGuideField, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
@@ -1088,10 +1088,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   const slipHeaderCompact = !props.caseSubmitted && productFieldsVisible;
 
-  const slipHeaderCompactRef = useRef(slipHeaderCompact);
   useEffect(() => {
-    if (slipHeaderCompactRef.current === slipHeaderCompact) return;
-    slipHeaderCompactRef.current = slipHeaderCompact;
     props.onSlipHeaderCompactChange?.(slipHeaderCompact);
   }, [slipHeaderCompact, props.onSlipHeaderCompactChange]);
 
@@ -1232,12 +1229,19 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const addProductFocusActive = inlineAddProductArch != null && !props.caseSubmitted;
 
   return (
-    <div className="px-1 md:px-2 py-2">
+    <>
+    <div className="relative">
+      {!props.caseSubmitted && props.onBackToProducts && (
+        <BackToProductsControl
+          onBackToProducts={props.onBackToProducts}
+          hasIncompleteAccordion={hasIncompleteAccordion}
+          className="absolute left-0 top-0 z-30"
+        />
+      )}
+    <div className="px-4 sm:px-6 lg:px-8 xl:px-10">
       <AddProductFocusOverlay active={addProductFocusActive}>
         <CaseDesignHeaderActions
           caseSubmitted={props.caseSubmitted}
-          onBackToProducts={props.onBackToProducts}
-          hasIncompleteAccordion={hasIncompleteAccordion}
           onAddMaxillaryProduct={() => props.onAddProduct?.("maxillary")}
           onAddMandibularProduct={() => props.onAddProduct?.("mandibular")}
           showMaxillaryProductButton={showMaxillaryProductButton}
@@ -1247,7 +1251,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
-        <div className="flex flex-col lg:flex-row lg:gap-0 gap-4">
+        <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
           activeAccordionKey={state.activeAccordionKey}
@@ -1379,36 +1383,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductCancel={props.onInlineAddProductCancel}
         />
 
-        {/* CENTER NAVIGATION */}
-        {/* "Teeth in mouth" pill: visible when removables are active and no teeth selected in either arch (1-16 or 17-32) */}
-        {(() => {
-          const maxHasExtractions = Object.keys(state.maxillaryToothExtractionMap).length > 0;
-          const manHasExtractions = Object.keys(state.mandibularToothExtractionMap).length > 0;
-          const opposingHasExtractions = Object.keys(state.opposingToothExtractionMap).length > 0;
-          const hasOpposing = initialProductHasOppositeSection;
-          const hasRemovables = maxillaryHasRemovables || mandibularHasRemovables || hasOpposing;
-          // Effective panel visibility accounts for force-shown opposing panel (only after primary impression done)
-          const effectiveShowMax = state.showMaxillary || (hasOpposing && props.initialArch === "mandibular" && mandibularTeethSelected);
-          const effectiveShowMan = state.showMandibular || (hasOpposing && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular);
-          // Show TIM only when at least one panel is visible and no extractions applied
-          const showMaxArrow = effectiveShowMax && !maxHasExtractions && (props.initialArch !== "mandibular" || !opposingHasExtractions);
-          const showManArrow = effectiveShowMan && !manHasExtractions && (props.initialArch !== "maxillary" || !opposingHasExtractions);
-          const noTeethSelected = state.maxillaryTeeth.length === 0 && state.mandibularTeeth.length === 0;
-          const showTim = hasRemovables && (effectiveShowMax || effectiveShowMan) && noTeethSelected && !activeProductIsFixed;
-          return (
-            <AddProductFocusOverlay active={addProductFocusActive}>
-              <CenterNavigation
-                showMaxillary={effectiveShowMax}
-                setShowMaxillary={state.setShowMaxillary}
-                showMandibular={effectiveShowMan}
-                setShowMandibular={handleSetShowMandibular}
-                showTeethInMouth={showTim}
-                showMaxillaryArrow={showTim && showMaxArrow}
-                showMandibularArrow={showTim && showManArrow}
-              />
-            </AddProductFocusOverlay>
-          );
-        })()}
+        {/* CENTER NAVIGATION — Teeth in mouth badge between arch panels */}
+        <AddProductFocusOverlay active={addProductFocusActive}>
+          <CenterNavigation />
+        </AddProductFocusOverlay>
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
@@ -1551,6 +1529,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       </div>
 
       </div>
+    </div>
+    </div>
 
       <AddProductFocusOverlay active={addProductFocusActive}>
         <CaseDesignSummarySection
@@ -1560,6 +1540,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           allProductsComplete={allTeethImpressionComplete}
           maxillaryHasRemovables={maxillaryHasRemovables}
           mandibularHasRemovables={mandibularHasRemovables}
+          maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
+          mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
         />
       </AddProductFocusOverlay>
 
@@ -1829,6 +1811,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

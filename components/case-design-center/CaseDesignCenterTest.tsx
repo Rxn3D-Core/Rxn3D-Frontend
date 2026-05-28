@@ -17,6 +17,7 @@ import { useCaseWizardSession } from "./hooks/useCaseWizardSession";
 import { resolveLibraryCustomerId } from "./utils/libraryCustomerId";
 import { useCaseSubmissionFlow } from "./hooks/useCaseSubmissionFlow";
 import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
+import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
 
 export default function Page() {
@@ -44,7 +45,10 @@ export default function Page() {
     addedProducts,
     caseDesignMounted,
     labEditMode,
-    doctorEditMode,
+    doctorEditModalOpen,
+    doctorsForPicker,
+    doctorsLoading,
+    doctorsError,
     wizardStartStep,
     setCompletedLab,
     setCompletedPatientName,
@@ -60,7 +64,10 @@ export default function Page() {
     handleBackToCategories,
     handleTopBarEditLab,
     handleEditDoctor,
+    handleDoctorEditClose,
+    handleDoctorEditSelect,
     handleEditDone,
+    canEditDoctor,
   } = useCaseWizardSession({
     fetchProductDetails: fetchCaseDesignProductDetails,
   });
@@ -75,7 +82,6 @@ export default function Page() {
   const [hasToothStatusValidation, setHasToothStatusValidation] = useState(false);
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
-  const [slipHeaderCompact, setSlipHeaderCompact] = useState(false);
 
   const {
     submissionState,
@@ -93,6 +99,10 @@ export default function Page() {
     completedPatientName,
     completedGender,
     completedAge,
+    labCustomerId:
+      typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin"
+        ? Number(localStorage.getItem("customerId")) || null
+        : completedLab?.id ?? null,
   });
 
   useEffect(() => {
@@ -113,7 +123,7 @@ export default function Page() {
   }, [completedLab?.id]);
 
   return (
-    <div className={`${caseDesignInter.className} flex h-screen bg-[#f5f5f5] overflow-hidden`}>
+    <div className={`${caseDesignInter.className} flex h-screen bg-white overflow-hidden`}>
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
         <TopBar
           selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
@@ -128,15 +138,15 @@ export default function Page() {
             onLabSelect={(lab) => setCompletedLab(lab)}
             startStep={wizardStartStep}
             mode={wizardMode === "backToProducts" || wizardMode === "addProduct" ? "addProduct" : wizardMode}
-            initialLabId={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedLab ? completedLab.id : null}
-            initialPatientName={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedPatientName : ""}
-            initialGender={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedGender : ""}
-            initialAge={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedAge : ""}
-            initialDoctor={(labEditMode || doctorEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedDoctor ? completedDoctor : undefined}
+            initialLabId={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedLab ? completedLab.id : null}
+            initialPatientName={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedPatientName : ""}
+            initialGender={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedGender : ""}
+            initialAge={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") ? completedAge : ""}
+            initialDoctor={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedDoctor ? completedDoctor : undefined}
             initialCategory={wizardMode === "backToProducts" ? lastSelectedCategory : null}
             initialSubProduct={wizardMode === "backToProducts" ? lastSelectedSubProduct : null}
             forceArch={wizardMode === "addProduct" ? pendingProductArch : undefined}
-            editTarget={undefined}
+            editTarget={labEditMode ? "lab" : undefined}
             onEditDone={handleEditDone}
           />
         )}
@@ -154,10 +164,11 @@ export default function Page() {
                 slipHeaderLoading={slipHeaderLoading}
                 slipResponseData={slipResponseData}
                 onEditDoctorClick={handleEditDoctor}
+                canEditDoctor={canEditDoctor}
                 onPatientNameChange={setCompletedPatientName}
                 onGenderChange={setCompletedGender}
                 onAgeChange={setCompletedAge}
-                compactLayout={!caseSubmitted && slipHeaderCompact}
+                compactLayout={wizardComplete && !caseSubmitted}
               />
             </AddProductFocusOverlay>
             <CaseDesignCenter
@@ -190,14 +201,13 @@ export default function Page() {
               confirmDetailsChecked={confirmDetailsChecked}
               onAnyModalOpenChange={setIsAnyModalOpen}
               rushCasesEnabled={rushCasesEnabled}
-              onSlipHeaderCompactChange={setSlipHeaderCompact}
             />
             <div style={{ height: "80px" }} />
           </div>
         )}
       </main>
 
-      {wizardComplete && !caseSubmitted && !isAnyModalOpen && (
+      {wizardComplete && !caseSubmitted && !isAnyModalOpen && !doctorEditModalOpen && (
         <AddProductFocusOverlay active={inlineAddProductArch != null}>
           <SlipCreationStepFooter
             mode="submit"
@@ -212,6 +222,16 @@ export default function Page() {
       )}
 
       <CaseSubmissionOverlays submissionState={submissionState} />
+
+      <DoctorEditModal
+        open={doctorEditModalOpen}
+        onClose={handleDoctorEditClose}
+        doctors={doctorsForPicker}
+        selectedDoctorId={completedDoctor?.id ?? null}
+        isLoading={doctorsLoading}
+        error={doctorsError}
+        onSelect={handleDoctorEditSelect}
+      />
     </div>
   );
 }

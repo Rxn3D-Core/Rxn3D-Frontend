@@ -37,17 +37,81 @@ interface ToothStatusBoxesProps {
   grayed?: boolean;
   /** Optional UI-only display override keyed by extraction code. */
   displayTeethByCode?: Record<string, number[]>;
-  /**
-   * Hint below status boxes (removable accordion). Defaults to true when
-   * `hideDefaultBox && isRemovable`.
-   */
-  showStatusReferenceHint?: boolean;
+  /** Optional acknowledgement props to control Done button display */
+  acknowledged?: boolean;
+  onAcknowledgedChange?: (value: boolean) => void;
 }
 
-const STATUS_REFERENCE_HINT_LEAD =
-  "Use the boxes above to mark teeth status for reference.";
-const STATUS_REFERENCE_HINT_EMPHASIS =
-  "Selection will not be included in the partial.";
+const CleanToothSVG = () => (
+  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
+      fill="#F2F2F2"
+      stroke="#D9D9D9"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M14.5 10C14.5 10 16 9 18 9C20 9 21.5 10 21.5 10" stroke="#E6E6E6" strokeWidth="1" strokeLinecap="round" />
+  </svg>
+);
+
+const RedXToothSVG = () => (
+  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
+      fill="#F5EFEB"
+      stroke="#D3C7BE"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M11.5 11.5L24.5 24.5M24.5 11.5L11.5 24.5" stroke="#A80000" strokeWidth="3.5" strokeLinecap="round" />
+  </svg>
+);
+
+const FixRepairSVG = () => (
+  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
+      fill="#F2F2F2"
+      stroke="#D9D9D9"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M13 20C13 18 14 17 15 17C16 17 17 18 17 20C17 21 16 22 15 22C14 22 13 21 13 20Z" fill="#1162A8" />
+    <path d="M15 22L11 26" stroke="#1162A8" strokeWidth="2.5" strokeLinecap="round" />
+  </svg>
+);
+
+const ClaspsSVG = () => (
+  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
+      fill="#F2F2F2"
+      stroke="#D9D9D9"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    />
+    <path d="M10 12C12 14 15 14 18 13C21 12 24 12 26 14" stroke="#7F8C8D" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+    <path d="M9.5 12.5C9.5 12.5 9 10 10.5 9.5" stroke="#7F8C8D" strokeWidth="2" strokeLinecap="round" fill="none" />
+  </svg>
+);
+
+function getExtractionIcon(code: string, name: string) {
+  const lowerName = (name || "").toLowerCase();
+  if (code === "MT" || lowerName.includes("missing")) {
+    return <CleanToothSVG />;
+  }
+  if (code === "WE" || lowerName.includes("extract")) {
+    return <RedXToothSVG />;
+  }
+  if (code === "FR" || code === "RP" || lowerName.includes("fix") || lowerName.includes("repair")) {
+    return <FixRepairSVG />;
+  }
+  if (code === "CL" || lowerName.includes("clasp")) {
+    return <ClaspsSVG />;
+  }
+  return <CleanToothSVG />;
+}
 
 /** Unassigned teeth (not in toothExtractionMap) belong to the is_tim extraction bucket. */
 function isDefaultExtraction(extraction: ProductExtraction): boolean {
@@ -90,23 +154,18 @@ export function ToothStatusBoxes({
   disableRequiredValidation = false,
   grayed = false,
   displayTeethByCode,
-  showStatusReferenceHint,
+  acknowledged = false,
+  onAcknowledgedChange,
 }: ToothStatusBoxesProps) {
-  const showHint = showStatusReferenceHint ?? (hideDefaultBox && isRemovable);
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
     .sort((a, b) => a.sequence - b.sequence);
 
-  // `hideDefaultBox` hides the "Teeth in mouth" (TIM) box because that status
-  // is surfaced in the center navigation instead. `isDefaultExtraction` now
-  // only matches TIM, so product-specific defaults (e.g. "Missing teeth" on
-  // full dentures) still render as regular status boxes.
   const activeExtractions = hideDefaultBox
     ? allActiveExtractions.filter((e) => !isTimExtractionByFlag(e))
     : allActiveExtractions;
 
   // Auto-select all arch teeth when a is_default extraction first appears (check unfiltered list)
-  // Skip if teeth are already selected — prevents re-triggering on accordion collapse/expand remount
   const hasAutoSelected = useRef(false);
   const shouldAutoSelectDefaultTeeth = shouldAutoSelectArchForDefaultExtraction(allActiveExtractions);
   useEffect(() => {
@@ -117,9 +176,6 @@ export function ToothStatusBoxes({
   }, [shouldAutoSelectDefaultTeeth, allArchTeeth, onSelectAllTeeth, selectedTeeth.length]);
 
   if (activeExtractions.length === 0) return null;
-
-  // Teeth in the default (TIM) box = selected teeth NOT assigned to any extraction
-  const defaultTeeth = selectedTeeth.filter((tn) => !toothExtractionMap[tn]);
 
   const getTeethForBox = (extraction: ProductExtraction): number[] =>
     getStatusBoxTeeth({
@@ -150,111 +206,139 @@ export function ToothStatusBoxes({
     onRequiredValidationChange?.(hasRequiredValidation);
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
-  // No longer need 2-column grid — use flex-wrap for compact auto-sized boxes
-
-  // Pre-compute which boxes have teeth (for submitted filtering)
-  const boxesWithTeeth = submitted
-    ? activeExtractions.filter((extraction) => {
-      const teethForBox = getTeethForBox(extraction);
-      return teethForBox.length > 0;
-    })
-    : activeExtractions;
-  const onlyOneBoxWithTeeth = submitted && boxesWithTeeth.length === 1;
+  const isInteractive = !submitted && !grayed;
 
   return (
-    <div className="flex flex-col gap-2 w-full">
-      <div className="flex flex-wrap gap-[9.94px]">
-      {activeExtractions.map((extraction) => {
-        const isActive = !submitted && activeExtractionCode === extraction.code;
-        const isDefault = isDefaultExtraction(extraction);
-        const isRequired = isRequiredExtraction(extraction);
+    <div className="flex flex-col items-center justify-center gap-4 w-full py-2">
+      {/* Horizontally centered row of extraction options */}
+      <div className="flex items-center justify-center gap-6 flex-wrap">
+        {activeExtractions.map((extraction) => {
+          const isActive = !submitted && activeExtractionCode === extraction.code;
+          const teethForBox = getTeethForBox(extraction);
+          const displayTeethForBox = displayTeethByCode?.[extraction.code] ?? teethForBox;
+          const isEmpty = teethForBox.length === 0;
 
-        const isClasp = isClaspExtraction(extraction);
+          // When submitted, hide empty boxes (no teeth assigned)
+          if (submitted && isEmpty) return null;
 
-        // Teeth shown in this box (sorted ascending)
-        // Clasp is an overlay — uses its own set, not the exclusive extraction map
-        const teethForBox = getTeethForBox(extraction);
-        const displayTeethForBox = displayTeethByCode?.[extraction.code] ?? teethForBox;
+          if (isActive) {
+            return (
+              <button
+                key={extraction.id}
+                type="button"
+                aria-label={extraction.name}
+                title={extraction.name}
+                onClick={() => {
+                  if (!isInteractive) return;
+                  onActiveExtractionChange(isActive ? null : extraction.code, extractions);
+                }}
+                style={{
+                  flex: "0 0 auto",
+                  border: "2px solid rgb(211, 211, 211)",
+                  borderRadius: "14px",
+                  background: "rgb(255, 255, 255)",
+                  minHeight: "50px",
+                  minWidth: "148px",
+                  width: "fit-content",
+                  padding: "8px 14px 8px 44px",
+                  cursor: isInteractive ? "pointer" : "default",
+                  textAlign: "center",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  position: "relative",
+                  boxShadow: "rgb(219, 234, 254) 0px 0px 0px 2px",
+                  outline: "none",
+                }}
+                className="transition-all duration-300 transform hover:scale-[1.03]"
+              >
+                <div style={{ display: "grid", gap: "2px", placeItems: "center", whiteSpace: "nowrap", fontFamily: "Verdana, Arial, sans-serif" }}>
+                  {extraction.image_url ? (
+                    <img
+                      alt=""
+                      loading="lazy"
+                      width="50"
+                      height="70"
+                      decoding="async"
+                      src={extraction.image_url}
+                      style={{
+                        color: "transparent",
+                        filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
+                        position: "absolute",
+                        left: "-20px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "-20px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
+                      }}
+                    >
+                      {getExtractionIcon(extraction.code, extraction.name)}
+                    </div>
+                  )}
+                  <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.15, fontWeight: 400 }}>
+                    {extraction.name}
+                  </div>
+                  {displayTeethForBox.length > 0 && (
+                    <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.1, fontWeight: 400 }}>
+                      #{[...displayTeethForBox].sort((a, b) => a - b).join(", ")}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          }
 
-        const isEmpty = teethForBox.length === 0;
-
-        // When submitted, hide empty boxes (no teeth assigned)
-        if (submitted && isEmpty) return null;
-
-        const allSelected = isRemovable && isDefault && displayTeethForBox.length === allArchTeeth.length && allArchTeeth.length > 0;
-
-        let teethDisplay = "";
-        if (displayTeethForBox.length > 0) {
-          teethDisplay = allSelected ? "All teeth selected" : `#${displayTeethForBox.join(",")}`;
-        }
-
-        // Validation: is_required box needs teeth unless an is_optional box has teeth
-        const showRequiredValidation =
-          !disableRequiredValidation && isRequired && isEmpty && !anyOptionalHasTeeth;
-
-        const minTeeth = extraction.min_teeth ?? 1;
-        const maxTeeth = extraction.max_teeth;
-        const hasMaxLimit = maxTeeth !== null && maxTeeth !== undefined && maxTeeth > 0;
-        const isAtMax = hasMaxLimit && teethForBox.length >= maxTeeth!;
-
-        const isInteractive = !submitted && !grayed;
-
-        // Compact (no teeth) vs normal size — only for removable context
-        const isCompact = isRemovable && isEmpty;
-
-        const boxOutline = grayed
-          ? "1.5px solid #B4B0B0"
-          : isActive
-            ? "3px solid #1162A8"
-            : showRequiredValidation
-              ? "2px solid #CF0202"
-              : "1.5px solid #B4B0B0";
-
-        return (
-          <div
-            key={extraction.id}
-            className={`flex flex-col items-center justify-center rounded-[6px] transition-all shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] ${isCompact ? "px-[10px] py-1 min-h-[28px]" : "px-[10px] py-1.5 min-h-[50px]"} ${isInteractive ? "cursor-pointer hover:shadow-[1px_1px_5px_rgba(0,0,0,0.3)]" : ""}`}
-            onClick={() => {
-              if (!isInteractive) return;
-              onActiveExtractionChange(isActive ? null : extraction.code, extractions);
-            }}
-            style={{
-              backgroundColor: "white",
-              outline: boxOutline,
-              outlineOffset: grayed ? "0px" : isActive ? "2px" : showRequiredValidation ? "1px" : "0px",
-              ...(onlyOneBoxWithTeeth ? { flex: "1 1 100%" } : {}),
-            }}
-          >
-            <p
-              className={`font-[Verdana] font-normal tracking-[0.05em] text-center break-words max-w-full ${grayed ? "text-[#9B9B9B]" : "text-black"} text-[16px] leading-tight`}
+          // Inactive state: stand-alone image
+          return (
+            <div
+              key={extraction.id}
+              className="flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center w-[50px] h-[70px]"
+              onClick={() => {
+                if (!isInteractive) return;
+                onActiveExtractionChange(isActive ? null : extraction.code, extractions);
+              }}
             >
-              {extraction.name}
-              {teethDisplay && (
-                <>
-                  <br />
-                  <span className="text-[16px] font-normal">{teethDisplay}</span>
-                </>
+              {extraction.image_url ? (
+                <img
+                  src={extraction.image_url}
+                  alt={extraction.name}
+                  width="50"
+                  height="70"
+                  style={{
+                    color: "transparent",
+                    filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
+                    objectFit: "contain",
+                  }}
+                />
+              ) : (
+                <div style={{ filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)" }}>
+                  {getExtractionIcon(extraction.code, extraction.name)}
+                </div>
               )}
-            </p>
-            {showRequiredValidation && (
-              <p className="text-[10px] sm:text-xs text-center font-[Verdana] text-[#CF0202]">
-                Required: select at least {minTeeth} tooth
-              </p>
-            )}
-            {!isDefault && isAtMax && !isEmpty && (
-              <p className="text-[10px] sm:text-xs text-center font-[Verdana] text-gray-500">
-                Max: {maxTeeth} tooth{maxTeeth! > 1 ? "" : ""}
-              </p>
-            )}
-          </div>
-        );
-      })}
+            </div>
+          );
+        })}
       </div>
-      {showHint && (
-        <p className="font-[Verdana] text-[13px] sm:text-[14px] leading-relaxed px-0.5">
-          <span className="text-[#5C3D00]">{STATUS_REFERENCE_HINT_LEAD} </span>
-          <span className="font-bold text-[#C2410C]">{STATUS_REFERENCE_HINT_EMPHASIS}</span>
-        </p>
+
+      {/* Done button centered below options when not yet acknowledged */}
+      {!acknowledged && onAcknowledgedChange && (
+        <div className="w-full flex justify-center mt-2">
+          <button
+            type="button"
+            onClick={() => onAcknowledgedChange(true)}
+            className="px-6 py-1.5 rounded-[6px] font-['Verdana'] font-bold text-[14px] text-white bg-[#1A54D4] hover:bg-[#1546B5] transition-colors shadow-md animate-fade-in"
+          >
+            Done
+          </button>
+        </div>
       )}
     </div>
   );

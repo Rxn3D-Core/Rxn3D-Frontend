@@ -991,6 +991,7 @@ export function RetentionProductFields({
             ) => string
           }
           onShadeSelect={handleShadeSelect}
+          productForShades={selectedProduct}
         />
       )}
 

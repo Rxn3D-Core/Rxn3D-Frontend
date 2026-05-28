@@ -2,8 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import type { SlipProductSnapshot } from "../types";
 import type { WizardDoctorShape, WizardLabShape } from "@/components/new-case-wizard";
-import type { SlipCreationPayload, SlipCreationResponse } from "@/services/slip-creation-service";
-import { buildCaseSubmissionPayload } from "../utils/caseSubmissionPayload";
+import type {
+  SlipCreationMultipartFile,
+  SlipCreationPayload,
+  SlipCreationResponse,
+} from "@/services/slip-creation-service";
+import { buildCaseSubmissionPayloadAsync } from "../utils/caseSubmissionPayload";
 import {
   resolveCaseSubmissionResult,
   resolveVirtualSlipPath,
@@ -16,7 +20,10 @@ interface ToastApi {
 }
 
 interface UseCaseSubmissionFlowParams {
-  createSlip: (payload: SlipCreationPayload) => Promise<SlipCreationResponse["data"] | SlipCreationResponse | any>;
+  createSlip: (
+    payload: SlipCreationPayload,
+    multipartFiles?: SlipCreationMultipartFile[]
+  ) => Promise<SlipCreationResponse["data"] | SlipCreationResponse | any>;
   router: AppRouterInstance;
   toast: ToastApi;
   slipCollectorRef: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
@@ -25,6 +32,7 @@ interface UseCaseSubmissionFlowParams {
   completedPatientName: string;
   completedGender: string;
   completedAge: string;
+  labCustomerId?: number | null;
   successRedirectDelayMs?: number;
 }
 
@@ -38,6 +46,7 @@ export function useCaseSubmissionFlow({
   completedPatientName,
   completedGender,
   completedAge,
+  labCustomerId = null,
   successRedirectDelayMs = 2500,
 }: UseCaseSubmissionFlowParams) {
   const [submissionState, setSubmissionState] = useState<CaseSubmissionState>("idle");
@@ -64,7 +73,7 @@ export function useCaseSubmissionFlow({
     const snapshots = slipCollectorRef.current?.() ?? [];
     const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
     const customerId = Number(typeof window !== "undefined" ? localStorage.getItem("customerId") : 0) || 0;
-    const payload = buildCaseSubmissionPayload({
+    const { payload, multipartFiles } = await buildCaseSubmissionPayloadAsync({
       snapshots,
       role,
       customerId,
@@ -73,6 +82,7 @@ export function useCaseSubmissionFlow({
       patientName: completedPatientName,
       gender: completedGender,
       age: completedAge,
+      labCustomerId: labCustomerId ?? undefined,
     });
 
     setSubmissionError(null);
@@ -80,7 +90,10 @@ export function useCaseSubmissionFlow({
     setSlipHeaderLoading(true);
 
     try {
-      const rawResponse = await createSlip(payload);
+      const rawResponse = await createSlip(
+        payload,
+        multipartFiles.length > 0 ? multipartFiles : undefined
+      );
       const result = resolveCaseSubmissionResult(rawResponse);
       const redirectPath = resolveVirtualSlipPath(result);
       const responseData = "data" in (rawResponse ?? {}) ? rawResponse.data ?? null : rawResponse ?? null;
@@ -117,6 +130,7 @@ export function useCaseSubmissionFlow({
     completedPatientName,
     completedGender,
     completedAge,
+    labCustomerId,
     createSlip,
     router,
     successRedirectDelayMs,
