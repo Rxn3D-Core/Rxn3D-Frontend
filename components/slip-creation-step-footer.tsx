@@ -4,8 +4,9 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, TriangleAlert } from "lucide-react"
+import { TriangleAlert } from "lucide-react"
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
+import { SubmitSlipButton } from "@/components/submit-slip-button"
 
 interface SlipCreationStepFooterProps {
   /** Footer mode: "navigation" for step pages, "submit" for final case-design step */
@@ -181,126 +182,18 @@ export function SlipCreationStepFooter({
               )}
 
               {mode === "submit" && isAccordionComplete?.() && !hasToothStatusValidation && (
-                <>
-                  {/* Confirmation checkbox with warning */}
-                  <div
-                    className="flex items-center gap-3"
-                    style={{
-                      padding: "10px 16px",
-                      border: "1px solid #fbbf24",
-                      borderRadius: "8px",
-                      backgroundColor: confirmDetailsChecked ? "#fef3c7" : "transparent",
-                      transition: "background-color 0.2s ease",
+                <div 
+                  className="static sm:absolute sm:left-1/2 sm:top-1/2 sm:-translate-y-1/2 sm:-translate-x-1/2 flex items-center justify-center z-10 w-full sm:w-auto mt-2 sm:mt-0"
+                >
+                  <SubmitSlipButton
+                    isSubmitting={isSubmitting}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onShowSubmitPopoverChange?.(false)
+                      onSubmit?.()
                     }}
-                  >
-                    <TriangleAlert
-                      className="h-6 w-6 flex-shrink-0"
-                      style={{ color: "#fbbf24" }}
-                    />
-                    <label
-                      htmlFor="confirm-details-step-footer"
-                      className="cursor-pointer whitespace-nowrap"
-                      style={{
-                        fontFamily: "Arial",
-                        fontStyle: "normal",
-                        fontWeight: 400,
-                        fontSize: "15px",
-                        lineHeight: "22px",
-                        color: "#000000",
-                      }}
-                    >
-                      By clicking this box you acknowledge all information is correct.
-                    </label>
-                    <Checkbox
-                      id="confirm-details-step-footer"
-                      checked={confirmDetailsChecked}
-                      onCheckedChange={(checked) => {
-                        onConfirmDetailsChange?.(checked === true)
-                        if (checked === true) {
-                          onShowSubmitPopoverChange?.(false)
-                        }
-                      }}
-                      className="flex-shrink-0 h-5 w-5"
-                      style={{
-                        borderColor: "#1162a8",
-                        backgroundColor: confirmDetailsChecked ? "#1162a8" : "transparent",
-                      }}
-                    />
-                  </div>
-
-                  {/* Submit Case button - Only show when checkbox is checked */}
-                  {confirmDetailsChecked && (
-                    <Button
-                      onClick={(e) => {
-                        e.preventDefault()
-                        onShowSubmitPopoverChange?.(false)
-                        onSubmit?.()
-                      }}
-                      disabled={isSubmitting}
-                      style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        padding: "10px 16px",
-                        gap: "8px",
-                        minWidth: "120px",
-                        height: "40px",
-                        background: isSubmitting ? "#9BA5B7" : "#1162A8",
-                        borderRadius: "5px",
-                        border: "none",
-                        fontFamily: "Verdana",
-                        fontStyle: "normal",
-                        fontWeight: 600,
-                        fontSize: "16px",
-                        lineHeight: "20px",
-                        letterSpacing: "-0.02em",
-                        color: "#FFFFFF",
-                        opacity: isSubmitting ? 0.5 : 1,
-                        cursor: isSubmitting ? "not-allowed" : "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                      className="hover:opacity-90 disabled:opacity-50"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2
-                            style={{
-                              width: "18px",
-                              height: "18px",
-                              flex: "none",
-                              order: 0,
-                              flexGrow: 0,
-                            }}
-                            className="animate-spin"
-                          />
-                          <span
-                            style={{
-                              flex: "none",
-                              order: 1,
-                              flexGrow: 0,
-                            }}
-                          >
-                            Submitting...
-                          </span>
-                        </>
-                      ) : (
-                        <span
-                          style={{
-                            height: "20px",
-                            display: "flex",
-                            alignItems: "center",
-                            flex: "none",
-                            order: 1,
-                            flexGrow: 0,
-                          }}
-                        >
-                          Submit Case
-                        </span>
-                      )}
-                    </Button>
-                  )}
-                </>
+                  />
+                </div>
               )}
             </div>
           </div>
