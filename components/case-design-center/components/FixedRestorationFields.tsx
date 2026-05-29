@@ -268,7 +268,7 @@ function AdvanceFieldSelect({
         }}
       >
         <SelectTrigger
-          className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 w-full"
+          className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 w-full bg-transparent"
         >
           <SelectValue>
             {currentSelection ? currentSelection.name : ''}

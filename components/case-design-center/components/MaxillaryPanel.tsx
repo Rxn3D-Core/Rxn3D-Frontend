@@ -523,7 +523,7 @@ function AdvanceFieldSelect({
         }}
       >
         <SelectTrigger
-          className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 w-full"
+          className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 w-full bg-transparent"
         >
           <SelectValue>
             {currentSelection ? currentSelection.name : ''}
@@ -2103,8 +2103,13 @@ export function MaxillaryPanel({
                             // Re-activating product selection resets Done so the button re-appears
                             const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
                             setExtractionsSetupComplete(ackCardId, false);
+                            setActiveProductCardId(ap.id);
+                            setIsSelectionModeActive(true);
+                            if (!isExpanded) {
+                              handleAddedRemovableAccordionToggle(ap);
+                            }
                           }}
-                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
+                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === ap.id}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
@@ -2273,9 +2278,13 @@ export function MaxillaryPanel({
                             // Re-activating product selection resets Done so the button re-appears
                             const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
                             setExtractionsSetupComplete(ackCardId, false);
+                            setActiveProductCardId(ap.id);
                             setIsSelectionModeActive(true);
+                            if (!isExpanded) {
+                              handleAddedProductAccordionToggle(ap);
+                            }
                           }}
-                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
+                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === ap.id}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
@@ -3026,9 +3035,14 @@ export function MaxillaryPanel({
                           setActiveExtractionCode(null);
                           // Re-activating product selection resets Done so the button re-appears
                           setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, false);
+                          setActiveProductCardId(0);
                           setIsSelectionModeActive(true);
+                          if (!card0FixedExpanded) {
+                            toggleAccordionFocus(slotId, 0);
+                            setActiveFixedGroupProductId(selectedProduct?.id ?? null);
+                          }
                         }}
-                        isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
+                        isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === 0}
                         onToggleExpand={() => {
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
@@ -3340,9 +3354,13 @@ export function MaxillaryPanel({
                         // Re-activating product selection resets Done so the button re-appears
                         const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
                         setExtractionsSetupComplete(ackCardId, false);
+                        setActiveProductCardId(0);
                         setIsSelectionModeActive(true);
+                        if (!isAccordionExpanded(SLOT_ID)) {
+                          handleCard0RemovableAccordionToggle();
+                        }
                       }}
-                      isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null}
+                      isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === 0}
                       expandEnabled={isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({

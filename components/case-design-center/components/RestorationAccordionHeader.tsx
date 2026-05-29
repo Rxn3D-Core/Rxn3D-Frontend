@@ -13,7 +13,7 @@ import {
   EstDaysLabel,
   removableProductTitleBoxClassName,
 } from "./AccordionBadge";
-import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
+import { AccordionHeaderActions, ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
 import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
 import { isDisplayableStageValue, shouldSkipStageSelection } from "../utils/categoryHelpers";
@@ -102,10 +102,10 @@ export function RestorationAccordionHeader({
       <AccordionHeaderActions
         isExpanded={isExpanded}
         caseSubmitted={caseSubmitted}
-        showExtractionsDone={showExtractionsDone}
+        showExtractionsDone={false}
         extractionsAcknowledged={extractionsAcknowledged}
         onExtractionsAcknowledgedChange={onExtractionsAcknowledgedChange}
-        showRetentionDone={showRetentionDone}
+        showRetentionDone={false}
         retentionDoneAcknowledged={retentionDoneAcknowledged}
         onRetentionDoneChange={onRetentionDoneChange}
         onToggleExpand={onToggleExpand}
@@ -190,13 +190,27 @@ export function RestorationAccordionHeader({
                 ) : null}
               </fieldset>
               {middleContent}
+              {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
+                <div className="w-full flex justify-center mt-2" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => onRetentionDoneChange(true)}
+                    className="px-6 py-1.5 rounded-[6px] font-['Verdana'] font-bold text-[14px] text-white bg-[#1A54D4] hover:bg-[#1546B5] transition-colors shadow-md animate-fade-in"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-[4.97px] flex-wrap">
                 {/* Hidden: stage badge — set to true to restore */}
                 {false && showStageBadge && stageName && <AccordionBadge>{stageName}</AccordionBadge>}
+                {/*
                 <EstDaysLabel
                   rushed={hasRush}
                   text={hasRush ? "5 work days after submission" : estDaysText}
                 />
+                */}
+                {/*
                 {canDelete && !caseSubmitted && onDelete && (
                   <span
                     role="button"
@@ -214,6 +228,7 @@ export function RestorationAccordionHeader({
                     <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
                   </span>
                 )}
+                */}
               </div>
             </>
           )}
