@@ -76,7 +76,7 @@ export default function Page() {
   const [right1Platform, setRight1Platform] = useState("Truscan");
   const [right2Brand, setRight2Brand] = useState("Nobel Biocare");
   const [right2Platform, setRight2Platform] = useState("Active");
-  const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(false);
+  const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(true);
   const [caseReady, setCaseReady] = useState(false);
   const [incompleteFieldLabel, setIncompleteFieldLabel] = useState<string | null>(null);
   const [hasToothStatusValidation, setHasToothStatusValidation] = useState(false);

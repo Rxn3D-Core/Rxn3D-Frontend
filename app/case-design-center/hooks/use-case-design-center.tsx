@@ -1654,7 +1654,7 @@ export function useCaseDesignCenter() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   // Submit confirmation state
-  const [confirmDetailsChecked, setConfirmDetailsChecked] = useState<boolean>(false)
+  const [confirmDetailsChecked, setConfirmDetailsChecked] = useState<boolean>(true)
   const [showSubmitPopover, setShowSubmitPopover] = useState<boolean>(false)
 
   // Modal states
@@ -6944,7 +6944,8 @@ export function useCaseDesignCenter() {
   }, [])
 
   const handleSubmit = async () => {
-    // Check confirmation checkbox
+    // Check confirmation checkbox - commented out as the acknowledge checkbox is hidden
+    /*
     if (!confirmDetailsChecked) {
       toast({
         title: "Confirmation Required",
@@ -6954,6 +6955,7 @@ export function useCaseDesignCenter() {
       setShowSubmitPopover(true)
       return
     }
+    */
 
     // Check if there are any saved products or a current product being configured
     const hasSavedProducts = savedProducts.length > 0
