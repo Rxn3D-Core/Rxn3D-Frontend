@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import {
   getCustomerBillingProfile,
@@ -38,10 +39,16 @@ import {
   type CatalogPlan,
 } from "@/lib/billing-subscription/plan-helpers"
 import { Download, CreditCard, ExternalLink, DollarSign, Check, Loader2, ArrowRight } from "lucide-react"
+import { getBillingFrequencyLabel, getDefaultBillingPrice } from "./pricing"
+import { BillingPeriodDialog } from "./components/billing-period-dialog"
+import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog"
+import { ReactivateSubscriptionDialog } from "./components/reactivate-subscription-dialog"
+import { UpdateBillingInfoDialog } from "./components/update-billing-info-dialog"
 
 type SubscriptionState = "loading" | "no-subscription" | "active" | "cancelled" | "error"
 
 export default function SubscriptionsPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const [view, setView] = useState<"overview" | "plans">("overview")
   const [subscriptionState, setSubscriptionState] = useState<SubscriptionState>("loading")
@@ -59,6 +66,10 @@ export default function SubscriptionsPage() {
   const [resolvedCustomerId, setResolvedCustomerId] = useState<number | null>(null)
 
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
+  const [isBillingPeriodDialogOpen, setIsBillingPeriodDialogOpen] = useState(false)
+  const [isCancelSubscriptionDialogOpen, setIsCancelSubscriptionDialogOpen] = useState(false)
+  const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false)
+  const [isUpdateBillingInfoDialogOpen, setIsUpdateBillingInfoDialogOpen] = useState(false)
 
   const resolveCustomerId = useCallback((): number | null => {
     if (typeof window === "undefined") return null
@@ -157,12 +168,6 @@ export default function SubscriptionsPage() {
   const handleCancelSubscription = async () => {
     if (!billingProfile?.id) return
 
-    const confirmCancel = window.confirm(
-      "Are you sure you want to cancel your subscription? Your features will remain active until the end of the current billing period."
-    )
-
-    if (!confirmCancel) return
-
     try {
       setIsProcessing(true)
       await cancelSubscription(billingProfile.id)
@@ -175,9 +180,17 @@ export default function SubscriptionsPage() {
       setError(message)
     } finally {
       setIsProcessing(false)
+      setIsCancelSubscriptionDialogOpen(false)
     }
   }
 
+  const handleReactivateSubscription = async () => {
+    setIsReactivateDialogOpen(false)
+    await fetchCatalogPlans()
+    setView("plans")
+  }
+
+  // Handle Plan Selection (Stripe Checkout)
   const handlePlanSelection = async (planId: number) => {
     if (!resolvedCustomerId) {
       setError("Unable to identify customer. Please try logging in again.")
@@ -502,20 +515,71 @@ export default function SubscriptionsPage() {
     )
   }
 
-  // No active subscription state → "No active subscription" UI
-  if (subscriptionState === "no-subscription" || subscriptionState === "cancelled") {
-    const highlights =
-      catalogPlans.length > 0
-        ? collectCatalogHighlights(catalogPlans)
-        : [
-            "Flexible case capacity",
-            "Team member access",
-            "Included storage",
-            "Priority support options",
-            "Add-on purchases",
-            "Stripe billing",
-          ]
+  if (subscriptionState === "cancelled") {
+    const subscriptionEndedDate = billingProfile?.current_period_end
+      ? new Date(billingProfile.current_period_end).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "May 31, 2026"
+    const retainedUntilDate = billingProfile?.current_period_end
+      ? new Date(new Date(billingProfile.current_period_end).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "June 30, 2026"
 
+    return (
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
+        <div className="text-xs text-gray-400 mb-4">
+          <span>Billing</span>
+          <span className="mx-1">-</span>
+          <span className="text-gray-700 font-medium">Subscription</span>
+        </div>
+
+        <div className="mx-auto max-w-[740px] rounded-2xl border border-[#E5E7EB] bg-white px-6 py-8 shadow-sm sm:px-11 sm:py-9">
+          <div className="flex flex-col items-center text-center">
+            <span className="inline-flex rounded-full bg-[#FDECEC] px-7 py-2 text-sm font-semibold uppercase tracking-[0.08em] text-[#EF4444]">
+              Cancelled
+            </span>
+
+            <h2 className="mt-5 text-2xl font-bold text-[#111827] sm:text-[22px]">Your subscription has ended</h2>
+
+            <div className="mt-4 space-y-1 text-sm text-[#6B7280]">
+              <p>Subscription ended: {subscriptionEndedDate}</p>
+              <p>Data retained until: {retainedUntilDate}</p>
+            </div>
+
+            <div className="mt-6 flex w-full items-center gap-2 rounded-lg bg-[#FFF4DB] px-4 py-3 text-sm text-[#B7791F]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
+                <path d="M12 9V13M12 17H12.01M10.29 3.86L1.82 18A2 2 0 0 0 3.53 21H20.47A2 2 0 0 0 22.18 18L13.71 3.86A2 2 0 0 0 10.29 3.86Z" stroke="#B7791F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Your data will be permanently deleted after {retainedUntilDate}
+            </div>
+
+            <div className="mt-7 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                onClick={() => setIsReactivateDialogOpen(true)}
+                className="min-w-[246px] rounded-lg bg-[#1567B8] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#11569A]"
+              >
+                Reactivate Subscription
+              </button>
+              <button className="min-w-[156px] rounded-lg border border-[#767676] bg-white px-6 py-3 text-sm font-medium text-[#333333] transition-colors hover:bg-gray-50">
+                Export Data
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <ReactivateSubscriptionDialog
+          open={isReactivateDialogOpen}
+          onOpenChange={setIsReactivateDialogOpen}
+          onConfirm={() => void handleReactivateSubscription()}
+        />
+      </div>
+    )
+  }
+
+  // No active subscription state → "No active subscription" UI
+  if (subscriptionState === "no-subscription") {
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
         {/* Breadcrumb */}
@@ -580,19 +644,17 @@ export default function SubscriptionsPage() {
   // Active subscription state → Full dashboard UI
   const planName = currentPlanDetails?.name || billingProfile?.plan?.name || "Current plan"
   const planPricing = currentPlanDetails?.pricing || billingProfile?.plan?.pricing
+  const featureLimits = currentPlanDetails?.feature_limits || billingProfile?.plan?.feature_limits
+  const defaultPrice = getDefaultBillingPrice(planPricing?.prices)
+  const billingFrequencyLabel = getBillingFrequencyLabel(planPricing?.prices)
 
-  let priceText = formatPlanPriceLabel(currentPlanDetails ?? billingProfile?.plan)
-  let defaultPrice: { price?: number | string; frequency?: string } | undefined
-  if (planPricing?.prices?.length) {
-    defaultPrice =
-      planPricing.prices.find((p) => p.is_default) ||
-      planPricing.prices.find((p) => p.frequency === "monthly") ||
-      planPricing.prices[0]
-    if (defaultPrice) {
-      priceText = `${formatCurrency(defaultPrice.price)} / ${defaultPrice.frequency || "month"}`
-    }
-  } else if (priceText !== "Custom" && priceText !== "Free") {
-    priceText = `${priceText} / month`
+  // Derive pricing text
+  let priceText = "$99 / month"
+  if (defaultPrice) {
+    priceText = `$${Number(defaultPrice.price).toLocaleString()} / ${defaultPrice.frequency || "month"}`
+  } else if (currentPlanDetails?.monthly_fee !== undefined || billingProfile?.plan?.monthly_fee !== undefined) {
+    const fee = currentPlanDetails?.monthly_fee ?? billingProfile?.plan?.monthly_fee
+    priceText = `$${Number(fee).toLocaleString()} / month`
   }
 
   const slipCapacity =
@@ -712,12 +774,7 @@ export default function SubscriptionsPage() {
             )}
           </div>
           <button
-            onClick={() => {
-              if (catalogAddOns.length === 0 && resolvedCustomerId) {
-                listBillingCatalogAddOns(resolvedCustomerId).then(setCatalogAddOns).catch(() => undefined)
-              }
-              document.getElementById("subscription-add-ons")?.scrollIntoView({ behavior: "smooth" })
-            }}
+            onClick={() => router.push("/billing/subscriptions/add-ons")}
             className="w-full bg-white border border-gray-300 text-gray-700 py-1.5 px-3 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
           >
             Explore Add-ons
@@ -734,24 +791,13 @@ export default function SubscriptionsPage() {
           </div>
           <div className="mb-3">
             <h2 className="text-3xl font-bold text-gray-900 leading-tight">{nextBillingDate}</h2>
-            <p className="text-xs text-gray-500 capitalize">
-              Charged {defaultPrice?.frequency || "monthly"}
-              {billingProfile?.cancel_at_period_end ? " · Cancels at period end" : ""}
-            </p>
+            <p className="text-xs text-gray-500">Charged {billingFrequencyLabel}</p>
           </div>
-          {billingProfile?.current_period_start && (
-            <p className="text-[11px] text-gray-400 mb-3">
-              Current period: {formatBillingDate(billingProfile.current_period_start)} – {nextBillingDate}
-            </p>
-          )}
           <button
-            onClick={() => {
-              fetchCatalogPlans()
-              setView("plans")
-            }}
+            onClick={() => setIsBillingPeriodDialogOpen(true)}
             className="w-full bg-white border border-gray-300 text-gray-700 py-1.5 px-3 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
           >
-            Change billing plan
+            Edit period
           </button>
         </div>
       </div>
@@ -785,12 +831,7 @@ export default function SubscriptionsPage() {
                   Upgrade plan
                 </button>
                 <button
-                  onClick={() => {
-                    if (catalogAddOns.length === 0 && resolvedCustomerId) {
-                      listBillingCatalogAddOns(resolvedCustomerId).then(setCatalogAddOns).catch(() => undefined)
-                    }
-                    document.getElementById("subscription-add-ons")?.scrollIntoView({ behavior: "smooth" })
-                  }}
+                  onClick={() => router.push("/billing/subscriptions/add-ons")}
                   className="inline-flex items-center px-3 py-1 rounded text-xs font-medium border transition-colors hover:bg-orange-50"
                   style={{ borderColor: "#FFD080", color: "#9A671B" }}
                 >
@@ -809,25 +850,16 @@ export default function SubscriptionsPage() {
         </div>
         <div className="p-4">
           <div className="mb-4 flex flex-wrap gap-2">
-            {paymentUpdateUrl ? (
-              <a
-                href={paymentUpdateUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
-              >
-                <CreditCard className="h-3.5 w-3.5" />
-                Update Billing Info
-              </a>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-                <CreditCard className="h-3.5 w-3.5" />
-                Payment method managed through Stripe
-              </span>
-            )}
             <button
-              onClick={handleCancelSubscription}
-              disabled={isProcessing || billingProfile?.status === "cancelled"}
+              onClick={() => setIsUpdateBillingInfoDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              Update Billing Info
+            </button>
+            <button 
+              onClick={() => setIsCancelSubscriptionDialogOpen(true)}
+              disabled={isProcessing}
               className="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
             >
               {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
@@ -973,6 +1005,18 @@ export default function SubscriptionsPage() {
           </div>
         )}
       </div>
+
+      <BillingPeriodDialog open={isBillingPeriodDialogOpen} onOpenChange={setIsBillingPeriodDialogOpen} />
+      <CancelSubscriptionDialog
+        open={isCancelSubscriptionDialogOpen}
+        onOpenChange={setIsCancelSubscriptionDialogOpen}
+        onConfirm={handleCancelSubscription}
+        isProcessing={isProcessing}
+      />
+      <UpdateBillingInfoDialog
+        open={isUpdateBillingInfoDialogOpen}
+        onOpenChange={setIsUpdateBillingInfoDialogOpen}
+      />
     </div>
   )
 }
