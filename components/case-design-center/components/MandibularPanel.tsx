@@ -774,6 +774,7 @@ interface MandibularPanelProps {
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
+  onShowSelectTeethToReplaceChange?: (show: boolean) => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   /** When true (stage or impression modal is open), disables the teeth SVG. */
@@ -820,6 +821,10 @@ function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; has
 }
 
 export function MandibularPanel({
+  activeAccordionKey,
+  isAccordionExpanded,
+  isAccordionEnabled,
+  toggleAccordionFocus,
   showMandibular,
   setShowMandibular,
   showDetails,
@@ -828,7 +833,6 @@ export function MandibularPanel({
   blockedByOppositeAddProduct = false,
   mandibularTeeth,
   handleMandibularToothClick,
-  handleMandibularToothDeselect,
   mandibularRetentionTypes,
   retentionPopoverState,
   setRetentionPopoverState,
@@ -836,13 +840,15 @@ export function MandibularPanel({
   initialProductIsRemovable = false,
   initialProductDetailsPending = false,
   retentionOptions,
+  card0Extractions = [],
   handleSelectRetentionType,
+  handleMandibularToothDeselect,
   shadeSelectionState,
   setShadeSelectionState,
   selectedShadeGuide,
+  setSelectedShadeGuide,
   showShadeGuideDropdown,
   setShowShadeGuideDropdown,
-  setSelectedShadeGuide,
   shadeGuideOptions,
   getSelectedShade,
   handleShadeSelect,
@@ -862,10 +868,6 @@ export function MandibularPanel({
   handleRemoveAddedProduct,
   activeProductCardId,
   setActiveProductCardId,
-  activeAccordionKey,
-  isAccordionExpanded,
-  isAccordionEnabled,
-  toggleAccordionFocus,
   getToothProductCard,
   isFieldVisible,
   isFieldCompleted,
@@ -888,7 +890,6 @@ export function MandibularPanel({
   onToothStatusValidationChange,
   mandibularHasFixedCard0 = false,
   mandibularHasRemovablesCard0 = false,
-  card0Extractions = [],
   removablesImpressionDone = false,
   noOpposingNeeded = {},
   selectedImpressions = { maxillary: [], mandibular: [] },
@@ -904,6 +905,7 @@ export function MandibularPanel({
   onImplantDetailChange,
   peerImplantDetailByTooth,
   onBackToCategories,
+  onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
   isAnyModalOpen = false,
   suppressAutoOpen = false,
@@ -921,6 +923,27 @@ export function MandibularPanel({
   // Tracks whether any selection mode (extraction box or product plus) is explicitly active.
   // False after Done is clicked; true when extraction box or plus icon is activated.
   const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
+
+  const teethCount = activeProductCardId !== null
+    ? (activeProductCardId !== 0
+        ? MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId).length
+        : (activeProductIsRemovables
+            ? MANDIBULAR_ALL_TEETH.filter(tn => { const code = mandibularToothExtractionMap[tn]; return code && code !== "TIM"; }).length
+            : MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === 0).length
+          )
+      )
+    : 0;
+
+  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && (
+    teethCount === 0 || isSelectionModeActive
+  );
+
+  useEffect(() => {
+    onShowSelectTeethToReplaceChange?.(shouldShowSelectTeethToReplace);
+    return () => {
+      onShowSelectTeethToReplaceChange?.(false);
+    };
+  }, [shouldShowSelectTeethToReplace, onShowSelectTeethToReplaceChange]);
 
   // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
@@ -940,7 +963,7 @@ export function MandibularPanel({
         cardTeeth.length > 0 ? cardTeeth[0] : -ap.id;
       exts =
         getToothProduct("mandibular", repTn)?.extractions ??
-        (ap.product as ProductApiData | undefined)?.extractions ??
+        (ap.product as import("../types").ProductApiData | undefined)?.extractions ??
         [];
     }
     if (!isSingleDefaultOnlyExtractionList(exts)) return;
@@ -2107,7 +2130,8 @@ export function MandibularPanel({
                               handleAddedRemovableAccordionToggle(ap);
                             }
                           }}
-                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === ap.id}
+                          isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
+                          isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
@@ -2207,6 +2231,7 @@ export function MandibularPanel({
                                       : assignedTeeth,
                                   toothExtractionMap: mandibularToothExtractionMap,
                                   claspTeeth: mandibularClaspTeeth,
+                                  excludeTeeth: apDisplayTeeth,
                                 })}
                                 activeExtractionCode={activeExtractionCode}
                                 onActiveExtractionChange={(code, exts) => {
@@ -2282,7 +2307,8 @@ export function MandibularPanel({
                               handleAddedProductAccordionToggle(ap);
                             }
                           }}
-                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === ap.id}
+                          isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
+                          isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
@@ -2325,10 +2351,13 @@ export function MandibularPanel({
                           )}
                           onRetentionDoneChange={(value) => {
                             setFixedRetentionSetupComplete(value);
-                            if (value && apProduct?.id) {
-                              setActiveProductCardId(ap.id);
-                              setActiveFixedGroupProductId(apProduct.id);
-                              if (!isExpanded) handleAddedProductAccordionToggle(ap);
+                            if (value) {
+                              setIsSelectionModeActive(false);
+                              if (apProduct?.id) {
+                                setActiveProductCardId(ap.id);
+                                setActiveFixedGroupProductId(apProduct.id);
+                                if (!isExpanded) handleAddedProductAccordionToggle(ap);
+                              }
                             }
                           }}
                         />
@@ -3032,7 +3061,8 @@ export function MandibularPanel({
                             setActiveFixedGroupProductId(selectedProduct?.id ?? null);
                           }
                         }}
-                        isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === 0}
+                        isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
+                      isExtractionActive={activeProductCardId === 0 && activeExtractionCode !== null}
                         onToggleExpand={() => {
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
@@ -3078,9 +3108,12 @@ export function MandibularPanel({
                         retentionDoneAcknowledged={card0ShowFixedFields}
                         onRetentionDoneChange={(value) => {
                           setFixedRetentionSetupComplete(value);
-                          if (value && selectedProduct?.id) {
-                            if (!card0FixedExpanded) toggleAccordionFocus(slotId, 0);
-                            setActiveFixedGroupProductId(selectedProduct.id);
+                          if (value) {
+                            setIsSelectionModeActive(false);
+                            if (selectedProduct?.id) {
+                              if (!card0FixedExpanded) toggleAccordionFocus(slotId, 0);
+                              setActiveFixedGroupProductId(selectedProduct.id);
+                            }
                           }
                         }}
                       />
@@ -3349,7 +3382,8 @@ export function MandibularPanel({
                           handleCard0RemovableAccordionToggle();
                         }
                       }}
-                      isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === 0}
+                      isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
+                      isExtractionActive={activeProductCardId === 0 && activeExtractionCode !== null}
                       expandEnabled={isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({
@@ -3446,6 +3480,7 @@ export function MandibularPanel({
                               selectedTeeth: rawDisplayTeeth,
                               toothExtractionMap: mandibularToothExtractionMap,
                               claspTeeth: mandibularClaspTeeth,
+                              excludeTeeth: displayTeeth,
                             })}
                             activeExtractionCode={activeExtractionCode}
                             onActiveExtractionChange={(code, exts) => {

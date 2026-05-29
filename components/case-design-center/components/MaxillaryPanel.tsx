@@ -703,6 +703,7 @@ interface MaxillaryPanelProps {
   labCustomerId?: number | null;
   onInlineAddProductComplete?: (result: InlineAddProductResult) => void | Promise<void>;
   onInlineAddProductCancel?: () => void;
+  onShowSelectTeethToReplaceChange?: (show: boolean) => void;
 }
 
 /** Returns true if the product is a full-denture type: no TIM extraction, only "Missing teeth" extraction. */
@@ -924,6 +925,7 @@ export function MaxillaryPanel({
   onImplantDetailChange,
   peerImplantDetailByTooth,
   onBackToCategories,
+  onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
   isAnyModalOpen = false,
   opposingOnlyLayout = false,
@@ -941,6 +943,27 @@ export function MaxillaryPanel({
   // Tracks whether any selection mode (extraction box or product plus) is explicitly active.
   // False after Done is clicked; true when extraction box or plus icon is activated.
   const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
+
+  const teethCount = activeProductCardId !== null
+    ? (activeProductCardId !== 0
+        ? MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length
+        : (activeProductIsRemovables
+            ? MAXILLARY_ALL_TEETH.filter(tn => { const code = maxillaryToothExtractionMap[tn]; return code && code !== "TIM"; }).length
+            : MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === 0).length
+          )
+      )
+    : 0;
+
+  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && (
+    teethCount === 0 || isSelectionModeActive
+  );
+
+  useEffect(() => {
+    onShowSelectTeethToReplaceChange?.(shouldShowSelectTeethToReplace);
+    return () => {
+      onShowSelectTeethToReplaceChange?.(false);
+    };
+  }, [shouldShowSelectTeethToReplace, onShowSelectTeethToReplaceChange]);
 
   // Auto-select single default extraction for removable products (card 0 and added cards)
   useEffect(() => {
@@ -2109,7 +2132,8 @@ export function MaxillaryPanel({
                               handleAddedRemovableAccordionToggle(ap);
                             }
                           }}
-                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === ap.id}
+                          isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
+                          isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
@@ -2209,6 +2233,7 @@ export function MaxillaryPanel({
                                       : assignedTeeth,
                                   toothExtractionMap: maxillaryToothExtractionMap,
                                   claspTeeth: maxillaryClaspTeeth,
+                                  excludeTeeth: apDisplayTeeth,
                                 })}
                                 activeExtractionCode={activeExtractionCode}
                                 onActiveExtractionChange={(code, exts) => {
@@ -2284,7 +2309,8 @@ export function MaxillaryPanel({
                               handleAddedProductAccordionToggle(ap);
                             }
                           }}
-                          isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === ap.id}
+                          isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
+                          isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
                           expandEnabled={isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
@@ -2327,10 +2353,13 @@ export function MaxillaryPanel({
                           )}
                           onRetentionDoneChange={(value) => {
                             setFixedRetentionSetupComplete(value);
-                            if (value && apProduct?.id) {
-                              setActiveProductCardId(ap.id);
-                              setActiveFixedGroupProductId(apProduct.id);
-                              if (!isExpanded) handleAddedProductAccordionToggle(ap);
+                            if (value) {
+                              setIsSelectionModeActive(false);
+                              if (apProduct?.id) {
+                                setActiveProductCardId(ap.id);
+                                setActiveFixedGroupProductId(apProduct.id);
+                                if (!isExpanded) handleAddedProductAccordionToggle(ap);
+                              }
                             }
                           }}
                         />
@@ -3042,7 +3071,8 @@ export function MaxillaryPanel({
                             setActiveFixedGroupProductId(selectedProduct?.id ?? null);
                           }
                         }}
-                        isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === 0}
+                        isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
+                        isExtractionActive={activeProductCardId === 0 && activeExtractionCode !== null}
                         onToggleExpand={() => {
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
@@ -3090,9 +3120,12 @@ export function MaxillaryPanel({
                         retentionDoneAcknowledged={card0ShowFixedFields}
                         onRetentionDoneChange={(value) => {
                           setFixedRetentionSetupComplete(value);
-                          if (value && selectedProduct?.id) {
-                            if (!card0FixedExpanded) toggleAccordionFocus(slotId, 0);
-                            setActiveFixedGroupProductId(selectedProduct.id);
+                          if (value) {
+                            setIsSelectionModeActive(false);
+                            if (selectedProduct?.id) {
+                              if (!card0FixedExpanded) toggleAccordionFocus(slotId, 0);
+                              setActiveFixedGroupProductId(selectedProduct.id);
+                            }
                           }
                         }}
                       />
@@ -3360,7 +3393,7 @@ export function MaxillaryPanel({
                           handleCard0RemovableAccordionToggle();
                         }
                       }}
-                      isProductSelectionActive={isSelectionModeActive && activeExtractionCode === null && activeProductCardId === 0}
+                      isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
                       expandEnabled={isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({
@@ -3441,6 +3474,7 @@ export function MaxillaryPanel({
                               selectedTeeth: rawDisplayTeeth,
                               toothExtractionMap: maxillaryToothExtractionMap,
                               claspTeeth: maxillaryClaspTeeth,
+                              excludeTeeth: displayTeeth,
                             })}
                             activeExtractionCode={activeExtractionCode}
                             onActiveExtractionChange={(code, exts) => {

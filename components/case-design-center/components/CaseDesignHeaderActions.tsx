@@ -34,6 +34,8 @@ interface CaseDesignHeaderActionsProps {
   onAddMandibularProduct?: () => void;
   showMaxillaryProductButton?: boolean;
   showMandibularProductButton?: boolean;
+  showSelectTeethToReplaceMaxillary?: boolean;
+  showSelectTeethToReplaceMandibular?: boolean;
 }
 
 function BackToProductsIcon({ muted = false }: { muted?: boolean }) {
@@ -78,6 +80,8 @@ export function CaseDesignHeaderActions({
   onAddMandibularProduct,
   showMaxillaryProductButton = false,
   showMandibularProductButton = false,
+  showSelectTeethToReplaceMaxillary = false,
+  showSelectTeethToReplaceMandibular = false,
 }: CaseDesignHeaderActionsProps) {
   return (
     <div className="relative flex items-center mb-1 md:mb-2" style={{ justifyContent: "space-evenly" }}>
@@ -91,6 +95,8 @@ export function CaseDesignHeaderActions({
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MAXILLARY PRODUCT</span>
           </button>
+        ) : showSelectTeethToReplaceMaxillary ? (
+          <span className="text-[16px] sm:text-xl text-orange-500 font-bold tracking-wide animate-pulse">SELECT TEETH TO REPLACE</span>
         ) : (
           <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
         )}
@@ -108,6 +114,8 @@ export function CaseDesignHeaderActions({
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MANDIBULAR PRODUCT</span>
           </button>
+        ) : showSelectTeethToReplaceMandibular ? (
+          <span className="text-[16px] sm:text-xl text-orange-500 font-bold tracking-wide animate-pulse">SELECT TEETH TO REPLACE</span>
         ) : (
           <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
         )}
