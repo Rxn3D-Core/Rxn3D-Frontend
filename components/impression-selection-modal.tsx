@@ -376,7 +376,11 @@ export function ImpressionSelectionModal({
 
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
-  const showBottomSection = !!bottomArch
+
+  // Progressive disclosure: in dual-arch mode, only show the bottom section once
+  // the top arch has at least one impression selected. When re-opening with
+  // existing top-arch selections, both sections are immediately visible.
+  const showBottomSection = !!bottomArch && (isDualArch ? hasTopSelection : true)
 
   // Primary arch selections are required; opposing arch is always optional.
   const isValidationComplete = hasTopSelection
