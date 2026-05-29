@@ -1,0 +1,146 @@
+import type { BillingInvoice, BillingProduct, StatementRecord } from "@/lib/redux/api/billingApi";
+
+export type StatementHeaderDraft = {
+  statementId: string;
+  recipientEmail: string;
+  statementDate: string;
+  dueDate: string;
+};
+
+export type StatementBillingTarget = {
+  invoiceId: number;
+  productId: number;
+};
+
+export type StatementItemLike = {
+  patient_name?: string | null;
+  product_name?: string | null;
+  grade_name?: string | null;
+  stage_name?: string | null;
+  gross_amount?: number | string | null;
+  amount?: number | string | null;
+};
+
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = typeof value === "string" ? Number.parseFloat(value) : value;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function buildStatementHeaderDraft(
+  statement: Pick<StatementRecord, "id" | "statement_id" | "recipient_email" | "created_at" | "due_date">,
+): StatementHeaderDraft {
+  return {
+    statementId: statement.statement_id ?? `ST-${statement.id}`,
+    recipientEmail: statement.recipient_email ?? "",
+    statementDate: toDateInputValue(statement.created_at),
+    dueDate: toDateInputValue(statement.due_date),
+  };
+}
+
+function scoreProductMatch(item: StatementItemLike, product: BillingProduct): number {
+  let score = 0;
+
+  if (normalizeText(item.product_name) && normalizeText(item.product_name) === normalizeText(product.product_name)) {
+    score += 5;
+  }
+  if (normalizeText(item.grade_name) && normalizeText(item.grade_name) === normalizeText(product.grade_name)) {
+    score += 3;
+  }
+  if (normalizeText(item.stage_name) && normalizeText(item.stage_name) === normalizeText(product.stage_name)) {
+    score += 3;
+  }
+
+  const itemAmount = toNumber(item.gross_amount ?? item.amount);
+  const productAmount = toNumber(product.total_price);
+  if (itemAmount !== 0 && Math.abs(itemAmount - productAmount) < 0.01) {
+    score += 2;
+  }
+
+  return score;
+}
+
+export function findMatchingBillingTarget(
+  item: StatementItemLike,
+  invoices: BillingInvoice[],
+): StatementBillingTarget | null {
+  const itemPatient = normalizeText(item.patient_name);
+  let best: { invoiceId: number; productId: number; score: number } | null = null;
+
+  for (const invoice of invoices) {
+    const patient = normalizeText(invoice.slip?.case?.patient_name);
+    const patientScore = itemPatient && patient === itemPatient ? 5 : 0;
+    const products = invoice.products ?? [];
+
+    for (const product of products) {
+      if (product.id == null) continue;
+      const score = patientScore + scoreProductMatch(item, product);
+      if (best == null || score > best.score) {
+        best = { invoiceId: invoice.id, productId: product.id, score };
+      }
+    }
+  }
+
+  return best != null && best.score >= 10
+    ? { invoiceId: best.invoiceId, productId: best.productId }
+    : null;
+}
+
+export function findMatchingBillingInvoiceId(
+  item: StatementItemLike,
+  invoices: BillingInvoice[],
+): number | null {
+  return findMatchingBillingTarget(item, invoices)?.invoiceId ?? null;
+}
+
+function sumAddonTotal(product: BillingProduct): number {
+  return (product.addons ?? []).reduce((sum, addon) => {
+    const unitPrice = toNumber(addon.price ?? addon.total);
+    const quantity = addon.quantity != null && addon.quantity > 0 ? addon.quantity : 1;
+    return sum + unitPrice * quantity;
+  }, 0);
+}
+
+function sumRetentionTotal(product: BillingProduct): number {
+  return (product.retentions ?? []).reduce((sum, retention) => sum + toNumber(retention.price ?? retention.total), 0);
+}
+
+function sumAdvanceFieldTotal(product: BillingProduct): number {
+  return (product.advance_fields ?? []).reduce((sum, field) => {
+    const quantity = field.quantity != null && field.quantity > 0 ? field.quantity : 1;
+    return sum + toNumber(field.price) * quantity;
+  }, 0);
+}
+
+export function computeBasePriceFromTargetGross(
+  targetGross: number,
+  product: BillingProduct,
+): number | null {
+  if (!Number.isFinite(targetGross) || targetGross < 0) return null;
+
+  const rushPercentage = toNumber(product.rush_percentage);
+  const multiplier = 1 + rushPercentage / 100;
+  if (multiplier <= 0) return null;
+
+  const nonBaseTotal =
+    toNumber(product.material_price) +
+    sumAddonTotal(product) +
+    sumRetentionTotal(product) +
+    sumAdvanceFieldTotal(product);
+
+  const solvedBase = targetGross / multiplier - nonBaseTotal;
+  if (!Number.isFinite(solvedBase) || solvedBase < 0) return null;
+
+  return Number(solvedBase.toFixed(2));
+}
