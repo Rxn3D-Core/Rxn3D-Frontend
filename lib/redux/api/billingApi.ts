@@ -10,6 +10,8 @@ export interface BillingListParams {
   doctor_name?: string
   date_from?: string
   date_to?: string
+  /** Client-only arg to force refetches when presets change; never sent to backend. */
+  client_date_preset?: string
   amount_min?: number
   amount_max?: number
   sort_by?: string
@@ -27,7 +29,16 @@ export interface AdvancedBillingSearchBody {
   case_number?: string
   product_name?: string
   lab_name?: string
-  date_range?: "today" | "yesterday" | "last_7_days" | "last_week" | "last_month" | "last_year" | "custom"
+  date_range?:
+    | "today"
+    | "yesterday"
+    | "this_week"
+    | "last_week"
+    | "this_month"
+    | "last_month"
+    | "this_year"
+    | "last_year"
+    | "custom"
   date_from?: string
   date_to?: string
   status?: string
@@ -362,6 +373,7 @@ function buildBillingQueryString(params: BillingListParams): string {
   const searchParams = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return
+    if (key === "client_date_preset") return
     searchParams.append(key, String(value))
   })
   const qs = searchParams.toString()

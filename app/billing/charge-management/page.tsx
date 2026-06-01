@@ -282,14 +282,26 @@ function computeDateRangeFromPreset(preset: string): { from: string; to: string 
     y.setDate(y.getDate() - 1)
     return { from: fmt(y), to: fmt(y) }
   }
-  if (preset === "last_7_days") {
+  if (preset === "this_week") {
     const s = new Date(now)
-    s.setDate(s.getDate() - 6)
+    const day = s.getDay()
+    const diffToMonday = day === 0 ? -6 : 1 - day
+    s.setDate(s.getDate() + diffToMonday)
     return { from: fmt(s), to: fmt(now) }
   }
   if (preset === "last_week") {
-    const s = new Date(now)
-    s.setDate(s.getDate() - 13)
+    const currentWeekStart = new Date(now)
+    const day = currentWeekStart.getDay()
+    const diffToMonday = day === 0 ? -6 : 1 - day
+    currentWeekStart.setDate(currentWeekStart.getDate() + diffToMonday)
+    const s = new Date(currentWeekStart)
+    s.setDate(currentWeekStart.getDate() - 7)
+    const e = new Date(currentWeekStart)
+    e.setDate(currentWeekStart.getDate() - 1)
+    return { from: fmt(s), to: fmt(e) }
+  }
+  if (preset === "this_month") {
+    const s = new Date(now.getFullYear(), now.getMonth(), 1)
     return { from: fmt(s), to: fmt(now) }
   }
   if (preset === "last_month") {
@@ -297,12 +309,32 @@ function computeDateRangeFromPreset(preset: string): { from: string; to: string 
     const e = new Date(now.getFullYear(), now.getMonth(), 0)
     return { from: fmt(s), to: fmt(e) }
   }
+  if (preset === "this_year") {
+    const s = new Date(now.getFullYear(), 0, 1)
+    return { from: fmt(s), to: fmt(now) }
+  }
   if (preset === "last_year") {
     const s = new Date(now.getFullYear() - 1, 0, 1)
     const e = new Date(now.getFullYear() - 1, 11, 31)
     return { from: fmt(s), to: fmt(e) }
   }
   return null
+}
+
+function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBody["date_range"] {
+  switch (preset) {
+    case "today":
+    case "yesterday":
+    case "this_week":
+    case "last_week":
+    case "this_month":
+    case "last_month":
+    case "this_year":
+    case "last_year":
+      return preset
+    default:
+      return "custom"
+  }
 }
 
 function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
@@ -410,7 +442,7 @@ export default function ChargeManagementPage() {
   const [advAttachment, setAdvAttachment] = useState<"all" | "yes" | "no">("all")
   const [showCasesWithAddon, setShowCasesWithAddon] = useState(false)
   const [showOnlyChecked, setShowOnlyChecked] = useState(false)
-  const [advDateRange, setAdvDateRange] = useState<string>("custom")
+  const [advDateRange, setAdvDateRange] = useState<string>("today")
   const [customDateRangeOpen, setCustomDateRangeOpen] = useState(false)
   const [statementModalOpen, setStatementModalOpen] = useState(false)
   const [statementModalStep, setStatementModalStep] = useState<"confirm" | "generating" | "sending">("confirm")
@@ -540,6 +572,7 @@ export default function ChargeManagementPage() {
     }
     if (dateFrom) params.date_from = dateFrom
     if (dateTo) params.date_to = dateTo
+    params.client_date_preset = advDateRange
     if (isLabScope && officeFilter !== "all") {
       const oid = parseInt(officeFilter, 10)
       if (!Number.isNaN(oid)) params.office_id = oid
@@ -551,6 +584,7 @@ export default function ChargeManagementPage() {
     debouncedSearch,
     dateFrom,
     dateTo,
+    advDateRange,
     officeFilter,
     isLabScope,
   ])
@@ -796,7 +830,7 @@ export default function ChargeManagementPage() {
       patient_name: debouncedSearch.trim() || searchInput.trim() || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
-      date_range: advDateRange === "custom" ? "custom" : (advDateRange as AdvancedBillingSearchBody["date_range"]),
+      date_range: resolveAdvancedDateRangeValue(advDateRange),
       office_name: officeName,
     }
     if (advCategoryId != null) body.category_id = advCategoryId
@@ -1692,20 +1726,32 @@ export default function ChargeManagementPage() {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="custom">
-                    {t("chargeManagement.dateCustom", { defaultValue: "Custom" })}
-                  </SelectItem>
                   <SelectItem value="today">
                     {t("chargeManagement.dateToday", { defaultValue: "Today" })}
                   </SelectItem>
-                  <SelectItem value="last_7_days">
-                    {t("chargeManagement.dateLast7", { defaultValue: "Last 7 days" })}
+                  <SelectItem value="yesterday">
+                    {t("chargeManagement.dateYesterday", { defaultValue: "Yesterday" })}
+                  </SelectItem>
+                  <SelectItem value="this_week">
+                    {t("chargeManagement.dateThisWeek", { defaultValue: "This Week" })}
+                  </SelectItem>
+                  <SelectItem value="last_week">
+                    {t("chargeManagement.dateLastWeek", { defaultValue: "Last Week" })}
+                  </SelectItem>
+                  <SelectItem value="this_month">
+                    {t("chargeManagement.dateThisMonth", { defaultValue: "This Month" })}
                   </SelectItem>
                   <SelectItem value="last_month">
                     {t("chargeManagement.dateLastMonth", { defaultValue: "Last month" })}
                   </SelectItem>
+                  <SelectItem value="this_year">
+                    {t("chargeManagement.dateThisYear", { defaultValue: "This Year" })}
+                  </SelectItem>
                   <SelectItem value="last_year">
                     {t("chargeManagement.dateLastYear", { defaultValue: "Last year" })}
+                  </SelectItem>
+                  <SelectItem value="custom">
+                    {t("chargeManagement.dateCustom", { defaultValue: "Custom" })}
                   </SelectItem>
                 </SelectContent>
               </Select>
