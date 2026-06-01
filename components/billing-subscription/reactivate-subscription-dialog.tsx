@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -11,29 +10,26 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
-type ReactivateSubscriptionDialogProps = {
+export interface ReactivateSubscriptionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-  isProcessing?: boolean
-  planName?: string
-  monthlyPrice?: number
+  planName: string
+  monthlyPrice: number
   cardBrand?: string
   cardLast4?: string
+  onConfirm: () => void | Promise<void>
 }
 
 export function ReactivateSubscriptionDialog({
   open,
   onOpenChange,
-  onConfirm,
-  isProcessing = false,
-  planName = "Professional",
-  monthlyPrice = 149,
+  planName,
+  monthlyPrice,
   cardBrand = "Visa",
   cardLast4 = "4242",
+  onConfirm,
 }: ReactivateSubscriptionDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const loading = isProcessing || isLoading
 
   const handleConfirm = async () => {
     setIsLoading(true)
@@ -58,6 +54,7 @@ export function ReactivateSubscriptionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {/* Price + card row */}
           <div className="rounded-lg border bg-muted/20 px-4 py-3 space-y-2">
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-bold text-foreground">
@@ -81,21 +78,22 @@ export function ReactivateSubscriptionDialog({
           </p>
         </div>
 
+        {/* Footer */}
         <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
           <Button
             variant="outline"
             className="sm:w-44"
             onClick={() => onOpenChange(false)}
-            disabled={loading}
+            disabled={isLoading}
           >
             Cancel
           </Button>
           <Button
             className="bg-[#1162A8] text-white hover:bg-[#0d5290] sm:w-56"
-            onClick={() => void handleConfirm()}
-            disabled={loading}
+            onClick={handleConfirm}
+            disabled={isLoading}
           >
-            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : "Reactivate Now"}
+            {isLoading ? "Processing..." : "Reactivate Now"}
           </Button>
         </div>
       </DialogContent>

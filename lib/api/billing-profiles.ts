@@ -220,6 +220,19 @@ export interface BillingCheckoutResponse {
   url: string
 }
 
+type BillingPortalResponse = {
+  url?: string
+  portal_url?: string
+  billing_portal_url?: string
+  customer_portal_url?: string
+  data?: {
+    url?: string
+    portal_url?: string
+    billing_portal_url?: string
+    customer_portal_url?: string
+  }
+}
+
 /**
  * Initiate a Stripe Checkout session for a billing plan.
  * POST /v1/billing-checkout/plan
@@ -241,4 +254,34 @@ export async function createBillingCheckoutSession(
 export async function cancelSubscription(profileId: number): Promise<any> {
   const response = await apiClient.post(`/billing-profiles/${profileId}/cancel`)
   return response.data
+}
+
+function extractPortalUrl(payload: BillingPortalResponse | null | undefined): string | null {
+  if (!payload) return null
+  return (
+    payload.url ||
+    payload.portal_url ||
+    payload.billing_portal_url ||
+    payload.customer_portal_url ||
+    payload.data?.url ||
+    payload.data?.portal_url ||
+    payload.data?.billing_portal_url ||
+    payload.data?.customer_portal_url ||
+    null
+  )
+}
+
+export async function createBillingPortalSession(
+  options: { profileId?: number | null; customerId?: number | null; returnUrl?: string | null }
+): Promise<string | null> {
+  const customerId = options.customerId ?? null
+  const returnUrl = options.returnUrl ?? null
+
+  if (!customerId) return null
+
+  const response = await apiClient.get<BillingPortalResponse>("/billing/customer-portal", {
+    params: { customer_id: customerId, ...(returnUrl ? { return_url: returnUrl } : {}) },
+  })
+
+  return extractPortalUrl(response.data)
 }

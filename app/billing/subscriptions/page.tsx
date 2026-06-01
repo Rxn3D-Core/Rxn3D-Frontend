@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import {
@@ -12,18 +13,17 @@ import {
   upgradeBillingProfile,
   downgradeBillingProfile,
   cancelSubscription,
+  createBillingPortalSession,
   type BillingProfile,
 } from "@/lib/api/billing-profiles"
 import {
   getBillingUsage,
   getBillingCreditBalance,
+  getSlipUsageFallbackCount,
   listSubscriptionInvoices,
-  listBillingCatalogAddOns,
   listCustomerAddOns,
-  createAddOnCheckoutSession,
   type BillingUsage,
   type SubscriptionInvoice,
-  type CatalogAddOn,
   type CustomerAddOn,
 } from "@/lib/api/billing-subscription"
 import {
@@ -38,12 +38,30 @@ import {
   isFreePlan,
   type CatalogPlan,
 } from "@/lib/billing-subscription/plan-helpers"
-import { Download, CreditCard, ExternalLink, DollarSign, Check, Loader2, ArrowRight } from "lucide-react"
+import { resolveUsageCustomerId } from "@/lib/billing-subscription/customer-context"
+import {
+  Download,
+  CreditCard,
+  ExternalLink,
+  DollarSign,
+  Check,
+  Loader2,
+  ArrowRight,
+  CircleHelp,
+  TrendingUp,
+  Zap,
+  Plus,
+  UserRound,
+} from "lucide-react"
 import { getBillingFrequencyLabel, getDefaultBillingPrice } from "./pricing"
 import { BillingPeriodDialog } from "./components/billing-period-dialog"
 import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog"
 import { ReactivateSubscriptionDialog } from "./components/reactivate-subscription-dialog"
 import { UpdateBillingInfoDialog } from "./components/update-billing-info-dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "@/components/ui/use-toast"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 type SubscriptionState = "loading" | "no-subscription" | "active" | "cancelled" | "error"
 
@@ -58,7 +76,6 @@ export default function SubscriptionsPage() {
   const [billingUsage, setBillingUsage] = useState<BillingUsage | null>(null)
   const [creditBalance, setCreditBalance] = useState<number | null>(null)
   const [subscriptionInvoices, setSubscriptionInvoices] = useState<SubscriptionInvoice[]>([])
-  const [catalogAddOns, setCatalogAddOns] = useState<CatalogAddOn[]>([])
   const [customerAddOns, setCustomerAddOns] = useState<CustomerAddOn[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -70,39 +87,35 @@ export default function SubscriptionsPage() {
   const [isCancelSubscriptionDialogOpen, setIsCancelSubscriptionDialogOpen] = useState(false)
   const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false)
   const [isUpdateBillingInfoDialogOpen, setIsUpdateBillingInfoDialogOpen] = useState(false)
+  const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false)
+  const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false)
 
-  const resolveCustomerId = useCallback((): number | null => {
-    if (typeof window === "undefined") return null
-    const storedCustomerId = localStorage.getItem("customerId")
-    if (storedCustomerId) return parseInt(storedCustomerId, 10)
-    if (user?.customers && user.customers.length > 0) return user.customers[0].id
-    if (user?.customer_id) return user.customer_id
-    return null
-  }, [user])
+  const resolveCustomerId = useCallback(
+    (): number | null =>
+      resolveUsageCustomerId(user, typeof window !== "undefined" ? window.localStorage : null),
+    [user]
+  )
 
   const loadSubscriptionData = useCallback(async (customerId: number) => {
     setSubscriptionState("loading")
     setError(null)
 
-    const [profileResult, usage, credits, invoices, plans, addOns, purchasedAddOns] =
+    const [profileResult, usage, credits, invoices, plans, purchasedAddOns] =
       await Promise.all([
         getCustomerBillingProfile(customerId),
         getBillingUsage(customerId).catch(() => null),
         getBillingCreditBalance(customerId).catch(() => null),
         listSubscriptionInvoices(customerId).catch(() => []),
         listBillingCatalogPlans(customerId).catch(() => []),
-        listBillingCatalogAddOns(customerId).catch(() => []),
         listCustomerAddOns(customerId).catch(() => []),
       ])
 
-    setBillingUsage(usage)
-    setCreditBalance(credits?.balance ?? credits?.available_credits ?? null)
-    setSubscriptionInvoices(invoices)
-    setCatalogPlans(plans)
-    setCatalogAddOns(addOns)
-    setCustomerAddOns(purchasedAddOns)
-
     if (!profileResult.has_plan || !profileResult.data) {
+      setBillingUsage(usage)
+      setCreditBalance(credits?.balance ?? credits?.available_credits ?? null)
+      setSubscriptionInvoices(invoices)
+      setCatalogPlans(plans)
+      setCustomerAddOns(purchasedAddOns)
       setBillingProfile(null)
       setCurrentPlanDetails(null)
       setSubscriptionState("no-subscription")
@@ -110,6 +123,32 @@ export default function SubscriptionsPage() {
     }
 
     const profile = profileResult.data
+    const rawUsageCount = usage?.slip_count ?? profile.usage_count ?? 0
+    let resolvedUsage = usage
+
+    if (rawUsageCount === 0) {
+      try {
+        const fallbackSlipCount = await getSlipUsageFallbackCount(customerId, {
+          periodStart: usage?.period_start ?? profile.current_period_start,
+          periodEnd: usage?.period_end ?? profile.current_period_end,
+        })
+
+        resolvedUsage = {
+          ...(usage ?? {}),
+          slip_count: fallbackSlipCount,
+          period_start: usage?.period_start ?? profile.current_period_start,
+          period_end: usage?.period_end ?? profile.current_period_end,
+        }
+      } catch (fallbackError) {
+        console.error("Error fetching slip usage fallback:", fallbackError)
+      }
+    }
+
+    setBillingUsage(resolvedUsage)
+    setCreditBalance(credits?.balance ?? credits?.available_credits ?? null)
+    setSubscriptionInvoices(invoices)
+    setCatalogPlans(plans)
+    setCustomerAddOns(purchasedAddOns)
     setBillingProfile(profile)
 
     const planFromCatalog = plans.find((p) => p.id === profile.billing_plan_id)
@@ -190,6 +229,11 @@ export default function SubscriptionsPage() {
     setView("plans")
   }
 
+  const openPlanDialog = useCallback(() => {
+    void fetchCatalogPlans()
+    setIsPlanDialogOpen(true)
+  }, [fetchCatalogPlans])
+
   // Handle Plan Selection (Stripe Checkout)
   const handlePlanSelection = async (planId: number) => {
     if (!resolvedCustomerId) {
@@ -224,6 +268,7 @@ export default function SubscriptionsPage() {
           await createBillingProfile(payload)
         }
         await loadSubscriptionData(resolvedCustomerId)
+        setIsPlanDialogOpen(false)
         setView("overview")
         return
       }
@@ -243,6 +288,7 @@ export default function SubscriptionsPage() {
           await downgradeBillingProfile(billingProfile.id, changePayload)
         }
         await loadSubscriptionData(resolvedCustomerId)
+        setIsPlanDialogOpen(false)
         setView("overview")
         return
       }
@@ -270,29 +316,132 @@ export default function SubscriptionsPage() {
     }
   }
 
-  const handleAddOnCheckout = async (addOnId: number) => {
-    if (!resolvedCustomerId) return
-    try {
-      setIsProcessing(true)
-      const baseUrl = `${window.location.origin}/billing/subscriptions`
-      const response = await createAddOnCheckoutSession({
-        customer_id: resolvedCustomerId,
-        billing_add_on_id: addOnId,
-        success_url: `${baseUrl}?checkout=success`,
-        cancel_url: `${baseUrl}?checkout=cancel`,
-      })
-      if (response.url) {
-        window.location.href = response.url
-      } else {
-        throw new Error(response.message || "Failed to start add-on checkout")
+  const handleDownloadAllInvoices = () => {
+    subscriptionInvoices.forEach((invoice) => {
+      if (invoice.invoice_pdf) {
+        window.open(invoice.invoice_pdf, "_blank", "noopener,noreferrer")
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to purchase add-on"
-      setError(message)
+    })
+  }
+
+  const getBillingManagementUrl = (
+    profile: BillingProfile | null,
+    invoices: SubscriptionInvoice[]
+  ): string | null => {
+    const explicitKeys = [
+      "billing_portal_url",
+      "customer_portal_url",
+      "portal_url",
+      "stripe_portal_url",
+      "stripe_customer_portal_url",
+      "manage_billing_url",
+      "payment_method_update_url",
+      "billing_management_url",
+      "customer_portal_link",
+      "billing_portal_link",
+      "portal_link",
+    ]
+
+    const excludedKeys = new Set(["hosted_invoice_url", "invoice_pdf"])
+
+    const isInvoiceLikeUrl = (url: string) => /(invoice|receipt|pdf)/i.test(url)
+
+    const findUrlInRecord = (value: unknown, seen = new Set<unknown>()): string | null => {
+      if (!value || typeof value !== "object") return null
+      if (seen.has(value)) return null
+      seen.add(value)
+
+      const record = value as Record<string, unknown>
+
+      for (const key of explicitKeys) {
+        const candidate = record[key]
+        if (typeof candidate === "string" && candidate.trim() && !isInvoiceLikeUrl(candidate)) {
+          return candidate
+        }
+      }
+
+      for (const [key, candidate] of Object.entries(record)) {
+        if (excludedKeys.has(key)) continue
+
+        if (
+          typeof candidate === "string" &&
+          candidate.trim() &&
+          /(portal|billing|manage|payment)/i.test(key) &&
+          /(url|link|session)/i.test(key) &&
+          !isInvoiceLikeUrl(candidate)
+        ) {
+          return candidate
+        }
+
+        if (
+          typeof candidate === "string" &&
+          candidate.trim() &&
+          /^https?:\/\//i.test(candidate) &&
+          !isInvoiceLikeUrl(candidate) &&
+          /(stripe|portal|billing|payment|session)/i.test(candidate)
+        ) {
+          return candidate
+        }
+
+        const nested = findUrlInRecord(candidate, seen)
+        if (nested) return nested
+      }
+
+      return null
+    }
+
+    return findUrlInRecord(profile) ?? invoices.map((invoice) => findUrlInRecord(invoice)).find(Boolean) ?? null
+  }
+
+  const openBillingManagement = async (url: string | null) => {
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer")
+      return
+    }
+
+    if (!resolvedCustomerId && !billingProfile?.id) {
+      toast({
+        title: "Billing management unavailable",
+        description: "Missing customer billing context for Stripe billing management.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsOpeningBillingPortal(true)
+      const portalUrl = await createBillingPortalSession({
+        profileId: billingProfile?.id ?? null,
+        customerId: resolvedCustomerId,
+        returnUrl: typeof window !== "undefined" ? `${window.location.origin}/billing/subscriptions` : null,
+      })
+
+      if (portalUrl) {
+        window.open(portalUrl, "_blank", "noopener,noreferrer")
+        return
+      }
+    } catch (error) {
+      console.error("Failed to open billing portal:", error)
     } finally {
-      setIsProcessing(false)
+      setIsOpeningBillingPortal(false)
+    }
+
+    if (!url) {
+      toast({
+        title: "Billing management link unavailable",
+        description: "The Stripe billing portal endpoint did not return a valid portal URL. If it still fails, the backend portal route is likely erroring.",
+        variant: "destructive",
+      })
     }
   }
+
+  const getInvoiceDisplayAmount = (invoice: SubscriptionInvoice) =>
+    invoice.amount ??
+    invoice.amount_paid ??
+    invoice.amount_due ??
+    invoice.total_amount ??
+    invoice.subtotal ??
+    null
 
   // Plan Card Component
   const PlanCard = ({
@@ -379,101 +528,268 @@ export default function SubscriptionsPage() {
     </div>
   )
 
-  // Loading state
-  if (subscriptionState === "loading") {
-    return (
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-sm text-gray-500">Loading subscription details...</p>
+  const OverviewCard = ({
+    title,
+    hint,
+    children,
+    action,
+  }: {
+    title: string
+    hint: string
+    children: React.ReactNode
+    action: React.ReactNode
+  }) => (
+    <section className="flex min-h-[208px] flex-col rounded-md border border-[#E4E6EF] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.03)] lg:px-6">
+      <div className="flex items-center gap-2 text-[14px] font-normal tracking-[-0.02em] text-black">
+        <span>{title}</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex h-4 w-4 cursor-default items-center justify-center text-black/80">
+              <CircleHelp className="h-3 w-3" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[240px] text-xs">
+            {hint}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+      <div className="flex flex-1 flex-col justify-between pt-5">
+        <div>{children}</div>
+        <div className="flex justify-center pt-4">{action}</div>
+      </div>
+    </section>
+  )
+
+  const SubtleActionButton = ({
+    children,
+    onClick,
+    className = "",
+    disabled = false,
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+    className?: string
+    disabled?: boolean
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex min-h-[36px] items-center justify-center rounded-md border border-white bg-white px-5 text-[13px] font-normal tracking-[-0.02em] text-black shadow-[1px_1px_7px_rgba(0,0,0,0.14)] transition hover:-translate-y-0.5 hover:shadow-[1px_4px_12px_rgba(0,0,0,0.14)] disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+    >
+      {children}
+    </button>
+  )
+
+  const OverviewCardSkeleton = () => (
+    <section className="flex min-h-[208px] flex-col rounded-md border border-[#E4E6EF] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.03)] lg:px-6">
+      <div className="flex items-center gap-2">
+        <Skeleton className="h-4 w-28 bg-[#E5E7EB]" />
+        <Skeleton className="h-4 w-4 rounded-full bg-[#E5E7EB]" />
+      </div>
+      <div className="flex flex-1 flex-col justify-between pt-5">
+        <div className="space-y-3">
+          <Skeleton className="h-8 w-40 bg-[#E5E7EB]" />
+          <Skeleton className="h-4 w-52 bg-[#E5E7EB]" />
+          <Skeleton className="h-4 w-36 bg-[#E5E7EB]" />
+          <Skeleton className="h-[5px] w-full rounded-full bg-[#EAEAEB]" />
+        </div>
+        <div className="flex justify-center pt-4">
+          <Skeleton className="h-9 w-full rounded-md bg-[#E5E7EB] sm:w-[210px]" />
+        </div>
+      </div>
+    </section>
+  )
+
+  const SubscriptionLoadingSkeleton = () => (
+    <div className="w-full max-w-[1880px] bg-[#F9F9F9] px-4 py-4 sm:px-5 lg:px-6">
+      <div className="mb-3 flex items-center gap-2">
+        <Skeleton className="h-3 w-10 bg-[#E5E7EB]" />
+        <Skeleton className="h-3 w-3 bg-[#E5E7EB]" />
+        <Skeleton className="h-3 w-20 bg-[#E5E7EB]" />
+      </div>
+
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <OverviewCardSkeleton />
+          <OverviewCardSkeleton />
+          <OverviewCardSkeleton />
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-md border border-[#FFE0B2] bg-[#FFF7ED] px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <Skeleton className="mt-0.5 h-6 w-6 rounded-md bg-[#FCD9A5]" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-72 bg-[#FCD9A5]" />
+              <Skeleton className="h-4 w-56 bg-[#FDE7C7]" />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Skeleton className="h-9 w-32 rounded-md bg-[#FCD9A5]" />
+            <Skeleton className="h-9 w-36 rounded-md bg-[#FDE7C7]" />
           </div>
         </div>
       </div>
-    )
+
+      <div className="mt-3 rounded-md border border-[#E4E6EF] bg-white">
+        <div className="px-5 py-5">
+          <div className="flex flex-col gap-5">
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-32 bg-[#E5E7EB]" />
+              <div className="flex flex-wrap items-center gap-3">
+                <Skeleton className="h-8 w-36 rounded-md bg-[#E5E7EB]" />
+                <Skeleton className="h-8 w-36 rounded-md bg-[#FEE2E2]" />
+              </div>
+            </div>
+            <div className="w-full max-w-[320px]">
+              <div className="h-[124px] rounded-md border border-[#E4E6EF] bg-[#ECECF0] px-[27px] py-[16px]">
+                <div className="space-y-3">
+                  <Skeleton className="h-6 w-40 bg-white/70" />
+                  <Skeleton className="h-5 w-24 bg-white/60" />
+                  <Skeleton className="mt-5 h-8 w-[183px] rounded-md bg-[#D5D8E1]" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-[#E4E6EF] px-5 py-5">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Skeleton className="h-5 w-20 bg-[#E5E7EB]" />
+            <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+              <Skeleton className="h-4 w-28 bg-[#E5E7EB]" />
+              <Skeleton className="h-9 w-44 rounded-md bg-[#E5E7EB]" />
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={`invoice-skeleton-${index}`}
+                className="flex flex-col gap-3 rounded-md border border-[#E4E6EF] px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32 bg-[#E5E7EB]" />
+                  <Skeleton className="h-4 w-48 bg-[#E5E7EB]" />
+                </div>
+                <div className="flex flex-wrap items-center gap-5">
+                  <Skeleton className="h-4 w-12 bg-[#E5E7EB]" />
+                  <Skeleton className="h-4 w-20 bg-[#E5E7EB]" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderPlanSelectionContent = ({ onClose, showBackButton = false }: { onClose?: () => void; showBackButton?: boolean } = {}) => (
+    <>
+      {showBackButton && onClose ? (
+        <button
+          onClick={onClose}
+          className="group mb-4 flex items-center gap-1.5 text-xs text-blue-600 transition-colors hover:text-blue-800"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className="transition-transform group-hover:-translate-x-0.5"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Back to Subscription
+        </button>
+      ) : null}
+
+      <div className="mb-10">
+        <h1 className="mb-2 text-2xl font-bold text-gray-900">Choose Your Plan</h1>
+        <p className="text-sm text-gray-500">
+          Upgrade, downgrade, or switch plans. Changes take effect based on your billing cycle.
+        </p>
+      </div>
+
+      {error ? (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
+
+      {catalogPlans.length === 0 ? (
+        <div className="flex flex-col items-center py-20">
+          <Loader2 className="mb-3 h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-sm text-gray-500">Fetching available plans...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {catalogPlans.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map((plan) => {
+            const isCurrent = plan.id === billingProfile?.billing_plan_id
+            const isPopular = plan.badge_label?.toLowerCase().includes("popular")
+            const monthlyPrice = formatPlanPriceLabel(plan)
+            const limitsText = buildPlanLimitsText(plan)
+            const features = buildPlanFeatures(plan)
+            const hasActivePlan =
+              !!billingProfile?.billing_plan_id &&
+              (billingProfile?.status === "active" || billingProfile?.status === "trialing")
+
+            let buttonText = "Choose Plan"
+            if (plan.name.toLowerCase().includes("enterprise")) {
+              buttonText = "Contact Sales"
+            } else if (isCurrent) {
+              buttonText = "Your current plan"
+            } else if (!hasActivePlan) {
+              buttonText = isFreePlan(plan) ? `Start ${plan.name}` : `Buy ${plan.name}`
+            } else {
+              const currentFee = getPlanMonthlyFee(currentPlanDetails)
+              const planFee = getPlanMonthlyFee(plan)
+              buttonText = planFee > currentFee ? `Upgrade to ${plan.name}` : `Downgrade to ${plan.name}`
+            }
+
+            let displayBadge = plan.badge_label
+            if (!displayBadge) {
+              if (isFreePlan(plan)) displayBadge = "Starter, Free"
+              else if (isPopular) displayBadge = "Recommended"
+            }
+
+            return (
+              <PlanCard
+                key={plan.id}
+                name={plan.name}
+                price={monthlyPrice}
+                limits={limitsText}
+                features={features}
+                buttonText={buttonText}
+                buttonVariant={
+                  isPopular || (!isCurrent && getPlanMonthlyFee(plan) > getPlanMonthlyFee(currentPlanDetails))
+                    ? "solid"
+                    : "outline"
+                }
+                isCurrent={isCurrent}
+                isPopular={!!isPopular}
+                badgeText={displayBadge}
+                onClick={isCurrent ? undefined : () => handlePlanSelection(plan.id)}
+                loading={isProcessing}
+              />
+            )
+          })}
+        </div>
+      )}
+    </>
+  )
+
+  // Loading state
+  if (subscriptionState === "loading") {
+    return <SubscriptionLoadingSkeleton />
   }
 
   // Plan Selection View
   if (view === "plans") {
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
-        {/* Back link */}
-        <button
-          onClick={() => setView("overview")}
-          className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors mb-4 group"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition-transform group-hover:-translate-x-0.5">
-            <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Back to Subscription
-        </button>
-
-        <div className="mb-10">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h1>
-          <p className="text-sm text-gray-500">
-            Upgrade, downgrade, or switch plans. Changes take effect based on your billing cycle.
-          </p>
-        </div>
-
-        {catalogPlans.length === 0 ? (
-          <div className="flex flex-col items-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
-            <p className="text-sm text-gray-500">Fetching available plans...</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {catalogPlans.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map((plan) => {
-              const isCurrent = plan.id === billingProfile?.billing_plan_id
-              const isPopular = plan.badge_label?.toLowerCase().includes("popular")
-              const monthlyPrice = formatPlanPriceLabel(plan)
-              const limitsText = buildPlanLimitsText(plan)
-              const features = buildPlanFeatures(plan)
-              const hasActivePlan =
-                !!billingProfile?.billing_plan_id &&
-                (billingProfile?.status === "active" || billingProfile?.status === "trialing")
-
-              let buttonText = "Choose Plan"
-              if (plan.name.toLowerCase().includes("enterprise")) {
-                buttonText = "Contact Sales"
-              } else if (isCurrent) {
-                buttonText = "Your current plan"
-              } else if (!hasActivePlan) {
-                buttonText = isFreePlan(plan) ? `Start ${plan.name}` : `Buy ${plan.name}`
-              } else {
-                const currentFee = getPlanMonthlyFee(currentPlanDetails)
-                const planFee = getPlanMonthlyFee(plan)
-                buttonText = planFee > currentFee ? `Upgrade to ${plan.name}` : `Downgrade to ${plan.name}`
-              }
-
-              let displayBadge = plan.badge_label
-              if (!displayBadge) {
-                if (isFreePlan(plan)) displayBadge = "Starter, Free"
-                else if (isPopular) displayBadge = "Recommended"
-              }
-
-              return (
-                <PlanCard
-                  key={plan.id}
-                  name={plan.name}
-                  price={monthlyPrice}
-                  limits={limitsText}
-                  features={features}
-                  buttonText={buttonText}
-                  buttonVariant={
-                    isPopular || (!isCurrent && getPlanMonthlyFee(plan) > getPlanMonthlyFee(currentPlanDetails))
-                      ? "solid"
-                      : "outline"
-                  }
-                  isCurrent={isCurrent}
-                  isPopular={!!isPopular}
-                  badgeText={displayBadge}
-                  onClick={isCurrent ? undefined : () => handlePlanSelection(plan.id)}
-                  loading={isProcessing}
-                />
-              )
-            })}
-          </div>
-        )}
+        {renderPlanSelectionContent({ onClose: () => setView("overview"), showBackButton: true })}
       </div>
     )
   }
@@ -528,14 +844,9 @@ export default function SubscriptionsPage() {
       : "June 30, 2026"
 
     return (
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
-        <div className="text-xs text-gray-400 mb-4">
-          <span>Billing</span>
-          <span className="mx-1">-</span>
-          <span className="text-gray-700 font-medium">Subscription</span>
-        </div>
+      <div className="flex min-h-[calc(100vh-120px)] w-full flex-col items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
 
-        <div className="mx-auto max-w-[740px] rounded-2xl border border-[#E5E7EB] bg-white px-6 py-8 shadow-sm sm:px-11 sm:py-9">
+        <div className="mx-auto w-full max-w-[740px] rounded-2xl border border-[#E5E7EB] bg-white px-6 py-8 shadow-sm sm:px-11 sm:py-9">
           <div className="flex flex-col items-center text-center">
             <span className="inline-flex rounded-full bg-[#FDECEC] px-7 py-2 text-sm font-semibold uppercase tracking-[0.08em] text-[#EF4444]">
               Cancelled
@@ -582,12 +893,6 @@ export default function SubscriptionsPage() {
   if (subscriptionState === "no-subscription") {
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
-        {/* Breadcrumb */}
-        <div className="text-xs text-gray-400 mb-4">
-          <span>Billing</span>
-          <span className="mx-1">-</span>
-          <span className="text-gray-700 font-medium">Subscription</span>
-        </div>
 
         {/* No Subscription Card */}
         <div className="border-2 border-blue-500 rounded-xl bg-white">
@@ -676,16 +981,13 @@ export default function SubscriptionsPage() {
   const nextBillingDate = formatBillingDate(billingProfile?.current_period_end)
   const statusLabel = billingProfile?.status?.replace("_", " ") ?? "unknown"
   const latestInvoice = subscriptionInvoices[0]
-  const paymentUpdateUrl = subscriptionInvoices.find((inv) => inv.hosted_invoice_url)?.hosted_invoice_url
-
+  const paymentUpdateUrl = getBillingManagementUrl(billingProfile, subscriptionInvoices)
+  const paymentMethodSuffix = billingProfile?.stripe_customer_id?.slice(-4) || "4242"
+  const maskedPaymentMethod = `•••• •••• •••• ${paymentMethodSuffix}`
+  const paymentExpiryLabel = "Expires --/--"
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
-      {/* Breadcrumb */}
-      <div className="text-xs text-gray-400 mb-3">
-        <span>Billing</span>
-        <span className="mx-1">-</span>
-        <span className="text-gray-700 font-medium">Subscription</span>
-      </div>
+    <TooltipProvider>
+      <div className="w-full max-w-[1880px] bg-[#F9F9F9] px-4 py-4 sm:px-5 lg:px-6">
 
       {/* Success Message Alert */}
       {billingProfile?.status === "past_due" && (
@@ -710,303 +1012,275 @@ export default function SubscriptionsPage() {
         </div>
       )}
 
-      {/* Top Stats Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {/* Current Plan */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-500">Current plan</h3>
-            <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center cursor-help" title="Your current subscription plan">
-              <span className="text-[10px] text-gray-400">?</span>
-            </div>
-          </div>
-          <div className="mb-3">
-            <div className="flex items-center gap-1.5 mb-0.5">
-              <h2 className="text-xl font-bold text-gray-900">{planName}</h2>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              {priceText}
-              {slipCapacity > 0 ? `, ${slipCapacity.toLocaleString()} cases / month` : ", unlimited cases / month"}
-            </p>
-            <p className="text-xs text-gray-500 capitalize">Status: {statusLabel}</p>
-            <p className="text-xs text-gray-500">
-              {maxAdminSeats} admin seat{maxAdminSeats !== 1 ? "s" : ""}, {maxUserSeats === -1 || maxUserSeats === null || maxUserSeats === undefined ? "unlimited" : maxUserSeats} user{maxUserSeats === 1 ? "" : "s"}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              fetchCatalogPlans()
-              setView("plans")
-            }}
-            className="w-full bg-white border border-gray-300 text-gray-700 py-1.5 px-3 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
-          >
-            Upgrade / Downgrade plan
-          </button>
-        </div>
-
-        {/* Usage */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-500">Usage</h3>
-            <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center cursor-help" title="Your current usage this billing period">
-              <span className="text-[10px] text-gray-400">?</span>
-            </div>
-          </div>
-          <div className="mb-2">
-            <h2 className="text-3xl font-bold text-gray-900 leading-tight">{usageCount.toLocaleString()}</h2>
-            <p className="text-xs text-gray-500">
-              {slipCapacity > 0 ? `${usagePercent.toFixed(1)}% used` : "Unlimited plan"}
-              {creditBalance != null ? ` · ${creditBalance.toLocaleString()} credits available` : ""}
-            </p>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-1.5 mb-3">
-            {slipCapacity > 0 && (
-              <div
-                className="h-1.5 rounded-full transition-all duration-500"
-                style={{
-                  width: `${usagePercent}%`,
-                  backgroundColor: usagePercent >= 90 ? "#EF4444" : usagePercent >= 75 ? "#FF9900" : "#3B82F6",
+      <div className="space-y-3">
+        {/* Top Stats Cards */}
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+          <OverviewCard
+            title="Current plan"
+            hint={`Your active subscription plan. Includes ${slipCapacity > 0 ? `${slipCapacity.toLocaleString()} cases/month` : "unlimited cases"}, ${maxAdminSeats} admin seat${maxAdminSeats !== 1 ? "s" : ""}, and ${maxUserSeats === -1 || maxUserSeats == null ? "unlimited" : maxUserSeats} user${maxUserSeats === 1 ? "" : "s"}.`}
+            action={
+              <SubtleActionButton
+                onClick={() => {
+                  openPlanDialog()
                 }}
-              />
-            )}
-          </div>
-          <button
-            onClick={() => router.push("/billing/subscriptions/add-ons")}
-            className="w-full bg-white border border-gray-300 text-gray-700 py-1.5 px-3 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
+                className="w-full sm:w-[210px]"
+              >
+                Upgrade / Downgrade plan
+              </SubtleActionButton>
+            }
           >
-            Explore Add-ons
-          </button>
-        </div>
-
-        {/* Next Billing Date */}
-        <div className="bg-white p-4 rounded-lg shadow-sm border">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-medium text-gray-500">Next billing date</h3>
-            <div className="w-5 h-5 bg-gray-100 rounded-full flex items-center justify-center cursor-help" title="Your next billing date">
-              <span className="text-[10px] text-gray-400">?</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-[26px] font-bold leading-none tracking-[-0.02em] text-black">{planName}</h2>
+                <TrendingUp className="h-4 w-4 text-black" />
+              </div>
+              <div className="space-y-0.5 text-[13px] leading-6 tracking-[-0.02em] text-black">
+                <p>
+                  {priceText}
+                  {slipCapacity > 0 ? `, ${slipCapacity.toLocaleString()} cases / month` : ", unlimited cases / month"}
+                </p>
+                <p>
+                  {maxAdminSeats} admin seat{maxAdminSeats !== 1 ? "s" : ""},{" "}
+                  {maxUserSeats === -1 || maxUserSeats === null || maxUserSeats === undefined ? "unlimited" : maxUserSeats} user
+                  {maxUserSeats === 1 ? "" : "s"}
+                </p>
+                <p className="capitalize text-black/70">Status: {statusLabel}</p>
+              </div>
             </div>
-          </div>
-          <div className="mb-3">
-            <h2 className="text-3xl font-bold text-gray-900 leading-tight">{nextBillingDate}</h2>
-            <p className="text-xs text-gray-500">Charged {billingFrequencyLabel}</p>
-          </div>
-          <button
-            onClick={() => setIsBillingPeriodDialogOpen(true)}
-            className="w-full bg-white border border-gray-300 text-gray-700 py-1.5 px-3 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
+          </OverviewCard>
+
+          <OverviewCard
+            title="Usage"
+            hint={`Cases created in the current billing period${billingUsage?.period_start ? ` (${formatBillingDate(billingUsage.period_start)}${billingUsage?.period_end ? ` – ${formatBillingDate(billingUsage.period_end)}` : ""})` : ""}. ${slipCapacity > 0 ? `${usageCount.toLocaleString()} of ${slipCapacity.toLocaleString()} used.` : "Unlimited plan — no monthly case cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
+            action={
+              <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="w-full sm:w-[210px]">
+                Explore Add-ons
+              </SubtleActionButton>
+            }
           >
-            Edit period
-          </button>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h2 className="text-[26px] font-bold leading-none tracking-[-0.02em] text-black">{usageCount.toLocaleString()}</h2>
+                <p className="text-[13px] leading-6 tracking-[-0.02em] text-black">
+                  {slipCapacity > 0 ? `${usagePercent.toFixed(1)}% used` : "Unlimited plan"}
+                  {creditBalance != null ? ` · ${creditBalance.toLocaleString()} credits available` : ""}
+                </p>
+              </div>
+              <div className="h-[5px] w-full rounded-full bg-[#EAEAEB]">
+                {slipCapacity > 0 && (
+                  <div
+                    className="h-[5px] rounded-full transition-all duration-500"
+                    style={{
+                      width: `${usagePercent}%`,
+                      backgroundColor: usagePercent >= 90 ? "#EF4444" : usagePercent >= 75 ? "#FF9900" : "#3B82F6",
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </OverviewCard>
+
+          <OverviewCard
+            title="Next billing date"
+            hint={`Your next payment is due on ${nextBillingDate}. You are billed ${billingFrequencyLabel}. Charges will be applied to your payment method on file.`}
+            action={
+              <SubtleActionButton onClick={() => setIsBillingPeriodDialogOpen(true)} className="w-full sm:w-[210px]">
+                Edit period
+              </SubtleActionButton>
+            }
+          >
+            <div className="space-y-3">
+              <h2 className="text-[26px] font-bold leading-none tracking-[-0.02em] text-black">{nextBillingDate}</h2>
+              <p className="text-[13px] leading-6 tracking-[-0.02em] text-black">Charged {billingFrequencyLabel}</p>
+            </div>
+          </OverviewCard>
         </div>
       </div>
 
       {/* Warning Alert (shown when usage is high) */}
       {usagePercent >= 75 && (
-        <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: "#FFF8EB", border: "1px solid #FFE0A3" }}>
-          <div className="flex items-start gap-2.5">
-            <svg width="20" height="20" viewBox="0 0 25 30" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 mt-0.5">
-              <path d="M13.8704 12.8411V4.38275L4.87036 17.6744H11.8704L11.8704 26.1328L20.8704 12.8411L13.8704 12.8411Z" stroke="#FF9900" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold" style={{ color: "#9A671B" }}>
-                You&apos;re close to hitting your monthly limit.
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: "#9A671B" }}>
-                Add more slips or upgrade your plan now to continue production.
-              </p>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    fetchCatalogPlans()
-                    setView("plans")
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium text-white transition-colors hover:opacity-90"
-                  style={{ backgroundColor: "#FF9900" }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Upgrade plan
-                </button>
-                <button
-                  onClick={() => router.push("/billing/subscriptions/add-ons")}
-                  className="inline-flex items-center px-3 py-1 rounded text-xs font-medium border transition-colors hover:bg-orange-50"
-                  style={{ borderColor: "#FFD080", color: "#9A671B" }}
-                >
-                  + Explore Add-ons
-                </button>
+        <div className="rounded-md border border-[#FF9900] bg-[#FFF3E1] px-5 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Zap className="mt-0.5 h-6 w-6 text-[#FF9900]" />
+              <div className="space-y-1">
+                <p className="text-[15px] font-bold leading-5 tracking-[-0.02em] text-[#9A671B]">
+                  You&apos;re close to hitting your monthly limit.
+                </p>
+                <p className="text-[13px] leading-5 tracking-[-0.02em] text-[#9A671B]">
+                  Add more slips or upgrade your plan now to continue production.
+                </p>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => {
+                  openPlanDialog()
+                }}
+                className="inline-flex min-h-[36px] items-center gap-2 rounded-md bg-[#FF9900] px-4 text-[13px] font-bold tracking-[-0.02em] text-white shadow-[1px_1px_7px_rgba(0,0,0,0.18)] transition hover:bg-[#eb8d00]"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Upgrade plan
+              </button>
+              <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="px-5">
+                <span className="inline-flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Explore Add-ons
+                </span>
+              </SubtleActionButton>
             </div>
           </div>
         </div>
       )}
 
-      {/* Payment Details */}
-      <div className="bg-white rounded-lg shadow-sm border mb-4">
-        <div className="px-4 py-3 border-b border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900">Payment Details</h3>
-        </div>
-        <div className="p-4">
-          <div className="mb-4 flex flex-wrap gap-2">
-            <button
-              onClick={() => setIsUpdateBillingInfoDialogOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-gray-50 transition-colors"
-            >
-              <CreditCard className="h-3.5 w-3.5" />
-              Update Billing Info
-            </button>
-            <button 
-              onClick={() => setIsCancelSubscriptionDialogOpen(true)}
-              disabled={isProcessing}
-              className="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
-            >
-              {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
-              Cancel Subscription
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="p-3 border border-gray-200 rounded-lg bg-gray-50/50 md:col-span-1">
-              <div className="flex items-center gap-1.5 mb-1">
-                <CreditCard className="h-3.5 w-3.5 text-gray-500" />
-                <span className="text-xs font-medium text-gray-800 capitalize">{statusLabel}</span>
-              </div>
-              <p className="text-[11px] text-gray-500 mb-2">
-                {billingProfile?.stripe_customer_id
-                  ? `Stripe customer ···${billingProfile.stripe_customer_id.slice(-4)}`
-                  : "Stripe customer not linked yet"}
-              </p>
-              {latestInvoice?.hosted_invoice_url && (
-                <a
-                  href={latestInvoice.hosted_invoice_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] bg-blue-600 text-white px-2.5 py-1 rounded hover:bg-blue-700 transition-colors"
+      {/* Payment Details + Invoices */}
+      <div className="rounded-md border border-[#E4E6EF] bg-white">
+        <div className="px-5 py-5">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
+              <h3 className="text-[15px] font-bold leading-5 tracking-[-0.02em] text-black">Payment Details</h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setIsUpdateBillingInfoDialogOpen(true)}
+                  className="inline-flex min-h-[32px] items-center gap-2 rounded-md border border-[#B4B0B0] bg-white px-3.5 text-[13px] font-normal tracking-[-0.02em] text-black transition hover:bg-gray-50"
                 >
-                  <ExternalLink className="h-3 w-3" />
-                  View latest invoice
-                </a>
-              )}
-            </div>
-
-            {customerAddOns.slice(0, 2).map((item) => (
-              <div key={item.id} className="p-3 border border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-gray-800">
-                    {item.add_on?.name || `Add-on #${item.billing_add_on_id}`}
-                  </span>
-                  <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded capitalize">
-                    {item.status || "active"}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500">
-                  {item.add_on?.monthly_fee != null
-                    ? `${formatCurrency(item.add_on.monthly_fee)}/mo`
-                    : "Active add-on"}
-                </p>
+                  <UserRound className="h-3.5 w-3.5" />
+                  Update Billing Info
+                </button>
+                <button
+                  onClick={() => setIsCancelSubscriptionDialogOpen(true)}
+                  disabled={isProcessing}
+                  className="inline-flex min-h-[32px] items-center gap-2 rounded-md border border-red-200 bg-white px-3.5 text-[13px] font-normal tracking-[-0.02em] text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                >
+                  {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
+                  Cancel Subscription
+                </button>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {(catalogAddOns.length > 0 || customerAddOns.length > 0) && (
-        <div id="subscription-add-ons" className="bg-white rounded-lg shadow-sm border mb-4">
-          <div className="px-4 py-3 border-b border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-900">Add-ons</h3>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {catalogAddOns.map((addOn) => {
-              const purchased = customerAddOns.some(
-                (item) => item.billing_add_on_id === addOn.id && item.status !== "cancelled"
-              )
-              return (
-                <div key={addOn.id} className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className="text-xs font-medium text-gray-900">{addOn.name}</p>
-                    <p className="text-[11px] text-gray-500">
-                      {addOn.description || `${formatCurrency(addOn.monthly_fee)}/month`}
+            </div>
+            <div className="w-full max-w-[320px]">
+              <div className="h-[124px] rounded-md border border-[#E4E6EF] bg-[#ECECF0] px-[27px] py-[16px]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-[10px] text-black">
+                      <CreditCard className="h-[22px] w-[22px] stroke-[1.8]" />
+                      <span className="text-[14px] font-normal leading-[22px] tracking-[-0.02em]">
+                        {maskedPaymentMethod}
+                      </span>
+                    </div>
+                    <p className="pl-8 text-[14px] font-normal leading-[22px] tracking-[-0.02em] text-black">
+                      {paymentExpiryLabel}
                     </p>
                   </div>
-                  {purchased ? (
-                    <span className="text-xs text-green-700 font-medium">Active</span>
+                  <div className="flex h-7 w-7 items-center justify-center text-[#FF9900]">
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-7 w-7">
+                      <path d="m10 1.8 2.43 4.93 5.45.8-3.94 3.84.93 5.43L10 14.24l-4.87 2.56.93-5.43L2.12 7.53l5.45-.8L10 1.8Z" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="pt-[20px]">
+                  {paymentUpdateUrl ? (
+                    <a
+                      href={paymentUpdateUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-[31px] min-w-[183px] items-center justify-center gap-2 rounded-md bg-[#1162A8] px-4 text-[14px] font-bold leading-[22px] tracking-[-0.02em] text-white shadow-[1px_1px_7px_rgba(0,0,0,0.25)] transition hover:bg-[#0d4f88]"
+                    >
+                      <ExternalLink className="h-[18px] w-[18px]" />
+                      Update via Stripe
+                    </a>
                   ) : (
                     <button
-                      onClick={() => handleAddOnCheckout(addOn.id)}
-                      disabled={isProcessing}
-                      className="text-xs text-blue-600 hover:text-blue-800 transition-colors disabled:opacity-50"
+                      onClick={() => void openBillingManagement(paymentUpdateUrl)}
+                      className="inline-flex h-[31px] min-w-[183px] items-center justify-center gap-2 rounded-md bg-[#1162A8] px-4 text-[14px] font-bold leading-[22px] tracking-[-0.02em] text-white shadow-[1px_1px_7px_rgba(0,0,0,0.25)] transition hover:bg-[#0d4f88]"
                     >
-                      Purchase
+                      <ExternalLink className="h-[18px] w-[18px]" />
+                      Update via Stripe
                     </button>
                   )}
                 </div>
-              )
-            })}
+              </div>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Invoices */}
-      <div className="bg-white rounded-lg shadow-sm border">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">Invoices</h3>
-          {subscriptionInvoices.some((inv) => inv.invoice_pdf) && (
-            <span className="text-xs text-gray-500">
-              {subscriptionInvoices.length} invoice{subscriptionInvoices.length === 1 ? "" : "s"}
-            </span>
+        <div className="border-t border-[#E4E6EF] px-5 py-5">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="text-[15px] font-bold leading-5 tracking-[-0.02em] text-black">Invoices</h3>
+            <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+              <Link
+                href="/billing/subscriptions/invoices"
+                className="text-[13px] font-medium tracking-[-0.02em] text-[#1162A8] transition hover:text-[#0d4f88]"
+              >
+                View all invoices
+              </Link>
+              {subscriptionInvoices.some((inv) => inv.invoice_pdf) && (
+                <SubtleActionButton onClick={handleDownloadAllInvoices} className="w-full sm:w-auto">
+                  <span className="inline-flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Download all invoices
+                  </span>
+                </SubtleActionButton>
+              )}
+            </div>
+          </div>
+
+          {subscriptionInvoices.length === 0 ? (
+            <div className="rounded-md border border-[#E4E6EF] px-5 py-6 text-center text-[13px] leading-6 tracking-[-0.02em] text-black/70">
+              No subscription invoices yet. Invoices appear here after your first Stripe billing cycle.
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {subscriptionInvoices.map((invoice) => (
+                <div
+                  key={invoice.id}
+                  className="flex flex-col gap-3 rounded-md border border-[#E4E6EF] px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="text-[13px] font-normal leading-6 tracking-[-0.02em] text-black">
+                      {invoice.invoice_number || `Invoice #${invoice.id}`}
+                    </p>
+                    <p className="text-[13px] leading-6 tracking-[-0.02em] text-[#B4B0B0]">
+                      {formatBillingDate(invoice.created_at || invoice.paid_at)} •{" "}
+                      {formatCurrency(getInvoiceDisplayAmount(invoice), invoice.currency || "USD")}
+                      {invoice.status ? ` • ${invoice.status}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-5">
+                    <Link
+                      href={`/billing/subscriptions/invoices/${invoice.id}`}
+                      className="inline-flex items-center gap-2 text-[13px] font-normal tracking-[-0.02em] text-black transition hover:text-[#1162A8]"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      View
+                    </Link>
+                    {invoice.invoice_pdf && (
+                      <a
+                        href={invoice.invoice_pdf}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-[13px] font-normal tracking-[-0.02em] text-black transition hover:text-[#1162A8]"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Download
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-        {subscriptionInvoices.length === 0 ? (
-          <div className="px-4 py-6 text-center text-xs text-gray-500">
-            No subscription invoices yet. Invoices appear here after your first Stripe billing cycle.
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {subscriptionInvoices.map((invoice) => (
-              <div key={invoice.id} className="flex items-center justify-between px-4 py-2.5">
-                <div>
-                  <p className="text-xs font-medium text-gray-900">
-                    {invoice.invoice_number || `Invoice #${invoice.id}`}
-                  </p>
-                  <p className="text-[11px] text-gray-500">
-                    {formatBillingDate(invoice.created_at || invoice.paid_at)} ·{" "}
-                    {formatCurrency(invoice.amount, invoice.currency || "USD")}
-                    {invoice.status ? ` · ${invoice.status}` : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {invoice.hosted_invoice_url && (
-                    <a
-                      href={invoice.hosted_invoice_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      View
-                    </a>
-                  )}
-                  {invoice.invoice_pdf && (
-                    <a
-                      href={invoice.invoice_pdf}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
-                    >
-                      <Download className="h-3 w-3" />
-                      Download
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <BillingPeriodDialog open={isBillingPeriodDialogOpen} onOpenChange={setIsBillingPeriodDialogOpen} />
+      <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
+        <DialogContent
+          onEscapeKeyDown={() => setIsPlanDialogOpen(false)}
+          className="max-h-[92vh] w-[min(96vw,1520px)] max-w-none overflow-y-auto rounded-2xl bg-[#F9F9F9] p-6 shadow-2xl"
+        >
+          {renderPlanSelectionContent()}
+        </DialogContent>
+      </Dialog>
       <CancelSubscriptionDialog
         open={isCancelSubscriptionDialogOpen}
         onOpenChange={setIsCancelSubscriptionDialogOpen}
@@ -1016,7 +1290,10 @@ export default function SubscriptionsPage() {
       <UpdateBillingInfoDialog
         open={isUpdateBillingInfoDialogOpen}
         onOpenChange={setIsUpdateBillingInfoDialogOpen}
+        onUpdateStripe={() => void openBillingManagement(paymentUpdateUrl)}
+        canManageBilling={!!paymentUpdateUrl || !!resolvedCustomerId || !!billingProfile?.id}
       />
     </div>
+    </TooltipProvider>
   )
 }
