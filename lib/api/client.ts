@@ -100,7 +100,9 @@ export const apiClient: ApiClient = {
         }
         throw new Error('Unauthorized')
       }
-      throw new Error(`HTTP error! status: ${response.status}`)
+      const errorBody = await response.json().catch(() => null)
+      const message = errorBody?.message || `HTTP error! status: ${response.status}`
+      throw new Error(message)
     }
 
     const result = await response.json()

@@ -1,0 +1,187 @@
+RXN3D Frontend - E2E Test Suite Directory Structure
+====================================================
+
+Root Directory: /Users/gilberttuazon/Documents/Projects/RXN3D/rx\ be\ fe/Rxn3D-Frontend/
+
+Generated/Modified Files:
+├─ playwright.config.ts                          [NEW] Playwright configuration
+├─ package.json                                   [MODIFIED] Added E2E scripts
+├─ E2E_TEST_SUMMARY.md                           [NEW] Executive summary
+├─ E2E_DIRECTORY_STRUCTURE.txt                   [NEW] This file
+│
+└─ e2e/                                           [NEW] E2E test directory
+   ├─ INDEX.md                                    [NEW] Index and navigation
+   ├─ README.md                                   [NEW] Complete documentation
+   ├─ TEST_EXECUTION_GUIDE.md                     [NEW] Step-by-step guide
+   ├─ QUICK_REFERENCE.md                          [NEW] Quick reference card
+   │
+   ├─ tests/                                      [NEW] Test files
+   │  ├─ billing-usage-tracking.spec.ts          [NEW] 5 automated tests
+   │  └─ usage-tracking-manual.spec.ts           [NEW] 4 interactive tests
+   │
+   ├─ pages/                                      [NEW] Page objects
+   │  └─ BillingPage.ts                          [NEW] Billing page object
+   │
+   ├─ fixtures/                                   [NEW] Test utilities
+   │  └─ api-logger.ts                           [NEW] API logging utility
+   │
+   ├─ artifacts/                                  [NEW] Generated artifacts
+   │  ├─ billing-subscriptions-before.png         [GENERATED] Screenshot
+   │  ├─ billing-subscriptions-after.png          [GENERATED] Screenshot
+   │  └─ ... (screenshots/videos created on test run)
+   │
+   └─ reports/                                    [NEW] Test reports
+      ├─ index.html                               [GENERATED] HTML report
+      ├─ junit.xml                                [GENERATED] JUnit report
+      └─ trace.zip                                [GENERATED] Execution trace
+
+Total Files Created: 12
+Total Documentation Files: 5
+Total Test Files: 2
+Total Utility Files: 1
+Total Configuration Files: 1
+
+============================================================
+Key Files to Read
+============================================================
+
+1. START HERE:
+   - E2E_TEST_SUMMARY.md          (Overview and quick start)
+   - e2e/QUICK_REFERENCE.md        (Common commands)
+
+2. DETAILED GUIDES:
+   - e2e/TEST_EXECUTION_GUIDE.md   (Step-by-step instructions)
+   - e2e/README.md                 (Complete documentation)
+
+3. TEST CODE:
+   - e2e/tests/usage-tracking-manual.spec.ts    (Interactive tests)
+   - e2e/pages/BillingPage.ts                   (Page object model)
+
+============================================================
+Common Commands
+============================================================
+
+# Start frontend server
+npm run dev
+
+# Run all E2E tests (headless)
+npm run e2e
+
+# Run tests with browser visible
+npm run e2e:headed
+
+# Debug test (interactive inspector)
+npm run e2e:debug
+
+# View HTML report
+npm run e2e:report
+
+# Run specific test file
+npx playwright test e2e/tests/usage-tracking-manual.spec.ts
+
+# Run tests matching pattern
+npx playwright test -k "should log"
+
+============================================================
+What Gets Generated After Running Tests
+============================================================
+
+After running tests, the following directories/files are created:
+
+e2e/artifacts/
+├─ billing-subscriptions-initial.png
+├─ billing-subscriptions-before.png
+├─ billing-subscriptions-final.png
+├─ billing-usage-before-case.png
+├─ billing-usage-after-case.png
+└─ ... (additional screenshots as needed)
+
+e2e/reports/
+├─ index.html                  ← Open in browser to view report
+├─ junit.xml                   ← For CI/CD integration
+└─ trace.zip                   ← For debugging failures
+
+============================================================
+File Purposes
+============================================================
+
+playwright.config.ts
+  - Configures Playwright test runner
+  - Sets base URL, browser, reporters
+  - Enables tracing and screenshots
+
+package.json (modified)
+  - Added E2E test scripts
+  - npm run e2e, e2e:headed, e2e:debug, e2e:report
+
+billing-usage-tracking.spec.ts
+  - 5 automated tests
+  - Tests visibility, metrics, updates, API, progress bar
+
+usage-tracking-manual.spec.ts
+  - 4 interactive tests
+  - Full API logging, structure validation, color verification
+
+BillingPage.ts
+  - Page Object Model
+  - Encapsulates all UI interactions
+  - Reusable across tests
+
+api-logger.ts
+  - API request/response logging
+  - Filters, summaries, response times
+  - Debugging aid
+
+============================================================
+Documentation Files Explained
+============================================================
+
+E2E_TEST_SUMMARY.md
+  └─ What was created, quick start, test coverage
+
+e2e/QUICK_REFERENCE.md
+  └─ Commands, selectors, common issues, performance
+
+e2e/TEST_EXECUTION_GUIDE.md
+  └─ Step-by-step guide, troubleshooting, CI/CD
+
+e2e/README.md
+  └─ Complete documentation, best practices
+
+e2e/INDEX.md
+  └─ Navigation guide for all files
+
+============================================================
+Test Coverage
+============================================================
+
+✓ Page Loading
+✓ Card Display
+✓ Metrics Extraction
+✓ Progress Bar Display
+✓ Progress Bar Colors
+✓ API Response Validation
+✓ Data Binding
+✓ Network Requests
+
+============================================================
+Next Steps
+============================================================
+
+1. Read: E2E_TEST_SUMMARY.md
+2. Run: npm run dev (start frontend)
+3. Run: npm run e2e:headed (see tests in action)
+4. View: npm run e2e:report (see results)
+5. Integrate with CI/CD (see TEST_EXECUTION_GUIDE.md)
+
+============================================================
+Support
+============================================================
+
+For questions:
+- Read the appropriate documentation file
+- Check QUICK_REFERENCE.md for common issues
+- Run tests with --headed to see what's happening
+- Use npm run e2e:debug for interactive debugging
+
+============================================================

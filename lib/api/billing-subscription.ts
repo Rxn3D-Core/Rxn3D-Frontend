@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/client"
+import { countSlipUsageInPeriod, resolveUsagePeriod } from "@/lib/billing-subscription/usage-fallback"
 
 function unwrapList<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw
@@ -34,12 +35,17 @@ export interface SubscriptionInvoice {
   id: number
   invoice_number?: string | null
   amount?: number | string | null
+  amount_due?: number | string | null
+  amount_paid?: number | string | null
+  total_amount?: number | string | null
+  subtotal?: number | string | null
   currency?: string | null
   status?: string | null
   hosted_invoice_url?: string | null
   invoice_pdf?: string | null
   created_at?: string | null
   paid_at?: string | null
+  due_date?: string | null
 }
 
 export interface CatalogAddOn {
@@ -56,6 +62,11 @@ export interface CustomerAddOn {
   billing_add_on_id: number
   status?: string
   add_on?: CatalogAddOn
+}
+
+type SlipListingRecord = {
+  timestamp?: string | null
+  created_at?: string | null
 }
 
 /** GET /v1/billing-usage?customer_id={id} */
@@ -102,6 +113,43 @@ export async function listCustomerAddOns(customerId: number): Promise<CustomerAd
     params: { customer_id: customerId },
   })
   return unwrapList<CustomerAddOn>(response.data)
+}
+
+/** Frontend fallback when billing usage metering has not yet been updated by the backend. */
+export async function getSlipUsageFallbackCount(
+  customerId: number,
+  options?: {
+    periodStart?: string | null
+    periodEnd?: string | null
+    perPage?: number
+  }
+): Promise<number> {
+  const response = await apiClient.get<unknown>("/slip/listing/lab", {
+    params: {
+      customer_id: customerId,
+      page: 1,
+      per_page: options?.perPage ?? 100,
+      order_by: "created_at",
+      sort_by: "desc",
+    },
+  })
+
+  const payload = response.data as
+    | { data?: SlipListingRecord[]; pagination?: unknown }
+    | { data?: { data?: SlipListingRecord[]; pagination?: unknown } }
+    | SlipListingRecord[]
+    | null
+
+  const slips = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.data?.data)
+        ? payload.data.data
+        : []
+
+  const usagePeriod = resolveUsagePeriod(options?.periodStart, options?.periodEnd)
+  return countSlipUsageInPeriod(slips, usagePeriod)
 }
 
 export interface AddOnCheckoutPayload {
