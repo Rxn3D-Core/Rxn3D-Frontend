@@ -84,40 +84,47 @@ export function CaseDesignHeaderActions({
   showSelectTeethToReplaceMandibular = false,
 }: CaseDesignHeaderActionsProps) {
   return (
-    <div className="relative flex items-center mb-1 md:mb-2" style={{ justifyContent: "space-evenly" }}>
+    /* On lg+ this mirrors the panel flex-row: [maxillary flex-1] [center shrink-0] [mandibular flex-1]
+       On smaller screens both arch labels/buttons stack centrally. */
+    <div className="flex items-center mb-1 md:mb-2 gap-2">
+      {/* LEFT — aligns over maxillary tooth chart */}
       <div className="flex-1 flex items-center justify-center">
         {!caseSubmitted && showMaxillaryProductButton ? (
           <button
             type="button"
             onClick={onAddMaxillaryProduct}
-            className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+            className="flex flex-row items-center justify-center gap-1 px-[10px] py-0 max-w-[230px] w-full h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MAXILLARY PRODUCT</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="font-[Verdana] font-normal text-[12px] sm:text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white whitespace-nowrap">MAXILLARY PRODUCT</span>
           </button>
         ) : showSelectTeethToReplaceMaxillary ? (
-          <span className="text-[16px] sm:text-xl text-orange-500 font-bold tracking-wide animate-pulse">SELECT TEETH TO REPLACE</span>
+          <span className="text-[13px] sm:text-[16px] text-orange-500 font-bold tracking-wide animate-pulse text-center">SELECT TEETH TO REPLACE</span>
         ) : (
-          <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MAXILLARY</span>
+          <span className="text-[14px] sm:text-[16px] lg:text-xl text-[#1d1d1b] tracking-wide text-center">MAXILLARY</span>
         )}
       </div>
-      <h2 className="flex-1 text-center text-xl font-bold text-[#1d1d1b] tracking-wide">
+
+      {/* CENTER — narrow shrink-0 column, matches CenterNavigation */}
+      <h2 className="flex-shrink-0 w-auto text-center text-[14px] sm:text-[16px] lg:text-xl font-bold text-[#1d1d1b] tracking-wide">
         CASE DESIGN CENTER
       </h2>
+
+      {/* RIGHT — aligns over mandibular tooth chart */}
       <div className="flex-1 flex items-center justify-center">
         {!caseSubmitted && showMandibularProductButton ? (
           <button
             type="button"
             onClick={onAddMandibularProduct}
-            className="flex flex-row items-center justify-center px-[10px] py-0 w-[230px] h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+            className="flex flex-row items-center justify-center gap-1 px-[10px] py-0 max-w-[230px] w-full h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-[Verdana] font-normal text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white">MANDIBULAR PRODUCT</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="font-[Verdana] font-normal text-[12px] sm:text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white whitespace-nowrap">MANDIBULAR PRODUCT</span>
           </button>
         ) : showSelectTeethToReplaceMandibular ? (
-          <span className="text-[16px] sm:text-xl text-orange-500 font-bold tracking-wide animate-pulse">SELECT TEETH TO REPLACE</span>
+          <span className="text-[13px] sm:text-[16px] text-orange-500 font-bold tracking-wide animate-pulse text-center">SELECT TEETH TO REPLACE</span>
         ) : (
-          <span className="text-[16px] sm:text-xl text-[#1d1d1b] tracking-wide">MANDIBULAR</span>
+          <span className="text-[14px] sm:text-[16px] lg:text-xl text-[#1d1d1b] tracking-wide text-center">MANDIBULAR</span>
         )}
       </div>
     </div>

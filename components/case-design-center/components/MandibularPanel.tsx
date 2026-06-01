@@ -580,7 +580,7 @@ function AdvanceFieldSelect({
 }: {
   fieldId: number;
   fieldName: string;
-  activeOptions: Array<{ id: number; name: string; is_default?: string;[key: string]: any }>;
+  activeOptions: Array<{ id: number; name: string; is_default?: string; image_url?: string | null; [key: string]: any }>;
   currentSelection: { name: string; optionId: number } | undefined;
   borderColor: string;
   labelColor: string;
@@ -602,6 +602,8 @@ function AdvanceFieldSelect({
   }, [currentSelection, activeOptions, onSelect]);
 
   const hasVal = !!currentSelection;
+  const selectedOption = activeOptions.find((o) => o.id === currentSelection?.optionId);
+  const selectedImageUrl = selectedOption?.image_url ?? null;
 
   return (
     <fieldset
@@ -612,31 +614,47 @@ function AdvanceFieldSelect({
       <legend className="text-sm px-1 leading-none whitespace-nowrap" style={{ color: labelColor }}>
         {fieldName}
       </legend>
-      <Select
-        open={open}
-        onOpenChange={setOpen}
-        value={currentSelection?.optionId?.toString() || ""}
-        onValueChange={(value) => {
-          const opt = activeOptions.find((o) => o.id?.toString() === value);
-          if (opt) onSelect(opt);
-        }}
-      >
-        <SelectTrigger
-          className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 w-full bg-transparent"
+      <div className="flex items-center gap-2 w-full min-w-0">
+        <Select
+          open={open}
+          onOpenChange={setOpen}
+          value={currentSelection?.optionId?.toString() || ""}
+          onValueChange={(value) => {
+            const opt = activeOptions.find((o) => o.id?.toString() === value);
+            if (opt) onSelect(opt);
+          }}
         >
-          <SelectValue>
-            {currentSelection ? currentSelection.name : ''}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {activeOptions.map((option) => (
-            <SelectItem key={option.id} value={option.id.toString()}>
-              {option.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {hasVal && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />}
+          <SelectTrigger
+            className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 flex-1 bg-transparent"
+          >
+            <SelectValue>
+              {currentSelection ? currentSelection.name : ''}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {activeOptions.map((option) => (
+              <SelectItem key={option.id} value={option.id.toString()}>
+                <div className="flex items-center gap-2">
+                  {option.image_url && (
+                    <img src={option.image_url} alt={option.name} className="w-6 h-6 object-contain flex-shrink-0" />
+                  )}
+                  {option.name}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Selected option image shown on the right */}
+        {selectedImageUrl && (
+          <img
+            src={selectedImageUrl}
+            alt={currentSelection?.name ?? ""}
+            className="h-8 w-8 object-contain flex-shrink-0"
+          />
+        )}
+        {hasVal && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
+      </div>
     </fieldset>
   );
 }

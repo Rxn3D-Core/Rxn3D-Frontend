@@ -4,6 +4,11 @@ import type { Arch, ProductAdvanceField, ShadeFieldType } from "../types";
 import { getShadeFieldType } from "../utils/shadeGuideAdvanceFields";
 import { ShadeField } from "./fields/ShadeField";
 
+function formatShadeGuideName(raw: string): string {
+  if (!raw) return raw;
+  return raw.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 interface ShadeDetailSectionProps {
   arch: Arch;
   fields: ProductAdvanceField[];
@@ -29,6 +34,8 @@ interface ShadeDetailSectionProps {
   isComplete?: boolean;
   /** Advance field id currently open in the shade picker */
   activeAdvanceFieldId?: number | null;
+  /** Selected shade guide name (e.g. "VITA_CLASSICAL") — shown as main text in each field */
+  selectedShadeGuide?: string;
 }
 
 export function ShadeDetailSection({
@@ -41,6 +48,7 @@ export function ShadeDetailSection({
   caseSubmitted = false,
   isComplete = false,
   activeAdvanceFieldId = null,
+  selectedShadeGuide = "",
 }: ShadeDetailSectionProps) {
   if (fields.length === 0) return null;
 
@@ -68,15 +76,17 @@ export function ShadeDetailSection({
         {legendLabel}
       </legend>
       <div className="p-2.5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {fields.map((field) => {
             const fieldType = getShadeFieldType(field);
+            const shadeCode = getSelectedShade(productShadeId, arch, fieldType, field.id);
             return (
               <ShadeField
                 key={field.id}
                 label={field.name}
-                value={getSelectedShade(productShadeId, arch, fieldType, field.id)}
-                shade=""
+                // Guide name as main text, shade code only on the tooth SVG
+                value={shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
+                shade={shadeCode}
                 isActive={activeAdvanceFieldId != null && field.id === activeAdvanceFieldId}
                 onClick={() =>
                   onShadeFieldClick(arch, fieldType, productShadeId, {
