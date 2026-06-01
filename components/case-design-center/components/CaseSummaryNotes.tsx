@@ -130,7 +130,7 @@ export function CaseSummaryNotes(props: NotesProps) {
                     requestAnimationFrame(syncTextareaHeight);
                   }
                 }}
-                className={`w-full rounded-lg border border-[#D1D5DB] px-3 pt-4 pb-3 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 overflow-hidden ${
+                className={`w-full rounded-lg border border-[#D1D5DB] px-3 pt-4 pb-3 text-[18px] text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 overflow-hidden ${
                   expanded ? "min-h-[200px] resize-y" : "resize-none"
                 }`}
                 placeholder="Notes will appear here as you complete product fields…"

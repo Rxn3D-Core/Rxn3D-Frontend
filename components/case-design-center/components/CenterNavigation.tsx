@@ -3,7 +3,7 @@ export function CenterNavigation() {
   const arrowHeight = 4;
 
   return (
-    <div className="flex flex-col items-center justify-start pt-4 flex-shrink-0 order-2 lg:order-none gap-1 w-max min-w-[11rem]">
+    <div className="flex flex-col items-center justify-start pt-10 mt-2 flex-shrink-0 order-2 lg:order-none gap-1 w-max min-w-[11rem]">
       <div className="flex items-center gap-1 sm:gap-1.5 mb-2" aria-label="Teeth in mouth status">
         <svg
           width={arrowWidth}
@@ -23,7 +23,7 @@ export function CenterNavigation() {
           </defs>
         </svg>
         <div
-          className="flex items-center justify-center px-4 py-2.5 rounded-[6px] whitespace-nowrap min-h-[50px] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] border border-[#CEC6B3]/60"
+          className="flex items-center justify-center px-4 py-2.5 rounded-[6px] whitespace-nowrap min-h-[25px] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] border border-[#CEC6B3]/60"
           style={{ backgroundColor: "#F3EBD7" }}
         >
           <span className="font-[Verdana] text-[15px] sm:text-[16px] font-normal tracking-[0.05em] text-black leading-tight text-center">

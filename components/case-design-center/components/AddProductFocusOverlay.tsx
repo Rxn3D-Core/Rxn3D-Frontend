@@ -1,37 +1,12 @@
 "use client";
 
-import type { ReactNode } from "react";
 import type { Arch } from "../types";
 
 const OVERLAY_CLASS =
-  "absolute inset-0 z-[15] rounded-lg flex items-start justify-center pt-12 cursor-not-allowed";
+  "absolute inset-0 z-[25] rounded-lg flex items-start justify-center pt-12 cursor-not-allowed";
 
 const BADGE_CLASS =
   "text-xs text-[#7f7f7f] bg-white border border-[#d9d9d9] rounded px-3 py-1.5 shadow-sm select-none pointer-events-none text-center max-w-[min(100%,280px)]";
-
-/** Blocks pointer interaction on wrapped content while adding a product on either arch. */
-export function AddProductFocusOverlay({
-  active,
-  children,
-}: {
-  active: boolean;
-  children: ReactNode;
-}) {
-  if (!active) return <>{children}</>;
-
-  return (
-    <div className="relative">
-      <div className="opacity-55 pointer-events-none select-none" aria-hidden>
-        {children}
-      </div>
-      <div
-        className={OVERLAY_CLASS}
-        style={{ backgroundColor: "rgba(245, 245, 245, 0.72)" }}
-        aria-hidden
-      />
-    </div>
-  );
-}
 
 /** Full-arch panel shield when the user is adding a product on the opposite arch. */
 export function OppositeArchAddProductShield({

@@ -268,7 +268,10 @@ export function ShadeSelectionGuide({
   };
 
   return (
-    <div className="bg-white min-w-0 overflow-visible relative">
+    <>
+      {/* Dim the rest of the screen; block clicks so background fields stay inactive */}
+      <div className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
+      <div className="bg-white min-w-0 overflow-visible relative z-[60] mt-4 rounded-lg shadow-lg ring-1 ring-[#e5e7eb] p-3">
       <div className="relative">
         <div className="grid grid-cols-2 gap-3 mb-3">
 
@@ -457,6 +460,7 @@ export function ShadeSelectionGuide({
           />
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

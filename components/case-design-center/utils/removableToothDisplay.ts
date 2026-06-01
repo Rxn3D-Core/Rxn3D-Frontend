@@ -156,14 +156,18 @@ export function getToothStatusBoxDisplayMap({
   selectedTeeth,
   toothExtractionMap,
   claspTeeth,
+  excludeTeeth = [],
 }: {
   extractions: Array<{ code: string; is_tim?: string; overlay?: string }>;
   selectedTeeth: number[];
   toothExtractionMap: Record<number, string>;
   claspTeeth: number[];
+  /** Teeth to hide from the display (teeth shown in the product header). */
+  excludeTeeth?: number[];
 }): Record<string, number[]> {
+  const excludeSet = new Set(excludeTeeth);
   return extractions.reduce<Record<string, number[]>>((acc, extraction) => {
-    acc[extraction.code] = getStatusBoxTeeth({
+    const teeth = getStatusBoxTeeth({
       selectedTeeth,
       toothExtractionMap,
       claspTeeth,
@@ -171,6 +175,7 @@ export function getToothStatusBoxDisplayMap({
       isDefault: isTimExtractionByFlag(extraction),
       isClasp: isOverlayExtractionByFlag(extraction),
     });
+    acc[extraction.code] = excludeSet.size > 0 ? teeth.filter((t) => !excludeSet.has(t)) : teeth;
     return acc;
   }, {});
 }
