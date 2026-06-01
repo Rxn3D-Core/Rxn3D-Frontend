@@ -214,6 +214,7 @@ interface SlipCreationContextType {
   holdSlip: (slipId: number, reason: string) => Promise<any>
   resumeSlip: (slipId: number, reason: string) => Promise<any>
   cancelSlip: (slipId: number, reason: string) => Promise<any>
+  sendBackToOfficeSlip: (slipId: number, reason: string) => Promise<any>
 
   // Generate paper slips
   generatePaperSlips: (caseIds: number[]) => Promise<any>
@@ -916,6 +917,24 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     return json;
   }, [token]);
 
+  const sendBackToOfficeSlip = useCallback(async (slipId: number, reason: string) => {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/action/${slipId}/send-back-to-office`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ reason }),
+    });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || "Failed to send slip back to office");
+    return json;
+  }, [token]);
+
 
   // --- Generate Paper Slips API ---
   const generatePaperSlips = useCallback(async (caseIds: number[]) => {
@@ -1024,6 +1043,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         holdSlip,
         resumeSlip,
         cancelSlip,
+        sendBackToOfficeSlip,
         generatePaperSlips,
         requestSlipRush,
         createSlip,

@@ -122,6 +122,13 @@ export function formatBillingDate(value?: string | null): string {
   })
 }
 
+export function resolveNextBillingPeriodEnd(
+  profilePeriodEnd?: string | null,
+  usagePeriodEnd?: string | null,
+): string | null {
+  return profilePeriodEnd || usagePeriodEnd || null
+}
+
 export function formatCurrency(amount?: number | string | null, currency = "USD"): string {
   const value = Number(amount)
   if (Number.isNaN(value)) return "—"

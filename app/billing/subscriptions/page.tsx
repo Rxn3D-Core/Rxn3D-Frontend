@@ -36,6 +36,7 @@ import {
   getPlanMonthlyFee,
   getSlipCapacity,
   isFreePlan,
+  resolveNextBillingPeriodEnd,
   type CatalogPlan,
 } from "@/lib/billing-subscription/plan-helpers"
 import { resolveUsageCustomerId } from "@/lib/billing-subscription/customer-context"
@@ -978,7 +979,11 @@ export default function SubscriptionsPage() {
   const usagePercent =
     slipCapacity > 0 ? Math.min((usageCount / slipCapacity) * 100, 100) : 0
 
-  const nextBillingDate = formatBillingDate(billingProfile?.current_period_end)
+  const nextBillingPeriodEnd = resolveNextBillingPeriodEnd(
+    billingProfile?.current_period_end,
+    billingUsage?.period_end,
+  )
+  const nextBillingDate = formatBillingDate(nextBillingPeriodEnd)
   const statusLabel = billingProfile?.status?.replace("_", " ") ?? "unknown"
   const latestInvoice = subscriptionInvoices[0]
   const paymentUpdateUrl = getBillingManagementUrl(billingProfile, subscriptionInvoices)

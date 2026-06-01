@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react";
-import { X, AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 
 interface SendCaseBackToOfficeModalProps {
   open: boolean;
@@ -18,10 +18,15 @@ export default function SendCaseBackToOfficeModal({
 }: SendCaseBackToOfficeModalProps) {
   const [reason, setReason] = useState("");
 
+  useEffect(() => {
+    if (!open) {
+      setReason("");
+    }
+  }, [open]);
+
   const handleConfirm = () => {
     if (reason.trim()) {
       onConfirm(reason);
-      setReason("");
     }
   };
 
