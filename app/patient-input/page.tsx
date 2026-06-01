@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
@@ -10,6 +10,7 @@ import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { isValidPatientName } from "@/lib/patient-name-validation"
+import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings"
 
 interface Doctor {
   id: number
@@ -39,6 +40,23 @@ export default function PatientInputPage() {
   const [age, setAge] = useState<string>("")
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const allowNavigationRef = useRef<boolean>(false)
+
+  // Slip-settings-driven field visibility/requiredness for the create-slip form
+  const { showGender, genderRequired, showAge, ageRequired, isLoading: settingsLoading } =
+    usePatientFieldSettings()
+
+  // All shown + required fields satisfied (name is always required)
+  const requiredComplete =
+    isValidPatientName(patientName) &&
+    (!genderRequired || Boolean(gender)) &&
+    (!ageRequired || Boolean(age))
+
+  // Bumped on any field interaction so the auto-advance timer resets without
+  // pulling the user out of an optional field they're still filling.
+  const [interactionTick, setInteractionTick] = useState(0)
+  const handleFieldInteraction = useCallback(() => {
+    setInteractionTick((t) => t + 1)
+  }, [])
 
   // Remove caseDesignCenterState from localStorage on page load/refresh using React Query
   useEffect(() => {
@@ -83,26 +101,26 @@ export default function PatientInputPage() {
     }
   }, [searchParams])
 
-  // Auto-navigate to case design center when both fields are filled
-  useEffect(() => {
-    if (isValidPatientName(patientName) && gender) {
-      // Small delay to ensure user has finished typing/selecting
-      const timer = setTimeout(() => {
-        // Store patient data
-        const patientData = {
-          name: patientName.trim(),
-          gender,
-          ...(age ? { age } : {}),
-        }
-        localStorage.setItem("patientData", JSON.stringify(patientData))
-
-        // Navigate to case design center
-        router.push("/case-design-center")
-      }, 500) // 500ms delay
-
-      return () => clearTimeout(timer)
+  const navigateToDesignCenter = useCallback(() => {
+    const patientData = {
+      name: patientName.trim(),
+      ...(showGender && gender ? { gender } : {}),
+      ...(showAge && age ? { age } : {}),
     }
-  }, [patientName, gender, age, router])
+    localStorage.setItem("patientData", JSON.stringify(patientData))
+    router.push("/case-design-center")
+  }, [patientName, gender, age, showGender, showAge, router])
+
+  // Auto-navigate once all shown + required fields are satisfied. The timer
+  // re-arms on every value change AND on any field interaction (interactionTick),
+  // so a user filling optional gender/age is never pulled away mid-entry.
+  useEffect(() => {
+    if (settingsLoading || !requiredComplete) return
+    const timer = setTimeout(() => {
+      navigateToDesignCenter()
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [patientName, gender, age, requiredComplete, settingsLoading, interactionTick, navigateToDesignCenter])
 
   // Check if there's unsaved work (patient name or gender entered)
   const hasUnsavedWork = useMemo(() => {
@@ -158,7 +176,7 @@ export default function PatientInputPage() {
       return
     }
 
-    if (!gender) {
+    if (genderRequired && !gender) {
       toast({
         title: "Validation Error",
         description: "Please select a gender",
@@ -167,16 +185,16 @@ export default function PatientInputPage() {
       return
     }
 
-    // Store patient data
-    const patientData = {
-      name: patientName.trim(),
-      gender,
-      ...(age ? { age } : {}),
+    if (ageRequired && !age) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter an age",
+        variant: "destructive",
+      })
+      return
     }
-    localStorage.setItem("patientData", JSON.stringify(patientData))
 
-    // Navigate to case design center
-    router.push("/case-design-center")
+    navigateToDesignCenter()
   }
 
   return (
@@ -193,7 +211,9 @@ export default function PatientInputPage() {
           onNameChange: setPatientName,
           onGenderChange: setGender,
           onAgeChange: setAge,
+          onInteraction: handleFieldInteraction,
         }}
+        patientFieldSettings={{ showGender, genderRequired, showAge, ageRequired }}
       />
 
       <div className="container mx-auto px-6 py-4 max-w-[1600px]">

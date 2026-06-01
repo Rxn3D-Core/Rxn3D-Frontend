@@ -74,7 +74,10 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
   if (!gumShades || gumShades.length === 0) return null;
 
   return (
-    <div className="bg-white self-stretch flex flex-col gap-3">
+    <>
+      {/* Dim the rest of the screen; block clicks so background fields stay inactive */}
+      <div className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
+      <div className="bg-white self-stretch flex flex-col gap-3 relative z-[60] rounded-lg shadow-lg ring-1 ring-[#e5e7eb] p-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Brand dropdown */}
         <div className="relative">
@@ -216,6 +219,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
           </button>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -1431,17 +1431,6 @@ export function MaxillaryPanel({
 
   return (
     <div className={`flex-1 min-w-0 px-0 order-1 lg:order-none relative`}>
-      {disabled && (
-        <OppositeArchAddProductShield active activeArch="mandibular" />
-      )}
-      {showInlineAddProductPicker && (
-        <div
-          className="absolute inset-0 z-[15] rounded-lg cursor-default"
-          style={{ backgroundColor: "rgba(245, 245, 245, 0.65)" }}
-          aria-hidden
-        />
-      )}
-
       {/* Eye toggle hidden — restore by removing false && wrapper */}
       <div className="relative">
         {false && (
@@ -3859,6 +3848,11 @@ export function MaxillaryPanel({
           </div>{/* end scrollable accordion container */}
 
         </>
+      )}
+
+      {/* Block interaction on this arch only while adding a product on the opposite arch */}
+      {disabled && (
+        <OppositeArchAddProductShield active activeArch="mandibular" />
       )}
     </div>
   );

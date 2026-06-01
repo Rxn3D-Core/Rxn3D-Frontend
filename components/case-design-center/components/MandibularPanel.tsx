@@ -1405,29 +1405,6 @@ export function MandibularPanel({
 
   return (
     <div className="flex-1 min-w-0 px-0 order-3 lg:order-none relative">
-      {/* Overlay to block interaction while maxillary is incomplete or adding maxillary product */}
-      {disabled && blockedByOppositeAddProduct && (
-        <OppositeArchAddProductShield active activeArch="maxillary" />
-      )}
-      {disabled && !blockedByOppositeAddProduct && (
-        <div
-          className="absolute inset-0 z-10 rounded-lg flex items-start justify-center pt-12 cursor-not-allowed"
-          style={{ backgroundColor: "rgba(245,245,245,0.75)" }}
-          title="Complete the Maxillary fields first"
-        >
-          <span className="text-xs text-[#7f7f7f] bg-white border border-[#d9d9d9] rounded px-3 py-1.5 shadow-sm select-none pointer-events-none">
-            Complete Maxillary fields first
-          </span>
-        </div>
-      )}
-      {showInlineAddProductPicker && (
-        <div
-          className="absolute inset-0 z-[15] rounded-lg cursor-default"
-          style={{ backgroundColor: "rgba(245, 245, 245, 0.65)" }}
-          aria-hidden
-        />
-      )}
-
       {/* Eye toggle + Teeth row */}
       <div className="relative">
         <button
@@ -3870,6 +3847,23 @@ export function MandibularPanel({
           </div>{/* end scrollable accordion container */}
 
         </>
+      )}
+
+      {/* Block interaction when maxillary is incomplete or adding maxillary product (rendered last so it sits above panel content) */}
+      {disabled && blockedByOppositeAddProduct && (
+        <OppositeArchAddProductShield active activeArch="maxillary" />
+      )}
+      {disabled && !blockedByOppositeAddProduct && (
+        <div
+          className="absolute inset-0 z-[25] rounded-lg flex items-start justify-center pt-12 cursor-not-allowed"
+          style={{ backgroundColor: "rgba(245,245,245,0.75)" }}
+          title="Complete the Maxillary fields first"
+          aria-hidden
+        >
+          <span className="text-xs text-[#7f7f7f] bg-white border border-[#d9d9d9] rounded px-3 py-1.5 shadow-sm select-none pointer-events-none">
+            Complete Maxillary fields first
+          </span>
+        </div>
       )}
 
     </div>

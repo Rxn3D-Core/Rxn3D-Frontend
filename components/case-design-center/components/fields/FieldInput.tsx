@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { getPatientNameFieldLabel } from "@/lib/patient-name-validation";
 
 export function FieldInput({
@@ -13,6 +13,8 @@ export function FieldInput({
   onChange,
   smartPatientLabel = false,
   type = "text",
+  required = false,
+  inputRef,
 }: {
   label: string;
   value: string;
@@ -24,10 +26,15 @@ export function FieldInput({
   smartPatientLabel?: boolean;
   /** Input type — use "number" to restrict to numeric input. */
   type?: "text" | "number";
+  /** When true, an empty value renders in the required (red) state. */
+  required?: boolean;
+  /** Optional ref to the underlying input (e.g. to programmatically focus). */
+  inputRef?: RefObject<HTMLInputElement>;
 }) {
   const [isFocused, setIsFocused] = useState(false);
   const hasValue = value.trim().length > 0;
   const showGreen = hasValue && !submitted;
+  const showError = !hasValue && required && !submitted;
   const isEditable = !!onChange && !submitted;
 
   // The legend (floating label) updates dynamically when smartPatientLabel is active
@@ -37,14 +44,15 @@ export function FieldInput({
 
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 ${showGreen ? "border-[#34a853]" : isFocused ? "border-[#1162a8]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${className}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 ${showGreen ? "border-[#34a853]" : showError ? "border-[#cf0202]" : isFocused ? "border-[#1162a8]" : "border-[#b4b0b0]"} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${className}`}
       onClick={onClick}
     >
-      <legend className={`text-sm px-1 leading-none whitespace-nowrap transition-colors duration-150 ${showGreen ? "text-[#34a853]" : isFocused ? "text-[#1162a8]" : "text-[#7f7f7f]"}`}>
+      <legend className={`text-sm px-1 leading-none whitespace-nowrap transition-colors duration-150 ${showGreen ? "text-[#34a853]" : showError ? "text-[#cf0202]" : isFocused ? "text-[#1162a8]" : "text-[#7f7f7f]"}`}>
         {legendLabel}
       </legend>
       <div className="flex items-center gap-2 min-w-0 w-full">
         <input
+          ref={inputRef}
           type={type === "number" ? "text" : "text"}
           inputMode={type === "number" ? "numeric" : undefined}
           pattern={type === "number" ? "[0-9]*" : undefined}

@@ -26,6 +26,7 @@ type User = {
   email: string
   mobile?: string
   image?: string
+  avatar?: string
   status: string
   username?: string
   description?: string
@@ -85,6 +86,7 @@ type AuthContextType = {
   error: string | null
   clearError: () => void
   setAuthFromData: (authData: AuthData, identifier?: string) => boolean
+  updateSessionUser: (partial: Partial<User>) => void
   sessionHistory: SessionHistoryItem[]
   clearSessionHistory: () => void
   isNewUser: boolean
@@ -179,7 +181,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const storedUser = localStorage.getItem("user")
       if (storedUser && storedUser !== "undefined") {
-        setUser(JSON.parse(storedUser))
+        const parsed = JSON.parse(storedUser) as User
+        const avatarUrl = parsed.avatar ?? parsed.image
+        if (avatarUrl && !parsed.image) {
+          parsed.image = avatarUrl
+        }
+        if (avatarUrl && !parsed.avatar) {
+          parsed.avatar = avatarUrl
+        }
+        setUser(parsed)
       }
 
       const storedToken = localStorage.getItem("token")
@@ -389,12 +399,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("token", authData.access_token)
       setCookie("auth_token", authData.access_token)
 
-      setUser(authData.user)
-      if (identifier) updateSessionHistory(identifier, authData.user)
+      const avatarUrl =
+        (authData.user as User & { avatar?: string }).avatar ?? authData.user.image
+      const userWithAvatar: User = {
+        ...authData.user,
+        ...(avatarUrl
+          ? { image: avatarUrl, avatar: avatarUrl }
+          : {}),
+      }
+
+      setUser(userWithAvatar)
+      if (identifier) updateSessionHistory(identifier, userWithAvatar)
       const userRoles = authData.user.roles || (authData.user.role ? [authData.user.role] : [])
       const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
       const isSuperAdmin = userRoles.includes("superadmin")
-      localStorage.setItem("user", JSON.stringify(authData.user))
+      localStorage.setItem("user", JSON.stringify(userWithAvatar))
       // Store role(s) in localStorage as 'role' (string if one, array if multiple)
       if (Array.isArray(authData.user.roles) && authData.user.roles.length === 1) {
         localStorage.setItem("role", authData.user.roles[0])
@@ -546,6 +565,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false
     }
   }
+
+  const updateSessionUser = useCallback((partial: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const updated = { ...prev, ...partial }
+      localStorage.setItem("user", JSON.stringify(updated))
+      return updated
+    })
+  }, [])
 
   const login = async (identifier: string, password: string): Promise<boolean> => {
     setError(null)
@@ -1168,6 +1196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error,
         clearError,
         setAuthFromData,
+        updateSessionUser,
         sessionHistory,
         clearSessionHistory,
         isNewUser,

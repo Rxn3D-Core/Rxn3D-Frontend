@@ -13,6 +13,9 @@ export interface Shade {
   status: string
   sequence: number
   brand_id?: number // Brand ID to filter by system_name
+  color_code_incisal?: string | null
+  color_code_body?: string | null
+  color_code_cervical?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -39,9 +42,13 @@ export interface TeethShadeGroup {
 }
 
 export interface ShadePayload {
+  id?: number
   name: string
   status: string
   sequence: number
+  color_code_incisal?: string | null
+  color_code_body?: string | null
+  color_code_cervical?: string | null
 }
 
 export interface TeethShadeBrandPayload {
@@ -118,7 +125,10 @@ type TeethShadesContextType = {
     name: string
     sequence: number
     status: string
-  }) => Promise<boolean>
+    color_code_incisal?: string
+    color_code_body?: string
+    color_code_cervical?: string
+  }) => Promise<Shade | null>
 }
 
 const defaultPagination: PaginationInfo = {
@@ -778,7 +788,10 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       name: string
       sequence: number
       status: string
-    }): Promise<boolean> => {
+      color_code_incisal?: string
+      color_code_body?: string
+      color_code_cervical?: string
+    }): Promise<Shade | null> => {
       setIsLoading(true)
       setShowAnimation(true)
       setAnimationType("creating")
@@ -793,7 +806,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           description: "No authentication token found. Please log in.",
           variant: "destructive",
         })
-        return false
+        return null
       }
 
       try {
@@ -835,10 +848,11 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
           setAnimationType("error")
           setError(result?.message || "Failed to create custom shade.")
-          return false
+          return null
         }
 
         const result = await response.json()
+        const created = (result.data?.data ?? result.data) as Shade | undefined
 
         toast({
           title: "Custom Shade Created",
@@ -847,11 +861,11 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         })
 
         setSuccessMessage(`Successfully created shade ${payload.name}`)
-        setSelectedItems([]) 
-        await fetchAvailableShades() 
-        setShowAnimation(false) 
+        setSelectedItems([])
+        await fetchAvailableShades()
+        setShowAnimation(false)
 
-        return true
+        return created?.id ? created : null
       } catch (err: any) {
         console.error("Error creating custom shade:", err)
         setAnimationType("error")
@@ -862,7 +876,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           description: err.message || "Failed to create custom shade. Please try again.",
           variant: "destructive",
         })
-        return false
+        return null
       } finally {
         setIsLoading(false)
       }

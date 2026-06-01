@@ -16,6 +16,7 @@ export function SelectField({
   options,
   onChange,
   required = false,
+  optional = false,
   open,
   onOpenChange,
   caseSubmitted = false,
@@ -28,6 +29,8 @@ export function SelectField({
   options: string[];
   onChange: (v: string) => void;
   required?: boolean;
+  /** When true, an empty value renders neutral (grey) instead of the required (red) state. */
+  optional?: boolean;
   /** When set, controls the dropdown open state (e.g. for auto-open when field appears). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -35,8 +38,10 @@ export function SelectField({
   className?: string;
 }) {
   const hasValue = value.trim().length > 0;
-  const borderColor = hasValue && !caseSubmitted ? "border-[#34a853]" : hasValue ? "border-[#b4b0b0]" : "border-[#cf0202]";
-  const legendColor = hasValue && !caseSubmitted ? "text-[#34a853]" : hasValue ? "text-[#7f7f7f]" : "text-[#cf0202]";
+  const emptyBorder = optional ? "border-[#b4b0b0]" : "border-[#cf0202]";
+  const emptyLegend = optional ? "text-[#7f7f7f]" : "text-[#cf0202]";
+  const borderColor = hasValue && !caseSubmitted ? "border-[#34a853]" : hasValue ? "border-[#b4b0b0]" : emptyBorder;
+  const legendColor = hasValue && !caseSubmitted ? "text-[#34a853]" : hasValue ? "text-[#7f7f7f]" : emptyLegend;
   const displayLabel = !hasValue && emptyLabel ? emptyLabel : label;
   return (
     <fieldset className={`border rounded px-3 py-0 relative min-w-0 h-[42px] flex items-center ${borderColor} ${className}`}>

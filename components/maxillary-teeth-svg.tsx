@@ -723,7 +723,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         )
       })()}
 
-      <div className={`relative ${className}${disabled ? ' pointer-events-none opacity-50' : ''}`}>
+      <div className={`relative mx-auto max-w-[76%] ${className}${disabled ? ' pointer-events-none opacity-50' : ''}`}>
 
         <svg ref={svgRef} className="w-full h-auto" viewBox={`0 0 695 ${showCheckboxes ? "158" : "139"}`} fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {toothMapping.map(({ tooth, x, width, pattern }) => {

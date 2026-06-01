@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback, type FocusEvent, type MouseEvent } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type FocusEvent, type MouseEvent } from "react";
 import { Pencil } from "lucide-react";
 import { FieldInput, SelectField } from "./fields";
 import type { SlipCreationResponse } from "@/services/slip-creation-service";
 import { caseDesignInter } from "../case-design-inter-font";
+import { useCreatedByUser } from "@/hooks/use-created-by-user";
 
 export interface PatientHeaderProps {
   /** Selected doctor image URL (from wizard). Falls back to placeholder when not provided. */
@@ -105,23 +106,14 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
   const dueDate = formatDate(firstSlip?.delivery?.delivery_date);
   const deliveryTime = formatTime(firstSlip?.delivery?.delivery_time);
 
-  const [createdByNameLocal, setCreatedByNameLocal] = useState("");
-  const [createdByImageLocal, setCreatedByImageLocal] = useState("");
+  const useSessionCreatedBy =
+    createdByNameProp === undefined && createdByImageUrlProp === undefined;
+  const { createdByName: sessionCreatedByName, createdByImageUrl: sessionCreatedByImageUrl } =
+    useCreatedByUser(useSessionCreatedBy);
 
-  useEffect(() => {
-    if (createdByNameProp != null) return; // prop takes precedence — skip localStorage
-    try {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCreatedByNameLocal(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-        if (user.image) setCreatedByImageLocal(user.image);
-      }
-    } catch {}
-  }, [createdByNameProp]);
-
-  const createdByName = createdByNameProp ?? createdByNameLocal;
-  const createdByImage = createdByImageUrlProp ?? createdByImageLocal;
+  const createdByName = createdByNameProp ?? sessionCreatedByName;
+  const createdByImage =
+    createdByImageUrlProp !== undefined ? createdByImageUrlProp : sessionCreatedByImageUrl;
   const canUseCompactLayout = compactLayout && !caseSubmitted;
   const [headerExpanded, setHeaderExpanded] = useState(false);
 

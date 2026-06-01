@@ -18,7 +18,6 @@ import {
   getPrimaryCardRepresentativeTooth,
   getRepresentativeTeethByCard,
 } from "../utils/productSelectionReadiness";
-import { AddProductFocusOverlay } from "./AddProductFocusOverlay";
 import { BackToProductsControl, CaseDesignHeaderActions } from "./CaseDesignHeaderActions";
 import { CaseDesignSummarySection } from "./CaseDesignSummarySection";
 import { useSlipProductCollector } from "../hooks/useSlipProductCollector";
@@ -1245,10 +1244,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const inlineAddProductArch = props.inlineAddProductArch ?? null;
   const isAddingMaxillaryProduct = inlineAddProductArch === "maxillary";
   const isAddingMandibularProduct = inlineAddProductArch === "mandibular";
-  const addProductFocusActive = inlineAddProductArch != null && !props.caseSubmitted;
-
-
-
   return (
     <>
     <div className="relative">
@@ -1260,17 +1255,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
       )}
     <div className="px-4 sm:px-6 lg:px-8 xl:px-10">
-      <AddProductFocusOverlay active={addProductFocusActive}>
-        <CaseDesignHeaderActions
-          caseSubmitted={props.caseSubmitted}
-          onAddMaxillaryProduct={() => props.onAddProduct?.("maxillary")}
-          onAddMandibularProduct={() => props.onAddProduct?.("mandibular")}
-          showMaxillaryProductButton={showMaxillaryProductButton}
-          showMandibularProductButton={showMandibularProductButton}
-          showSelectTeethToReplaceMaxillary={showSelectTeethToReplaceMaxillary}
-          showSelectTeethToReplaceMandibular={showSelectTeethToReplaceMandibular}
-        />
-      </AddProductFocusOverlay>
+      <CaseDesignHeaderActions
+        caseSubmitted={props.caseSubmitted}
+        onAddMaxillaryProduct={() => props.onAddProduct?.("maxillary")}
+        onAddMandibularProduct={() => props.onAddProduct?.("mandibular")}
+        showMaxillaryProductButton={showMaxillaryProductButton}
+        showMandibularProductButton={showMandibularProductButton}
+        showSelectTeethToReplaceMaxillary={showSelectTeethToReplaceMaxillary}
+        showSelectTeethToReplaceMandibular={showSelectTeethToReplaceMandibular}
+      />
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
@@ -1408,9 +1401,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         />
 
         {/* CENTER NAVIGATION — Teeth in mouth badge between arch panels */}
-        <AddProductFocusOverlay active={addProductFocusActive}>
-          <CenterNavigation />
-        </AddProductFocusOverlay>
+        <CenterNavigation />
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
@@ -1557,18 +1548,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     </div>
     </div>
 
-      <AddProductFocusOverlay active={addProductFocusActive}>
-        <CaseDesignSummarySection
-          state={state}
-          caseSubmitted={props.caseSubmitted}
-          rushCasesEnabled={props.rushCasesEnabled}
-          allProductsComplete={slipValidationComplete}
-          maxillaryHasRemovables={maxillaryHasRemovables}
-          mandibularHasRemovables={mandibularHasRemovables}
-          maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
-          mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
-        />
-      </AddProductFocusOverlay>
+      <CaseDesignSummarySection
+        state={state}
+        caseSubmitted={props.caseSubmitted}
+        rushCasesEnabled={props.rushCasesEnabled}
+        allProductsComplete={slipValidationComplete}
+        maxillaryHasRemovables={maxillaryHasRemovables}
+        mandibularHasRemovables={mandibularHasRemovables}
+        maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
+        mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
+      />
 
       {/* All Modals */}
       <ModalOrchestrator

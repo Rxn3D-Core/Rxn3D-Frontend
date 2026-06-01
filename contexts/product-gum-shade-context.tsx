@@ -13,6 +13,9 @@ export interface GumShade {
   name: string
   status: "Active" | "Inactive"
   sequence: number
+  color_code_top?: string | null
+  color_code_middle?: string | null
+  color_code_bottom?: string | null
   created_at: string
   updated_at: string
 }
@@ -63,16 +66,22 @@ export interface GumShadeGroupResponse {
   }
 }
 
+export interface GumShadePayload {
+  id?: number
+  name: string
+  sequence: number
+  status: "Active" | "Inactive"
+  color_code_top?: string | null
+  color_code_middle?: string | null
+  color_code_bottom?: string | null
+}
+
 export interface CreateGumShadeBrandPayload {
   name: string
   system_name: string
   sequence: number
   status: "Active" | "Inactive"
-  shades: {
-    name: string
-    sequence: number
-    status: "Active" | "Inactive"
-  }[]
+  shades: GumShadePayload[]
 }
 
 export interface CreateCustomGumShadePayload {
@@ -80,6 +89,9 @@ export interface CreateCustomGumShadePayload {
   name: string
   sequence: number
   status: "Active" | "Inactive"
+  color_code_top?: string
+  color_code_middle?: string
+  color_code_bottom?: string
 }
 
 export interface Pagination {
@@ -126,7 +138,7 @@ export interface GumShadesContextType {
   updateGumShadeBrand: (id: number, data: Partial<CreateGumShadeBrandPayload>) => Promise<boolean>
   deleteGumShadeBrand: (id: number) => Promise<boolean>
   createGumShadeGroup: (name: string) => Promise<boolean>
-  createCustomGumShade: (data: CreateCustomGumShadePayload) => Promise<boolean>
+  createCustomGumShade: (data: CreateCustomGumShadePayload) => Promise<GumShade | null>
   fetchShadesForBrand: (brandId: number) => Promise<GumShade[]>
 
   // State setters
@@ -536,10 +548,14 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
         system_name: data.system_name ?? detail.system_name,
         sequence: data.sequence ?? detail.sequence,
         status: data.status ?? detail.status,
-        shades: data.shades ?? (detail.shades?.map(s => ({
+        shades: data.shades ?? (detail.shades?.map((s) => ({
+          id: s.id,
           name: s.name,
           sequence: s.sequence,
           status: s.status,
+          color_code_top: s.color_code_top ?? null,
+          color_code_middle: s.color_code_middle ?? null,
+          color_code_bottom: s.color_code_bottom ?? null,
         })) ?? []),
       }
 
@@ -691,7 +707,7 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
   }
 
   // Create custom gum shade
-  const createCustomGumShade = async (data: CreateCustomGumShadePayload): Promise<boolean> => {
+  const createCustomGumShade = async (data: CreateCustomGumShadePayload): Promise<GumShade | null> => {
     showAnimationWithType("creating")
     setError(null)
 
@@ -705,7 +721,7 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
       if (!response.ok) {
         if (response.status === 401) {
           redirectToLogin()
-          return false
+          return null
         }
         if (response.status === 422) {
           const errorData = await response.json()
@@ -717,6 +733,7 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
       const result = await response.json()
 
       if (result.status) {
+        const created = (result.data?.data ?? result.data) as GumShade | undefined
         showAnimationWithType("success")
         setSuccessMessage("Custom gum shade created successfully!")
 
@@ -725,7 +742,6 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
           description: "Custom gum shade created successfully!",
         })
 
-        // Refresh available shades and brands
         await Promise.all([
           fetchAvailableShades(),
           fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery, sortColumn, sortDirection),
@@ -733,14 +749,14 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
 
         setTimeout(() => setSuccessMessage(null), 5000)
 
-        return true
+        return created?.id ? created : null
       } else {
         throw new Error(result.message || "Failed to create custom gum shade")
       }
     } catch (error: any) {
       showAnimationWithType("error")
       handleApiError(error, "Failed to create custom gum shade")
-      return false
+      return null
     }
   }
 

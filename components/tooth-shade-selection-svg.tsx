@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CLASSICAL_FALLBACK_SHADES,
+  getGuideLabelFontSize,
   getGuideLayout,
   getRackLineCount,
+  getShadeLabelFontSize,
   resolveShadeColors,
   shadeStickDomId,
   shadeTranslate,
@@ -31,12 +33,14 @@ function ShadeStickBlock({
   isHovered,
   isClicked,
   isSelected,
+  labelFontSize,
 }: {
   shade: ShadeGuideDisplayShade;
   index: number;
   isHovered: boolean;
   isClicked: boolean;
   isSelected: boolean;
+  labelFontSize: number;
 }) {
   const id = shadeStickDomId(shade.name, index);
   const domIdSuffix = `${shade.name.replace(/\./g, "-")}-${index}`;
@@ -145,10 +149,10 @@ function ShadeStickBlock({
         x="557"
         y={SHADE_LAYOUT.labelY}
         textAnchor="middle"
-        fontSize="8"
+        fontSize={labelFontSize}
         fontFamily="Inter, Arial, sans-serif"
-        fontWeight="600"
-        fill="#000"
+        fontWeight="700"
+        fill="#111"
       >
         {shade.name}
       </text>
@@ -169,6 +173,14 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 
   const displayShades = shades?.length ? shades : CLASSICAL_FALLBACK_SHADES;
   const layout = useMemo(() => getGuideLayout(displayShades.length), [displayShades.length]);
+  const labelFontSize = useMemo(
+    () => getShadeLabelFontSize(displayShades.length),
+    [displayShades.length]
+  );
+  const guideLabelFontSize = useMemo(
+    () => getGuideLabelFontSize(displayShades.length),
+    [displayShades.length]
+  );
   const rackLineCount = useMemo(
     () => getRackLineCount(layout.viewBoxWidth),
     [layout.viewBoxWidth]
@@ -201,12 +213,15 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
     <svg
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
-      // viewBox={`0 ${SHADE_LAYOUT.viewBoxY} ${layout.viewBoxWidth} ${SHADE_LAYOUT.viewBoxHeight}`}
-      width="100%"
-      height="180"
+      viewBox={`0 ${SHADE_LAYOUT.viewBoxY} ${layout.viewBoxWidth} ${SHADE_LAYOUT.viewBoxHeight}`}
       preserveAspectRatio="xMidYMid meet"
-      className={showRequired ? "ring-2 ring-[#cf0202] rounded" : undefined} 
-      style={{ overflow: "visible" }}
+      className={`h-auto ${showRequired ? "ring-2 ring-[#cf0202] rounded" : ""}`}
+      style={{
+        overflow: "visible",
+        // Few shades (e.g. VITA): scale to fill the box. Many shades (e.g. BIOFORM,
+        // 42): keep swatches at readable native size and scroll horizontally.
+        width: needsHorizontalScroll ? `${layout.viewBoxWidth}px` : "100%",
+      }}
     >
   <defs>
         <clipPath id="shade-guide-clip-a">
@@ -260,6 +275,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
               isHovered={hoveredIndex === index}
               isClicked={clickedIndex === index}
               isSelected={selectedShades.includes(shade.name)}
+              labelFontSize={labelFontSize}
             />
           ))}
         </g>
@@ -282,9 +298,9 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
               y="162"
               textAnchor="end"
               fontFamily="Inter, Arial, sans-serif"
-              fontSize="10"
+              fontSize={guideLabelFontSize}
               fontStyle="italic"
-              fill="#000"
+              fill="#111"
             >
               {guideLabel}
     </text>
@@ -318,7 +334,7 @@ export const ToothShadeSelectionSVG: React.FC<ToothShadeSelectionSVGProps> = ({
 
   return (
     <div
-      className={`relative z-30  overflow-visible ${className}`}
+      className={`relative z-30 overflow-visible ${className}`}
     >
       {svg}
       </div>
