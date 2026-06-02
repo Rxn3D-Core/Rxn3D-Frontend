@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 
 export function IconField({
   label,

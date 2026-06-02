@@ -7,9 +7,9 @@ import {
   EyeOff,
   ChevronDown,
   Trash2,
-  Check,
   Paperclip,
 } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import { MandibularTeethSVG } from "@/components/mandibular-teeth-svg";
 import type { RetentionOptionItem } from "@/components/retention-type-popover";
 import {

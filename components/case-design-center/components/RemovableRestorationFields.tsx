@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useMemo } from "react";
-import { Check } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import {
   FieldInput,
   ShadeField,

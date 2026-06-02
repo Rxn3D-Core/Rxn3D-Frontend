@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
+import { ChevronDown } from "lucide-react";
 
 interface ExtractionsDoneAcknowledgementProps {
   acknowledged: boolean;

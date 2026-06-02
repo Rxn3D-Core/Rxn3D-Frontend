@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type ReactNode, type MouseEvent } from "react";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import type { Arch, ProductApiData, ProductExtraction, ProductGrade, ShadeFieldType } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
