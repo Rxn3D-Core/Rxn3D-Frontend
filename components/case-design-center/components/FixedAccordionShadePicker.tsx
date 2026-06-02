@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
+import { ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
 import type { Arch, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
 import { getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";

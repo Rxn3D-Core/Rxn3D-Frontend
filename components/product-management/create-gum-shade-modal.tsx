@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { X, ChevronDown, Plus, Trash2, Info } from "lucide-react"
+import { X, ChevronDown, Trash2, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DiscardChangesDialog } from "@/components/product-management/discard-changes-dialog"
 import { useGumShades, type GumShade, type GumShadePayload } from "@/contexts/product-gum-shade-context"
 import { DialogTitle } from "@radix-ui/react-dialog"
-import { Label } from "@/components/ui/label"
+import { AddCustomShadePanel } from "@/components/product-management/add-custom-shade-panel"
 import { useToast } from "@/hooks/use-toast"
 
 const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
@@ -749,95 +749,53 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
                   </div>
                 )}
 
-                {/* Add Custom Shade Section */}
-                <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 p-4 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Add new shade</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {canPersistCustomShadeToApi
-                        ? "Saves to the library immediately and links the shade to this brand."
-                        : "Adds the shade to this form; save the brand to persist it to the library."}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="new-gum-shade-name">
-                        Shade name <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="new-gum-shade-name"
-                        placeholder="e.g. G-Custom"
-                        value={newCustomShade.name}
-                        validationState={newCustomShade.name.trim() ? "valid" : "default"}
-                        onChange={(e) =>
-                          setNewCustomShade((prev) => ({ ...prev, name: e.target.value }))
-                        }
-                        className="h-10 bg-white"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-3 sm:col-span-2 rounded-md border border-gray-200 bg-white px-3 py-2">
-                      <Label htmlFor="new-gum-shade-status" className="text-sm font-normal">
-                        Status
-                      </Label>
-                      <Switch
-                        id="new-gum-shade-status"
-                        checked={newCustomShade.enabled}
-                        onCheckedChange={(checked) =>
-                          setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
-                        }
-                        className="data-[state=checked]:bg-[#1162a8]"
-                      />
-                      <span className="text-xs text-gray-600 min-w-[52px]">
-                        {newCustomShade.enabled ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>
-                        Top <span className="text-red-500">*</span>
-                      </Label>
-                      <CompactGumColorField
-                        value={newCustomShade.color_code_top}
-                        defaultHex="#FFB6C1"
-                        onChange={(color) =>
-                          setNewCustomShade((prev) => ({ ...prev, color_code_top: color }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>
-                        Middle <span className="text-red-500">*</span>
-                      </Label>
-                      <CompactGumColorField
-                        value={newCustomShade.color_code_middle}
-                        defaultHex="#FF69B4"
-                        onChange={(color) =>
-                          setNewCustomShade((prev) => ({ ...prev, color_code_middle: color }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label>
-                        Bottom <span className="text-red-500">*</span>
-                      </Label>
-                      <CompactGumColorField
-                        value={newCustomShade.color_code_bottom}
-                        defaultHex="#C71585"
-                        onChange={(color) =>
-                          setNewCustomShade((prev) => ({ ...prev, color_code_bottom: color }))
-                        }
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={handleAddCustomShade}
-                    className="bg-[#1162a8] hover:bg-[#0d4d87] w-full sm:w-auto"
-                    disabled={!isNewCustomShadeValid || isCreatingCustomShade}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    {isCreatingCustomShade ? "Saving…" : "Add shade"}
-                  </Button>
-                </div>
+                <AddCustomShadePanel
+                  className="mt-4"
+                  idPrefix="new-gum-shade"
+                  name={newCustomShade.name}
+                  onNameChange={(value) =>
+                    setNewCustomShade((prev) => ({ ...prev, name: value }))
+                  }
+                  namePlaceholder="e.g. G-Custom"
+                  enabled={newCustomShade.enabled}
+                  onEnabledChange={(checked) =>
+                    setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
+                  }
+                  persistHint={
+                    canPersistCustomShadeToApi
+                      ? "Saves to the library immediately and links the shade to this brand."
+                      : "Adds the shade to this form; save the brand to persist it to the library."
+                  }
+                  colorFields={[
+                    {
+                      id: "new-gum-shade-top",
+                      label: "Top",
+                      value: newCustomShade.color_code_top,
+                      defaultHex: "#FFB6C1",
+                      onChange: (color) =>
+                        setNewCustomShade((prev) => ({ ...prev, color_code_top: color })),
+                    },
+                    {
+                      id: "new-gum-shade-middle",
+                      label: "Middle",
+                      value: newCustomShade.color_code_middle,
+                      defaultHex: "#FF69B4",
+                      onChange: (color) =>
+                        setNewCustomShade((prev) => ({ ...prev, color_code_middle: color })),
+                    },
+                    {
+                      id: "new-gum-shade-bottom",
+                      label: "Bottom",
+                      value: newCustomShade.color_code_bottom,
+                      defaultHex: "#C71585",
+                      onChange: (color) =>
+                        setNewCustomShade((prev) => ({ ...prev, color_code_bottom: color })),
+                    },
+                  ]}
+                  onAdd={handleAddCustomShade}
+                  isValid={isNewCustomShadeValid}
+                  isSubmitting={isCreatingCustomShade}
+                />
               </CollapsibleContent>
             </Collapsible>
           </div>

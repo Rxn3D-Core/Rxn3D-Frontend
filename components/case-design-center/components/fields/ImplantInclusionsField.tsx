@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Check } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 
 export function ImplantInclusionsField({
   label,

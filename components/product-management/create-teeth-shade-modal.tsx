@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { X, ChevronDown, Plus, Info } from "lucide-react"
+import { X, ChevronDown, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,7 @@ import {
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
-import { Label } from "@/components/ui/label"
+import { AddCustomShadePanel } from "@/components/product-management/add-custom-shade-panel"
 
 const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
 
@@ -838,95 +838,53 @@ export function CreateTeethShadeModal({
                       </Table>
                     </div>
 
-                    {/* Add Custom Shade Section */}
-                    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50/80 p-4 space-y-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Add new shade</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {canPersistCustomShadeToApi
-                            ? "Saves to the library immediately and links the shade to this brand."
-                            : "Adds the shade to this form; save the brand to persist it to the library."}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5 sm:col-span-2">
-                          <Label htmlFor="new-teeth-shade-name">
-                            Shade name <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            id="new-teeth-shade-name"
-                            placeholder="e.g. A2"
-                            value={newCustomShade.name}
-                            validationState={newCustomShade.name.trim() ? "valid" : "default"}
-                            onChange={(e) =>
-                              setNewCustomShade((prev) => ({ ...prev, name: e.target.value }))
-                            }
-                            className="h-10 bg-white"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between gap-3 sm:col-span-2 rounded-md border border-gray-200 bg-white px-3 py-2">
-                          <Label htmlFor="new-teeth-shade-status" className="text-sm font-normal">
-                            Status
-                          </Label>
-                          <Switch
-                            id="new-teeth-shade-status"
-                            checked={newCustomShade.enabled}
-                            onCheckedChange={(checked) =>
-                              setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
-                            }
-                            className="data-[state=checked]:bg-[#1162a8]"
-                          />
-                          <span className="text-xs text-gray-600 min-w-[52px]">
-                            {newCustomShade.enabled ? "Active" : "Inactive"}
-                          </span>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>
-                            Incisal <span className="text-red-500">*</span>
-                          </Label>
-                          <CompactShadeColorField
-                            value={newCustomShade.color_code_incisal}
-                            defaultHex="#FFFFFF"
-                            onChange={(color) =>
-                              setNewCustomShade((prev) => ({ ...prev, color_code_incisal: color }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>
-                            Body <span className="text-red-500">*</span>
-                          </Label>
-                          <CompactShadeColorField
-                            value={newCustomShade.color_code_body}
-                            defaultHex="#F5F5DC"
-                            onChange={(color) =>
-                              setNewCustomShade((prev) => ({ ...prev, color_code_body: color }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1.5 sm:col-span-2">
-                          <Label>
-                            Cervical <span className="text-red-500">*</span>
-                          </Label>
-                          <CompactShadeColorField
-                            value={newCustomShade.color_code_cervical}
-                            defaultHex="#E8E8E8"
-                            onChange={(color) =>
-                              setNewCustomShade((prev) => ({ ...prev, color_code_cervical: color }))
-                            }
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={handleAddCustomShade}
-                        className="bg-[#1162a8] hover:bg-[#0d4d87] w-full sm:w-auto"
-                        disabled={!isNewCustomShadeValid || addingCustomShade}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        {addingCustomShade ? "Saving…" : "Add shade"}
-                      </Button>
-                    </div>
+                    <AddCustomShadePanel
+                      className="mb-4"
+                      idPrefix="new-teeth-shade"
+                      name={newCustomShade.name}
+                      onNameChange={(value) =>
+                        setNewCustomShade((prev) => ({ ...prev, name: value }))
+                      }
+                      namePlaceholder="e.g. A2"
+                      enabled={newCustomShade.enabled}
+                      onEnabledChange={(checked) =>
+                        setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
+                      }
+                      persistHint={
+                        canPersistCustomShadeToApi
+                          ? "Saves to the library immediately and links the shade to this brand."
+                          : "Adds the shade to this form; save the brand to persist it to the library."
+                      }
+                      colorFields={[
+                        {
+                          id: "new-teeth-shade-incisal",
+                          label: "Incisal",
+                          value: newCustomShade.color_code_incisal,
+                          defaultHex: "#FFFFFF",
+                          onChange: (color) =>
+                            setNewCustomShade((prev) => ({ ...prev, color_code_incisal: color })),
+                        },
+                        {
+                          id: "new-teeth-shade-body",
+                          label: "Body",
+                          value: newCustomShade.color_code_body,
+                          defaultHex: "#F5F5DC",
+                          onChange: (color) =>
+                            setNewCustomShade((prev) => ({ ...prev, color_code_body: color })),
+                        },
+                        {
+                          id: "new-teeth-shade-cervical",
+                          label: "Cervical",
+                          value: newCustomShade.color_code_cervical,
+                          defaultHex: "#E8E8E8",
+                          onChange: (color) =>
+                            setNewCustomShade((prev) => ({ ...prev, color_code_cervical: color })),
+                        },
+                      ]}
+                      onAdd={handleAddCustomShade}
+                      isValid={isNewCustomShadeValid}
+                      isSubmitting={addingCustomShade}
+                    />
                   </>
                 )}
               </CollapsibleContent>

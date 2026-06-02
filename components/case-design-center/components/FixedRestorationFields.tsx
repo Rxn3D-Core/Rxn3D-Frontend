@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
-import { Check } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 
 function formatShadeGuideName(raw: string): string {
   if (!raw) return raw;

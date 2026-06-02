@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, ChevronDown, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import type { ProductGumShade } from "../types";
 
 const ITEMS_PER_PAGE = 8;

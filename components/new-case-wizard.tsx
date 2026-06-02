@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Filter, Plus, Search, ChevronDown, Check } from "lucide-react";
+import { Filter, Plus, Search, ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";

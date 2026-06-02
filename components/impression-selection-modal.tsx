@@ -1,6 +1,7 @@
 "use client"
 
-import { Check, Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
+import { Check } from "@/components/ui/custom-check"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
