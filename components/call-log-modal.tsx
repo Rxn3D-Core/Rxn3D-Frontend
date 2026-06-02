@@ -180,9 +180,9 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl p-0 rounded-lg max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl p-0 rounded-lg max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
               <Phone className="w-6 h-6 text-white" />
@@ -198,7 +198,7 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
         </div>
 
         {/* Search Bar */}
-        <div className="px-6 py-4 border-b">
+        <div className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -216,8 +216,11 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
           </div>
         </div>
 
+        {/* Scrollable body: form + history */}
+        <div className="flex-1 overflow-y-auto flex flex-col">
+
         {/* Add Call Log Form */}
-        <div className="px-6 py-6 border-b bg-gray-50">
+        <div className="px-6 py-6 border-b bg-gray-50 flex-shrink-0">
           <Button className="mb-6 bg-blue-600 hover:bg-blue-700">
             Add Call log
           </Button>
@@ -333,15 +336,15 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
         </div>
 
         {/* Call History */}
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex flex-col">
           <div className="px-6 py-4 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold">Call History ({callHistory.length})</h3>
               <ExternalLink className="w-4 h-4 text-gray-400" />
             </div>
           </div>
-          
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+
+          <div className="px-6 py-4">
             <div className="space-y-4">
               {callHistory.map((log) => (
                 <div key={log.id} className="bg-gray-50 rounded-lg p-4">
@@ -398,6 +401,8 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
             </div>
           </div>
         </div>
+
+        </div>{/* end scrollable body */}
       </DialogContent>
     </Dialog>
   )

@@ -135,6 +135,19 @@ export function getRackLineCount(viewBoxWidth: number): number {
   return Math.max(1, Math.ceil(width / SHADE_LAYOUT.rackLineSpacing + 1));
 }
 
+/** Readable label size per stick slot (~28.5px); scales down slightly when many grades. */
+export function getShadeLabelFontSize(shadeCount: number): number {
+  const total = Math.max(shadeCount, 1);
+  if (total <= 12) return 13;
+  if (total <= 18) return 12;
+  if (total <= 26) return 11;
+  return 10;
+}
+
+export function getGuideLabelFontSize(shadeCount: number): number {
+  return Math.max(11, getShadeLabelFontSize(shadeCount) + 1);
+}
+
 export function resolveShadeColors(shade: ShadeGuideDisplayShade): Required<
   Pick<ShadeGuideDisplayShade, "color_code_incisal" | "color_code_body" | "color_code_cervical">
 > {

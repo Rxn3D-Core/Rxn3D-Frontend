@@ -1,11 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
 import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
 import { getShadeGuideAdvanceFields, getShadeFieldType, getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
 import { ShadeField } from "./fields/ShadeField";
+
+/** Format a raw shade guide key (e.g. "VITA_CLASSICAL") into a readable name ("Vita Classical"). */
+function formatShadeGuideName(raw: string): string {
+  if (!raw) return raw;
+  return raw
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const EMPTY_SHADE_STATE: ShadeSelectionState = {
   arch: null,
@@ -258,8 +268,9 @@ export function ShadeSelectionGuide({
       <ShadeField
         key={field.id}
         label={field.name}
-        value={selectedShade}
-        shade=""
+        // Show the formatted shade guide name as the main text; shade code goes on the tooth SVG
+        value={selectedShade ? formatShadeGuideName(selectedShadeGuide || selectedShade) : ""}
+        shade={selectedShade}
         isActive={isActive}
         onClick={() => handleNamedFieldClick(field)}
         required
@@ -268,7 +279,10 @@ export function ShadeSelectionGuide({
   };
 
   return (
-    <div className="bg-white min-w-0 overflow-visible relative">
+    <>
+      {/* Dim the rest of the screen; block clicks so background fields stay inactive */}
+      <div className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
+      <div className="bg-white min-w-0 overflow-visible relative z-[60] mt-4 rounded-lg shadow-lg ring-1 ring-[#e5e7eb] p-3">
       <div className="relative">
         <div className="grid grid-cols-2 gap-3 mb-3">
 
@@ -336,109 +350,52 @@ export function ShadeSelectionGuide({
                 })()}
               </>
             ) : toothShadeOnly ? (
-              toothShade ? (
-                <div
-                  className="relative border border-[#34a853] rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() =>
-                    setShadeSelectionState((prev) => ({
-                      ...prev,
-                      fieldType: "tooth_shade",
-                      fillMode: toothShade ? "edit" : "sequence",
-                    }))
-                  }
-                >
-                  <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
-                    {toothLabel ?? "Tooth Shade"}
-                  </label>
-                  <div className="flex items-center gap-2 w-full">
-                    <span className="text-base text-[#000000]">{toothShade}</span>
-                    <Check size={16} className="text-[#34a853] ml-auto" />
-                  </div>
-                </div>
-              ) : (
-                <span
-                  className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
-                  onClick={() =>
-                    setShadeSelectionState((prev) => ({
-                      ...prev,
-                      fieldType: "tooth_shade",
-                      fillMode: toothShade ? "edit" : "sequence",
-                    }))
-                  }
-                >
-                  {`Select ${(toothLabel ?? "tooth shade").toLowerCase()}`}
-                </span>
-              )
+              <ShadeField
+                label={toothLabel ?? "Tooth Shade"}
+                value={toothShade ? formatShadeGuideName(selectedShadeGuide) : ""}
+                shade={toothShade}
+                isActive={activeField === "tooth_shade"}
+                required
+                onClick={() =>
+                  setShadeSelectionState((prev) => ({
+                    ...prev,
+                    fieldType: "tooth_shade",
+                    fillMode: toothShade ? "edit" : "sequence",
+                  }))
+                }
+              />
             ) : (
               <>
-                {stumpShade ? (
-                  <div
-                    className="relative border border-[#34a853] rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() =>
-                      setShadeSelectionState((prev) => ({
-                        ...prev,
-                        fieldType: "stump_shade",
-                        fillMode: stumpShade ? "edit" : "sequence",
-                      }))
-                    }
-                  >
-                    <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
-                      {stumpLabel ?? "Stump Shade"}
-                    </label>
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="text-base text-[#000000]">{stumpShade}</span>
-                      <Check size={16} className="text-[#34a853] ml-auto" />
-                    </div>
-                  </div>
-                ) : (
-                  <span
-                    className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
-                    onClick={() =>
-                      setShadeSelectionState((prev) => ({
-                        ...prev,
-                        fieldType: "stump_shade",
-                        fillMode: stumpShade ? "edit" : "sequence",
-                      }))
-                    }
-                  >
-                    {`Select ${(stumpLabel ?? "stump shade").toLowerCase()}`}
-                  </span>
-                )}
+                <ShadeField
+                  label={stumpLabel ?? "Stump Shade"}
+                  value={stumpShade ? formatShadeGuideName(selectedShadeGuide) : ""}
+                  shade={stumpShade}
+                  isActive={activeField === "stump_shade"}
+                  required
+                  onClick={() =>
+                    setShadeSelectionState((prev) => ({
+                      ...prev,
+                      fieldType: "stump_shade",
+                      fillMode: stumpShade ? "edit" : "sequence",
+                    }))
+                  }
+                />
 
                 {stumpShade && toothLabel !== null && (
-                  toothShade ? (
-                    <div
-                      className="relative border border-[#34a853] rounded h-[42px] flex items-center px-3 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() =>
-                        setShadeSelectionState((prev) => ({
-                          ...prev,
-                          fieldType: "tooth_shade",
-                          fillMode: toothShade ? "edit" : "sequence",
-                        }))
-                      }
-                    >
-                      <label className="absolute left-3 top-0 -translate-y-1/2 text-xs bg-white px-1 pointer-events-none text-[#34a853]">
-                        {toothLabel}
-                      </label>
-                      <div className="flex items-center gap-2 w-full">
-                        <span className="text-base text-[#000000]">{toothShade}</span>
-                        <Check size={16} className="text-[#34a853] ml-auto" />
-                      </div>
-                    </div>
-                  ) : (
-                    <span
-                      className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer"
-                      onClick={() =>
-                        setShadeSelectionState((prev) => ({
-                          ...prev,
-                          fieldType: "tooth_shade",
-                          fillMode: toothShade ? "edit" : "sequence",
-                        }))
-                      }
-                    >
-                      {`Select ${toothLabel.toLowerCase()}`}
-                    </span>
-                  )
+                  <ShadeField
+                    label={toothLabel}
+                    value={toothShade ? formatShadeGuideName(selectedShadeGuide) : ""}
+                    shade={toothShade}
+                    isActive={activeField === "tooth_shade"}
+                    required
+                    onClick={() =>
+                      setShadeSelectionState((prev) => ({
+                        ...prev,
+                        fieldType: "tooth_shade",
+                        fillMode: toothShade ? "edit" : "sequence",
+                      }))
+                    }
+                  />
                 )}
               </>
             )
@@ -457,6 +414,7 @@ export function ShadeSelectionGuide({
           />
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

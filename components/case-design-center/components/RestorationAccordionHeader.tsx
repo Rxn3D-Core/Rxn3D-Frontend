@@ -13,7 +13,7 @@ import {
   EstDaysLabel,
   removableProductTitleBoxClassName,
 } from "./AccordionBadge";
-import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
+import { AccordionHeaderActions, ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
 import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
 import { isDisplayableStageValue, shouldSkipStageSelection } from "../utils/categoryHelpers";
@@ -55,6 +55,8 @@ export interface RestorationAccordionHeaderProps {
   onPlusClick?: () => void;
   /** When true, standard product selection mode is active and we render a distinct thick border */
   isProductSelectionActive?: boolean;
+  /** When true, an extraction box is active — always show the Plus icon regardless of extraction acknowledgement state */
+  isExtractionActive?: boolean;
 }
 
 /**
@@ -89,6 +91,7 @@ export function RestorationAccordionHeader({
   middleContent,
   onPlusClick,
   isProductSelectionActive = false,
+  isExtractionActive = false,
 }: RestorationAccordionHeaderProps) {
   const showStageBadge =
     isDisplayableStageValue(stageName) &&
@@ -102,10 +105,10 @@ export function RestorationAccordionHeader({
       <AccordionHeaderActions
         isExpanded={isExpanded}
         caseSubmitted={caseSubmitted}
-        showExtractionsDone={showExtractionsDone}
+        showExtractionsDone={false}
         extractionsAcknowledged={extractionsAcknowledged}
         onExtractionsAcknowledgedChange={onExtractionsAcknowledgedChange}
-        showRetentionDone={showRetentionDone}
+        showRetentionDone={false}
         retentionDoneAcknowledged={retentionDoneAcknowledged}
         onRetentionDoneChange={onRetentionDoneChange}
         onToggleExpand={onToggleExpand}
@@ -148,37 +151,37 @@ export function RestorationAccordionHeader({
                     : "none"
                 }}
               >
-                <div
-                  className={`absolute left-[16px] top-1/2 transform -translate-y-1/2 flex items-center justify-center ${onPlusClick ? "cursor-pointer hover:scale-110 active:scale-95 transition-transform" : ""}`}
-                  onClick={(e) => {
-                    if (onPlusClick) {
+                {onPlusClick && (isExtractionActive || !(showExtractionsDone && !extractionsAcknowledged)) && (
+                  <div
+                    className="absolute left-[16px] top-1/2 transform -translate-y-1/2 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform"
+                    onClick={(e) => {
                       e.stopPropagation();
                       onPlusClick();
-                    }
-                  }}
-                  title={onPlusClick ? "Activate product tooth selections" : undefined}
-                >
-                  <svg width="24" height="24" viewBox="0 0 248 248" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M127.118 20.6655C135.297 20.6656 141.928 27.2961 141.928 35.4751V105.36H212.524C220.704 105.36 227.334 111.99 227.334 120.169V126.307C227.334 134.486 220.704 141.118 212.524 141.118H141.928V212.525C141.927 220.704 135.297 227.334 127.118 227.334H120.98C112.801 227.334 106.171 220.704 106.171 212.525V141.118H35.4756C27.2964 141.118 20.666 134.486 20.666 126.307V120.169C20.6661 111.99 27.2965 105.36 35.4756 105.36H106.171V35.4751C106.171 27.2961 112.801 20.6655 120.98 20.6655H127.118Z"
-                      fill="url(#paint0_linear_removable_plus)"
-                    />
-                    <defs>
-                      <linearGradient
-                        id="paint0_linear_removable_plus"
-                        x1="283.36"
-                        y1="23.4262"
-                        x2="-14.7"
-                        y2="260.838"
-                        gradientUnits="userSpaceOnUse"
-                      >
-                        <stop stopColor="#2AA6DE" />
-                        <stop offset="0.5" stopColor="#82298D" />
-                        <stop offset="1" stopColor="#C9539F" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                </div>
+                    }}
+                    title="Activate product tooth selections"
+                  >
+                    <svg width="24" height="24" viewBox="0 0 248 248" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M127.118 20.6655C135.297 20.6656 141.928 27.2961 141.928 35.4751V105.36H212.524C220.704 105.36 227.334 111.99 227.334 120.169V126.307C227.334 134.486 220.704 141.118 212.524 141.118H141.928V212.525C141.927 220.704 135.297 227.334 127.118 227.334H120.98C112.801 227.334 106.171 220.704 106.171 212.525V141.118H35.4756C27.2964 141.118 20.666 134.486 20.666 126.307V120.169C20.6661 111.99 27.2965 105.36 35.4756 105.36H106.171V35.4751C106.171 27.2961 112.801 20.6655 120.98 20.6655H127.118Z"
+                        fill="url(#paint0_linear_removable_plus)"
+                      />
+                      <defs>
+                        <linearGradient
+                          id="paint0_linear_removable_plus"
+                          x1="283.36"
+                          y1="23.4262"
+                          x2="-14.7"
+                          y2="260.838"
+                          gradientUnits="userSpaceOnUse"
+                        >
+                          <stop stopColor="#2AA6DE" />
+                          <stop offset="0.5" stopColor="#82298D" />
+                          <stop offset="1" stopColor="#C9539F" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  </div>
+                )}
                 <legend className={`${removableHeaderTitleClass} px-[8px] text-center text-[#555555] bg-white flex items-center justify-center gap-1`}>
                   {productName}
                   {hasRush && (
@@ -190,13 +193,27 @@ export function RestorationAccordionHeader({
                 ) : null}
               </fieldset>
               {middleContent}
+              {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
+                <div className="w-full flex justify-center mt-2" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => onRetentionDoneChange(true)}
+                    className="px-6 py-1.5 rounded-[6px] font-['Verdana'] font-bold text-[14px] text-white bg-[#1A54D4] hover:bg-[#1546B5] transition-colors shadow-md animate-fade-in"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
               <div className="flex items-center gap-[4.97px] flex-wrap">
                 {/* Hidden: stage badge — set to true to restore */}
                 {false && showStageBadge && stageName && <AccordionBadge>{stageName}</AccordionBadge>}
+                {/*
                 <EstDaysLabel
                   rushed={hasRush}
                   text={hasRush ? "5 work days after submission" : estDaysText}
                 />
+                */}
+                {/*
                 {canDelete && !caseSubmitted && onDelete && (
                   <span
                     role="button"
@@ -214,6 +231,7 @@ export function RestorationAccordionHeader({
                     <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
                   </span>
                 )}
+                */}
               </div>
             </>
           )}

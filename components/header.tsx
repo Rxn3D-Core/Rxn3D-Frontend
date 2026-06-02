@@ -40,9 +40,14 @@ import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import DriverHistoryModal from "./driver-history-modal"
 import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { getUserAvatar } from "@/utils/avatar-utils"
+import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 import { UserProfileModal } from "@/components/user-profile-modal"
-import { fetchUserProfile, type UserProfileData } from "@/services/user-profile-service"
+import {
+  fetchCurrentUserProfile,
+  updateCurrentUserProfile,
+  type UserProfileData,
+} from "@/services/user-profile-service"
+import type { UpdateMeProfileInput } from "@/lib/api/me"
 import { User as UserIcon } from "lucide-react"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
@@ -77,7 +82,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout } = useAuth()
+  const { user, logout, updateSessionUser } = useAuth()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -121,6 +126,33 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   const isSuperAdmin = userRoles.includes("superadmin")
   const isOfficeAdmin = userRoles.includes("office_admin")
+
+  // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
+  useEffect(() => {
+    if (!user?.id) return
+
+    let cancelled = false
+    fetchCurrentUserProfile()
+      .then((profile) => {
+        if (cancelled) return
+        const imageUrl = getUserProfileImageUrl(profile)
+        if (!imageUrl) return
+        const currentUrl = getUserProfileImageUrl(user)
+        if (imageUrl !== currentUrl) {
+          updateSessionUser({
+            image: profile.image ?? profile.avatar ?? imageUrl,
+            avatar: profile.avatar ?? profile.image ?? imageUrl,
+          })
+        }
+      })
+      .catch(() => {
+        // Non-blocking: header still shows session avatar or initials
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, updateSessionUser])
 
   // Load scan history from localStorage on mount
   useEffect(() => {
@@ -902,7 +934,10 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage
-                        src={getUserAvatar(user?.image, user?.email || user?.id || user?.first_name)}
+                        src={getUserAvatar(
+                          getUserProfileImageUrl(user) || null,
+                          user?.email || user?.id || user?.first_name,
+                        )}
                         alt={user?.first_name || t("header.user")}
                       />
                       <AvatarFallback className="bg-[#1162a8] text-white font-medium text-xs sm:text-sm">
@@ -926,14 +961,14 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={async () => {
-                      if (!user?.id) return
                       setIsLoadingProfile(true)
                       setShowUserProfileModal(true)
                       try {
-                        const profileData = await fetchUserProfile(user.id)
+                        const profileData = await fetchCurrentUserProfile()
                         setUserProfileData(profileData)
                       } catch (error) {
                         console.error("Failed to fetch user profile:", error)
+                        setShowUserProfileModal(false)
                         toast({
                           title: "Error",
                           description: "Failed to load user profile",
@@ -1182,6 +1217,33 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         }}
         userData={userProfileData}
         isLoading={isLoadingProfile}
+        onSave={async (input: UpdateMeProfileInput) => {
+          try {
+            const updated = await updateCurrentUserProfile(input)
+            setUserProfileData(updated)
+            const imageUrl = updated.image ?? updated.avatar
+            updateSessionUser({
+              first_name: updated.first_name,
+              last_name: updated.last_name,
+              mobile: updated.phone ?? updated.mobile,
+              ...(imageUrl ? { image: imageUrl, avatar: imageUrl } : {}),
+            })
+            toast({
+              title: "Profile updated",
+              description: "Your profile has been saved.",
+            })
+            return updated
+          } catch (error) {
+            console.error("Failed to update profile:", error)
+            toast({
+              title: "Error",
+              description:
+                error instanceof Error ? error.message : "Failed to update profile",
+              variant: "destructive",
+            })
+            throw error
+          }
+        }}
       />
 
     </>

@@ -118,6 +118,7 @@ export interface UISlip {
   createdAt: string;
   caseId?: number;
   caseNumber?: string;
+  billingId?: number;
   pan: string;
   panColor: string;
   panColorStyle?: React.CSSProperties;
@@ -185,6 +186,22 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       createdAt: slip.created_at,
       caseId: apiCase.id,
       caseNumber: apiCase.case_number,
+      billingId:
+        (slip as any).billing_id ??
+        (slip as any).billingId ??
+        (slip as any).invoice_id ??
+        (slip as any).invoiceId ??
+        (slip as any).billing?.id ??
+        (slip as any).invoice?.id ??
+        (slip as any).billing_invoice?.id ??
+        (slip as any).slip_billing?.id ??
+        (apiCase as any).billing_id ??
+        (apiCase as any).billingId ??
+        (apiCase as any).invoice_id ??
+        (apiCase as any).invoiceId ??
+        (apiCase as any).billing?.id ??
+        (apiCase as any).invoice?.id ??
+        undefined,
       pan: slip.casepan?.number || "----",
       panColor: "", // leave empty, use panColorStyle for inline style
       panColorStyle: slip.casepan?.color_code
@@ -284,6 +301,5 @@ export function useOfficeSlipContext() {
   if (!ctx) throw new Error("useOfficeSlipContext must be used within OfficeSlipProvider");
   return ctx;
 }
-
 
 

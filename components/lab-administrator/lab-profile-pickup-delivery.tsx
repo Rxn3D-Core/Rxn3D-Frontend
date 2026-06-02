@@ -233,18 +233,18 @@ export function PickupDeliveryTab({
   }
 
   const InfoRow = ({ label, value }: { label: string; value: string }) => (
-    <div className="flex items-center py-2">
-      <span className="text-gray-500 w-48">{label}</span>
-      <span className="font-medium text-gray-900">{value}</span>
+    <div className="flex flex-col sm:flex-row sm:items-center py-2 border-b sm:border-b-0 border-gray-100 last:border-b-0">
+      <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">{label}</span>
+      <span className="font-medium text-gray-900 text-sm mt-0.5 sm:mt-0">{value}</span>
     </div>
   )
 
   return (
-    <div className="p-6 bg-gray-50">
+    <div className="p-4 sm:p-6 bg-gray-50">
       <div className="space-y-6">
         {/* Pick Up Options */}
         <div className="bg-white rounded-lg border">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold">Pick Up Options</h3>
               {!isEditingPickup ? (
@@ -281,13 +281,13 @@ export function PickupDeliveryTab({
               <InfoRow label="Service Area:" value={pickupData.serviceArea} />
               <InfoRow label="Pick up days:" value={pickupData.pickupDays} />
               {isEditingPickup ? (
-                <div className="flex items-center py-2">
-                  <span className="text-gray-500 w-48">Pick up cut off time:</span>
+                <div className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100">
+                  <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">Pick up cut off time:</span>
                   <Input
                     type="time"
                     value={editPickupTime}
                     onChange={(e) => setEditPickupTime(e.target.value)}
-                    className="w-32 h-8"
+                    className="w-32 h-8 text-sm"
                     disabled={isSaving}
                   />
                 </div>
@@ -302,7 +302,7 @@ export function PickupDeliveryTab({
 
         {/* Delivery Options */}
         <div className="bg-white rounded-lg border">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold">Delivery Options</h3>
               {!isEditingDelivery ? (
@@ -339,13 +339,13 @@ export function PickupDeliveryTab({
               <InfoRow label="Service Area:" value={deliveryData.serviceArea} />
               <InfoRow label="Delivery days:" value={deliveryData.deliveryDays} />
               {isEditingDelivery ? (
-                <div className="flex items-center py-2">
-                  <span className="text-gray-500 w-48">Default Delivery time:</span>
+                <div className="flex flex-col sm:flex-row sm:items-center py-2 gap-2 sm:gap-0 border-b sm:border-b-0 border-gray-100">
+                  <span className="text-gray-500 text-sm sm:w-48 flex-shrink-0">Default Delivery time:</span>
                   <Input
                     type="time"
                     value={editDeliveryTime}
                     onChange={(e) => setEditDeliveryTime(e.target.value)}
-                    className="w-32 h-8"
+                    className="w-32 h-8 text-sm"
                     disabled={isSaving}
                   />
                 </div>
@@ -359,7 +359,7 @@ export function PickupDeliveryTab({
 
         {/* Rush Cases */}
         <div className="bg-white rounded-lg border">
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Rush Cases</h3>
 
             <div className="flex items-center space-x-3 mb-2">
@@ -372,7 +372,7 @@ export function PickupDeliveryTab({
                 className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                 disabled={isSaving}
               />
-              <label htmlFor="rush-cases" className="font-medium text-gray-900">
+              <label htmlFor="rush-cases" className="font-medium text-gray-900 cursor-pointer text-sm sm:text-base">
                 Enable Rush cases
               </label>
             </div>
@@ -382,7 +382,7 @@ export function PickupDeliveryTab({
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="font-semibold text-gray-900 mb-6">Rush case Setting</h4>
 
-                <div className="grid grid-cols-2 gap-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12">
                   {/* Left Column - Turnaround Time */}
                   <div>
                     <RadioGroup 
@@ -399,18 +399,18 @@ export function PickupDeliveryTab({
                           id="fixed-turnaround"
                           className="border-blue-600 text-blue-600"
                         />
-                        <Label htmlFor="fixed-turnaround" className="font-medium text-gray-900">
+                        <Label htmlFor="fixed-turnaround" className="font-medium text-gray-900 text-sm sm:text-base cursor-pointer">
                           Fixed Turnaround Time
                         </Label>
                         <Input
-                          className="w-16 h-8 ml-4 text-center border-blue-300 focus:border-blue-500"
+                          className="w-16 h-8 ml-4 text-center border-blue-300 focus:border-blue-500 text-xs sm:text-sm"
                           value={turnaroundDays}
                           onChange={(e) => {
                             setTurnaroundDays(e.target.value)
                           }}
                           disabled={isSaving || turnaroundType !== "fixed"}
                         />
-                        <span className="text-gray-900">days</span>
+                        <span className="text-gray-900 text-sm">days</span>
                       </div>
                       <div className="flex items-center space-x-3">
                         <RadioGroupItem
@@ -418,14 +418,14 @@ export function PickupDeliveryTab({
                           id="flexible-turnaround"
                           className="border-blue-600 text-blue-600"
                         />
-                        <Label htmlFor="flexible-turnaround" className="font-medium text-gray-900">
+                        <Label htmlFor="flexible-turnaround" className="font-medium text-gray-900 text-sm sm:text-base cursor-pointer">
                           Flexible Turnaround Time
                         </Label>
                       </div>
                     </RadioGroup>
                   </div>
 
-                  {/* Right Column - Rush Fee (mirrors turnaround type per API) */}
+                  {/* Right Column - Rush Fee */}
                   <div>
                     <RadioGroup
                       value={turnaroundType}
@@ -439,16 +439,16 @@ export function PickupDeliveryTab({
                           id="fixed-rush-fee"
                           className="border-blue-600 text-blue-600"
                         />
-                        <Label htmlFor="fixed-rush-fee" className="font-medium text-gray-900">
+                        <Label htmlFor="fixed-rush-fee" className="font-medium text-gray-900 text-sm sm:text-base cursor-pointer">
                           Fixed Rush Fee
                         </Label>
                         <Input
-                          className="w-16 h-8 ml-4 text-center border-blue-300 focus:border-blue-500"
+                          className="w-16 h-8 ml-4 text-center border-blue-300 focus:border-blue-500 text-xs sm:text-sm"
                           value={rushFeePercent}
                           onChange={(e) => setRushFeePercent(e.target.value)}
                           disabled={isSaving || turnaroundType !== "fixed"}
                         />
-                        <span className="text-gray-900">%</span>
+                        <span className="text-gray-900 text-sm">%</span>
                       </div>
                       <div className="flex items-center space-x-3">
                         <RadioGroupItem
@@ -456,7 +456,7 @@ export function PickupDeliveryTab({
                           id="flexible-rush-fee"
                           className="border-blue-600 text-blue-600"
                         />
-                        <Label htmlFor="flexible-rush-fee" className="font-medium text-gray-900">
+                        <Label htmlFor="flexible-rush-fee" className="font-medium text-gray-900 text-sm sm:text-base cursor-pointer">
                           Flexible Rush Fee
                         </Label>
                       </div>

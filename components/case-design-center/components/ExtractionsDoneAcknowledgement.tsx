@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
+import { ChevronDown } from "lucide-react";
 
 interface ExtractionsDoneAcknowledgementProps {
   acknowledged: boolean;
@@ -17,6 +18,22 @@ export function ExtractionsDoneAcknowledgement({
   onAcknowledgedChange,
   caseSubmitted = false,
 }: ExtractionsDoneAcknowledgementProps) {
+  if (caseSubmitted) return null;
+
+  if (acknowledged) {
+    return (
+      <button
+        type="button"
+        onClick={() => onAcknowledgedChange(false)}
+        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[#f0fdf4] transition-colors"
+        title="Confirmed — click to edit"
+        aria-label="Confirmed — click to edit"
+      >
+        <Check size={22} className="text-[#34C759]" strokeWidth={2.5} aria-hidden />
+      </button>
+    );
+  }
+
   return null;
 }
 

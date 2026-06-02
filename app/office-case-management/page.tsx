@@ -22,6 +22,20 @@ import PrintPreviewModal from "@/components/print-preview-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
+import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
+import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
+
+function buildApiUrl(pathOrUrl: string): string {
+  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+    return pathOrUrl
+  }
+
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+  if (!base && typeof window !== "undefined") {
+    return new URL(pathOrUrl, window.location.origin).toString()
+  }
+  return new URL(pathOrUrl, base.endsWith("/") ? base : `${base}/`).toString()
+}
 
 
 export default function SlipPage() {
@@ -76,6 +90,8 @@ export default function SlipPage() {
   const [showPrintDriverTags, setShowPrintDriverTags] = useState(false)
   const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<any>(null)
   const [selectedSlipForStatement, setSelectedSlipForStatement] = useState<any>(null)
+  const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
+  const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   // Fetch data on component mount
   useEffect(() => {
@@ -179,6 +195,107 @@ export default function SlipPage() {
   const handleCallLogClick = (slip: any) => {
     setSelectedSlipForCallLog(slip)
     setShowCallLogModal(true)
+  }
+
+  const handlePrintStatement = (slip: any) => {
+    void (async () => {
+      setSelectedSlipForStatement(slip)
+
+      let billingId = resolveCaseStatementBillingId(slip)
+
+      if (billingId == null && slip?.caseNumber) {
+        try {
+          const searchResult = await advancedBillingSearch({
+            search: slip.slipNumber || slip.caseNumber || slip.patient || undefined,
+            case_number: slip.caseNumber,
+            patient_name: slip.patient || undefined,
+            per_page: 20,
+            page: 1,
+          }).unwrap()
+          billingId = findBillingInvoiceIdFromSearchResults(searchResult.data ?? [], {
+            slipNumber: slip.slipNumber,
+            caseNumber: slip.caseNumber,
+            patient: slip.patient,
+          })
+        } catch {
+          billingId = null
+        }
+      }
+
+      if (billingId == null) {
+        toast({
+          title: "Statement not available",
+          description: "No billing invoice was found for this case yet.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=900")
+      if (!printWindow) {
+        toast({
+          title: "Unable to print statement",
+          description: "Please allow pop-ups and try again.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      printWindow.document.open()
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Preparing statement...</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                min-height: 100vh;
+                display: grid;
+                place-items: center;
+                color: #111827;
+              }
+            </style>
+          </head>
+          <body>Preparing statement...</body>
+        </html>
+      `)
+      printWindow.document.close()
+
+      try {
+        const result = await generateVirtualStatement(billingId).unwrap()
+        const printUrl = result?.data?.print_url
+        const statementHtml = result?.data?.html
+
+        if (printUrl) {
+          printWindow.location.href = buildApiUrl(printUrl)
+          return
+        }
+
+        if (!statementHtml) {
+          throw new Error(result?.message || "No printable statement content was returned.")
+        }
+
+        printWindow.document.open()
+        printWindow.document.write(statementHtml)
+        printWindow.document.close()
+        printWindow.focus()
+        window.setTimeout(() => {
+          try {
+            printWindow.print()
+          } catch {
+            // Leave preview open if auto-print is blocked.
+          }
+        }, 300)
+      } catch (error) {
+        printWindow.close()
+        toast({
+          title: "Unable to print statement",
+          description: error instanceof Error ? error.message : "Please try again.",
+          variant: "destructive",
+        })
+      }
+    })()
   }
 
   const handleRowClick = (slip: any, event: React.MouseEvent) => {
@@ -563,7 +680,7 @@ export default function SlipPage() {
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Check className="h-4 w-4" />Pick up</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Driver label</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Paper slip</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Statement</Button>
+          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100" onClick={() => selected.length === 1 ? handlePrintStatement(slipsPage.find((s) => s.id === selected[0])) : undefined}><Printer className="h-4 w-4" />Print Statement</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Plus className="h-4 w-4" />Send back to office</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><ChevronDown className="h-4 w-4" />Rush case</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-red-600 hover:bg-red-50" onClick={() => setArchiveConfirm(-1)}><Trash2 className="h-4 w-4" />Archive case</Button>
@@ -774,8 +891,14 @@ export default function SlipPage() {
                             <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
                               <Copy className="h-4 w-4" />Duplicate
                             </button>
-                            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                              <Printer className="h-4 w-4" />Print Paper Slip
+                            <button
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
+                              onClick={() => {
+                                setMenuRow(null)
+                                handlePrintStatement(row)
+                              }}
+                            >
+                              <Printer className="h-4 w-4" />Print Statement
                             </button>
                             <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-red-600 text-sm" onClick={() => handleArchive(row.id)}>
                               <Trash2 className="h-4 w-4" />Archive Case
@@ -1017,4 +1140,3 @@ export default function SlipPage() {
     </div>
   )
 }
-

@@ -83,3 +83,6 @@ node_modules
 .agents/
 graphify-out/
 .graphifyignore
+
+.cursor/
+.claude/

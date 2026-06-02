@@ -1,25 +1,35 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { Calendar, Download, Eye, Loader2, Mail, Search, Send } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { AlertTriangle, Calendar, Check, Download, Eye, Loader2, Mail, Pencil, Printer, Search, Send } from "lucide-react"
 import {
   DialogClose,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  useUpdateBillingInvoicePricingMutation,
   useGenerateStatementPdfMutation,
+  useGetStatementByIdQuery,
   useGetStatementSummaryQuery,
-  useLazyPreviewStatementEmailQuery,
+  useListBillingInvoicesQuery,
   useListStatementsQuery,
   useSendStatementMutation,
+  type BillingProduct,
   type StatementListParams,
+  type StatementBillingItem,
   type StatementRecord,
 } from "@/lib/redux/api/billingApi"
 import { useToast } from "@/hooks/use-toast"
+import {
+  buildStatementHeaderDraft,
+  computeBasePriceFromTargetGross,
+  findMatchingBillingTarget,
+  findMatchingBillingInvoiceId,
+  type StatementHeaderDraft,
+} from "@/lib/statement-edit-utils"
 
 function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "$0.00"
@@ -93,6 +103,57 @@ function getStatementCode(statement: StatementRecord): string {
 
 function getRecipient(statement: StatementRecord): string {
   return statement.recipient_email || statement.office?.email || statement.lab?.email || "—"
+}
+
+type StatementPreviewBillingItem = StatementBillingItem & {
+  billing_invoice_id?: number | null
+  invoice_id?: number | null
+  product_type?: string | null
+  grade_name?: string | null
+  stage_name?: string | null
+  base_total?: number | string | null
+  addon_total?: number | string | null
+  quantity?: number | string | null
+  sub_total?: number | string | null
+  rush_percentage?: number | string | null
+  gross_amount?: number | string | null
+}
+
+type InlineAmountDraft = {
+  grossAmount: string
+  saving: boolean
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  if (value === null || value === undefined || value === "") return 0
+  const parsed = typeof value === "string" ? Number.parseFloat(value) : value
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function isRefundStatus(value: string | null | undefined): boolean {
+  const normalized = (value ?? "").toLowerCase()
+  return normalized === "refund" || normalized === "refunded"
+}
+
+function getBillingItemGross(item: StatementPreviewBillingItem): number {
+  const amount = toNumber(item.gross_amount ?? item.amount)
+  if (amount < 0) return amount
+  return isRefundStatus(item.status) ? -amount : amount
+}
+
+function StatementPreviewIcon() {
+  return (
+    <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="41.2246" height="41.2246" rx="6" fill="#1162A8" />
+      <path
+        d="M26.2373 22.2998V20.3311C26.2373 19.6597 25.9706 19.0159 25.4959 18.5412C25.0212 18.0665 24.3774 17.7998 23.7061 17.7998H22.5811C22.3573 17.7998 22.1427 17.7109 21.9844 17.5527C21.8262 17.3944 21.7373 17.1798 21.7373 16.9561V15.8311C21.7373 15.1597 21.4706 14.5159 20.9959 14.0412C20.5212 13.5665 19.8774 13.2998 19.2061 13.2998H17.7998M20.6123 20.0498V25.6748M22.2998 20.8253C21.4526 20.6071 20.571 20.5554 19.7041 20.6731C19.3021 20.7271 18.9736 21.0316 18.9383 21.4358C18.9294 21.5361 18.9249 21.6367 18.9248 21.7373C18.9248 22.0853 19.1768 22.3703 19.5061 22.4828L21.7186 23.2418C22.0486 23.3543 22.2998 23.6393 22.2998 23.9873C22.2998 24.0893 22.2953 24.1898 22.2863 24.2888C22.2511 24.6931 21.9226 24.9976 21.5206 25.0516C20.6536 25.1681 19.7722 25.1164 18.9248 24.8993M19.4873 13.2998H15.8311C15.3653 13.2998 14.9873 13.6778 14.9873 14.1436V27.0811C14.9873 27.5468 15.3653 27.9248 15.8311 27.9248H25.3936C25.8593 27.9248 26.2373 27.5468 26.2373 27.0811V20.0498C26.2373 18.2596 25.5261 16.5427 24.2603 15.2768C22.9944 14.011 21.2775 13.2998 19.4873 13.2998Z"
+        stroke="white"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 function parseDateRangeInput(value: string): { date_from?: string; date_to?: string } {
@@ -171,9 +232,11 @@ export default function GenerateStatementsPage() {
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
-  const [previewDialogTitle, setPreviewDialogTitle] = useState("")
-  const [previewDialogRecipient, setPreviewDialogRecipient] = useState("")
-  const [previewDialogHtml, setPreviewDialogHtml] = useState("")
+  const [previewStatement, setPreviewStatement] = useState<StatementRecord | null>(null)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [headerDraft, setHeaderDraft] = useState<StatementHeaderDraft | null>(null)
+  const [inlineAmountDrafts, setInlineAmountDrafts] = useState<Record<string, InlineAmountDraft>>({})
+  const previewContentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 350)
@@ -215,12 +278,42 @@ export default function GenerateStatementsPage() {
     refetch,
   } = useListStatementsQuery(listParams)
 
+  const {
+    data: previewStatementDetail,
+    refetch: refetchPreviewStatement,
+  } = useGetStatementByIdQuery(previewStatement?.id ?? 0, {
+    skip: !previewDialogOpen || previewStatement == null,
+  })
+
   const { data: summary, isFetching: summaryFetching } = useGetStatementSummaryQuery()
-  const [previewStatementEmail] = useLazyPreviewStatementEmailQuery()
   const [sendStatement] = useSendStatementMutation()
   const [generateStatementPdf] = useGenerateStatementPdfMutation()
+  const [updateBillingInvoicePricing] = useUpdateBillingInvoicePricingMutation()
+
+  const officeInvoiceParams = useMemo(
+    () => ({
+      office_id: previewStatementDetail?.office?.id ?? previewStatement?.office?.id ?? undefined,
+      per_page: 200,
+      page: 1,
+      sort_by: "created_at",
+      sort_direction: "desc" as const,
+    }),
+    [previewStatement, previewStatementDetail],
+  )
+
+  const {
+    data: officeInvoiceResult,
+    isFetching: officeInvoicesFetching,
+    refetch: refetchOfficeInvoices,
+  } = useListBillingInvoicesQuery(officeInvoiceParams, {
+    skip:
+      !previewDialogOpen ||
+      !isEditMode ||
+      (previewStatementDetail?.office?.id ?? previewStatement?.office?.id) == null,
+  })
 
   const statements = listResult?.data ?? EMPTY_STATEMENTS
+  const activePreviewStatement = previewStatementDetail ?? previewStatement
 
   const statementIds = useMemo(
     () => statements.map((statement) => String(statement.id)),
@@ -254,27 +347,159 @@ export default function GenerateStatementsPage() {
   const handlePreview = async (statement: StatementRecord) => {
     setPreviewingId(statement.id)
     try {
-      const preview = await previewStatementEmail(statement.id).unwrap()
-      setPreviewDialogTitle(
-        preview.subject || statement.subject || statement.statement_id || `Statement #${statement.id}`,
-      )
-      setPreviewDialogRecipient(preview.recipient_email || getRecipient(statement))
-      setPreviewDialogHtml(preview.preview_html || "<p style=\"padding:24px;font-family:Arial,sans-serif;\">No preview available.</p>")
+      setPreviewStatement(statement)
+      setIsEditMode(false)
+      setHeaderDraft(null)
       setPreviewDialogOpen(true)
-    } catch (previewError) {
-      toast({
-        title: "Unable to preview statement",
-        description:
-          previewError instanceof Error ? previewError.message : "Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setPreviewingId(null)
     }
   }
 
-  const handleSend = async (statement: StatementRecord) => {
-    if (!statement.recipient_email || !statement.subject) {
+  useEffect(() => {
+    if (!previewDialogOpen) {
+      setIsEditMode(false)
+      setHeaderDraft(null)
+      setInlineAmountDrafts({})
+    }
+  }, [previewDialogOpen])
+
+  const effectivePreviewStatement = useMemo(() => {
+    if (!activePreviewStatement) return null
+    if (!headerDraft) return activePreviewStatement
+
+    return {
+      ...activePreviewStatement,
+      statement_id: headerDraft.statementId || activePreviewStatement.statement_id,
+      recipient_email: headerDraft.recipientEmail || activePreviewStatement.recipient_email,
+      created_at: headerDraft.statementDate || activePreviewStatement.created_at,
+      due_date: headerDraft.dueDate || activePreviewStatement.due_date,
+    } satisfies StatementRecord
+  }, [activePreviewStatement, headerDraft])
+
+  const handlePrintPreview = () => {
+    if (!previewContentRef.current || !effectivePreviewStatement) return
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=900")
+    if (!printWindow) {
+      toast({
+        title: "Unable to print statement",
+        description: "Please allow pop-ups and try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const markup = previewContentRef.current.innerHTML
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${effectivePreviewStatement.statement_id || `Statement #${effectivePreviewStatement.id}`}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 24px; color: #111827; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 10px 12px; font-size: 13px; vertical-align: top; }
+            thead th { border-bottom: 1px solid #d1d5db; text-align: left; }
+            tbody tr:nth-child(odd) { background: #eaf4ff; }
+          </style>
+        </head>
+        <body>${markup}</body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    window.setTimeout(() => printWindow.print(), 250)
+  }
+
+  const previewItems = useMemo<StatementPreviewBillingItem[]>(
+    () => ((activePreviewStatement?.billing_items as StatementPreviewBillingItem[] | undefined) ?? []),
+    [activePreviewStatement],
+  )
+
+  const previewSubtotal = useMemo(
+    () => previewItems.filter((item) => getBillingItemGross(item) > 0).reduce((sum, item) => sum + getBillingItemGross(item), 0),
+    [previewItems],
+  )
+
+  const previewRefundTotal = useMemo(
+    () => previewItems.filter((item) => getBillingItemGross(item) < 0).reduce((sum, item) => sum + getBillingItemGross(item), 0),
+    [previewItems],
+  )
+
+  const previewTotal = useMemo(() => previewSubtotal + previewRefundTotal, [previewRefundTotal, previewSubtotal])
+
+  const previewCode = effectivePreviewStatement ? getStatementCode(effectivePreviewStatement) : "—"
+  const previewRecipient = effectivePreviewStatement ? getRecipient(effectivePreviewStatement) : "—"
+  const officeInvoices = officeInvoiceResult?.data ?? []
+  const officeInvoiceMap = useMemo(
+    () => new Map(officeInvoices.map((invoice) => [invoice.id, invoice])),
+    [officeInvoices],
+  )
+  const matchedInvoiceIds = useMemo(
+    () =>
+      previewItems.map((item) => {
+        const directInvoiceId = item.billing_invoice_id ?? item.invoice_id
+        if (typeof directInvoiceId === "number" && directInvoiceId > 0) return directInvoiceId
+        return findMatchingBillingInvoiceId(item, officeInvoices)
+      }),
+    [officeInvoices, previewItems],
+  )
+  const matchedBillingTargets = useMemo(
+    () =>
+      previewItems.map((item) => {
+        const directInvoiceId = item.billing_invoice_id ?? item.invoice_id
+        if (typeof directInvoiceId === "number" && directInvoiceId > 0) {
+          const invoice = officeInvoiceMap.get(directInvoiceId)
+          const product = (invoice?.products ?? []).find((candidate) => {
+            return (
+              candidate.product_name === item.product_name &&
+              candidate.grade_name === item.grade_name &&
+              candidate.stage_name === item.stage_name
+            )
+          })
+          return product ? { invoiceId: directInvoiceId, productId: product.id } : null
+        }
+        return findMatchingBillingTarget(item, officeInvoices)
+      }),
+    [officeInvoiceMap, officeInvoices, previewItems],
+  )
+
+  const enterEditMode = () => {
+    if (!activePreviewStatement) return
+    setHeaderDraft(buildStatementHeaderDraft(activePreviewStatement))
+    setIsEditMode(true)
+  }
+
+  const startInlineAmountEdit = (itemKey: string, currentGross: number) => {
+    setInlineAmountDrafts((current) => ({
+      ...current,
+      [itemKey]: {
+        grossAmount: currentGross.toFixed(2),
+        saving: false,
+      },
+    }))
+  }
+
+  const cancelInlineAmountEdit = (itemKey: string) => {
+    setInlineAmountDrafts((current) => {
+      const next = { ...current }
+      delete next[itemKey]
+      return next
+    })
+  }
+
+  const updateInlineAmountDraft = (itemKey: string, value: string) => {
+    setInlineAmountDrafts((current) => ({
+      ...current,
+      [itemKey]: {
+        ...(current[itemKey] ?? { saving: false }),
+        grossAmount: value,
+      },
+    }))
+  }
+
+  const handleSend = async (statement: StatementRecord, overrides?: Partial<StatementHeaderDraft>) => {
+    const recipientEmail = overrides?.recipientEmail?.trim() || statement.recipient_email || ""
+    if (!recipientEmail || !statement.subject) {
       toast({
         title: "Statement is missing email details",
         description: "Recipient email and subject are required before sending.",
@@ -288,7 +513,7 @@ export default function GenerateStatementsPage() {
       await sendStatement({
         id: statement.id,
         body: {
-          recipient_email: statement.recipient_email,
+          recipient_email: recipientEmail,
           cc_emails: statement.cc_emails ?? [],
           bcc_emails: statement.bcc_emails ?? [],
           subject: statement.subject,
@@ -311,6 +536,84 @@ export default function GenerateStatementsPage() {
       })
     } finally {
       setSendingId(null)
+    }
+  }
+
+  const handleSaveInlineAmount = async (
+    itemKey: string,
+    target: { invoiceId: number; productId: number } | null,
+  ) => {
+    if (!target) {
+      toast({
+        title: "Invoice match not available",
+        description: "We could not confidently match this statement row to a billing invoice.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const draft = inlineAmountDrafts[itemKey]
+    const invoice = officeInvoiceMap.get(target.invoiceId)
+    const product = (invoice?.products ?? []).find((candidate) => candidate.id === target.productId)
+
+    if (!draft || !invoice || !product) {
+      toast({
+        title: "Unable to save inline amount",
+        description: "The linked billing product could not be loaded.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const nextGross = Number.parseFloat(draft.grossAmount)
+    const nextBasePrice = computeBasePriceFromTargetGross(nextGross, product as BillingProduct)
+
+    if (!Number.isFinite(nextGross) || nextGross < 0 || nextBasePrice == null) {
+      toast({
+        title: "Invalid gross amount",
+        description: "Enter a positive amount that can be converted back into invoice pricing.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setInlineAmountDrafts((current) => ({
+      ...current,
+      [itemKey]: {
+        ...current[itemKey],
+        saving: true,
+      },
+    }))
+
+    try {
+      await updateBillingInvoicePricing({
+        invoiceId: target.invoiceId,
+        body: {
+          products: [
+            {
+              id: target.productId,
+              base_price: nextBasePrice,
+            },
+          ],
+        },
+      }).unwrap()
+
+      await Promise.all([refetchPreviewStatement(), refetchOfficeInvoices(), refetch()])
+      cancelInlineAmountEdit(itemKey)
+      toast({ title: "Statement amount updated" })
+    } catch (saveError) {
+      setInlineAmountDrafts((current) => ({
+        ...current,
+        [itemKey]: {
+          ...current[itemKey],
+          saving: false,
+        },
+      }))
+      toast({
+        title: "Unable to save inline amount",
+        description: saveError instanceof Error ? saveError.message : "Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -483,25 +786,293 @@ export default function GenerateStatementsPage() {
         </div>
       </div>
 
-      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-        <DialogContent className="flex h-[min(90vh,56rem)] w-[min(96vw,72rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
-          <DialogHeader className="border-b px-6 py-4 text-left">
-            <DialogTitle className="truncate">{previewDialogTitle || "Statement preview"}</DialogTitle>
-            <DialogDescription className="truncate">
-              Previewing email content for {previewDialogRecipient || "the selected recipient"}.
-            </DialogDescription>
+      <Dialog
+        open={previewDialogOpen}
+        onOpenChange={(open) => {
+          setPreviewDialogOpen(open)
+          if (!open) setPreviewStatement(null)
+        }}
+      >
+        <DialogContent className="flex h-[min(94vh,70rem)] w-[min(98vw,86rem)] max-w-7xl flex-col gap-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white p-0">
+          <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-6 text-left sm:px-8 sm:py-8">
+              <div className="flex items-start gap-5 pr-12">
+                <StatementPreviewIcon />
+              <div>
+                <DialogTitle className="text-3xl font-bold text-black sm:text-4xl">
+                  {isEditMode ? "Virtual Statement - [EDIT MODE]" : "Virtual Statement"}
+                </DialogTitle>
+                {isEditMode ? (
+                  <p className="mt-2 text-sm text-amber-700">
+                    Recipient email will be used when resending. Statement number, date, and due date are preview-only until the backend supports statement header updates.
+                  </p>
+                ) : null}
+              </div>
+            </div>
           </DialogHeader>
           <DialogClose className="absolute right-4 top-4 rounded-sm p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
             <span className="text-xl leading-none" aria-hidden>×</span>
             <span className="sr-only">Close</span>
           </DialogClose>
-          <div className="flex-1 bg-muted/20">
-            <iframe
-              title="Statement email preview"
-              srcDoc={previewDialogHtml}
-              className="h-full w-full border-0 bg-white"
-              sandbox="allow-same-origin"
-            />
+          <div className="min-h-0 flex-1 overflow-y-auto bg-white px-5 py-5 sm:px-8 sm:py-8">
+            <div ref={previewContentRef} className="mx-auto max-w-[78rem]">
+              <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                  <img src="/images/rxn3d-logo.png" alt="RXN3D logo" className="h-20 w-auto object-contain" />
+                  <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
+                    <p>{activePreviewStatement?.lab?.address || "—"}</p>
+                    <p>
+                      Phone: {activePreviewStatement?.lab?.phone || "—"} | Email {activePreviewStatement?.lab?.email || "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-left lg:text-right">
+                  <h3 className="text-[22px] font-bold text-black sm:text-[26px]">Statement</h3>
+                  {isEditMode && headerDraft ? (
+                    <div className="mt-3 space-y-3 text-[18px] text-slate-900 sm:text-[20px]">
+                      <label className="block">
+                        <span className="mr-2 font-bold">NO:</span>
+                        <input
+                          type="text"
+                          value={headerDraft.statementId}
+                          onChange={(event) => setHeaderDraft((current) => current ? { ...current, statementId: event.target.value } : current)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900 lg:ml-auto lg:max-w-[18rem]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mr-2 font-bold">Date:</span>
+                        <input
+                          type="date"
+                          value={headerDraft.statementDate}
+                          onChange={(event) => setHeaderDraft((current) => current ? { ...current, statementDate: event.target.value } : current)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900 lg:ml-auto lg:max-w-[18rem]"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mr-2 font-bold">Due date:</span>
+                        <input
+                          type="date"
+                          value={headerDraft.dueDate}
+                          onChange={(event) => setHeaderDraft((current) => current ? { ...current, dueDate: event.target.value } : current)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900 lg:ml-auto lg:max-w-[18rem]"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-1 text-[18px] text-slate-900 sm:text-[20px]">
+                      <p><span className="font-bold">NO:</span> {effectivePreviewStatement?.statement_id || `Statement #${effectivePreviewStatement?.id ?? ""}`}</p>
+                      <p><span className="font-bold">Date:</span> {formatShortDate(effectivePreviewStatement?.created_at)}</p>
+                      <p><span className="font-bold">Due date:</span> {formatShortDate(effectivePreviewStatement?.due_date)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-10">
+                <p className="text-[20px] text-slate-800">Billed to:</p>
+                <h3 className="mt-3 text-3xl font-bold text-black sm:text-4xl">
+                  {activePreviewStatement?.office?.name || previewRecipient}
+                </h3>
+                <p className="mt-2 text-[16px] text-slate-700 sm:text-[18px]">{activePreviewStatement?.office?.address || "—"}</p>
+                {isEditMode && headerDraft ? (
+                  <div className="mt-3 max-w-xl">
+                    <label className="block text-[15px] text-slate-500 sm:text-[17px]">
+                      <span>Code: {previewCode} | Recipient</span>
+                      <input
+                        type="email"
+                        value={headerDraft.recipientEmail}
+                        onChange={(event) => setHeaderDraft((current) => current ? { ...current, recipientEmail: event.target.value } : current)}
+                        className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+                        placeholder="recipient@example.com"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-[15px] text-slate-500 sm:text-[17px]">
+                    Code: {previewCode} | Recipient: {previewRecipient}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-10 overflow-x-auto border-t border-slate-200 pt-6">
+                <table className="min-w-full border-separate border-spacing-y-0">
+                  <thead>
+                    <tr className="text-left text-[14px] font-bold uppercase tracking-[0.02em] text-slate-900">
+                      <th className="px-4 py-3">Patient</th>
+                      <th className="px-4 py-3">U/L</th>
+                      <th className="px-4 py-3">Product</th>
+                      <th className="px-4 py-3">Grade</th>
+                      <th className="px-4 py-3">Stage</th>
+                      <th className="px-4 py-3">Base total</th>
+                      <th className="px-4 py-3">Add-on</th>
+                      <th className="px-4 py-3">QTY</th>
+                      <th className="px-4 py-3">Sub Total</th>
+                      <th className="px-4 py-3">R%</th>
+                      <th className="px-4 py-3">Gross</th>
+                      {isEditMode ? <th className="px-4 py-3 text-right">Actions</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={isEditMode ? 12 : 11} className="px-4 py-10 text-center text-sm text-slate-500">
+                          No billing items available for this statement.
+                        </td>
+                      </tr>
+                    ) : (
+                      previewItems.map((item, index) => {
+                        const matchedInvoiceId = matchedInvoiceIds[index] ?? null
+                        const matchedTarget = matchedBillingTargets[index] ?? null
+                        const itemKey = String(item.id ?? `${item.patient_name}-${index}`)
+                        const inlineDraft = inlineAmountDrafts[itemKey]
+                        const isRefundRow = getBillingItemGross(item) < 0
+                        const canInlineEdit = matchedTarget != null && !isRefundRow
+                        return (
+                          <tr key={item.id ?? `${item.patient_name}-${index}`} className={index % 2 === 0 ? "bg-[#eaf4ff]" : "bg-white"}>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.patient_name || "—"}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.product_type || "—"}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.product_name || "—"}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.grade_name || "—"}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.stage_name || "—"}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{formatMoney(item.base_total)}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.quantity ?? "-"}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</td>
+                            <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.rush_percentage) === 0 ? "-" : `${toNumber(item.rush_percentage)}%`}</td>
+                            <td className={`px-4 py-4 text-[15px] font-semibold ${getBillingItemGross(item) < 0 ? "text-red-600" : "text-slate-900"}`}>
+                              {inlineDraft ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={inlineDraft.grossAmount}
+                                  onChange={(event) => updateInlineAmountDraft(itemKey, event.target.value)}
+                                  className="w-28 rounded-lg border border-slate-300 bg-white px-2 py-1 text-right text-[15px] font-semibold text-slate-900"
+                                />
+                              ) : (
+                                formatMoney(getBillingItemGross(item))
+                              )}
+                            </td>
+                            {isEditMode ? (
+                              <td className="px-4 py-4">
+                                <div className="flex items-center justify-end gap-3">
+                                  {inlineDraft ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleSaveInlineAmount(itemKey, matchedTarget)}
+                                        disabled={inlineDraft.saving}
+                                        className="rounded-lg bg-[#1565b3] px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        {inlineDraft.saving ? "Saving..." : "Save"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => cancelInlineAmountEdit(itemKey)}
+                                        disabled={inlineDraft.saving}
+                                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => startInlineAmountEdit(itemKey, getBillingItemGross(item))}
+                                      disabled={!canInlineEdit}
+                                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 text-[#1565b3] transition hover:border-[#1565b3] hover:bg-white disabled:cursor-not-allowed disabled:text-slate-300"
+                                      title={
+                                        canInlineEdit
+                                          ? "Edit gross amount inline"
+                                          : isRefundRow
+                                            ? "Refund rows cannot be edited inline yet"
+                                            : matchedInvoiceId
+                                              ? "This row needs the invoice editor"
+                                              : "Matching invoice not found"
+                                      }
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                  {canInlineEdit ? (
+                                    <Check className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+                                  ) : (
+                                    <AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" />
+                                  )}
+                                </div>
+                              </td>
+                            ) : null}
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-10 flex justify-end">
+                <div className="w-full max-w-sm space-y-5 text-right">
+                  <div className="flex items-center justify-between text-[18px] font-semibold text-slate-900">
+                    <span>Sub Total</span>
+                    <span>{formatMoney(previewSubtotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[18px] font-semibold text-red-600">
+                    <span>Refund</span>
+                    <span>{formatMoney(previewRefundTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-4 text-[22px] font-bold text-black">
+                    <span>Total</span>
+                    <span>{formatMoney(activePreviewStatement?.amount_due ?? previewTotal)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 sm:px-8">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <button
+                  type="button"
+                  disabled={!activePreviewStatement || isEditMode || downloadingId === activePreviewStatement.id}
+                  onClick={() => activePreviewStatement && handleDownload(activePreviewStatement)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {activePreviewStatement && downloadingId === activePreviewStatement.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                  Download PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrintPreview}
+                  disabled={!effectivePreviewStatement}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Printer className="h-5 w-5" />
+                  Print
+                </button>
+                <button
+                  type="button"
+                  disabled={!activePreviewStatement}
+                  onClick={enterEditMode}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Send className="h-5 w-5" />
+                  {isEditMode ? "Editing Statement" : "Edit Statement"}
+                </button>
+              </div>
+              <button
+                type="button"
+                disabled={!activePreviewStatement || sendingId === activePreviewStatement.id}
+                onClick={() => activePreviewStatement && handleSend(activePreviewStatement, headerDraft ?? undefined)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1565b3] px-6 py-3 text-base font-semibold text-white transition hover:bg-[#0f4d8b] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {activePreviewStatement && sendingId === activePreviewStatement.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mail className="h-5 w-5" />}
+                {isEditMode ? "Resend Statement" : "Email Statement"}
+              </button>
+            </div>
+            {isEditMode ? (
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                <span>{officeInvoicesFetching ? "Matching invoices..." : "Line-item edits open the saved invoice editor for the matched billing invoice."}</span>
+              </div>
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { X, ChevronDown, Plus, Info } from "lucide-react"
+import { X, ChevronDown, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,7 +20,119 @@ import {
 } from "@/contexts/product-teeth-shade-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next"
+import { AddCustomShadePanel } from "@/components/product-management/add-custom-shade-panel"
+
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
+
+type FormTeethShade = ShadePayload & {
+  enabled: boolean
+}
+
+function toOptionalHexColor(value?: string | null): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  return HEX_COLOR_PATTERN.test(trimmed) ? trimmed : undefined
+}
+
+function isPersistedShadeId(id?: number): id is number {
+  return typeof id === "number" && id > 0 && id < 1_000_000_000
+}
+
+function mapShadeToForm(shade: {
+  id?: number
+  name: string
+  sequence: number
+  status: string
+  color_code_incisal?: string | null
+  color_code_body?: string | null
+  color_code_cervical?: string | null
+}): FormTeethShade {
+  return {
+    id: shade.id,
+    name: shade.name,
+    sequence: shade.sequence,
+    status: shade.status,
+    enabled: shade.status === "Active",
+    color_code_incisal: shade.color_code_incisal ?? "",
+    color_code_body: shade.color_code_body ?? "",
+    color_code_cervical: shade.color_code_cervical ?? "",
+  }
+}
+
+function CompactShadeColorField({
+  value,
+  defaultHex,
+  onChange,
+  disabled,
+}: {
+  value?: string
+  defaultHex: string
+  onChange: (hex: string) => void
+  disabled?: boolean
+}) {
+  if (disabled) {
+    return <span className="text-xs text-gray-400">—</span>
+  }
+  const pickerValue = toOptionalHexColor(value) || defaultHex
+  return (
+    <div className="flex items-center justify-center gap-1.5">
+      <input
+        type="color"
+        value={pickerValue}
+        onChange={(e) => onChange(e.target.value.toUpperCase())}
+        className="h-7 w-7 shrink-0 cursor-pointer rounded border border-gray-200 bg-white p-0.5"
+        aria-label="Pick color"
+      />
+      <Input
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={defaultHex}
+        className="h-8 w-[5.5rem] px-2 font-mono text-xs"
+        maxLength={7}
+      />
+    </div>
+  )
+}
+
+function buildTeethShadePayload(shade: FormTeethShade): ShadePayload {
+  const status = shade.enabled ? "Active" : "Inactive"
+  const payload: ShadePayload = {
+    name: shade.name,
+    sequence: shade.sequence,
+    status,
+  }
+  if (isPersistedShadeId(shade.id)) {
+    payload.id = shade.id
+  }
+  const incisal = toOptionalHexColor(shade.color_code_incisal)
+  const body = toOptionalHexColor(shade.color_code_body)
+  const cervical = toOptionalHexColor(shade.color_code_cervical)
+  if (incisal) payload.color_code_incisal = incisal
+  if (body) payload.color_code_body = body
+  if (cervical) payload.color_code_cervical = cervical
+  return payload
+}
+
+type NewCustomTeethShadeDraft = {
+  name: string
+  enabled: boolean
+  color_code_incisal: string
+  color_code_body: string
+  color_code_cervical: string
+}
+
+const defaultNewCustomTeethShade: NewCustomTeethShadeDraft = {
+  name: "",
+  enabled: true,
+  color_code_incisal: "#FFFFFF",
+  color_code_body: "#F5F5DC",
+  color_code_cervical: "#E8E8E8",
+}
+
+function isValidHexColor(value: string): boolean {
+  return HEX_COLOR_PATTERN.test(value.trim())
+}
 
 interface CreateTeethShadeModalProps {
   isOpen: boolean
@@ -41,8 +153,15 @@ export function CreateTeethShadeModal({
   onSave,
   isCopying = false,
 }: CreateTeethShadeModalProps) {
-  const { createTeethShadeBrand, isLoading, fetchAvailableShades, fetchShadesForBrand, createCustomShade, teethShadeBrands } =
-    useTeethShades()
+  const {
+    createTeethShadeBrand,
+    isLoading,
+    fetchAvailableShades,
+    fetchShadesForBrand,
+    createCustomShade,
+    teethShadeBrands,
+    fetchTeethShadeBrands,
+  } = useTeethShades()
   const { toast } = useToast()
   const { t } = useTranslation();
   const defaultFormData = {
@@ -55,7 +174,7 @@ export function CreateTeethShadeModal({
   }
 
   const [formData, setFormData] = useState<
-    TeethShadeBrandPayload & { sequence: string; brand_color: string; shades: (ShadePayload & { enabled: boolean })[] }
+    TeethShadeBrandPayload & { sequence: string; brand_color: string; shades: FormTeethShade[] }
   >(defaultFormData)
   const [initialFormData, setInitialFormData] = useState(defaultFormData)
 
@@ -64,8 +183,8 @@ export function CreateTeethShadeModal({
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToExistingGroupOpen, setLinkToExistingGroupOpen] = useState(false)
   const [visibilityManagementOpen, setVisibilityManagementOpen] = useState(false)
-  const [newShadeName, setNewShadeName] = useState("")
-  const [selectedBrandForCustomShade, setSelectedBrandForCustomShade] = useState<string>("")
+  const [newCustomShade, setNewCustomShade] = useState<NewCustomTeethShadeDraft>(defaultNewCustomTeethShade)
+  const canPersistCustomShadeToApi = Boolean(isEditing && teethShadeBrand?.id && !isCopying)
 
   const [availableShades, setAvailableShades] = useState<Shade[]>([])
   const [loadingShades, setLoadingShades] = useState(false)
@@ -115,12 +234,7 @@ export function CreateTeethShadeModal({
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
           brand_color: teethShadeBrand.brand_color || "#1162a8",
-          shades: (teethShadeBrand.shades || []).map((shade: any) => ({
-            name: shade.name,
-            sequence: shade.sequence,
-            status: shade.status,
-            enabled: shade.status === "Active",
-          })),
+          shades: (teethShadeBrand.shades || []).map((shade: Shade) => mapShadeToForm(shade)),
         })
         setInitialFormData({
           name: teethShadeBrand.name || "",
@@ -128,12 +242,7 @@ export function CreateTeethShadeModal({
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
           brand_color: teethShadeBrand.brand_color || "#1162a8",
-          shades: (teethShadeBrand.shades || []).map((shade: any) => ({
-            name: shade.name,
-            sequence: shade.sequence,
-            status: shade.status,
-            enabled: shade.status === "Active",
-          })),
+          shades: (teethShadeBrand.shades || []).map((shade: Shade) => mapShadeToForm(shade)),
         })
       } else if (isEditing && teethShadeBrand && !isCopying) {
         // Editing: populate form for editing
@@ -143,12 +252,7 @@ export function CreateTeethShadeModal({
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
           brand_color: teethShadeBrand.brand_color || "#1162a8",
-          shades: (teethShadeBrand.shades || []).map((shade: any) => ({
-            name: shade.name,
-            sequence: shade.sequence,
-            status: shade.status,
-            enabled: shade.status === "Active",
-          })),
+          shades: (teethShadeBrand.shades || []).map((shade: Shade) => mapShadeToForm(shade)),
         })
         setInitialFormData({
           name: teethShadeBrand.name || "",
@@ -156,12 +260,7 @@ export function CreateTeethShadeModal({
           sequence: teethShadeBrand.sequence?.toString() || "",
           status: teethShadeBrand.status || "Active",
           brand_color: teethShadeBrand.brand_color || "#1162a8",
-          shades: (teethShadeBrand.shades || []).map((shade: any) => ({
-            name: shade.name,
-            sequence: shade.sequence,
-            status: shade.status,
-            enabled: shade.status === "Active",
-          })),
+          shades: (teethShadeBrand.shades || []).map((shade: Shade) => mapShadeToForm(shade)),
         })
       } else {
         // New teeth shade: reset form
@@ -175,8 +274,7 @@ export function CreateTeethShadeModal({
       setLinkToProductsOpen(false)
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
-      setNewShadeName("")
-      setSelectedBrandForCustomShade("")
+      setNewCustomShade(defaultNewCustomTeethShade)
     }
   }, [isOpen, isEditing, teethShadeBrand, isCopying, onHasChangesChange])
 
@@ -210,6 +308,9 @@ export function CreateTeethShadeModal({
       const loadAvailableShades = async () => {
         setLoadingShades(true)
         try {
+          if (teethShadeBrands.length === 0) {
+            await fetchTeethShadeBrands()
+          }
           const shades = await fetchAvailableShades()
           setAvailableShades(shades)
         } catch (error) {
@@ -224,7 +325,16 @@ export function CreateTeethShadeModal({
       setAvailableShades([])
       setLoadingShades(false)
     }
-  }, [isOpen, isEditing, isCopying, teethShadeBrand?.id, fetchShadesForBrand, fetchAvailableShades])
+  }, [
+    isOpen,
+    isEditing,
+    isCopying,
+    teethShadeBrand?.id,
+    teethShadeBrands.length,
+    fetchShadesForBrand,
+    fetchAvailableShades,
+    fetchTeethShadeBrands,
+  ])
 
   // Track changes for discard dialog
   useEffect(() => {
@@ -262,110 +372,198 @@ export function CreateTeethShadeModal({
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const addCustomShadeToAPI = async () => {
-    if (newShadeName.trim() === "" || !selectedBrandForCustomShade) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter a shade name and select a brand.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    const brandId = Number.parseInt(selectedBrandForCustomShade)
-    const selectedBrand = teethShadeBrands.find((brand) => brand.id === brandId)
-
-    if (!selectedBrand) {
-      toast({
-        title: "Error",
-        description: "Selected brand not found.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Calculate next sequence number for this brand
-    const maxSequence = Math.max(...selectedBrand.shades.map((shade) => shade.sequence), 0)
-    const nextSequence = maxSequence + 1
-
-    setAddingCustomShade(true)
-
-    try {
-      const success = await createCustomShade({
-        brand_id: brandId,
-        name: newShadeName.trim(),
-        sequence: nextSequence,
-        status: "Active",
-      })
-
-      if (success) {
-        // Refresh available shades to include the new custom shade
-        const updatedShades = await fetchAvailableShades()
-        setAvailableShades(updatedShades)
-
-        // Also add the new shade to the current form data and automatically include it
-        const newShade = {
-          name: newShadeName.trim(),
-          sequence: nextSequence,
-          status: "Active",
-          enabled: true,
-        }
-
-        setFormData((prev) => ({
-          ...prev,
-          shades: [...prev.shades, newShade],
-        }))
-
-        // Clear the input
-        setNewShadeName("")
-        setSelectedBrandForCustomShade("")
-
-        toast({
-          title: "Success",
-          description: `Custom shade "${newShadeName.trim()}" added successfully!`,
-          variant: "default",
-        })
-      }
-    } catch (error) {
-      console.error("Error adding custom shade:", error)
-    } finally {
-      setAddingCustomShade(false)
+  const resolveShadeColors = (shadeName: string) => {
+    const fromBrand = teethShadeBrand?.shades?.find((s: Shade) => s.name === shadeName)
+    const fromAvailable = availableShades.find((s) => s.name === shadeName)
+    const source = fromBrand ?? fromAvailable
+    return {
+      color_code_incisal: source?.color_code_incisal ?? "",
+      color_code_body: source?.color_code_body ?? "",
+      color_code_cervical: source?.color_code_cervical ?? "",
     }
   }
 
-  const addNewShade = () => {
-    if (newShadeName.trim() === "") return
-
-    // Create the new shade object
-    const newShade = {
-      name: newShadeName.trim(),
-      sequence: formData.shades.length + 1,
-      status: "Active",
-      enabled: true,
-    }
-
-    // Add to form data
+  const updateShadeColor = (
+    shadeName: string,
+    field: "color_code_incisal" | "color_code_body" | "color_code_cervical",
+    value: string,
+  ) => {
     setFormData((prev) => ({
       ...prev,
-      shades: [...prev.shades, newShade],
+      shades: prev.shades.map((s) => (s.name === shadeName ? { ...s, [field]: value } : s)),
     }))
+  }
 
-    // Also add to available shades if it doesn't exist there yet
-    if (!availableShades.some((shade) => shade.name === newShadeName.trim())) {
+  const isEditPersistMode = Boolean(isEditing && !isCopying)
+
+  const setShadeActive = (
+    shade: Shade & { isCustom?: boolean },
+    active: boolean,
+  ) => {
+    setFormData((prev) => {
+      const existing = prev.shades.find((s) => s.name === shade.name)
+
+      if (isEditPersistMode && existing) {
+        return {
+          ...prev,
+          shades: prev.shades.map((s) =>
+            s.name === shade.name
+              ? { ...s, enabled: active, status: active ? "Active" : "Inactive" }
+              : s,
+          ),
+        }
+      }
+
+      if (active) {
+        if (existing) {
+          return {
+            ...prev,
+            shades: prev.shades.map((s) =>
+              s.name === shade.name
+                ? { ...s, enabled: true, status: "Active" }
+                : s,
+            ),
+          }
+        }
+        return {
+          ...prev,
+          shades: [
+            ...prev.shades,
+            {
+              id: typeof shade.id === "number" ? shade.id : undefined,
+              name: shade.name,
+              sequence: shade.sequence,
+              status: "Active",
+              enabled: true,
+              ...resolveShadeColors(shade.name),
+            },
+          ],
+        }
+      }
+
+      return {
+        ...prev,
+        shades: prev.shades.filter((s) => s.name !== shade.name),
+      }
+    })
+  }
+
+  const nextCustomShadeSequence = () => {
+    const sequences = [
+      ...formData.shades.map((s) => s.sequence),
+      ...(teethShadeBrand?.shades?.map((s: Shade) => s.sequence) ?? []),
+    ]
+    return (sequences.length ? Math.max(...sequences) : 0) + 1
+  }
+
+  const isNewCustomShadeValid =
+    newCustomShade.name.trim() !== "" &&
+    isValidHexColor(newCustomShade.color_code_incisal) &&
+    isValidHexColor(newCustomShade.color_code_body) &&
+    isValidHexColor(newCustomShade.color_code_cervical)
+
+  const linkCustomShadeToForm = (shade: FormTeethShade) => {
+    setFormData((prev) => {
+      if (prev.shades.some((s) => s.name.toLowerCase() === shade.name.toLowerCase())) {
+        return {
+          ...prev,
+          shades: prev.shades.map((s) =>
+            s.name.toLowerCase() === shade.name.toLowerCase() ? { ...s, ...shade } : s,
+          ),
+        }
+      }
+      return { ...prev, shades: [...prev.shades, shade] }
+    })
+    if (shade.id && !availableShades.some((s) => s.id === shade.id)) {
       setAvailableShades((prev) => [
         ...prev,
         {
-          id: Math.random(), // Temporary ID for UI purposes
-          name: newShadeName.trim(),
-          sequence: formData.shades.length + 1,
-          status: "Active",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          id: shade.id!,
+          name: shade.name,
+          sequence: shade.sequence,
+          status: shade.status,
+          color_code_incisal: shade.color_code_incisal,
+          color_code_body: shade.color_code_body,
+          color_code_cervical: shade.color_code_cervical,
         },
       ])
     }
+  }
 
-    setNewShadeName("")
+  const handleAddCustomShade = async () => {
+    const trimmedName = newCustomShade.name.trim()
+    if (!trimmedName) {
+      toast({
+        title: "Validation",
+        description: "Shade name is required.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (
+      !isValidHexColor(newCustomShade.color_code_incisal) ||
+      !isValidHexColor(newCustomShade.color_code_body) ||
+      !isValidHexColor(newCustomShade.color_code_cervical)
+    ) {
+      toast({
+        title: "Validation",
+        description: "Incisal, body, and cervical colors must be valid hex values (e.g. #FFFFFF).",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const status = newCustomShade.enabled ? "Active" : "Inactive"
+    const colors = {
+      color_code_incisal: newCustomShade.color_code_incisal.trim().toUpperCase(),
+      color_code_body: newCustomShade.color_code_body.trim().toUpperCase(),
+      color_code_cervical: newCustomShade.color_code_cervical.trim().toUpperCase(),
+    }
+    const sequence = nextCustomShadeSequence()
+
+    if (canPersistCustomShadeToApi && teethShadeBrand?.id) {
+      setAddingCustomShade(true)
+      try {
+        const created = await createCustomShade({
+          brand_id: teethShadeBrand.id,
+          name: trimmedName,
+          sequence,
+          status,
+          ...colors,
+        })
+
+        if (created) {
+          const updatedShades = await fetchShadesForBrand(teethShadeBrand.id)
+          setAvailableShades(updatedShades)
+          linkCustomShadeToForm(mapShadeToForm({ ...created, ...colors, status }))
+          setNewCustomShade(defaultNewCustomTeethShade)
+          toast({
+            title: "Shade added",
+            description: `"${trimmedName}" was saved and linked to this brand.`,
+          })
+        }
+      } catch (error) {
+        console.error("Error adding custom shade:", error)
+      } finally {
+        setAddingCustomShade(false)
+      }
+      return
+    }
+
+    linkCustomShadeToForm({
+      name: trimmedName,
+      sequence,
+      status,
+      enabled: newCustomShade.enabled,
+      ...colors,
+    })
+    setNewCustomShade(defaultNewCustomTeethShade)
+    toast({
+      title: "Shade added to form",
+      description: canPersistCustomShadeToApi
+        ? "Shade linked to this brand."
+        : "Save the teeth shade brand to persist this shade to the library.",
+    })
   }
 
   const handleAttemptClose = useCallback(() => {
@@ -397,11 +595,13 @@ export function CreateTeethShadeModal({
       sequence: Number.parseInt(formData.sequence),
       status: formData.status,
       brand_color: formData.brand_color,
-      shades: formData.shades.map((shade) => ({
-        name: shade.name,
-        sequence: shade.sequence,
-        status: shade.enabled ? "Active" : "Inactive",
-      })),
+      shades: formData.shades.map((shade) => {
+        const built = buildTeethShadePayload(shade)
+        if (!isEditing || isCopying) {
+          delete built.id
+        }
+        return built
+      }),
     }
 
     try {
@@ -453,12 +653,13 @@ export function CreateTeethShadeModal({
     !isNaN(Number.parseInt(formData.sequence)) &&
     formData.status.trim() !== "" &&
     formData.shades.length > 0 &&
+    formData.shades.some((shade) => shade.enabled) &&
     formData.shades.every((shade) => shade.name.trim() !== "")
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
-        <DialogContent className="p-0 gap-0 sm:max-w-[600px] overflow-hidden bg-white rounded-md">
+        <DialogContent className="p-0 gap-0 w-[95vw] max-w-[min(1200px,95vw)] overflow-hidden bg-white rounded-md">
           <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b">
             <DialogTitle className="text-xl font-bold">
               {isCopying ? "Copy Teeth Shade System" : isEditing ? "Edit Teeth Shade System" : "Create Teeth Shade System"}
@@ -468,7 +669,7 @@ export function CreateTeethShadeModal({
             </Button>
           </DialogHeader>
 
-          <div className="overflow-y-auto max-h-[calc(80vh-130px)] p-6 space-y-6">
+          <div className="overflow-y-auto max-h-[calc(90vh-130px)] p-6 space-y-6">
             {/* Teeth Shade Details Section */}
             <div className="flex items-center gap-2">
               <span className="font-medium">Teeth Shade Details</span>
@@ -546,7 +747,7 @@ export function CreateTeethShadeModal({
                         <Info className="h-4 w-4 text-gray-400 cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[300px]">
-                        <p>Select existing shades from available options or add custom shades to include in this teeth shade system. Use the Include toggle to add/remove shades, and the Status toggle to activate or deactivate included shades.</p>
+                        <p>Toggle status (Active/Inactive) per shade and edit incisal / body / cervical hex colors when active.</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -558,27 +759,31 @@ export function CreateTeethShadeModal({
                   <div className="text-center py-4">Loading available shades...</div>
                 ) : (
                   <>
-                    <div className="border rounded-md overflow-hidden mb-4">
-                      <Table>
+                    <div className="border rounded-md overflow-x-auto mb-4">
+                      <Table className="min-w-[900px]">
                         <TableHeader>
                           <TableRow className="bg-gray-50">
-                            <TableHead className="text-center">Available Shades</TableHead>
-                            <TableHead className="text-center">Include</TableHead>
-                            <TableHead className="text-center">Status</TableHead>
+                            <TableHead className="text-center min-w-[100px] sticky left-0 z-10 bg-gray-50">
+                              Shade
+                            </TableHead>
+                            <TableHead className="text-center w-[88px]">Status</TableHead>
+                            <TableHead className="text-center min-w-[140px]">Incisal</TableHead>
+                            <TableHead className="text-center min-w-[140px]">Body</TableHead>
+                            <TableHead className="text-center min-w-[140px]">Cervical</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {allShadesToDisplay.length > 0 ? (
                             allShadesToDisplay.map((shade) => {
-                              const isIncluded = formData.shades.some((s) => s.name === shade.name)
-                              const includedShade = formData.shades.find((s) => s.name === shade.name)
+                              const formShade = formData.shades.find((s) => s.name === shade.name)
+                              const isActive = formShade?.enabled ?? false
                               const isCustom = (shade as any).isCustom || false
 
                               return (
                                 <TableRow key={shade.id || shade.name}>
-                                  <TableCell className="text-center">
+                                  <TableCell className="text-center sticky left-0 z-[1] bg-white">
                                     <div className="flex items-center justify-center gap-2">
-                                      <span>{shade.name}</span>
+                                      <span className="font-medium">{shade.name}</span>
                                       {isCustom && (
                                         <span className="text-xs text-[#1162a8] bg-blue-50 px-2 py-0.5 rounded">
                                           Custom
@@ -588,53 +793,41 @@ export function CreateTeethShadeModal({
                                   </TableCell>
                                   <TableCell className="text-center">
                                     <Switch
-                                      checked={isIncluded}
-                                      onCheckedChange={(checked) => {
-                                        if (checked) {
-                                          setFormData((prev) => ({
-                                            ...prev,
-                                            shades: [
-                                              ...prev.shades,
-                                              {
-                                                name: shade.name,
-                                                sequence: shade.sequence,
-                                                status: "Active",
-                                                enabled: true,
-                                              },
-                                            ],
-                                          }))
-                                        } else {
-                                          setFormData((prev) => ({
-                                            ...prev,
-                                            shades: prev.shades.filter((s) => s.name !== shade.name),
-                                          }))
-                                        }
-                                      }}
+                                      checked={isActive}
+                                      onCheckedChange={(checked) => setShadeActive(shade as Shade, checked)}
                                       className="data-[state=checked]:bg-[#1162a8]"
                                     />
                                   </TableCell>
-                                  <TableCell className="text-center">
-                                    {isIncluded && (
-                                      <Switch
-                                        checked={includedShade?.enabled ?? true}
-                                        onCheckedChange={(enabled) => {
-                                          setFormData((prev) => ({
-                                            ...prev,
-                                            shades: prev.shades.map((s) =>
-                                              s.name === shade.name ? { ...s, enabled } : s,
-                                            ),
-                                          }))
-                                        }}
-                                        className="data-[state=checked]:bg-[#1162a8]"
-                                      />
-                                    )}
+                                  <TableCell className="align-middle">
+                                    <CompactShadeColorField
+                                      value={formShade?.color_code_incisal}
+                                      defaultHex="#F5F5DC"
+                                      disabled={!isActive}
+                                      onChange={(color) => updateShadeColor(shade.name, "color_code_incisal", color)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <CompactShadeColorField
+                                      value={formShade?.color_code_body}
+                                      defaultHex="#E8DCC8"
+                                      disabled={!isActive}
+                                      onChange={(color) => updateShadeColor(shade.name, "color_code_body", color)}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="align-middle">
+                                    <CompactShadeColorField
+                                      value={formShade?.color_code_cervical}
+                                      defaultHex="#D4C4A8"
+                                      disabled={!isActive}
+                                      onChange={(color) => updateShadeColor(shade.name, "color_code_cervical", color)}
+                                    />
                                   </TableCell>
                                 </TableRow>
                               )
                             })
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={3} className="text-center text-gray-500 py-4">
+                              <TableCell colSpan={5} className="text-center text-gray-500 py-4">
                                 {isEditing || isCopying 
                                   ? "No shades available. Add a custom shade below to get started." 
                                   : "No shades available. Add a custom shade below to get started."}
@@ -645,23 +838,53 @@ export function CreateTeethShadeModal({
                       </Table>
                     </div>
 
-                    {/* Add to Current Form Section */}
-                    <div className="flex gap-2 mb-4">
-                      <Input
-                        placeholder="Add shade to current form"
-                        validationState={newShadeName.trim() ? "valid" : "default"}
-                        value={newShadeName}
-                        onChange={(e) => setNewShadeName(e.target.value)}
-                        className="h-10"
-                      />
-                      <Button
-                        onClick={addNewShade}
-                        disabled={!newShadeName.trim()}
-                        className="bg-[#1162a8] hover:bg-[#0d4d87]"
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Add Custom
-                      </Button>
-                    </div>
+                    <AddCustomShadePanel
+                      className="mb-4"
+                      idPrefix="new-teeth-shade"
+                      name={newCustomShade.name}
+                      onNameChange={(value) =>
+                        setNewCustomShade((prev) => ({ ...prev, name: value }))
+                      }
+                      namePlaceholder="e.g. A2"
+                      enabled={newCustomShade.enabled}
+                      onEnabledChange={(checked) =>
+                        setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
+                      }
+                      persistHint={
+                        canPersistCustomShadeToApi
+                          ? "Saves to the library immediately and links the shade to this brand."
+                          : "Adds the shade to this form; save the brand to persist it to the library."
+                      }
+                      colorFields={[
+                        {
+                          id: "new-teeth-shade-incisal",
+                          label: "Incisal",
+                          value: newCustomShade.color_code_incisal,
+                          defaultHex: "#FFFFFF",
+                          onChange: (color) =>
+                            setNewCustomShade((prev) => ({ ...prev, color_code_incisal: color })),
+                        },
+                        {
+                          id: "new-teeth-shade-body",
+                          label: "Body",
+                          value: newCustomShade.color_code_body,
+                          defaultHex: "#F5F5DC",
+                          onChange: (color) =>
+                            setNewCustomShade((prev) => ({ ...prev, color_code_body: color })),
+                        },
+                        {
+                          id: "new-teeth-shade-cervical",
+                          label: "Cervical",
+                          value: newCustomShade.color_code_cervical,
+                          defaultHex: "#E8E8E8",
+                          onChange: (color) =>
+                            setNewCustomShade((prev) => ({ ...prev, color_code_cervical: color })),
+                        },
+                      ]}
+                      onAdd={handleAddCustomShade}
+                      isValid={isNewCustomShadeValid}
+                      isSubmitting={addingCustomShade}
+                    />
                   </>
                 )}
               </CollapsibleContent>

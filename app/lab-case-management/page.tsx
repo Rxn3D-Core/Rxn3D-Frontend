@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Printer, Download, Plus, X } from "lucide-react"
+import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Download, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 import { useSlipContext } from "./SlipContext";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
@@ -22,9 +22,15 @@ import AddOnsModal from "@/components/add-ons-modal"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
+import CaseActionModal from "@/components/CaseActionModal"
+import RushRequestModal from "@/components/rush-request-modal"
+import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast";
 import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
+import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
+import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
+import { buildLabCaseDropdownActions } from "./dropdown-actions.mjs"
 import {
   SLIP_LOCATION_FILTER_OPTIONS,
   LAB_SLIP_STATUS_OPTIONS,
@@ -52,6 +58,14 @@ function rowAtSlipLocation(row: { locationId?: number; location: string }, id: n
   if (typeof row.locationId === "number" && row.locationId === id) return true
   const expected = SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === id)?.label
   return !!(expected && row.location === expected)
+}
+
+function canSendBackToOffice(row: { locationId?: number; location: string }): boolean {
+  return rowAtSlipLocation(row, 3)
+}
+
+function canPrintStatement(row: { billingId?: number | null }): boolean {
+  return typeof row.billingId === "number" && Number.isFinite(row.billingId)
 }
 
 // Utility to decode and print base64 HTML
@@ -99,6 +113,55 @@ function InLabPaperPlaneIcon() {
       <g fill={READY_TO_SEND_BLUE}>
         <path d="M11.9,32a13.51,13.51,0,0,1-.69-1.18c-1.08-2.52-2.16-5-3.2-7.56A2,2,0,0,0,6.77,22c-1.74-.7-3.47-1.43-5.2-2.16A2.11,2.11,0,0,1,0,17.52a2.47,2.47,0,0,1,1.37-1.67Q4.85,13.92,8.26,12q10-5.72,20-11.4A3.87,3.87,0,0,1,29.91,0a2,2,0,0,1,1.91,2.45c-.4,2.7-.83,5.4-1.25,8.1q-1.21,8-2.44,15.89c-.07.49-.14,1-.23,1.47a2.11,2.11,0,0,1-3.2,1.7c-2.06-.87-4.13-1.71-6.18-2.63a1.27,1.27,0,0,0-1.67.29c-1.39,1.42-2.84,2.79-4.27,4.17C12.42,31.59,12.25,31.72,11.9,32ZM30.79,1.74l-.25-.09L13,23.47c.26.13.37.21.49.26L25.08,28.6c1.18.5,1.66.2,1.86-1.09q1-6.6,2-13.19.93-6,1.85-12A3.26,3.26,0,0,0,30.79,1.74Zm-1.94,0-.11-.16L27.9,2,8.82,12.89l-7.06,4a1.13,1.13,0,0,0-.71,1,1,1,0,0,0,.71.93c2,.83,4,1.65,6,2.49ZM24.69,7.24l-.12-.11L8.62,22l2.6,6.21.17,0c0-.21,0-.42,0-.63,0-.91.05-1.82,0-2.73a2.71,2.71,0,0,1,.73-2c2-2.46,4-4.95,6-7.43ZM12.54,29.83l.15.08,3.89-3.7-4-1.68Z" />
       </g>
+    </svg>
+  )
+}
+
+function InOfficeCheckIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      className="h-[18px] w-[18px] flex-shrink-0"
+      aria-hidden
+    >
+      <path
+        d="M7.5 2.5H4.5C3.94772 2.5 3.5 2.94772 3.5 3.5V16.5C3.5 17.0523 3.94772 17.5 4.5 17.5H15.5C16.0523 17.5 16.5 17.0523 16.5 16.5V7.5L11.5 2.5H7.5Z"
+        stroke="#119933"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M11.5 2.5V7.5H16.5"
+        stroke="#119933"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <path
+        d="M7.25 11L9.25 13L13.25 9"
+        stroke="#119933"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
+function UnknownLocationDotIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      className="h-[14px] w-[14px] flex-shrink-0"
+      aria-hidden
+    >
+      <circle cx="8" cy="8" r="5" fill="#6B7280" />
     </svg>
   )
 }
@@ -163,10 +226,18 @@ export default function LabSlipPage() {
   const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
   const [readyToSendSlip, setReadyToSendSlip] = useState<any>(null)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
+  const [showRushModal, setShowRushModal] = useState(false)
+  const [selectedSlipForRush, setSelectedSlipForRush] = useState<any>(null)
+  const [showSendBackToOfficeModal, setShowSendBackToOfficeModal] = useState(false)
+  const [selectedSlipForSendBackToOffice, setSelectedSlipForSendBackToOffice] = useState<any>(null)
+  const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] = useState(false)
+  const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
+  const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
+  const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
 
   const { slips, loading, fetchLabSlips, fetchDriverPrintData, createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates, readyToSend, labListingPagination } = useSlipContext();
-  const { fetchProductAddons } = useSlipCreation();
-  const { generatePaperSlips } = useSlipCreation();
+  const { fetchProductAddons, generatePaperSlips, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
     () => `${dateRange.start?.toISOString() ?? ""}|${dateRange.end?.toISOString() ?? ""}`,
@@ -371,6 +442,113 @@ export default function LabSlipPage() {
   const handleCallLogClick = (slip: any) => {
     setSelectedSlipForCallLog(slip)
     setShowCallLogModal(true)
+  }
+
+  const refreshCurrentListing = useCallback(() => {
+    const customerId = getLabCustomerId()
+    if (!customerId) return
+    void fetchLabSlips(customerId)
+  }, [fetchLabSlips])
+
+  const handleEditCase = (slip: any) => {
+    window.open(`/virtual-slip/${slip.id}`, "_blank")
+  }
+
+  const handleOpenRushCase = (slip: any) => {
+    setSelectedSlipForRush(slip)
+    setShowRushModal(true)
+  }
+
+  const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
+    if (!selectedSlipForRush?.id) return
+    if (!rushData?.targetDate) {
+      toast({
+        title: "Rush date required",
+        description: "Please select a target delivery date first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await requestSlipRush(selectedSlipForRush.id, {
+        requested_delivery_date: rushData.targetDate,
+      })
+      toast({
+        title: "Rush case updated",
+        description: "The rush request was submitted successfully.",
+        duration: 3000,
+      })
+      setShowRushModal(false)
+      setSelectedSlipForRush(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to rush case",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleOpenCancelCase = (slip: any) => {
+    setSelectedSlipForCancel(slip)
+    setCancelSlipModalOpen(true)
+  }
+
+  const handleOpenSendBackToOffice = (slip: any) => {
+    setSelectedSlipForSendBackToOffice(slip)
+    setShowSendBackToOfficeModal(true)
+  }
+
+  const handleConfirmSendBackToOffice = async (reason: string) => {
+    if (!selectedSlipForSendBackToOffice?.id || !reason.trim()) return
+
+    setSendBackToOfficeSubmitting(true)
+    try {
+      await sendBackToOfficeSlip(selectedSlipForSendBackToOffice.id, reason.trim())
+      toast({
+        title: "Case sent back to office",
+        description: "The case was returned to the office successfully.",
+        duration: 3000,
+      })
+      setShowSendBackToOfficeModal(false)
+      setSelectedSlipForSendBackToOffice(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to send case back",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSendBackToOfficeSubmitting(false)
+    }
+  }
+
+  const handleConfirmCancelCase = async (reason: string) => {
+    if (!selectedSlipForCancel?.id || !reason.trim()) return
+
+    setCancelSlipSubmitting(true)
+    try {
+      await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      toast({
+        title: "Case cancelled",
+        description: "The case was cancelled successfully.",
+        duration: 3000,
+      })
+      setCancelSlipModalOpen(false)
+      setSelectedSlipForCancel(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to cancel case",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setCancelSlipSubmitting(false)
+    }
   }
 
 
@@ -828,353 +1006,58 @@ export default function LabSlipPage() {
   }
 
   const handlePrintStatement = (slip: any) => {
-    setSelectedSlipForStatement(slip)
-    // Direct print preview like driver tags
-    openStatementPrintWindow(slip)
-  }
+    void (async () => {
+      const billingId = resolveCaseStatementBillingId(slip)
 
-  // Function to generate statement and open print preview directly
-  const openStatementPrintWindow = (slip: any) => {
-    // Create a hidden iframe for printing
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.left = '-9999px';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    
-    document.body.appendChild(iframe);
-
-    // Use real slip data and create rows for each product
-    const statementCases = slip.products?.map((product: any) => ({
-      patient: slip.case?.patient_name || 'N/A',
-      ul: product.type?.charAt(0) || 'U', // U for Upper, L for Lower
-      product: product.name || 'Lab Service',
-      grade: slip.casepan?.name || 'Regular', // Using casepan name as grade
-      stage: 'Finish', // Default stage, could be dynamic based on status
-      total: 75, // Default price, should come from product pricing
-      addOn: '-',
-      qty: '1',
-      totalRt: '-',
-      rt: '-',
-      dueDate: slip.delivery_date?.final_date ? new Date(slip.delivery_date.final_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A',
-      finalTotal: 75 // Default total, should be calculated
-    })) || [
-      {
-        patient: slip.case?.patient_name || 'N/A',
-        ul: 'U',
-        product: 'Lab Service',
-        grade: slip.casepan?.name || 'Regular',
-        stage: 'Finish',
-        total: 75,
-        addOn: '-',
-        qty: '1',
-        totalRt: '-',
-        rt: '-',
-        dueDate: slip.delivery_date?.final_date ? new Date(slip.delivery_date.final_date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : 'N/A',
-        finalTotal: 75
+      if (billingId == null) {
+        toast({
+          title: "Statement not available",
+          description: "No billing invoice was found for this case yet.",
+          variant: "destructive",
+        })
+        return
       }
-    ];
 
-    // Calculate totals
-    const subtotal = statementCases.reduce((sum: number, caseItem: any) => sum + caseItem.finalTotal, 0);
-    const refund = 0; // Could be dynamic based on business logic
-    const grandTotal = subtotal + refund;
+      try {
+        const result = await generateVirtualStatement(billingId).unwrap()
+        const html = result?.data?.html
 
-    // Generate statement HTML content matching the provided format
-    const statementHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Statement - No. ${slip.slip_number || slip.id} - Date: ${new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 0; 
-            padding: 20px;
-            background: white;
-            color: #000;
-            font-size: 11px;
-          }
-          .statement-container {
-            max-width: 8.5in;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-          }
-          .header-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-          }
-          .company-logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          }
-          .logo-placeholder {
-            width: 80px;
-            height: 40px;
-            background: linear-gradient(45deg, #4CAF50, #2196F3, #FF9800);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 12px;
-          }
-          .company-info {
-            margin-left: 10px;
-          }
-          .company-name {
-            font-weight: bold;
-            font-size: 12px;
-          }
-          .company-address {
-            font-size: 10px;
-            color: #666;
-          }
-          .statement-header {
-            text-align: right;
-          }
-          .statement-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 5px;
-          }
-          .statement-number {
-            font-size: 11px;
-            margin-bottom: 2px;
-          }
-          .statement-date {
-            font-size: 11px;
-          }
-          .customer-info {
-            margin: 20px 0;
-            padding: 10px;
-            border: 1px solid #ccc;
-          }
-          .customer-name {
-            font-weight: bold;
-            font-size: 12px;
-            margin-bottom: 5px;
-          }
-          .customer-address {
-            font-size: 10px;
-            line-height: 1.3;
-          }
-          .statement-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-            font-size: 9px;
-          }
-          .statement-table th {
-            background-color: #f5f5f5;
-            border: 1px solid #000;
-            padding: 4px 2px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 8px;
-          }
-          .statement-table td {
-            border: 1px solid #000;
-            padding: 4px 2px;
-            text-align: center;
-            vertical-align: middle;
-          }
-          .patient-cell {
-            text-align: left !important;
-            font-size: 8px;
-            width: 120px;
-          }
-          .product-cell {
-            text-align: left !important;
-            font-size: 8px;
-            width: 100px;
-          }
-          .stage-cell {
-            text-align: left !important;
-            font-size: 8px;
-            width: 120px;
-          }
-          .grade-cell {
-            font-size: 8px;
-            width: 50px;
-          }
-          .total-cell {
-            font-weight: bold;
-            width: 40px;
-          }
-          .date-cell {
-            font-size: 8px;
-            width: 60px;
-          }
-          .small-cell {
-            width: 25px;
-          }
-          .totals-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-top: 20px;
-          }
-          .patient-summary {
-            font-size: 11px;
-            font-weight: bold;
-          }
-          .financial-totals {
-            text-align: right;
-            font-size: 11px;
-          }
-          .total-line {
-            margin-bottom: 5px;
-            display: flex;
-            justify-content: space-between;
-            width: 150px;
-          }
-          .grand-total {
-            font-weight: bold;
-            border-top: 1px solid #000;
-            padding-top: 5px;
-            margin-top: 5px;
-          }
-          @media print {
-            body { 
-              margin: 0;
-              padding: 15px;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .statement-container {
-              width: 100%;
-              max-width: none;
-              padding: 10px;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="statement-container">
-          <!-- Header Section -->
-          <div class="header-section">
-            <div class="company-logo">
-              <div class="logo-placeholder">INNOVS</div>
-              <div class="company-info">
-                <div class="company-name">HMC INNOVS</div>
-                <div class="company-address">3180 W. Sahara Ave C26, 89102</div>
-              </div>
-            </div>
-            <div class="statement-header">
-              <div class="statement-title">Statement</div>
-              <div class="statement-number">No. ${slip.slip_number || slip.id}</div>
-              <div class="statement-date">Date: ${new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}</div>
-            </div>
-          </div>
-
-          <!-- Customer Information -->
-          <div class="customer-info">
-            <div class="customer-name">${slip.office?.name || 'Dental Office'}</div>
-            <div class="customer-address">
-              ${slip.office?.code || ''}<br>
-              Office Location
-            </div>
-          </div>
-
-          <!-- Statement Table -->
-          <table class="statement-table">
-            <thead>
-              <tr>
-                <th class="patient-cell">Patient</th>
-                <th class="small-cell">UL</th>
-                <th class="product-cell">Product</th>
-                <th class="grade-cell">Grade</th>
-                <th class="stage-cell">Stage</th>
-                <th class="total-cell">Total</th>
-                <th class="small-cell">Add On</th>
-                <th class="small-cell">Qty</th>
-                <th class="small-cell">Total</th>
-                <th class="small-cell">Rt.</th>
-                <th class="date-cell">Due Date</th>
-                <th class="total-cell">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${statementCases.map((caseItem: any) => `
-                <tr>
-                  <td class="patient-cell">${caseItem.patient}</td>
-                  <td class="small-cell">${caseItem.ul}</td>
-                  <td class="product-cell">${caseItem.product}</td>
-                  <td class="grade-cell">${caseItem.grade}</td>
-                  <td class="stage-cell">${caseItem.stage}</td>
-                  <td class="total-cell">$${caseItem.total}</td>
-                  <td class="small-cell">${caseItem.addOn}</td>
-                  <td class="small-cell">${caseItem.qty}</td>
-                  <td class="small-cell">${caseItem.totalRt}</td>
-                  <td class="small-cell">${caseItem.rt}</td>
-                  <td class="date-cell">${caseItem.dueDate}</td>
-                  <td class="total-cell">$${caseItem.finalTotal}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <!-- Totals Section -->
-          <div class="totals-section">
-            <div class="patient-summary">
-              ${slip.case?.patient_name || 'Patient'} - Dr. ${slip.case?.doctor?.name || 'Unknown'}
-            </div>
-            <div class="financial-totals">
-              <div class="total-line">
-                <span>Total</span>
-                <span>$${subtotal}</span>
-              </div>
-              ${refund > 0 ? `
-              <div class="total-line">
-                <span>Refund</span>
-                <span>$${refund}</span>
-              </div>
-              ` : ''}
-              <div class="total-line grand-total">
-                <span>Total</span>
-                <span><strong>$${grandTotal}</strong></span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <script>
-          // Auto-print after content loads
-          setTimeout(() => {
-            window.focus();
-            window.print();
-          }, 500);
-        </script>
-      </body>
-      </html>
-    `;
-    
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(statementHtml);
-      iframeDoc.close();
-      
-      // Remove iframe after printing
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
+        if (!html) {
+          toast({
+            title: "Statement unavailable",
+            description: "The server did not return a statement for this case.",
+            variant: "destructive",
+          })
+          return
         }
-      }, 5000);
-    }
+
+        const win = window.open("about:blank", "_blank", "width=1200,height=900")
+        if (!win) {
+          toast({
+            title: "Pop-up blocked",
+            description: "Please allow pop-ups for this site and try again.",
+            variant: "destructive",
+          })
+          return
+        }
+        const printHtml = html.includes("</body>")
+          ? html.replace("</body>", "<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()};}<\/script></body>")
+          : html + "<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()};}<\/script>"
+        win.document.open()
+        win.document.write(printHtml)
+        win.document.close()
+        win.focus()
+      } catch {
+        toast({
+          title: "Failed to load statement",
+          description: "Could not retrieve the statement from the server. Please try again.",
+          variant: "destructive",
+        })
+      }
+    })()
   }
+
+
 
   const handleRowClick = (slip: any, event: React.MouseEvent) => {
     // Don't navigate if clicked on a button, icon, or interactive element
@@ -1564,7 +1447,15 @@ export default function LabSlipPage() {
             <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Check className="h-4 w-4" />Pick up</Button>
             <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100" onClick={handleBulkDriverPrint}>Print Driver label</Button>
             <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100" onClick={handleBulkPrintPaperSlip}>Print Paper slip</Button>
-            <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100">Print Statement</Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex gap-1 text-blue-700 hover:bg-blue-100"
+              disabled={selected.length !== 1 || !canPrintStatement(slipsPage.find((s) => s.id === selected[0]) ?? {})}
+              onClick={() => selected.length === 1 ? handlePrintStatement(slipsPage.find((s) => s.id === selected[0])) : undefined}
+            >
+              Print Statement
+            </Button>
             <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Plus className="h-4 w-4" />Send back to office</Button>
             <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><ChevronDown className="h-4 w-4" />Rush case</Button>
             <Button variant="ghost" size="sm" className="flex gap-1 text-red-600 hover:bg-red-50" onClick={() => setArchiveConfirm(-1)}><Trash2 className="h-4 w-4" />Archive case</Button>
@@ -1897,6 +1788,25 @@ export default function LabSlipPage() {
 
                         {rowAtSlipLocation(row, 6) && (
                           <span className="inline-flex items-center gap-1.5 text-green-700">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleLocationIconClick(row)
+                              }}
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
+                              title="View driver history"
+                            >
+                              <InOfficeCheckIcon />
+                            </button>
+                            <span className="text-xs">{row.location}</span>
+                          </span>
+                        )}
+
+                        {![
+                          1, 2, 3, 4, 5, 6,
+                        ].some((locationId) => rowAtSlipLocation(row, locationId)) && (
+                          <span className="inline-flex items-center gap-1.5 text-gray-500">
+                            <UnknownLocationDotIcon />
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
@@ -1974,12 +1884,14 @@ export default function LabSlipPage() {
                                 >
                                   Print Driver Label
                                 </button>
-                                <button
-                                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
-                                  onClick={() => handlePrintStatement(row)}
-                                >
-                                  Print Statement
-                                </button>
+                                {canPrintStatement(row) && (
+                                  <button
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
+                                    onClick={() => handlePrintStatement(row)}
+                                  >
+                                    Print Statement
+                                  </button>
+                                )}
                               </div>
                             </PopoverContent>
                           </Popover>
@@ -2034,36 +1946,38 @@ export default function LabSlipPage() {
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
                               <div className="py-1">
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Edit Case
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Duplicate
-                                </button>
-                                <button
-                                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
-                                  onClick={() => handleDateIconClick(row)}
-                                >
-                                  Change due date
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Print Driver label
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Print Paper slip
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Print Statement
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Send back to office
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Rush case
-                                </button>
-                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                                  Cancel
-                                </button>
+                                {buildLabCaseDropdownActions({
+                                  onEditCase: () => handleEditCase(row),
+                                  onChangeDueDate: () => handleDateIconClick(row),
+                                  onPrintDriverLabel: () => handlePrintDriverLabel(row),
+                                  onPrintPaperSlip: () => void handlePrintPaperSlip(row),
+                                  onPrintStatement: canPrintStatement(row)
+                                    ? () => handlePrintStatement(row)
+                                    : null,
+                                  onSendBackToOffice: canSendBackToOffice(row)
+                                    ? () => handleOpenSendBackToOffice(row)
+                                    : null,
+                                  onRushCase: () => handleOpenRushCase(row),
+                                  onCancelCase: () => handleOpenCancelCase(row),
+                                }).filter((action) => action.key !== "print-statement" || canPrintStatement(row)).map((action) => (
+                                  <button
+                                    key={action.key}
+                                    type="button"
+                                    disabled={action.disabled}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm text-left ${
+                                      action.disabled
+                                        ? "cursor-not-allowed text-gray-400"
+                                        : "hover:bg-gray-50 text-gray-700"
+                                    }`}
+                                    onClick={() => {
+                                      if (action.disabled || !action.onSelect) return
+                                      setMenuRow(null)
+                                      action.onSelect()
+                                    }}
+                                  >
+                                    {action.label}
+                                  </button>
+                                ))}
                               </div>
                             </PopoverContent>
                           </Popover>
@@ -2216,6 +2130,52 @@ export default function LabSlipPage() {
           </DialogContent>
         </Dialog>
 
+        <RushRequestModal
+          isOpen={showRushModal}
+          onClose={() => {
+            setShowRushModal(false)
+            setSelectedSlipForRush(null)
+          }}
+          onConfirm={handleConfirmRushCase}
+          product={{
+            name: selectedSlipForRush?.product || "Case",
+            stage: selectedSlipForRush?.product || "Unknown Stage",
+            deliveryDate: selectedSlipForRush?.dueDate || "",
+            price: 0,
+          }}
+        />
+
+        <SendCaseBackToOfficeModal
+          open={showSendBackToOfficeModal}
+          onClose={() => {
+            if (sendBackToOfficeSubmitting) return
+            setShowSendBackToOfficeModal(false)
+            setSelectedSlipForSendBackToOffice(null)
+          }}
+          onConfirm={handleConfirmSendBackToOffice}
+          loading={sendBackToOfficeSubmitting}
+        />
+
+        <CaseActionModal
+          open={cancelSlipModalOpen}
+          onClose={() => {
+            if (cancelSlipSubmitting) return
+            setCancelSlipModalOpen(false)
+            setSelectedSlipForCancel(null)
+          }}
+          onSubmit={handleConfirmCancelCase}
+          actionType="cancel"
+          title="Cancel Case"
+          description="You are cancelling this case. This action cannot be undone and will mark the case as inactive."
+          icon={<X />}
+          iconBgColor="#fdecec"
+          iconColor="#D32F2F"
+          buttonText={cancelSlipSubmitting ? "Cancelling..." : "Cancel Case"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for case cancellation."
+          warning="This action cannot be undone and will archive the case."
+        />
+
         {/* Driver History Modal */}
         <DriverHistoryModal
           isOpen={showDriverHistoryModal}
@@ -2296,9 +2256,7 @@ export default function LabSlipPage() {
           }}
         />
 
-        {/* Print Statement Modal removed: now handled by print-statement page */}
       </div>
     </div>
   )
 }
-

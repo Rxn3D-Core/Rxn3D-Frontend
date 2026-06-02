@@ -8,6 +8,7 @@ type Slip = {
   createdAt: string;
   caseId?: number;
   caseNumber?: string;
+  billingId?: number;
   /** Display identifier from API (`slip_number`) */
   slipNumber?: string;
   pan: string;
@@ -155,6 +156,16 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     createdAt: apiSlip.timestamp,
     caseId: apiSlip.case?.id,
     caseNumber: apiSlip.case?.case_number,
+    billingId:
+      apiSlip.billing_id ??
+      apiSlip.billingId ??
+      apiSlip.invoice_id ??
+      apiSlip.invoiceId ??
+      apiSlip.billing?.id ??
+      apiSlip.invoice?.id ??
+      apiSlip.billing_invoice?.id ??
+      apiSlip.slip_billing?.id ??
+      undefined,
     slipNumber: apiSlip.slip_number ?? apiSlip.number ?? undefined,
     pan: apiSlip.casepan?.number || "",
     panColor: "", // leave empty, use panColorStyle for inline style

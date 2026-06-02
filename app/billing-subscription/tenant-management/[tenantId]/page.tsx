@@ -5,6 +5,8 @@ import { useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import { Download } from "lucide-react"
 import { BreadcrumbBar } from "@/components/billing-subscription/breadcrumb-bar"
+import { PlanChangeDialog, type PlanChangeSummary } from "@/components/billing-subscription/plan-change-dialog"
+import { ReactivateSubscriptionDialog } from "@/components/billing-subscription/reactivate-subscription-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
@@ -47,14 +49,79 @@ function formatTenantTitle(raw: string): string {
     .join(" ")
 }
 
+const PLAN_ORDER: Record<string, number> = { Freemium: 0, Starter: 1, Professional: 2, Enterprise: 3 }
+
+const PLAN_PRICES: Record<string, number> = {
+  Freemium: 0,
+  Starter: 29,
+  Business: 99,
+  Professional: 199,
+  Enterprise: 0,
+}
+
 export default function TenantManagementDetailPage() {
   const params = useParams<{ tenantId: string }>()
   const tenantId = (params?.tenantId || "lab-0042").toUpperCase()
   const tenantName = useMemo(() => formatTenantTitle(params?.tenantId || "Precision Dental Arts"), [params?.tenantId])
   const [activeTab, setActiveTab] = useState<DetailTab>("overview")
+  const [planDialogOpen, setPlanDialogOpen] = useState(false)
+  const [targetPlan, setTargetPlan] = useState<string | null>(null)
+  const [isSuspended, setIsSuspended] = useState(false)
+  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false)
+
+  const currentPlan = "Business"
+  const currentPrice = PLAN_PRICES[currentPlan] ?? 99
+
+  const openPlanChange = (plan: string) => {
+    setTargetPlan(plan)
+    setPlanDialogOpen(true)
+  }
+
+  const planChangeSummary: PlanChangeSummary | null = targetPlan
+    ? {
+        direction:
+          (PLAN_ORDER[targetPlan] ?? 0) > (PLAN_ORDER[currentPlan] ?? 0) ? "upgrade" : "downgrade",
+        currentPlanName: currentPlan,
+        currentPlanPrice: currentPrice,
+        targetPlanName: targetPlan,
+        targetPlanPrice: PLAN_PRICES[targetPlan] ?? 0,
+        ...(
+          (PLAN_ORDER[targetPlan] ?? 0) > (PLAN_ORDER[currentPlan] ?? 0)
+            ? {
+                proratedCredit: -38.77,
+                nextBillingDate: "Sep 1, 2025",
+              }
+            : {
+                effectiveDate: "Aug 25, 2025",
+              }
+        ),
+      }
+    : null
 
   return (
     <div className="w-full space-y-3 px-2 py-3 md:px-3 md:py-3">
+      {planChangeSummary && (
+        <PlanChangeDialog
+          open={planDialogOpen}
+          onOpenChange={setPlanDialogOpen}
+          summary={planChangeSummary}
+          onConfirm={async () => {
+            // TODO: call plan change API
+          }}
+        />
+      )}
+      <ReactivateSubscriptionDialog
+        open={reactivateDialogOpen}
+        onOpenChange={setReactivateDialogOpen}
+        planName={currentPlan}
+        monthlyPrice={currentPrice}
+        cardBrand="Visa"
+        cardLast4="4242"
+        onConfirm={async () => {
+          setIsSuspended(false)
+          // TODO: call reactivate API
+        }}
+      />
       <div className="space-y-1">
         <BreadcrumbBar
           items={[
@@ -93,12 +160,39 @@ export default function TenantManagementDetailPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="h-8 px-3 text-xs">
-                Change Plan
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={() => openPlanChange("Starter")}
+              >
+                Downgrade
               </Button>
-              <Button variant="outline" size="sm" className="h-8 px-3 text-xs">
-                Suspend Account
+              <Button
+                size="sm"
+                className="h-8 bg-[#1162A8] px-3 text-xs hover:bg-[#0d5290]"
+                onClick={() => openPlanChange("Professional")}
+              >
+                Upgrade
               </Button>
+              {isSuspended ? (
+                <Button
+                  size="sm"
+                  className="h-8 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
+                  onClick={() => setReactivateDialogOpen(true)}
+                >
+                  Reactivate
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs text-destructive hover:bg-destructive/10"
+                  onClick={() => setIsSuspended(true)}
+                >
+                  Suspend Account
+                </Button>
+              )}
             </div>
           </div>
 

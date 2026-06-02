@@ -78,6 +78,8 @@ type SelectedAddOn = {
 }
 
 const ITEMS_PER_PAGE = 10
+const DEFAULT_PRODUCTS: AddOnsProduct[] = []
+const DEFAULT_VISIBLE_ARCHES: ("maxillary" | "mandibular")[] = ["maxillary", "mandibular"]
 
 /**
  * Default QTY when the modal opens with an empty store — follows lab product config
@@ -110,7 +112,16 @@ function getDefaultSeedQtyFromProductAddon(a: {
   return null
 }
 
-export default function AddOnsModal({ isOpen, onClose, onAddAddOns, labId, productId, arch, products = [], visibleArches = ["maxillary", "mandibular"] }: AddOnsModalProps) {
+export default function AddOnsModal({
+  isOpen,
+  onClose,
+  onAddAddOns,
+  labId,
+  productId,
+  arch,
+  products = DEFAULT_PRODUCTS,
+  visibleArches = DEFAULT_VISIBLE_ARCHES,
+}: AddOnsModalProps) {
   const [activeProductId, setActiveProductId] = useState<number | null>(null)
   const [maxSearch, setMaxSearch] = useState("")
   const [mandSearch, setMandSearch] = useState("")

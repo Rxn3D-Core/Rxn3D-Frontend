@@ -1,6 +1,7 @@
 "use client"
 
-import { Check, Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
+import { Check } from "@/components/ui/custom-check"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -172,16 +173,16 @@ function ImpressionGrid({
 
     const imgSize = compact ? "text-2xl" : "text-3xl lg:text-4xl"
     const nameSize = compact ? "text-xs" : "text-sm lg:text-base"
-    const controlSize = compact ? "w-5 h-5" : "w-6 h-6"
-    const iconSize = compact ? "w-4 h-4" : "w-5 h-5"
-    const qtyTextSize = compact ? "text-xs min-w-[16px]" : "text-sm min-w-[20px]"
+    const controlSize = compact ? "w-7 h-7" : "w-9 h-9"
+    const iconSize = compact ? "w-5 h-5" : "w-7 h-7"
+    const qtyTextSize = compact ? "text-sm min-w-[18px]" : "text-lg min-w-[24px]"
     const qtyLabelSize = compact ? "text-xs" : "text-sm"
 
     return (
       <div
         key={impression.id}
         className={cn(
-          "flex flex-col items-center rounded-[11px] transition-all duration-200 p-2 lg:p-3 cursor-pointer select-none h-full",
+          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 p-2 lg:p-3 cursor-pointer select-none h-full",
           isSelected
             ? "border-[3px] border-[#1162A8]"
             : "border-2 border-[#B4B0B0]"
@@ -295,6 +296,12 @@ function ImpressionGrid({
     )
   }
 
+  // Index of the last-touched card in THIS section (so Done sits under that column)
+  const lastTouchedIndex = impressions.findIndex(
+    (imp) => getKey(imp) === lastTouchedKey
+  )
+  const showDoneInThisSection = isValidationComplete && lastTouchedIndex >= 0
+
   return (
     <>
       {/* Mobile: horizontal carousel */}
@@ -310,6 +317,37 @@ function ImpressionGrid({
       <div className="hidden sm:grid gap-3 md:gap-4 w-full" style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}>
         {impressions && impressions.map((impression) => renderCard(impression, false))}
       </div>
+
+      {/* Done sits under the column of the last-touched card — kept inside the box */}
+      {showDoneInThisSection && (
+        <>
+          {/* Desktop: align under the last-touched card's column */}
+          <div
+            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3"
+            style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}
+          >
+            <div className="flex justify-center" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
+              <button
+                type="button"
+                className="whitespace-nowrap px-10 py-2 bg-[#1162A8] hover:bg-[#0d4d85] text-white rounded-[6px] font-['Verdana'] font-bold text-sm shadow-md transition-colors"
+                onClick={onConfirmAllAndClose}
+              >
+                Done
+              </button>
+            </div>
+          </div>
+          {/* Mobile: centered */}
+          <div className="flex sm:hidden justify-center mt-3">
+            <button
+              type="button"
+              className="whitespace-nowrap px-10 py-2 bg-[#1162A8] hover:bg-[#0d4d85] text-white rounded-[6px] font-['Verdana'] font-bold text-sm shadow-md transition-colors"
+              onClick={onConfirmAllAndClose}
+            >
+              Done
+            </button>
+          </div>
+        </>
+      )}
 
       {selectedSTLImpression && (
         <STLFileSelectionModal
@@ -376,7 +414,11 @@ export function ImpressionSelectionModal({
 
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
-  const showBottomSection = !!bottomArch
+
+  // Progressive disclosure: in dual-arch mode, only show the bottom section once
+  // the top arch has at least one impression selected. When re-opening with
+  // existing top-arch selections, both sections are immediately visible.
+  const showBottomSection = !!bottomArch && (isDualArch ? hasTopSelection : true)
 
   // Primary arch selections are required; opposing arch is always optional.
   const isValidationComplete = hasTopSelection
@@ -457,7 +499,7 @@ export function ImpressionSelectionModal({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton
-        className="w-[96vw] max-w-[1120px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
+        className="w-[97vw] max-w-[1360px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
       >
         <div className="flex flex-col px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-5 md:py-6 gap-3 sm:gap-4 bg-white w-full min-h-0 overflow-y-auto max-h-[94dvh]">
 
@@ -539,15 +581,6 @@ export function ImpressionSelectionModal({
             >
               Cancel
             </button>
-            {isValidationComplete ? (
-              <button
-                type="button"
-                onClick={handleDone}
-                className="px-8 py-2.5 bg-[#1162A8] hover:bg-[#0d4d85] text-white rounded-[6px] font-['Verdana'] font-bold text-sm transition-colors"
-              >
-                Done
-              </button>
-            ) : null}
           </div>
 
         </div>

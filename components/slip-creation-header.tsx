@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { CustomerLogo } from "@/components/customer-logo"
-import { Pencil, Check, ChevronDown } from "lucide-react"
+import { Pencil, ChevronDown } from "lucide-react"
+import { Check } from "@/components/ui/custom-check"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
@@ -35,6 +36,21 @@ interface PatientData {
   age?: number | string
 }
 
+/** Resolved slip-settings flags that drive patient field visibility/requiredness. */
+interface PatientFieldSettingsProp {
+  showGender: boolean
+  genderRequired: boolean
+  showAge: boolean
+  ageRequired: boolean
+}
+
+const DEFAULT_FIELD_SETTINGS: PatientFieldSettingsProp = {
+  showGender: true,
+  genderRequired: true,
+  showAge: true,
+  ageRequired: false,
+}
+
 interface SlipCreationHeaderProps {
   // Variant determines the layout style
   variant?: "simple" | "with-sending-to" | "with-doctor-info" | "full"
@@ -62,8 +78,14 @@ interface SlipCreationHeaderProps {
     onNameChange: (value: string) => void
     onGenderChange: (value: string) => void
     onAgeChange?: (value: string) => void
+    // Called on any field interaction (typing, focusing, opening gender) so the
+    // page can debounce/reset its auto-advance timer without stealing focus.
+    onInteraction?: () => void
   }
-  
+
+  // Slip-settings-driven field visibility/requiredness (create-slip form)
+  patientFieldSettings?: PatientFieldSettingsProp
+
   // Container class overrides
   containerClassName?: string
   headerClassName?: string
@@ -342,7 +364,8 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
 
 const PatientInfoSection = ({
   patientData,
-  editablePatientData
+  editablePatientData,
+  fieldSettings = DEFAULT_FIELD_SETTINGS,
 }: {
   patientData?: PatientData | null
   editablePatientData?: {
@@ -352,13 +375,22 @@ const PatientInfoSection = ({
     onNameChange: (value: string) => void
     onGenderChange: (value: string) => void
     onAgeChange?: (value: string) => void
+    onInteraction?: () => void
   }
+  fieldSettings?: PatientFieldSettingsProp
 }) => {
   const [isNameFocused, setIsNameFocused] = useState(false)
   const [isGenderFocused, setIsGenderFocused] = useState(false)
+  const [highlightedGenderIndex, setHighlightedGenderIndex] = useState(-1)
+  const [genderKeyboardActive, setGenderKeyboardActive] = useState(false)
   const autoOpenRef = useRef(false)
   const patientNameInputRef = useRef<HTMLInputElement>(null)
+  const ageInputRef = useRef<HTMLInputElement>(null)
+  const genderTriggerRef = useRef<HTMLDivElement>(null)
   const refocusTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const genderKeyboardActiveRef = useRef(false)
+  const highlightedGenderIndexRef = useRef(-1)
+  const genderOptions = ["male", "female"] as const
 
   // Focus patient input on initial load (only when in editable mode and field is empty)
   useEffect(() => {
@@ -384,6 +416,17 @@ const PatientInfoSection = ({
     }
   }, [])
 
+  useEffect(() => {
+    highlightedGenderIndexRef.current = highlightedGenderIndex
+  }, [highlightedGenderIndex])
+
+  useEffect(() => {
+    if (!isGenderFocused && !genderKeyboardActiveRef.current) {
+      setHighlightedGenderIndex(-1)
+      highlightedGenderIndexRef.current = -1
+    }
+  }, [isGenderFocused])
+
   const getGenderDisplay = (gender?: string) => {
     if (gender === "male") return "Male"
     if (gender === "female") return "Female"
@@ -397,27 +440,42 @@ const PatientInfoSection = ({
   const onNameChange = editablePatientData?.onNameChange ?? (() => {})
   const onGenderChange = editablePatientData?.onGenderChange ?? (() => {})
 
-  const showGenderField = shouldShowPatientGenderField(name)
+  const { showGender, genderRequired, showAge, ageRequired } = fieldSettings
+  const onInteraction = editablePatientData?.onInteraction
+
+  // Fields reveal once the name is far enough along AND the slip setting allows it.
+  const nameProgressed = shouldShowPatientGenderField(name)
+  const showGenderField = showGender && nameProgressed
+  const showAgeField = showAge && nameProgressed
+  const showSecondRow = showGenderField || showAgeField
 
   // Handle patient name change with auto-open logic
   const handleNameChange = (value: string) => {
     onNameChange(value)
+    onInteraction?.()
 
     // Clear any existing refocus timer
     if (refocusTimerRef.current) {
       clearTimeout(refocusTimerRef.current)
     }
 
-    const shouldOpen = shouldAutoOpenPatientGender(value, gender)
+    // Only auto-open the gender dropdown when gender is actually shown.
+    const shouldOpen = showGender && shouldAutoOpenPatientGender(value, gender)
 
-    if (shouldOpen && !isGenderFocused) {
+    if (shouldOpen && !isGenderFocused && !genderKeyboardActiveRef.current) {
       // Mark that we're auto-opening and open the dropdown
       autoOpenRef.current = true
       setIsGenderFocused(true)
 
-      // Keep refocusing the patient name input while dropdown is open
+      // Keep refocusing the patient name input while dropdown is open (mouse typing flow)
       refocusTimerRef.current = setTimeout(() => {
-        patientNameInputRef.current?.focus()
+        if (
+          autoOpenRef.current &&
+          !genderKeyboardActiveRef.current &&
+          document.activeElement !== genderTriggerRef.current
+        ) {
+          patientNameInputRef.current?.focus()
+        }
       }, 50)
     }
     // Don't close the dropdown even if condition is not met anymore
@@ -427,13 +485,137 @@ const PatientInfoSection = ({
   // Handle gender selection
   const handleGenderSelect = (value: string) => {
     onGenderChange(value)
-    // When gender is selected, clear auto-open mode
     autoOpenRef.current = false
+    genderKeyboardActiveRef.current = false
+    setGenderKeyboardActive(false)
     setIsGenderFocused(false)
-    // Return focus to patient name input after selection
+    setHighlightedGenderIndex(-1)
+    highlightedGenderIndexRef.current = -1
+    // After selecting gender, move focus to age when it's shown; otherwise
+    // return focus to the patient name input.
     setTimeout(() => {
-      patientNameInputRef.current?.focus()
+      if (showAgeField) {
+        ageInputRef.current?.focus()
+      } else {
+        patientNameInputRef.current?.focus()
+      }
     }, 50)
+  }
+
+  const processGenderKey = (key: string): boolean => {
+    switch (key) {
+      case "ArrowDown":
+        setIsGenderFocused(true)
+        setHighlightedGenderIndex((prev) => {
+          const next =
+            prev < 0 ? 0 : prev < genderOptions.length - 1 ? prev + 1 : 0
+          highlightedGenderIndexRef.current = next
+          return next
+        })
+        return true
+      case "ArrowUp":
+        setIsGenderFocused(true)
+        setHighlightedGenderIndex((prev) => {
+          const next =
+            prev < 0
+              ? genderOptions.length - 1
+              : prev > 0
+                ? prev - 1
+                : genderOptions.length - 1
+          highlightedGenderIndexRef.current = next
+          return next
+        })
+        return true
+      case "Enter":
+      case " ": {
+        const idx = highlightedGenderIndexRef.current
+        if (idx >= 0) {
+          handleGenderSelect(genderOptions[idx])
+        } else {
+          setIsGenderFocused(true)
+          setHighlightedGenderIndex(0)
+          highlightedGenderIndexRef.current = 0
+        }
+        return true
+      }
+      case "Escape":
+        genderKeyboardActiveRef.current = false
+        setGenderKeyboardActive(false)
+        setIsGenderFocused(false)
+        setHighlightedGenderIndex(-1)
+        highlightedGenderIndexRef.current = -1
+        patientNameInputRef.current?.focus()
+        return true
+      default:
+        return false
+    }
+  }
+
+  const GENDER_NAV_KEYS = ["ArrowDown", "ArrowUp", "Enter", " ", "Escape"] as const
+
+  useEffect(() => {
+    if (!genderKeyboardActive) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") return
+      if (!GENDER_NAV_KEYS.includes(e.key as (typeof GENDER_NAV_KEYS)[number])) return
+
+      const target = e.target as HTMLElement
+      if (target.tagName === "INPUT" && target !== patientNameInputRef.current) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      processGenderKey(e.key)
+    }
+
+    window.addEventListener("keydown", onKeyDown, true)
+    return () => window.removeEventListener("keydown", onKeyDown, true)
+  }, [genderKeyboardActive, genderOptions])
+
+  const focusGenderDropdown = () => {
+    if (!showGenderField || !genderTriggerRef.current) return
+    if (refocusTimerRef.current) {
+      clearTimeout(refocusTimerRef.current)
+      refocusTimerRef.current = null
+    }
+    autoOpenRef.current = false
+    genderKeyboardActiveRef.current = true
+    setGenderKeyboardActive(true)
+    setIsNameFocused(false)
+    patientNameInputRef.current?.blur()
+    setIsGenderFocused(true)
+    setHighlightedGenderIndex(0)
+    highlightedGenderIndexRef.current = 0
+    setTimeout(() => {
+      genderTriggerRef.current?.focus({ preventScroll: true })
+    }, 0)
+  }
+
+  const handleGenderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Tab") {
+      setIsGenderFocused(false)
+      setGenderKeyboardActive(false)
+      genderKeyboardActiveRef.current = false
+      return
+    }
+    if (processGenderKey(e.key)) {
+      e.preventDefault()
+    }
+  }
+
+  const handlePatientNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" && !e.shiftKey && showGenderField) {
+      e.preventDefault()
+      focusGenderDropdown()
+      return
+    }
+    if (
+      genderKeyboardActive &&
+      GENDER_NAV_KEYS.includes(e.key as (typeof GENDER_NAV_KEYS)[number])
+    ) {
+      e.preventDefault()
+      processGenderKey(e.key)
+    }
   }
 
   // Removed click outside handler - dropdown only closes when gender is selected
@@ -458,10 +640,10 @@ const PatientInfoSection = ({
   }
 
   const getGenderBorderColor = () => {
-    if (showGenderField && !isGenderValid) return "border-red-500" // invalid state - red
-    if (isGenderValid) return "border-[#119933]" // valid state
-    if (isGenderFocused) return "border-[#1162A8]" // focus state
-    return "border-[#7F7F7F]" // default
+    if (isGenderFocused) return "border-[#1162A8]"
+    if (genderRequired && !isGenderValid) return "border-red-500"
+    if (isGenderValid) return "border-[#119933]"
+    return "border-[#7F7F7F]"
   }
 
   // Determine label color
@@ -479,35 +661,33 @@ const PatientInfoSection = ({
   }
 
   const getGenderLabelColor = () => {
-    if (showGenderField && !isGenderValid) return "text-red-500" // invalid state - red
-    if (isGenderValid) return "text-[#119933]"
     if (isGenderFocused) return "text-[#1162A8]"
+    if (genderRequired && !isGenderValid) return "text-red-500"
+    if (isGenderValid) return "text-[#119933]"
     return "text-[#7F7F7F]"
   }
 
   // Determine ring/glow effect
   const getNameRingEffect = () => {
+    if (!isNameFocused) return ""
     if (isNameValid) {
-      // Green: Field is complete and valid (has both first and last name)
       return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
     }
     if (hasNameValue) {
-      // Orange: Field has a value but is incomplete (only first name or incomplete last name)
       return "ring-2 ring-[#FF9900] ring-opacity-20 shadow-[0_0_0_4px_rgba(255,153,0,0.15)]"
     }
-    // No value - red (required field)
     return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
   }
 
   const getGenderRingEffect = () => {
-    if (showGenderField && !isGenderValid) {
-      return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
-    }
     if (isGenderFocused && isGenderValid) {
       return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]"
     }
     if (isGenderFocused) {
       return "ring-2 ring-[#1162A8] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]"
+    }
+    if (genderRequired && !isGenderValid) {
+      return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]"
     }
     return ""
   }
@@ -517,7 +697,7 @@ const PatientInfoSection = ({
 
   const fieldHeight = 36.95
   const fieldGap = 10
-  const containerHeight = showGenderField
+  const containerHeight = showSecondRow
     ? 10 + fieldHeight + fieldGap + fieldHeight + 10
     : 10 + fieldHeight + 10
 
@@ -533,9 +713,17 @@ const PatientInfoSection = ({
             ref={patientNameInputRef}
             type="text"
             value={name}
+            readOnly={genderKeyboardActive}
+            tabIndex={genderKeyboardActive ? -1 : undefined}
             onChange={(e) => handleNameChange(e.target.value)}
-            onFocus={() => setIsNameFocused(true)}
+            onFocus={() => {
+              onInteraction?.()
+              genderKeyboardActiveRef.current = false
+              setGenderKeyboardActive(false)
+              setIsNameFocused(true)
+            }}
             onBlur={() => setIsNameFocused(false)}
+            onKeyDown={handlePatientNameKeyDown}
             className={cn(
               "w-full h-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none",
               "transition-all ease-out",
@@ -583,8 +771,8 @@ const PatientInfoSection = ({
         </div>
       </div>
 
-      {/* Gender + Age - Only show when patient name has a value (same Rxn3DFloatingInput specs) */}
-      {showGenderField && (
+      {/* Gender + Age - shown per slip settings once the name is far enough along */}
+      {showSecondRow && (
         <div
           className="absolute left-[10px] right-[10px] sm:right-auto flex gap-2"
           style={{
@@ -592,12 +780,19 @@ const PatientInfoSection = ({
             height: `${fieldHeight}px`,
           }}
         >
+          {showGenderField && (
           <div className="relative w-[230px] h-full flex-shrink-0">
             {/* Custom Gender Dropdown */}
             <div
+              ref={genderTriggerRef}
+              role="combobox"
+              aria-expanded={isGenderFocused}
+              aria-haspopup="listbox"
+              aria-label="Gender"
+              tabIndex={0}
               className={cn(
                 "w-full h-full box-border flex flex-row items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer",
-                "transition-all ease-out",
+                "transition-all ease-out focus:outline-none",
                 getGenderBorderColor(),
                 getGenderRingEffect(),
                 !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150"
@@ -613,11 +808,18 @@ const PatientInfoSection = ({
                 transitionDuration: isGenderFocused ? "250ms" : "150ms",
                 transitionTimingFunction: isGenderFocused ? "ease-in-out" : "ease-out",
               }}
+              onFocus={() => {
+                onInteraction?.()
+                setIsGenderFocused(true)
+              }}
+              onKeyDown={handleGenderKeyDown}
               onClick={() => {
+                onInteraction?.()
                 // Allow opening the dropdown manually, but don't close it once open
                 if (!isGenderFocused) {
                   setIsGenderFocused(true)
-                  // Keep focus on patient name input
+                  setHighlightedGenderIndex(0)
+                  // Keep focus on patient name input for mouse-driven auto-open flow
                   setTimeout(() => {
                     patientNameInputRef.current?.focus()
                   }, 50)
@@ -636,33 +838,33 @@ const PatientInfoSection = ({
             {/* Dropdown Options */}
             {isGenderFocused && (
               <div
+                role="listbox"
+                aria-label="Gender options"
                 className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden"
                 style={{
                   borderWidth: "0.740384px",
                 }}
               >
-                <div
-                  className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
-                  style={{
-                    fontFamily: "Arial",
-                    fontSize: "14px",
-                    lineHeight: "16px",
-                  }}
-                  onClick={() => handleGenderSelect("male")}
-                >
-                  Male
-                </div>
-                <div
-                  className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors"
-                  style={{
-                    fontFamily: "Arial",
-                    fontSize: "14px",
-                    lineHeight: "16px",
-                  }}
-                  onClick={() => handleGenderSelect("female")}
-                >
-                  Female
-                </div>
+                {genderOptions.map((option, index) => (
+                  <div
+                    key={option}
+                    role="option"
+                    aria-selected={highlightedGenderIndex === index}
+                    className={cn(
+                      "px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937] transition-colors",
+                      highlightedGenderIndex === index && "bg-[#DFEEFB]"
+                    )}
+                    style={{
+                      fontFamily: "Arial",
+                      fontSize: "14px",
+                      lineHeight: "16px",
+                    }}
+                    onMouseEnter={() => setHighlightedGenderIndex(index)}
+                    onClick={() => handleGenderSelect(option)}
+                  >
+                    {option === "male" ? "Male" : "Female"}
+                  </div>
+                ))}
               </div>
             )}
 
@@ -692,15 +894,20 @@ const PatientInfoSection = ({
               </div>
             )}
           </div>
+          )}
 
           {/* Age Field */}
+          {showAgeField && (
           <div className="relative w-[96px] h-full flex-shrink-0">
             <input
+              ref={ageInputRef}
               type="number"
               min={0}
               max={150}
               value={ageValue}
+              onFocus={() => onInteraction?.()}
               onChange={(e) => {
+                onInteraction?.()
                 const val = e.target.value
                 if (val === "" || (Number(val) >= 0 && Number(val) <= 150)) {
                   onAgeChange(val)
@@ -709,7 +916,11 @@ const PatientInfoSection = ({
               className={cn(
                 "w-full h-full box-border flex flex-row items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none",
                 "transition-all ease-out",
-                ageValue ? "border-[#119933]" : "border-[#7F7F7F]",
+                ageValue
+                  ? "border-[#119933]"
+                  : ageRequired
+                    ? "border-red-500"
+                    : "border-[#7F7F7F]",
                 "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)] transition-shadow duration-150",
                 "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               )}
@@ -726,7 +937,11 @@ const PatientInfoSection = ({
             <label
               className={cn(
                 "absolute bg-white pointer-events-none z-10 transition-all duration-200 ease-out",
-                ageValue ? "text-[#119933]" : "text-[#7F7F7F]"
+                ageValue
+                  ? "text-[#119933]"
+                  : ageRequired
+                    ? "text-red-500"
+                    : "text-[#7F7F7F]"
               )}
               style={{
                 left: "9.23px",
@@ -743,6 +958,7 @@ const PatientInfoSection = ({
               Age
             </label>
           </div>
+          )}
         </div>
       )}
     </div>
@@ -757,6 +973,7 @@ export function SlipCreationHeader({
   doctor,
   patientData,
   editablePatientData,
+  patientFieldSettings,
   containerClassName = "container mx-auto px-6 max-w-[1400px] pt-8",
   headerClassName = "",
   hideSecondHeader = false,
@@ -862,6 +1079,7 @@ export function SlipCreationHeader({
                   <PatientInfoSection
                     patientData={patientData}
                     editablePatientData={editablePatientData}
+                    fieldSettings={patientFieldSettings}
                   />
                 </div>
               ) : (

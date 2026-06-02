@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Filter, Plus, Search, ChevronDown, Check } from "lucide-react";
+import { Filter, Plus, Search, ChevronDown } from "lucide-react";
+import { Check } from "@/components/ui/custom-check";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
@@ -23,6 +24,23 @@ import {
   shouldAutoOpenPatientGender,
   shouldShowPatientGenderField,
 } from "@/lib/patient-name-validation";
+import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
+import { useCreatedByUser } from "@/hooks/use-created-by-user";
+
+/** Slip-settings-driven patient field flags shared across wizard steps. */
+interface WizardPatientFieldSettings {
+  showGender: boolean;
+  genderRequired: boolean;
+  showAge: boolean;
+  ageRequired: boolean;
+}
+
+const DEFAULT_WIZARD_FIELD_SETTINGS: WizardPatientFieldSettings = {
+  showGender: true,
+  genderRequired: true,
+  showAge: true,
+  ageRequired: false,
+};
 
 /* ------------------------------------------------------------------ */
 /*  Role / auth helpers (client-only)                                  */
@@ -398,6 +416,7 @@ function StepPatientInfo({
   gender,
   setGender,
   onComplete,
+  fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -405,13 +424,19 @@ function StepPatientInfo({
   gender: string;
   setGender: (v: string) => void;
   onComplete?: () => void;
+  fieldSettings?: WizardPatientFieldSettings;
 }) {
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isGenderFocused, setIsGenderFocused] = useState(false);
+  const [highlightedGenderIndex, setHighlightedGenderIndex] = useState(-1);
+  const [genderKeyboardActive, setGenderKeyboardActive] = useState(false);
   const patientNameInputRef = useRef<HTMLInputElement>(null);
   const patientNameDesktopRef = useRef<HTMLInputElement>(null);
   const genderTriggerRef = useRef<HTMLDivElement>(null);
   const refocusTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const genderKeyboardActiveRef = useRef(false);
+  const highlightedGenderIndexRef = useRef(-1);
+  const genderOptions = ["Male", "Female"] as const;
 
   /** Focus whichever patient name input is currently visible */
   const focusPatientInput = () => {
@@ -420,18 +445,12 @@ function StepPatientInfo({
     ref.current?.focus();
   };
 
-  const [createdByName, setCreatedByName] = useState("");
-  const [createdByImage, setCreatedByImage] = useState("");
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-        if (user.image) setCreatedByImage(user.image);
-      }
-    } catch { }
-  }, []);
+  const blurPatientInput = () => {
+    patientNameInputRef.current?.blur();
+    patientNameDesktopRef.current?.blur();
+  };
+
+  const { createdByName, createdByImageUrl: createdByImage } = useCreatedByUser();
 
   useEffect(() => {
     if (!(patientName ?? "").trim()) {
@@ -446,32 +465,178 @@ function StepPatientInfo({
     };
   }, []);
 
+  useEffect(() => {
+    highlightedGenderIndexRef.current = highlightedGenderIndex;
+  }, [highlightedGenderIndex]);
+
+  useEffect(() => {
+    if (!isGenderFocused && !genderKeyboardActiveRef.current) {
+      setHighlightedGenderIndex(-1);
+      highlightedGenderIndexRef.current = -1;
+    }
+  }, [isGenderFocused]);
+
   const getGenderDisplay = (g?: string) => {
     if (g === "Male" || g === "male") return "Male";
     if (g === "Female" || g === "female") return "Female";
     return "Select Gender";
   };
 
+  const { showGender, genderRequired } = fieldSettings;
   const name = patientName ?? "";
-  const showGenderField = shouldShowPatientGenderField(name);
+  const showGenderField = showGender && shouldShowPatientGenderField(name);
 
   const handleNameChange = (value: string) => {
     setPatientName(value);
     if (refocusTimerRef.current) {
       clearTimeout(refocusTimerRef.current);
     }
-    const shouldOpen = shouldAutoOpenPatientGender(value, gender);
-    if (shouldOpen && !isGenderFocused) {
+    // When gender is hidden there's no field to auto-open/advance from; the
+    // user proceeds via the Next button (canProceed gates on a valid name).
+    const shouldOpen = showGender && shouldAutoOpenPatientGender(value, gender);
+    if (shouldOpen && !isGenderFocused && !genderKeyboardActiveRef.current) {
       setIsGenderFocused(true);
-      refocusTimerRef.current = setTimeout(() => focusPatientInput(), 50);
+      refocusTimerRef.current = setTimeout(() => {
+        if (
+          !genderKeyboardActiveRef.current &&
+          document.activeElement !== genderTriggerRef.current
+        ) {
+          focusPatientInput();
+        }
+      }, 50);
     }
+  };
+
+  const focusGenderDropdown = () => {
+    if (!showGenderField || !genderTriggerRef.current) return;
+    if (refocusTimerRef.current) {
+      clearTimeout(refocusTimerRef.current);
+      refocusTimerRef.current = null;
+    }
+    genderKeyboardActiveRef.current = true;
+    setGenderKeyboardActive(true);
+    setIsNameFocused(false);
+    blurPatientInput();
+    setIsGenderFocused(true);
+    setHighlightedGenderIndex(0);
+    highlightedGenderIndexRef.current = 0;
+    setTimeout(() => {
+      genderTriggerRef.current?.focus({ preventScroll: true });
+    }, 0);
   };
 
   const handleGenderSelect = (value: string) => {
     setGender(value);
+    genderKeyboardActiveRef.current = false;
+    setGenderKeyboardActive(false);
     setIsGenderFocused(false);
+    setHighlightedGenderIndex(-1);
+    highlightedGenderIndexRef.current = -1;
     setTimeout(() => focusPatientInput(), 50);
     if (name.trim() && onComplete) setTimeout(() => onComplete(), 300);
+  };
+
+  const processGenderKey = (key: string): boolean => {
+    switch (key) {
+      case "ArrowDown":
+        setIsGenderFocused(true);
+        setHighlightedGenderIndex((prev) => {
+          const next =
+            prev < 0 ? 0 : prev < genderOptions.length - 1 ? prev + 1 : 0;
+          highlightedGenderIndexRef.current = next;
+          return next;
+        });
+        return true;
+      case "ArrowUp":
+        setIsGenderFocused(true);
+        setHighlightedGenderIndex((prev) => {
+          const next =
+            prev < 0
+              ? genderOptions.length - 1
+              : prev > 0
+                ? prev - 1
+                : genderOptions.length - 1;
+          highlightedGenderIndexRef.current = next;
+          return next;
+        });
+        return true;
+      case "Enter":
+      case " ": {
+        const idx = highlightedGenderIndexRef.current;
+        if (idx >= 0) {
+          handleGenderSelect(genderOptions[idx]);
+        } else {
+          setIsGenderFocused(true);
+          setHighlightedGenderIndex(0);
+          highlightedGenderIndexRef.current = 0;
+        }
+        return true;
+      }
+      case "Escape":
+        genderKeyboardActiveRef.current = false;
+        setGenderKeyboardActive(false);
+        setIsGenderFocused(false);
+        setHighlightedGenderIndex(-1);
+        highlightedGenderIndexRef.current = -1;
+        focusPatientInput();
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const GENDER_NAV_KEYS = ["ArrowDown", "ArrowUp", "Enter", " ", "Escape"] as const;
+
+  useEffect(() => {
+    if (!genderKeyboardActive) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") return;
+      if (!GENDER_NAV_KEYS.includes(e.key as (typeof GENDER_NAV_KEYS)[number])) return;
+
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "INPUT" &&
+        target !== patientNameInputRef.current &&
+        target !== patientNameDesktopRef.current
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      processGenderKey(e.key);
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [genderKeyboardActive, genderOptions]);
+
+  const handleGenderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Tab") {
+      setIsGenderFocused(false);
+      setGenderKeyboardActive(false);
+      genderKeyboardActiveRef.current = false;
+      return;
+    }
+    if (processGenderKey(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handlePatientNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Tab" && !e.shiftKey && showGenderField) {
+      e.preventDefault();
+      focusGenderDropdown();
+      return;
+    }
+    if (
+      genderKeyboardActive &&
+      GENDER_NAV_KEYS.includes(e.key as (typeof GENDER_NAV_KEYS)[number])
+    ) {
+      e.preventDefault();
+      processGenderKey(e.key);
+    }
   };
 
   const hasNameValue = name.trim() !== "";
@@ -485,9 +650,9 @@ function StepPatientInfo({
     return "border-red-500";
   };
   const getGenderBorderColor = () => {
-    if (showGenderField && !isGenderValid) return "border-red-500";
-    if (isGenderValid) return "border-[#119933]";
     if (isGenderFocused) return "border-[#1162A8]";
+    if (genderRequired && !isGenderValid) return "border-red-500";
+    if (isGenderValid) return "border-[#119933]";
     return "border-[#7F7F7F]";
   };
   const getNameLabelColor = () => {
@@ -496,22 +661,23 @@ function StepPatientInfo({
     return "text-red-500";
   };
   const getGenderLabelColor = () => {
-    if (showGenderField && !isGenderValid) return "text-red-500";
-    if (isGenderValid) return "text-[#119933]";
     if (isGenderFocused) return "text-[#1162A8]";
+    if (genderRequired && !isGenderValid) return "text-red-500";
+    if (isGenderValid) return "text-[#119933]";
     return "text-[#7F7F7F]";
   };
   const getNameLabel = () => getPatientNameFieldLabel(name);
 
   const getNameRingEffect = () => {
+    if (!isNameFocused) return "";
     if (isNameValid) return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]";
     if (hasNameValue) return "ring-2 ring-[#FF9900] ring-opacity-20 shadow-[0_0_0_4px_rgba(255,153,0,0.15)]";
     return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]";
   };
   const getGenderRingEffect = () => {
-    if (showGenderField && !isGenderValid) return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]";
     if (isGenderFocused && isGenderValid) return "ring-2 ring-[#119933] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,153,51,0.15)]";
     if (isGenderFocused) return "ring-2 ring-[#1162A8] ring-opacity-20 shadow-[0_0_0_4px_rgba(17,98,168,0.15)]";
+    if (genderRequired && !isGenderValid) return "ring-2 ring-red-500 ring-opacity-20 shadow-[0_0_0_4px_rgba(239,68,68,0.15)]";
     return "";
   };
 
@@ -552,16 +718,16 @@ function StepPatientInfo({
                   ref={patientNameDesktopRef}
                   type="text"
                   value={name}
+                  readOnly={genderKeyboardActive}
+                  tabIndex={genderKeyboardActive ? -1 : undefined}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  onFocus={() => setIsNameFocused(true)}
-                  onBlur={() => setIsNameFocused(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Tab" && !e.shiftKey && showGenderField) {
-                      e.preventDefault();
-                      setIsGenderFocused(true);
-                      setTimeout(() => genderTriggerRef.current?.focus(), 0);
-                    }
+                  onFocus={() => {
+                    genderKeyboardActiveRef.current = false;
+                    setGenderKeyboardActive(false);
+                    setIsNameFocused(true);
                   }}
+                  onBlur={() => setIsNameFocused(false)}
+                  onKeyDown={handlePatientNameKeyDown}
                   className={cn(
                     "w-full h-full box-border flex items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
                     getNameBorderColor(),
@@ -590,22 +756,37 @@ function StepPatientInfo({
                     aria-label="Gender"
                     tabIndex={0}
                     className={cn(
-                      "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all",
+                      "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all focus:outline-none",
                       getGenderBorderColor(),
                       getGenderRingEffect(),
                       !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
                     )}
                     style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "17px", lineHeight: "18px" }}
                     onFocus={() => setIsGenderFocused(true)}
-                    onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setTimeout(() => focusPatientInput(), 50); } }}
+                    onKeyDown={handleGenderKeyDown}
+                    onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setHighlightedGenderIndex(0); setTimeout(() => focusPatientInput(), 50); } }}
                   >
                     {isGenderValid && <span style={{ fontFamily: "Arial", fontSize: "17px", lineHeight: "18px" }}>{getGenderDisplay(gender)}</span>}
                     <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
                   </div>
                   {isGenderFocused && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
-                      <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Male")}>Male</div>
-                      <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Female")}>Female</div>
+                    <div role="listbox" aria-label="Gender options" className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
+                      {genderOptions.map((option, index) => (
+                        <div
+                          key={option}
+                          role="option"
+                          aria-selected={highlightedGenderIndex === index}
+                          className={cn(
+                            "px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]",
+                            highlightedGenderIndex === index && "bg-[#DFEEFB]"
+                          )}
+                          style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }}
+                          onMouseEnter={() => setHighlightedGenderIndex(index)}
+                          onClick={() => handleGenderSelect(option)}
+                        >
+                          {option}
+                        </div>
+                      ))}
                     </div>
                   )}
                   <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "14px", lineHeight: "14px" }}>{isGenderValid ? "Gender" : "Select Gender"}</label>
@@ -662,16 +843,16 @@ function StepPatientInfo({
                 ref={patientNameInputRef}
                 type="text"
                 value={name}
+                readOnly={genderKeyboardActive}
+                tabIndex={genderKeyboardActive ? -1 : undefined}
                 onChange={(e) => handleNameChange(e.target.value)}
-                onFocus={() => setIsNameFocused(true)}
-                onBlur={() => setIsNameFocused(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Tab" && !e.shiftKey && showGenderField) {
-                    e.preventDefault();
-                    setIsGenderFocused(true);
-                    setTimeout(() => genderTriggerRef.current?.focus(), 0);
-                  }
+                onFocus={() => {
+                  genderKeyboardActiveRef.current = false;
+                  setGenderKeyboardActive(false);
+                  setIsNameFocused(true);
                 }}
+                onBlur={() => setIsNameFocused(false)}
+                onKeyDown={handlePatientNameKeyDown}
                 className={cn(
                   "w-full h-full box-border flex items-center bg-white border border-solid rounded-[7.7px] text-[#1F2937] focus:outline-none transition-all ease-out",
                   getNameBorderColor(),
@@ -693,28 +874,44 @@ function StepPatientInfo({
             <div className="absolute left-0 right-0" style={{ top: 10 + fieldHeight + fieldGap, height: `${fieldHeight}px` }}>
               <div className="relative w-full h-full">
                 <div
+                  ref={genderTriggerRef}
                   role="combobox"
                   aria-expanded={isGenderFocused}
                   aria-haspopup="listbox"
                   aria-label="Gender"
                   tabIndex={0}
                   className={cn(
-                    "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all",
+                    "w-full h-full box-border flex items-center justify-between bg-white border border-solid rounded-[7.7px] text-[#1F2937] cursor-pointer transition-all focus:outline-none",
                     getGenderBorderColor(),
                     getGenderRingEffect(),
                     !isGenderFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]"
                   )}
                   style={{ padding: "25px 30.8px 9.24px 12.32px", borderWidth: "0.740384px", fontFamily: "Arial", fontSize: "15px", lineHeight: "18px" }}
                   onFocus={() => setIsGenderFocused(true)}
-                  onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setTimeout(() => focusPatientInput(), 50); } }}
+                  onKeyDown={handleGenderKeyDown}
+                  onClick={() => { if (!isGenderFocused) { setIsGenderFocused(true); setHighlightedGenderIndex(0); setTimeout(() => focusPatientInput(), 50); } }}
                 >
                   {isGenderValid && <span style={{ fontFamily: "Arial", fontSize: "15px", lineHeight: "18px" }}>{getGenderDisplay(gender)}</span>}
                   <ChevronDown className={cn("h-4 w-4 text-[#7F7F7F] transition-transform", isGenderFocused && "rotate-180")} />
                 </div>
                 {isGenderFocused && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
-                    <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Male")}>Male</div>
-                    <div className="px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]" style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }} onClick={() => handleGenderSelect("Female")}>Female</div>
+                  <div role="listbox" aria-label="Gender options" className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#E5E7EB] rounded-[7.7px] shadow-lg z-50 overflow-hidden">
+                    {genderOptions.map((option, index) => (
+                      <div
+                        key={option}
+                        role="option"
+                        aria-selected={highlightedGenderIndex === index}
+                        className={cn(
+                          "px-2.5 py-1.5 hover:bg-[#DFEEFB] cursor-pointer text-[#1F2937]",
+                          highlightedGenderIndex === index && "bg-[#DFEEFB]"
+                        )}
+                        style={{ fontFamily: "Arial", fontSize: "14px", lineHeight: "16px" }}
+                        onMouseEnter={() => setHighlightedGenderIndex(index)}
+                        onClick={() => handleGenderSelect(option)}
+                      >
+                        {option}
+                      </div>
+                    ))}
                   </div>
                 )}
                 <label className={cn("absolute bg-white pointer-events-none z-10 transition-all text-[#7F7F7F]", getGenderLabelColor())} style={{ left: "9.23px", top: "-6.15px", fontFamily: "Arial", fontWeight: 400, fontSize: "13px", lineHeight: "14px" }}>{isGenderValid ? "Gender" : "Select Gender"}</label>
@@ -762,6 +959,8 @@ function StepCategory({
   onPatientNameChange,
   onGenderChange,
   onAgeChange,
+  fieldSettings,
+  patientInfoComplete = true,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -775,6 +974,9 @@ function StepCategory({
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
+  fieldSettings?: WizardPatientFieldSettings;
+  /** When false, category selection is blocked until required patient fields are filled. */
+  patientInfoComplete?: boolean;
 }) {
   if (error) {
     return (
@@ -787,7 +989,7 @@ function StepCategory({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3].map((i) => (
@@ -799,44 +1001,49 @@ function StepCategory({
   }
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
 
-      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
-        CASE DESIGN CENTER
-      </h2>
+      {/* Case design center is revealed only once required patient details are filled */}
+      {patientInfoComplete && (
+        <>
+          <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
+            CASE DESIGN CENTER
+          </h2>
 
-      <div className="flex justify-center mb-4">
-        <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
-          <input
-            type="text"
-            placeholder="Search Product"
-            className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
-            style={{ fontFamily: "Verdana, sans-serif" }}
-          />
-          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
-        </div>
-      </div>
+          <div className="flex justify-center mb-4">
+            <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
+              <input
+                type="text"
+                placeholder="Search Product"
+                className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+                style={{ fontFamily: "Verdana, sans-serif" }}
+              />
+              <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
+            </div>
+          </div>
 
-      <div className="flex flex-wrap justify-center gap-4 mb-6">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => onSelect(cat.id)}
-            className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${selected === cat.id
-              ? "border-[#1162A8] bg-[#1162A8]/5"
-              : "border-[#d9d9d9] bg-white"
-              }`}
-          >
-            <span
-              className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
-              style={{ fontFamily: "Verdana, sans-serif" }}
-            >
-              {cat.name}
-            </span>
-            <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" />
-          </button>
-        ))}
-      </div>
+          <div className="flex flex-wrap justify-center gap-4 mb-6">
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => onSelect(cat.id)}
+                className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${selected === cat.id
+                  ? "border-[#1162A8] bg-[#1162A8]/5"
+                  : "border-[#d9d9d9] bg-white"
+                  }`}
+              >
+                <span
+                  className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
+                  style={{ fontFamily: "Verdana, sans-serif" }}
+                >
+                  {cat.name}
+                </span>
+                <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -858,6 +1065,7 @@ function StepSubProduct({
   onPatientNameChange,
   onGenderChange,
   onAgeChange,
+  fieldSettings,
   archPopoverSubId,
   setArchPopoverSubId,
   subcategoryProductCounts,
@@ -877,6 +1085,7 @@ function StepSubProduct({
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
+  fieldSettings?: WizardPatientFieldSettings;
   archPopoverSubId: number | null;
   setArchPopoverSubId: (id: number | null) => void;
   subcategoryProductCounts?: Record<number, number | undefined>;
@@ -928,7 +1137,7 @@ function StepSubProduct({
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
       {/* Patient header mini */}
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
 
       {onBack && (
         <button
@@ -1083,6 +1292,7 @@ function StepMaterial({
   onGenderChange,
   age,
   onAgeChange,
+  fieldSettings,
 }: {
   categoryName: string;
   subProductName: string;
@@ -1101,6 +1311,7 @@ function StepMaterial({
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
+  fieldSettings?: WizardPatientFieldSettings;
 }) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const [activeProductLabelHeight, setActiveProductLabelHeight] = useState(0);
@@ -1176,7 +1387,7 @@ function StepMaterial({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
         <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
         <div className="flex flex-wrap justify-center gap-4 mb-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -1189,7 +1400,7 @@ function StepMaterial({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} />
+      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
 
       {onBack && (
         <button
@@ -1372,6 +1583,7 @@ function PatientMiniHeader({
   onPatientNameChange,
   onGenderChange,
   onAgeChange,
+  fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -1380,18 +1592,34 @@ function PatientMiniHeader({
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
+  fieldSettings?: WizardPatientFieldSettings;
 }) {
-  const [createdByName, setCreatedByName] = useState("");
-  const [createdByImage, setCreatedByImage] = useState("");
+  const { showGender, showAge, genderRequired, ageRequired } = fieldSettings;
+  const { createdByName, createdByImageUrl: createdByImage } = useCreatedByUser();
+  const ageInputRef = useRef<HTMLInputElement>(null);
+
+  // After gender is selected (or on entry with gender already set), move focus
+  // to the age field when age is shown and still empty.
+  const focusAge = useCallback(() => {
+    if (showAge) {
+      setTimeout(() => ageInputRef.current?.focus(), 50);
+    }
+  }, [showAge]);
+
+  const handleGenderChange = useCallback(
+    (value: string) => {
+      onGenderChange?.(value);
+      focusAge();
+    },
+    [onGenderChange, focusAge]
+  );
+
   useEffect(() => {
-    try {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCreatedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
-        if (user.image) setCreatedByImage(user.image);
-      }
-    } catch { }
+    if (showAge && gender && !(age ?? "").trim()) {
+      focusAge();
+    }
+    // Only on mount — auto-focus age when arriving with gender already chosen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -1423,28 +1651,37 @@ function PatientMiniHeader({
           <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" smartPatientLabel />
           </div>
-          <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
-            {onGenderChange ? (
-              <SelectField
-                label="Gender"
-                value={gender}
-                options={["Male", "Female"]}
-                onChange={onGenderChange}
-                caseSubmitted={false}
-                className="flex-1"
-              />
-            ) : (
-              <FieldInput label="Gender" value={gender} submitted={false} className="flex-1" />
-            )}
-            <FieldInput
-              label="Age"
-              value={age ?? ""}
-              submitted={false}
-              onChange={onAgeChange}
-              className="flex-1"
-              type="number"
-            />
-          </div>
+          {(showGender || showAge) && (
+            <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
+              {showGender && (
+                onGenderChange ? (
+                  <SelectField
+                    label="Gender"
+                    value={gender}
+                    options={["Male", "Female"]}
+                    onChange={handleGenderChange}
+                    caseSubmitted={false}
+                    optional={!genderRequired}
+                    className="flex-1"
+                  />
+                ) : (
+                  <FieldInput label="Gender" value={gender} submitted={false} className="flex-1" />
+                )
+              )}
+              {showAge && (
+                <FieldInput
+                  label="Age"
+                  value={age ?? ""}
+                  submitted={false}
+                  onChange={onAgeChange}
+                  className="flex-1"
+                  type="number"
+                  required={ageRequired}
+                  inputRef={ageInputRef}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Created By */}
@@ -1544,6 +1781,17 @@ export default function NewCaseWizard({
     if ((isLabAdmin || role) && customerId != null) return customerId;
     return undefined;
   }, [isOfficeAdmin, isLabAdmin, role, customerId, selectedLab]);
+
+  // Slip-settings-driven patient field visibility/requiredness (shared by steps)
+  const patientFieldSettings = usePatientFieldSettings(customerIdForCategories ?? undefined);
+
+  // All shown + required patient fields satisfied. Age (when required) is only
+  // collected in the mini header on the category step, so it gates category
+  // selection rather than the step-3 Next button.
+  const patientInfoComplete =
+    isValidPatientName(patientName) &&
+    (!patientFieldSettings.genderRequired || Boolean(gender)) &&
+    (!patientFieldSettings.ageRequired || Boolean(age));
 
   const {
     categoriesAsWizard,
@@ -1729,7 +1977,10 @@ export default function NewCaseWizard({
       case 2:
         return isStepDoctor(2) ? selectedDoctor !== null : selectedLab !== null;
       case 3:
-        return isValidPatientName(patientName) && Boolean(gender);
+        return (
+          isValidPatientName(patientName) &&
+          (!patientFieldSettings.genderRequired || Boolean(gender))
+        );
       case 4:
         return selectedCategory !== null;
       case 5:
@@ -1878,6 +2129,7 @@ export default function NewCaseWizard({
             gender={gender}
             setGender={setGender}
             onComplete={() => setStep(4)}
+            fieldSettings={patientFieldSettings}
           />
         )}
         {step === 4 && (
@@ -1899,6 +2151,8 @@ export default function NewCaseWizard({
             onPatientNameChange={setPatientName}
             onGenderChange={setGender}
             onAgeChange={setAge}
+            fieldSettings={patientFieldSettings}
+            patientInfoComplete={patientInfoComplete}
           />
         )}
         {step === 5 && selectedCategory != null && (
@@ -1925,6 +2179,7 @@ export default function NewCaseWizard({
             onPatientNameChange={setPatientName}
             onGenderChange={setGender}
             onAgeChange={setAge}
+            fieldSettings={patientFieldSettings}
             archPopoverSubId={archPopoverSubId}
             setArchPopoverSubId={setArchPopoverSubId}
             subcategoryProductCounts={subcategoryProductCounts}
@@ -2004,6 +2259,7 @@ export default function NewCaseWizard({
               onPatientNameChange={setPatientName}
               onGenderChange={setGender}
               onAgeChange={setAge}
+              fieldSettings={patientFieldSettings}
             />
           );
         })()}

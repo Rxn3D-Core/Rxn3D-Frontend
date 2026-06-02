@@ -221,6 +221,43 @@ export function ToothStatusBoxes({
           // When submitted, hide empty boxes (no teeth assigned)
           if (submitted && isEmpty) return null;
 
+          const toggleBox = () => {
+            if (!isInteractive) return;
+            onActiveExtractionChange(isActive ? null : extraction.code, extractions);
+          };
+
+          const boxIcon = extraction.image_url ? (
+            <img
+              alt=""
+              loading="lazy"
+              width="50"
+              height="70"
+              decoding="async"
+              src={extraction.image_url}
+              style={{
+                color: "transparent",
+                filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
+                position: "absolute",
+                left: "-20px",
+                top: "50%",
+                transform: "translateY(-50%)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                position: "absolute",
+                left: "-20px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
+              }}
+            >
+              {getExtractionIcon(extraction.code, extraction.name)}
+            </div>
+          );
+
+          // Active state: blue border to indicate selection mode
           if (isActive) {
             return (
               <button
@@ -228,10 +265,7 @@ export function ToothStatusBoxes({
                 type="button"
                 aria-label={extraction.name}
                 title={extraction.name}
-                onClick={() => {
-                  if (!isInteractive) return;
-                  onActiveExtractionChange(isActive ? null : extraction.code, extractions);
-                }}
+                onClick={toggleBox}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -252,37 +286,8 @@ export function ToothStatusBoxes({
                 }}
                 className="transition-all duration-300 transform hover:scale-[1.03]"
               >
+                {boxIcon}
                 <div style={{ display: "grid", gap: "2px", placeItems: "center", whiteSpace: "nowrap", fontFamily: "Verdana, Arial, sans-serif" }}>
-                  {extraction.image_url ? (
-                    <img
-                      alt=""
-                      loading="lazy"
-                      width="50"
-                      height="70"
-                      decoding="async"
-                      src={extraction.image_url}
-                      style={{
-                        color: "transparent",
-                        filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
-                        position: "absolute",
-                        left: "-20px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: "-20px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
-                      }}
-                    >
-                      {getExtractionIcon(extraction.code, extraction.name)}
-                    </div>
-                  )}
                   <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.15, fontWeight: 400 }}>
                     {extraction.name}
                   </div>
@@ -296,15 +301,57 @@ export function ToothStatusBoxes({
             );
           }
 
-          // Inactive state: stand-alone image
+          // Inactive with visible teeth: show expanded box without the active blue border.
+          // Only expand when there are teeth to display — if all teeth are filtered (product teeth),
+          // show the minimal icon so the box doesn't appear expanded with no content.
+          if (displayTeethForBox.length > 0) {
+            return (
+              <button
+                key={extraction.id}
+                type="button"
+                aria-label={extraction.name}
+                title={extraction.name}
+                onClick={toggleBox}
+                style={{
+                  flex: "0 0 auto",
+                  border: "2px solid rgb(211, 211, 211)",
+                  borderRadius: "14px",
+                  background: "rgb(255, 255, 255)",
+                  minHeight: "50px",
+                  minWidth: "148px",
+                  width: "fit-content",
+                  padding: "8px 14px 8px 44px",
+                  cursor: isInteractive ? "pointer" : "default",
+                  textAlign: "center",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  position: "relative",
+                  outline: "none",
+                }}
+                className="transition-all duration-300 transform hover:scale-[1.03]"
+              >
+                {boxIcon}
+                <div style={{ display: "grid", gap: "2px", placeItems: "center", whiteSpace: "nowrap", fontFamily: "Verdana, Arial, sans-serif" }}>
+                  <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.15, fontWeight: 400 }}>
+                    {extraction.name}
+                  </div>
+                  {displayTeethForBox.length > 0 && (
+                    <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.1, fontWeight: 400 }}>
+                      #{[...displayTeethForBox].sort((a, b) => a - b).join(", ")}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          }
+
+          // Inactive empty: minimal stand-alone icon
           return (
             <div
               key={extraction.id}
               className="flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center w-[50px] h-[70px]"
-              onClick={() => {
-                if (!isInteractive) return;
-                onActiveExtractionChange(isActive ? null : extraction.code, extractions);
-              }}
+              onClick={toggleBox}
             >
               {extraction.image_url ? (
                 <img

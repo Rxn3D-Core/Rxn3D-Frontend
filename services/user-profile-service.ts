@@ -1,28 +1,33 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+import { getMe, updateMe, type MeProfile, type UpdateMeProfileInput } from "@/lib/api/me"
+
+export type { MeProfile, UpdateMeProfileInput }
 
 export interface UserProfileData {
   id: number
-  uuid: string
+  uuid?: string
   customer_id?: number
   role?: string
-  roles?: string[]
+  roles?: string[] | Array<{ name?: string; role?: string }>
   first_name: string
   last_name: string
   email: string
+  phone?: string | null
+  work_number?: string | null
   mobile?: string
   image?: string
-  status: string
+  avatar?: string | null
+  status?: string
   username?: string
   description?: string
   department_id?: number
   created_at?: string
   updated_at?: string
   deleted_at?: string | null
-  permissions?: any[]
+  permissions?: unknown[]
   customers?: Array<{
     id: number
     name: string
-    type: 'lab' | 'office'
+    type: "lab" | "office"
     role?: string
     role_permissions?: string[]
     department_id?: number
@@ -39,60 +44,49 @@ export interface UserProfileData {
   customer?: {
     id: number
     name: string
-    type: 'lab' | 'office'
+    type: "lab" | "office"
     onboarding_completed?: boolean
     onboarding_completed_at?: string | null
     business_hours_setup_completed?: boolean
     business_hours_setup_completed_at?: string | null
   }
+  departments?: unknown[]
 }
 
-/**
- * Fetch user profile data from API
- * @param userId - The ID of the user (optional, defaults to current user)
- * @returns The user profile data
- */
-export async function fetchUserProfile(userId?: number): Promise<UserProfileData | null> {
-  try {
-    const token = localStorage.getItem("token")
-    if (!token) {
-      throw new Error("Authentication token not found")
-    }
+function mapMeToUserProfile(data: MeProfile): UserProfileData {
+  const avatarUrl = data.avatar ?? data.image ?? null
+  const phone = data.phone ?? data.mobile ?? null
 
-    // If no userId provided, try to get current user ID from localStorage
-    let targetUserId = userId
-    if (!targetUserId) {
-      const storedUser = localStorage.getItem("user")
-      if (storedUser) {
-        const user = JSON.parse(storedUser)
-        targetUserId = user.id
-      }
-    }
-
-    if (!targetUserId) {
-      throw new Error("User ID not found")
-    }
-
-    const response = await fetch(`${API_BASE_URL}/users/${targetUserId}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch user profile with status: ${response.status}`)
-    }
-
-    const responseData = await response.json()
-    // Handle different response structures
-    const userData = responseData.data || responseData
-    
-    return userData as UserProfileData
-  } catch (error) {
-    console.error("Error fetching user profile:", error)
-    throw error
+  return {
+    ...(data as UserProfileData),
+    phone,
+    mobile: phone ?? undefined,
+    avatar: avatarUrl,
+    image: avatarUrl ?? undefined,
   }
 }
 
+/**
+ * Fetch the logged-in user's profile (GET /me).
+ */
+export async function fetchCurrentUserProfile(): Promise<UserProfileData> {
+  const profile = await getMe()
+  return mapMeToUserProfile(profile)
+}
+
+/**
+ * @deprecated Use fetchCurrentUserProfile — kept for existing imports.
+ */
+export async function fetchUserProfile(_userId?: number): Promise<UserProfileData | null> {
+  return fetchCurrentUserProfile()
+}
+
+/**
+ * Update the logged-in user's profile (PUT /me or POST /me with avatar).
+ */
+export async function updateCurrentUserProfile(
+  input: UpdateMeProfileInput
+): Promise<UserProfileData> {
+  const profile = await updateMe(input)
+  return mapMeToUserProfile(profile)
+}
