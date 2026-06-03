@@ -59,8 +59,8 @@ const DEFAULT_GENDER = "Male";
 /** Slow, smooth hover expand — height + opacity only (avoid animating layout props). */
 const HEADER_ANIM_MS = 1000;
 const HEADER_EASE = "ease-in-out";
-const HEADER_HEIGHT_TRANSITION = `transition-[height] duration-[${HEADER_ANIM_MS}ms] ${HEADER_EASE}`;
-const HEADER_FADE_TRANSITION = `transition-opacity duration-[${HEADER_ANIM_MS}ms] ${HEADER_EASE}`;
+const HEADER_HEIGHT_TRANSITION = `transition-[height] duration-[1000ms] ${HEADER_EASE}`;
+const HEADER_FADE_TRANSITION = `transition-opacity duration-[1000ms] ${HEADER_EASE}`;
 const HEADER_SHELL_PADDING_Y_PX = 12; // pt-2 (8) + pb-1 (4)
 
 const PATIENT_NAME_FIELD_WIDTH = "w-[330px] max-w-[330px] shrink-0";

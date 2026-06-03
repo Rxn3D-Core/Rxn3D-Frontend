@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react"
 import { STLFileSelectionModal } from "./stl-file-selection-modal"
 import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
+import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
 import {
   getArchImpressionQtyForOption,
   impressionTouchKey,
@@ -326,25 +327,19 @@ function ImpressionGrid({
             className="hidden sm:grid gap-3 md:gap-4 w-full mt-3"
             style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}
           >
-            <div className="flex justify-center" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
-              <button
-                type="button"
-                className="whitespace-nowrap px-10 py-2 bg-[#1162A8] hover:bg-[#0d4d85] text-white rounded-[6px] font-['Verdana'] font-bold text-sm shadow-md transition-colors"
-                onClick={onConfirmAllAndClose}
-              >
-                Done
-              </button>
+            <div className="flex justify-center py-2 overflow-visible" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
+              <DoneTransitionButton
+                className="whitespace-nowrap px-10 py-2"
+                onComplete={onConfirmAllAndClose}
+              />
             </div>
           </div>
           {/* Mobile: centered */}
-          <div className="flex sm:hidden justify-center mt-3">
-            <button
-              type="button"
-              className="whitespace-nowrap px-10 py-2 bg-[#1162A8] hover:bg-[#0d4d85] text-white rounded-[6px] font-['Verdana'] font-bold text-sm shadow-md transition-colors"
-              onClick={onConfirmAllAndClose}
-            >
-              Done
-            </button>
+          <div className="flex sm:hidden justify-center mt-3 py-2 overflow-visible">
+            <DoneTransitionButton
+              className="whitespace-nowrap px-10 py-2"
+              onComplete={onConfirmAllAndClose}
+            />
           </div>
         </>
       )}

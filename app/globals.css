@@ -13,7 +13,7 @@ body {
 }
 
 body {
-  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
 }
 
 /* Responsive breakpoints and enforcement */

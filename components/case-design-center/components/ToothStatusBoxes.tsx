@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { DoneTransitionButton } from "./DoneTransitionButton";
 import type { ProductExtraction } from "../types";
 import { getStatusBoxTeeth } from "../utils/removableToothDisplay";
 import {
@@ -377,14 +378,8 @@ export function ToothStatusBoxes({
 
       {/* Done button centered below options when not yet acknowledged */}
       {!acknowledged && onAcknowledgedChange && (
-        <div className="w-full flex justify-center mt-2">
-          <button
-            type="button"
-            onClick={() => onAcknowledgedChange(true)}
-            className="px-6 py-1.5 rounded-[6px] font-['Verdana'] font-bold text-[14px] text-white bg-[#1A54D4] hover:bg-[#1546B5] transition-colors shadow-md animate-fade-in"
-          >
-            Done
-          </button>
+        <div className="w-full flex justify-center mt-2 py-2 overflow-visible">
+          <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
       )}
     </div>

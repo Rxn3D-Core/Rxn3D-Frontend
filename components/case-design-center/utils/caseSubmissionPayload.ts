@@ -2,17 +2,22 @@ import type {
   SlipCreationMultipartFile,
   SlipCreationPayload,
   SlipCreationProduct,
+  SlipCreationShadeDetail,
 } from "@/services/slip-creation-service";
 import type { ProductImplant } from "@/services/implant-api";
-import type { SlipProductSnapshot } from "../types";
+import type { Arch, SlipProductSnapshot } from "../types";
+import { getPreferredLabTeethShade } from "@/lib/product-shade-preferences";
 import { hasRetentionOptions } from "./categoryHelpers";
 import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
+import { findVariationByTeethCount } from "./variationHelpers";
 import {
   buildImplantAndAbutmentDetails,
   buildProductExtractions,
   buildRetentions,
   buildRetentionOptions,
+  buildTeethSelection,
+  buildToothChart,
   normalizeRush,
   partitionAdvanceFieldsForMultipart,
   prefetchImplantCatalogsForSnapshots,
@@ -40,6 +45,93 @@ function parseShadeDisplayName(raw: string): string {
   }
 }
 
+function parseRemovableTeethShadeField(raw: string): {
+  teeth_shade_id: number;
+  teeth_shade_brand_id: number;
+  name: string;
+} {
+  if (!raw.trim()) {
+    return { teeth_shade_id: 0, teeth_shade_brand_id: 0, name: "" };
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      teeth_shade_id?: number;
+      brand_id?: number;
+      name?: string;
+    };
+    return {
+      teeth_shade_id: Number(parsed.teeth_shade_id ?? 0),
+      teeth_shade_brand_id: Number(parsed.brand_id ?? 0),
+      name: String(parsed.name ?? "").trim(),
+    };
+  } catch {
+    return { teeth_shade_id: 0, teeth_shade_brand_id: 0, name: raw.trim() };
+  }
+}
+
+/** Resolve teeth shade IDs for removable products at submit time. */
+function resolveRemovableTeethShadeIds(
+  snap: SlipProductSnapshot,
+  product: SlipProductSnapshot["productApiData"]
+): { teeth_shade_id: number; teeth_shade_brand_id: number } | null {
+  const parsed = parseRemovableTeethShadeField(snap.fieldValues["teeth_shade"] ?? "");
+  let { teeth_shade_id, teeth_shade_brand_id, name } = parsed;
+
+  if (teeth_shade_id <= 0 || teeth_shade_brand_id <= 0) {
+    const snapArch: Arch = snap.type === "Upper" ? "maxillary" : "mandibular";
+    const selectedName = snap.selectedShades[
+      buildShadeSelectionKey(`prep_${snap.repToothNumber}`, snapArch, "tooth_shade")
+    ];
+    if (selectedName) name = name || selectedName;
+  }
+
+  if (teeth_shade_id > 0 && teeth_shade_brand_id > 0) {
+    return { teeth_shade_id, teeth_shade_brand_id };
+  }
+
+  if (name) {
+    const fromCatalog = resolveTeethShadeSelection(product, name, snap.shadeGuide ?? "");
+    if (fromCatalog) return fromCatalog;
+  }
+
+  const pref = getPreferredLabTeethShade(product);
+  if (pref) {
+    const preferredId = Number(pref.teeth_shade_id ?? pref.id ?? 0);
+    const preferredBrandId = Number((pref.brand as { id?: number } | undefined)?.id ?? 0);
+    if (preferredId > 0 && preferredBrandId > 0) {
+      return { teeth_shade_id: preferredId, teeth_shade_brand_id: preferredBrandId };
+    }
+  }
+
+  return null;
+}
+
+function resolveTeethShadeSelection(
+  product: SlipProductSnapshot["productApiData"],
+  shadeName: string,
+  shadeGuideSystemName: string
+): { teeth_shade_id: number; teeth_shade_brand_id: number } | null {
+  if (!product?.teeth_shades?.length) return null;
+  const normalizedShade = shadeName.trim().toLowerCase();
+  if (!normalizedShade) return null;
+  const normalizedGuide = shadeGuideSystemName.trim().toLowerCase();
+
+  const exactGuideMatch = product.teeth_shades.find((row) => {
+    const rowShade = (row.name ?? "").trim().toLowerCase();
+    const rowGuide = (row.brand?.system_name ?? "").trim().toLowerCase();
+    return rowShade === normalizedShade && rowGuide === normalizedGuide;
+  });
+  const fallbackMatch = product.teeth_shades.find(
+    (row) => (row.name ?? "").trim().toLowerCase() === normalizedShade
+  );
+  const matched = exactGuideMatch ?? fallbackMatch;
+  if (!matched) return null;
+  const teeth_shade_id = Number(matched.teeth_shade_id ?? matched.id ?? 0);
+  const teeth_shade_brand_id = Number(matched.brand?.id ?? 0);
+  if (teeth_shade_id <= 0 || teeth_shade_brand_id <= 0) return null;
+  return { teeth_shade_id, teeth_shade_brand_id };
+}
+
 function resolveStageId(
   product: SlipProductSnapshot["productApiData"],
   stageName: string | null
@@ -53,6 +145,25 @@ function resolveStageId(
   return stage_id > 0 ? stage_id : undefined;
 }
 
+function resolveVariationId(
+  product: SlipProductSnapshot["productApiData"],
+  selectedTeethCount: number
+): number | undefined {
+  if (!product || selectedTeethCount <= 0) return undefined;
+  const hasVariationEnabled =
+    product.has_variation === true ||
+    product.has_variation === "Yes" ||
+    product.has_variation === "yes";
+  if (!hasVariationEnabled) return undefined;
+
+  const matchedVariation = findVariationByTeethCount(
+    product.variations ?? [],
+    selectedTeethCount
+  );
+  const variationId = Number(matchedVariation?.id ?? 0);
+  return variationId > 0 ? variationId : undefined;
+}
+
 export function snapshotToProduct(
   snap: SlipProductSnapshot,
   implantCatalog?: ProductImplant[]
@@ -61,13 +172,17 @@ export function snapshotToProduct(
   const isFixed = hasRetentionOptions(product);
   const stage_id = resolveStageId(product, snap.stageName);
 
-  const impressions = Object.entries(snap.impressions)
-    .filter(([, qty]) => qty > 0)
-    .map(([code, qty]) => {
-      const imp = product?.impressions?.find((i: { code?: string }) => i.code === code);
-      return { impression_id: imp?.impression_id ?? imp?.id ?? 0, quantity: qty };
-    })
-    .filter((i) => i.impression_id > 0);
+  const mapImpressionEntries = (byCode: Record<string, number> | undefined) =>
+    Object.entries(byCode ?? {})
+      .filter(([, qty]) => qty > 0)
+      .map(([code, qty]) => {
+        const imp = product?.impressions?.find((i: { code?: string }) => i.code === code);
+        return { impression_id: imp?.impression_id ?? imp?.id ?? 0, quantity: qty };
+      })
+      .filter((i) => i.impression_id > 0);
+
+  const impressions = mapImpressionEntries(snap.impressions);
+  const opposite_impressions = mapImpressionEntries(snap.oppositeImpressions);
 
   const snapArch = snap.type === "Upper" ? "maxillary" : "mandibular";
   const addonKey = `${snapArch}_${snap.repToothNumber}`;
@@ -105,9 +220,25 @@ export function snapshotToProduct(
     cardTeeth
   );
   const material_id = resolveMaterialId(product, snap.fieldValues);
+  const variation_id = resolveVariationId(product, cardTeeth.length);
   const rush = normalizeRush(snap.rush);
 
-  const teeth_selection = cardTeeth.join(",");
+  const teeth_selection = buildTeethSelection(
+    product,
+    retentionTypesByTooth,
+    toothExtractionMap,
+    claspTeeth,
+    cardTeeth
+  );
+  const tooth_chart = buildToothChart(
+    product,
+    snap.fieldValues,
+    retentionTypesByTooth,
+    toothExtractionMap,
+    claspTeeth,
+    cardTeeth,
+    snap.oppositeExtractions
+  );
 
   const sharedProductFields = {
     type: snap.type as "Upper" | "Lower",
@@ -115,23 +246,27 @@ export function snapshotToProduct(
     product_id: snap.productId,
     subcategory_id: product?.subcategory?.id ?? 0,
     ...(stage_id !== undefined ? { stage_id } : {}),
-    teeth_selection,
+    ...(teeth_selection.length > 0 ? { teeth_selection } : {}),
     status: "In Progress" as const,
     notes: buildProductNoteFromSnapshot(snap) || undefined,
     ...(impressions.length > 0 ? { impressions } : {}),
+    ...(opposite_impressions.length > 0 ? { opposite_impressions } : {}),
     ...(addons.length > 0 ? { addons } : {}),
     ...(extractions.length > 0 ? { extractions } : {}),
     ...(retention_options.length > 0 ? { retention_options } : {}),
     ...(retentions.length > 0 ? { retentions } : {}),
     ...(material_id ? { material_id } : {}),
+    ...(variation_id ? { variation_id } : {}),
     ...(snap.oppositeExtractions && snap.oppositeExtractions.length > 0
       ? { opposite_extractions: snap.oppositeExtractions }
       : {}),
+    ...(tooth_chart.length > 0 ? { tooth_chart } : {}),
     ...(rush ? { rush } : {}),
   };
 
   if (isFixed) {
     const advance_fields: SlipCreationProduct["advance_fields"] = [];
+    const shade_details: SlipCreationShadeDetail[] = [];
     const fixedShadeProductId = product?.id
       ? `fixed_p_${product.id}`
       : `fixed_${snap.repToothNumber}`;
@@ -150,6 +285,18 @@ export function snapshotToProduct(
             )
           ];
         if (!selectedShade) continue;
+        const shadeSelection = resolveTeethShadeSelection(
+          product,
+          selectedShade,
+          snap.shadeGuide ?? ""
+        );
+        if (shadeSelection) {
+          shade_details.push({
+            advance_field_id: field.id,
+            teeth_shade_brand_id: shadeSelection.teeth_shade_brand_id,
+            teeth_shade_id: shadeSelection.teeth_shade_id,
+          });
+        }
         advance_fields.push({
           teeth_number: null,
           advance_field_id: field.id,
@@ -255,6 +402,7 @@ export function snapshotToProduct(
     return {
       ...sharedProductFields,
       ...(grade_id ? { grade_id } : {}),
+      ...(shade_details.length > 0 ? { shade_details } : {}),
       ...(advance_fields.length > 0 ? { advance_fields } : {}),
       ...(implant_details.length > 0 ? { implant_details } : {}),
       ...(abutment_details.length > 0 ? { abutment_details } : {}),
@@ -275,18 +423,7 @@ export function snapshotToProduct(
     }
   }
 
-  const teethShadeRaw = snap.fieldValues["teeth_shade"] ?? "";
-  let teeth_shade_id = 0;
-  let teeth_shade_brand_id = 0;
-  if (teethShadeRaw) {
-    try {
-      const parsed = JSON.parse(teethShadeRaw);
-      teeth_shade_id = parsed.teeth_shade_id ?? 0;
-      teeth_shade_brand_id = parsed.brand_id ?? 0;
-    } catch {
-      /* ignore */
-    }
-  }
+  const teethShadeIds = resolveRemovableTeethShadeIds(snap, product);
 
   const gumShadeStr = snap.fieldValues["gum_shade"] ?? "";
   let gum_shade_id = 0;
@@ -310,7 +447,7 @@ export function snapshotToProduct(
   return {
     ...sharedProductFields,
     ...(grade_id ? { grade_id } : {}),
-    ...(teeth_shade_id ? { teeth_shade_id, teeth_shade_brand_id } : {}),
+    ...(teethShadeIds ? { ...teethShadeIds } : {}),
     ...(gum_shade_id ? { gum_shade_id, gum_shade_brand_id } : {}),
   } as SlipCreationProduct;
 }

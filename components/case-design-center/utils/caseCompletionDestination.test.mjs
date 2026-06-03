@@ -25,7 +25,7 @@ test("resolves slip id from the first created slip", () => {
 
   assert.equal(result.slipId, 42);
   assert.equal(result.caseNumber, "CASE-1");
-  assert.equal(resolveVirtualSlipPath(result), "/virtual-slip/42");
+  assert.equal(resolveVirtualSlipPath(result), "/virtual-slip-v2/42");
 });
 
 test("falls back to top-level response id when slips are missing", () => {
@@ -45,7 +45,7 @@ test("falls back to top-level response id when slips are missing", () => {
   });
 
   assert.equal(result.slipId, 17);
-  assert.equal(resolveVirtualSlipPath(result), "/virtual-slip/17");
+  assert.equal(resolveVirtualSlipPath(result), "/virtual-slip-v2/17");
 });
 
 test("throws when no redirectable slip id exists", () => {

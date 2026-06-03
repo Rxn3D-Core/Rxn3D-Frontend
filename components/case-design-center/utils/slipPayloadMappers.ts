@@ -6,6 +6,8 @@ import type {
   SlipCreationRetention,
   SlipCreationRetentionOption,
   SlipCreationRush,
+  SlipCreationTeethSelection,
+  SlipCreationToothChart,
 } from "@/services/slip-creation-service";
 import { fetchProductImplants, type ProductAbutment, type ProductImplant } from "@/services/implant-api";
 import type { ImplantDetailData } from "../components/ImplantDetailSection";
@@ -282,6 +284,155 @@ export function buildProductExtractions(
   }));
 }
 
+function resolveExtractionIdForTooth(
+  product: ProductApiData,
+  toothNumber: number,
+  toothExtractionMap: Record<number, string>,
+  claspTeeth: number[]
+): number | undefined {
+  const catalog = product.extractions ?? [];
+  if (!catalog.length) return undefined;
+  const code = resolveExtractionCodeForTooth(
+    toothNumber,
+    toothExtractionMap,
+    claspTeeth,
+    catalog
+  );
+  if (!code) return undefined;
+  const row = catalog.find((e) => e.code === code);
+  const extraction_id = resolveExtractionId(row);
+  return extraction_id > 0 ? extraction_id : undefined;
+}
+
+function buildOppositeExtractionByTooth(
+  oppositeExtractions: Array<{ extraction_id: number; teeth_numbers: number[] }> | undefined
+): Record<number, number> {
+  const map: Record<number, number> = {};
+  for (const row of oppositeExtractions ?? []) {
+    for (const toothNumber of row.teeth_numbers) {
+      map[toothNumber] = row.extraction_id;
+    }
+  }
+  return map;
+}
+
+function resolveRetentionIdForTooth(
+  product: ProductApiData,
+  fieldValues: Record<string, string>,
+  retentionTypesByTooth: Record<number, string[]>,
+  toothNumber: number
+): number | undefined {
+  const rows = buildRetentions(product, fieldValues, retentionTypesByTooth, [toothNumber]);
+  const perTooth = rows.find((row) => row.teeth_number === toothNumber);
+  if (perTooth?.retention_id) return perTooth.retention_id;
+  const global = rows.find((row) => row.teeth_number === undefined);
+  return global?.retention_id;
+}
+
+function resolveRetentionOptionIdForTooth(
+  product: ProductApiData,
+  retentionTypesByTooth: Record<number, string[]>,
+  toothNumber: number
+): { chart_type?: string; retention_option_id?: number } {
+  const chartTypes = retentionTypesByTooth[toothNumber] ?? [];
+  if (chartTypes.length === 0) return {};
+  const chart_type = chartTypes[0];
+  const opt = findRetentionOptionForChartType(product, chart_type);
+  const retention_option_id = opt ? resolveRetentionOptionId(opt) : 0;
+  return {
+    chart_type,
+    ...(retention_option_id > 0 ? { retention_option_id } : {}),
+  };
+}
+
+/** Per selected tooth → `teeth_selection[]` rows for slip create API. */
+export function buildTeethSelection(
+  product: ProductApiData | null | undefined,
+  retentionTypesByTooth: Record<number, string[]>,
+  toothExtractionMap: Record<number, string>,
+  claspTeeth: number[],
+  cardTeeth: number[]
+): SlipCreationTeethSelection[] {
+  if (!product || cardTeeth.length === 0) return [];
+
+  const out: SlipCreationTeethSelection[] = [];
+  for (const toothNumber of [...cardTeeth].sort((a, b) => a - b)) {
+    const { retention_option_id } =
+      product.has_retention === "Yes"
+        ? resolveRetentionOptionIdForTooth(product, retentionTypesByTooth, toothNumber)
+        : {};
+    const extraction_id =
+      product.has_extraction === "Yes"
+        ? resolveExtractionIdForTooth(
+            product,
+            toothNumber,
+            toothExtractionMap,
+            claspTeeth
+          )
+        : undefined;
+    out.push({
+      teeth_number: toothNumber,
+      ...(retention_option_id ? { retention_option_id } : {}),
+      ...(extraction_id ? { extraction_ids: [extraction_id] } : {}),
+    });
+  }
+  return out;
+}
+
+/** Per selected tooth → `tooth_chart[]` rows for slip create API. */
+export function buildToothChart(
+  product: ProductApiData | null | undefined,
+  fieldValues: Record<string, string>,
+  retentionTypesByTooth: Record<number, string[]>,
+  toothExtractionMap: Record<number, string>,
+  claspTeeth: number[],
+  cardTeeth: number[],
+  oppositeExtractions?: Array<{ extraction_id: number; teeth_numbers: number[] }>
+): SlipCreationToothChart[] {
+  if (!product || cardTeeth.length === 0) return [];
+
+  const oppositeByTooth = buildOppositeExtractionByTooth(oppositeExtractions);
+  const out: SlipCreationToothChart[] = [];
+
+  for (const toothNumber of [...cardTeeth].sort((a, b) => a - b)) {
+    const { chart_type, retention_option_id } = resolveRetentionOptionIdForTooth(
+      product,
+      retentionTypesByTooth,
+      toothNumber
+    );
+    const retention_id =
+      product.has_retention === "Yes"
+        ? resolveRetentionIdForTooth(
+            product,
+            fieldValues,
+            retentionTypesByTooth,
+            toothNumber
+          )
+        : undefined;
+    const extraction_id =
+      product.has_extraction === "Yes"
+        ? resolveExtractionIdForTooth(
+            product,
+            toothNumber,
+            toothExtractionMap,
+            claspTeeth
+          )
+        : undefined;
+    const opposite_extraction_id = oppositeByTooth[toothNumber];
+
+    out.push({
+      tooth_number: toothNumber,
+      ...(chart_type ? { chart_type } : {}),
+      ...(retention_id ? { retention_id } : {}),
+      ...(retention_option_id ? { retention_option_id } : {}),
+      ...(extraction_id ? { extraction_id } : {}),
+      ...(opposite_extraction_id ? { opposite_extraction_id } : {}),
+    });
+  }
+
+  return out;
+}
+
 function matchImplantRow(
   catalog: ProductImplant[],
   detail: ImplantDetailData
@@ -312,15 +463,22 @@ function matchPlatformSizeId(
   return size?.id;
 }
 
-function resolveAbutmentTypeId(
+function resolveAbutmentSelectionIds(
   productAbutments: ProductAbutment[] | undefined,
   category: string,
   typeName: string
-): number | undefined {
-  if (!productAbutments?.length || !category || !typeName) return undefined;
+): { abutment_id?: number; abutment_type_id?: number; abutment_option_id?: number } {
+  if (!productAbutments?.length || !category || !typeName) return {};
   const abutment = productAbutments.find((a) => a.type === category);
   const option = abutment?.options?.find((o) => o.name === typeName);
-  return option?.abutment_type_id ?? option?.id;
+  const abutment_id = abutment?.id;
+  const abutment_type_id = option?.abutment_type_id;
+  const abutment_option_id = option?.id;
+  return {
+    ...(abutment_id ? { abutment_id } : {}),
+    ...(abutment_type_id ? { abutment_type_id } : {}),
+    ...(abutment_option_id ? { abutment_option_id } : {}),
+  };
 }
 
 /** Map implant UI + prefetch catalog to structured API arrays. */
@@ -363,13 +521,22 @@ export function buildImplantAndAbutmentDetails(
     });
 
     if (detail.abutmentType && detail.abutmentDetail) {
-      const abutment_type_id = resolveAbutmentTypeId(
+      const {
+        abutment_id,
+        abutment_type_id,
+        abutment_option_id,
+      } = resolveAbutmentSelectionIds(
         productAbutments,
         detail.abutmentType,
         detail.abutmentDetail
       );
       if (abutment_type_id) {
-        abutment_details.push({ teeth_number, abutment_type_id });
+        abutment_details.push({
+          teeth_number,
+          ...(abutment_id ? { abutment_id } : {}),
+          abutment_type_id,
+          ...(abutment_option_id ? { abutment_option_id } : {}),
+        });
       }
     }
   }

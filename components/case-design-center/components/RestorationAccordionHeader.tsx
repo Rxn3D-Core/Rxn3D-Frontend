@@ -14,6 +14,7 @@ import {
   removableProductTitleBoxClassName,
 } from "./AccordionBadge";
 import { AccordionHeaderActions, ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
+import { DoneTransitionButton } from "./DoneTransitionButton";
 import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
 import { isDisplayableStageValue, shouldSkipStageSelection } from "../utils/categoryHelpers";
@@ -194,14 +195,8 @@ export function RestorationAccordionHeader({
               </fieldset>
               {middleContent}
               {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
-                <div className="w-full flex justify-center mt-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    onClick={() => onRetentionDoneChange(true)}
-                    className="px-6 py-1.5 rounded-[6px] font-['Verdana'] font-bold text-[14px] text-white bg-[#1A54D4] hover:bg-[#1546B5] transition-colors shadow-md animate-fade-in"
-                  >
-                    Done
-                  </button>
+                <div className="w-full flex justify-center mt-2 py-2 overflow-visible" onClick={(e) => e.stopPropagation()}>
+                  <DoneTransitionButton onComplete={() => onRetentionDoneChange(true)} />
                 </div>
               )}
               <div className="flex items-center gap-[4.97px] flex-wrap">

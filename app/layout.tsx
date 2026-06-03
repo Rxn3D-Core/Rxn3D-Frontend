@@ -11,6 +11,13 @@ import ReactQueryProvider from '@/components/ReactQueryProvider'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
+import { Inter } from "next/font/google"
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+})
 
 // Force all pages to be dynamic (client-rendered) to avoid SSR issues with i18n and navigation hooks
 export const dynamic = 'force-dynamic'
@@ -42,7 +49,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body className="min-h-[100dvh] bg-background font-sans antialiased" suppressHydrationWarning>
         <ReactQueryProvider>
           <RouteAwareProviders>
