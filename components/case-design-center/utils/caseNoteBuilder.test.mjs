@@ -32,3 +32,17 @@ test("formatFieldValueForNote never returns raw JSON blob", () => {
   assert.equal(result, "Occlusal: MRL");
   assert.ok(!result.startsWith("{"));
 });
+
+test("formatFieldValueForNote formats per-tooth embrasure JSON as tooth labels", () => {
+  const raw = JSON.stringify({
+    41: { name: "MRL", optionId: 64 },
+    42: { name: "Type II", optionId: 71 },
+    43: { name: "Normal", optionId: 74 },
+    44: { name: "Medium", optionId: 78 },
+  });
+  const result = formatFieldValueForNote(raw, [
+    { id: 99, name: "Embrasure Type", field_type: "dropdown" },
+  ]);
+  assert.equal(result, "#41 MRL, #42 Type II, #43 Normal, #44 Medium");
+  assert.ok(!result.includes("{"));
+});

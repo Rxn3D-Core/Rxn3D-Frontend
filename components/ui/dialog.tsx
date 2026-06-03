@@ -148,4 +148,5 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  shouldAllowDialogInteractOutside,
 }

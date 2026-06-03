@@ -1,6 +1,7 @@
 // Slip Data Transformer
 // Transforms frontend data structure to API format
 
+import { groupProductsIntoSlips, normalizeRush } from "@/components/case-design-center/utils/slipPayloadMappers";
 import type {
   SlipCreationPayload,
   SlipCreationCase,
@@ -231,62 +232,34 @@ export function transformToSlipCreationPayload(
     case_status: "In Progress",
   };
 
-  // Group products by slip (for now, we'll create one slip per product pair or single product)
-  // API allows multiple products per slip (max 2: Upper and Lower)
-  const productsBySlip: SlipCreationProduct[][] = [];
-  
-  // Group maxillary and mandibular products together
-  const maxillaryProducts = savedProducts.filter(p => p.maxillaryTeeth.length > 0);
-  const mandibularProducts = savedProducts.filter(p => p.mandibularTeeth.length > 0);
+  const allProducts: SlipCreationProduct[] = [];
+  savedProducts.forEach((p) => {
+    if (p.maxillaryTeeth.length > 0) {
+      allProducts.push(transformProduct(p, "Upper"));
+    }
+    if (p.mandibularTeeth.length > 0) {
+      allProducts.push(transformProduct(p, "Lower"));
+    }
+  });
 
-  // Create slip products: pair Upper and Lower if both exist, otherwise create separate slips
-  if (maxillaryProducts.length > 0 && mandibularProducts.length > 0) {
-    // Pair them up (take first of each for now - could be enhanced to match by product)
-    const maxProduct = maxillaryProducts[0];
-    const mandProduct = mandibularProducts[0];
-    
-    const upperProduct = transformProduct(maxProduct, "Upper");
-    const lowerProduct = transformProduct(mandProduct, "Lower");
-    
-    productsBySlip.push([upperProduct, lowerProduct]);
-    
-    // Add remaining products as separate slips
-    maxillaryProducts.slice(1).forEach(p => {
-      productsBySlip.push([transformProduct(p, "Upper")]);
-    });
-    mandibularProducts.slice(1).forEach(p => {
-      productsBySlip.push([transformProduct(p, "Lower")]);
-    });
-  } else {
-    // Add all maxillary products
-    maxillaryProducts.forEach(p => {
-      productsBySlip.push([transformProduct(p, "Upper")]);
-    });
-    // Add all mandibular products
-    mandibularProducts.forEach(p => {
-      productsBySlip.push([transformProduct(p, "Lower")]);
-    });
-  }
+  const productsBySlip = groupProductsIntoSlips(allProducts);
 
-  // Transform slips
-  const slips: SlipCreationSlip[] = productsBySlip.map((products, index) => {
-    // Get slip notes from first product (if any)
+  const slips: SlipCreationSlip[] = productsBySlip.map((products) => {
     const firstProduct = savedProducts.find(
-      p => (p.maxillaryTeeth.length > 0 && products.some(prod => prod.type === "Upper")) ||
-           (p.mandibularTeeth.length > 0 && products.some(prod => prod.type === "Lower"))
+      (p) =>
+        (p.maxillaryTeeth.length > 0 && products.some((prod) => prod.type === "Upper")) ||
+        (p.mandibularTeeth.length > 0 && products.some((prod) => prod.type === "Lower"))
     );
-    
-    const slip: SlipCreationSlip = {
+
+    return {
       location_id: locationId,
       created_by: user.id,
       products,
-      notes: firstProduct?.slipNotes?.map(n => ({ note: n.note })),
+      notes: firstProduct?.slipNotes?.map((n) => ({ note: n.note })),
       pickup_date: pickupDate ?? null,
       delivery_date: deliveryDate ?? null,
       delivery_time: deliveryTime ?? null,
     };
-    
-    return slip;
   });
 
   return {
@@ -345,13 +318,16 @@ function transformProduct(
     ? savedProduct.maxillaryNotes
     : savedProduct.mandibularImplantDetails || savedProduct.mandibularNotes || "";
 
-  // Transform rush data
-  const rush: SlipCreationRush | undefined = savedProduct.rushData
-    ? {
-        is_rush: true,
-        requested_rush_date: savedProduct.rushData.targetDate,
-      }
-    : undefined;
+  const rush: SlipCreationRush = normalizeRush(
+    savedProduct.rushData
+      ? {
+          targetDate: savedProduct.rushData.targetDate,
+          ...(typeof (savedProduct.rushData as { notes?: string }).notes === "string"
+            ? { notes: (savedProduct.rushData as { notes?: string }).notes }
+            : {}),
+        }
+      : null
+  );
 
   // Transform addons
   const addons: SlipCreationAddon[] | undefined = (() => {
@@ -397,6 +373,26 @@ function transformProduct(
       }))
     : undefined;
 
+  const extractionIdsByTooth = new Map<number, number[]>();
+  (extractions ?? []).forEach((ext) => {
+    (ext.teeth_numbers ?? []).forEach((toothNumber) => {
+      const existing = extractionIdsByTooth.get(toothNumber) ?? [];
+      existing.push(ext.extraction_id);
+      extractionIdsByTooth.set(toothNumber, existing);
+    });
+  });
+
+  const teethSelectionRows = teeth
+    .slice()
+    .sort((a, b) => a - b)
+    .map((toothNumber) => ({
+      teeth_number: toothNumber,
+      ...(retentionOptionId ? { retention_option_id: retentionOptionId } : {}),
+      ...(extractionIdsByTooth.get(toothNumber)?.length
+        ? { extraction_ids: extractionIdsByTooth.get(toothNumber) }
+        : {}),
+    }));
+
   const product: SlipCreationProduct = {
     type,
     category_id: savedProduct.categoryId,
@@ -404,7 +400,7 @@ function transformProduct(
     subcategory_id: savedProduct.subcategoryId,
     stage_id: stageId,
     grade_id: gradeId,
-    teeth_selection: teeth.length > 0 ? teeth.sort((a, b) => a - b).join(",") : undefined,
+    teeth_selection: teethSelectionRows.length > 0 ? teethSelectionRows : undefined,
     teeth_shade_brand_id: teethShadeBrandId,
     teeth_shade_id: teethShadeId,
     gum_shade_brand_id: gumShadeBrandId,

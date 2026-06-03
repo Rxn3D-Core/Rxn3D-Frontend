@@ -30,7 +30,7 @@ export function resolveVirtualSlipPath(result: Pick<CaseSubmissionResult, "slipI
     throw new Error("Unable to resolve virtual slip path without a slip id.");
   }
 
-  return `/virtual-slip/${result.slipId}`;
+  return `/virtual-slip-v2/${result.slipId}`;
 }
 
 function isWrappedResponse(

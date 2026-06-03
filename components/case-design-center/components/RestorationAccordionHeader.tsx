@@ -14,6 +14,7 @@ import {
   removableProductTitleBoxClassName,
 } from "./AccordionBadge";
 import { AccordionHeaderActions, ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
+import { DoneTransitionButton } from "./DoneTransitionButton";
 import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { RushIcon } from "./CenterActionIcons";
 import { isDisplayableStageValue, shouldSkipStageSelection } from "../utils/categoryHelpers";
@@ -192,46 +193,35 @@ export function RestorationAccordionHeader({
                   <p className={`${removableHeaderToothClass} text-[#666666]`}>{toothDisplay}</p>
                 ) : null}
               </fieldset>
-              {middleContent}
-              {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
-                <div className="w-full flex justify-center mt-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-center items-center gap-2 w-full">
+                <EstDaysLabel
+                  rushed={hasRush}
+                  text={hasRush ? "5 work days after submission" : estDaysText}
+                />
+                {canDelete && !caseSubmitted && onDelete ? (
                   <button
                     type="button"
-                    onClick={() => onRetentionDoneChange(true)}
-                    className="px-6 py-1.5 rounded-[6px] font-['Verdana'] font-bold text-[14px] text-white bg-[#1A54D4] hover:bg-[#1546B5] transition-colors shadow-md animate-fade-in"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
+                    title="Remove this product"
+                    aria-label="Remove this product"
                   >
-                    Done
+                    <Trash2 size={18} />
                   </button>
+                ) : null}
+              </div>
+              {middleContent}
+              {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
+                <div className="w-full flex justify-center mt-2 py-2 overflow-visible" onClick={(e) => e.stopPropagation()}>
+                  <DoneTransitionButton onComplete={() => onRetentionDoneChange(true)} />
                 </div>
               )}
               <div className="flex items-center gap-[4.97px] flex-wrap">
                 {/* Hidden: stage badge — set to true to restore */}
                 {false && showStageBadge && stageName && <AccordionBadge>{stageName}</AccordionBadge>}
-                {/*
-                <EstDaysLabel
-                  rushed={hasRush}
-                  text={hasRush ? "5 work days after submission" : estDaysText}
-                />
-                */}
-                {/*
-                {canDelete && !caseSubmitted && onDelete && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") e.currentTarget.click();
-                    }}
-                    className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
-                    title="Remove product"
-                  >
-                    <Trash2 size={18} className="text-[#999999] hover:text-red-500" />
-                  </span>
-                )}
-                */}
               </div>
             </>
           )}

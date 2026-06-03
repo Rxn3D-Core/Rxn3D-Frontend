@@ -132,6 +132,43 @@ function resolveAdvanceFieldName(
   return fieldIdKey;
 }
 
+function isToothNumberKey(key: string): boolean {
+  const n = Number(key);
+  return Number.isInteger(n) && n >= 1 && n <= 32;
+}
+
+function allKeysMatchAdvanceFieldIds(
+  keys: string[],
+  advanceFields: ProductAdvanceField[] | undefined,
+): boolean {
+  if (!advanceFields?.length || keys.length === 0) return false;
+  const idSet = new Set(advanceFields.map((f) => f.id));
+  return keys.every((key) => {
+    const id = Number(key);
+    return Number.isInteger(id) && idSet.has(id);
+  });
+}
+
+function selectionNameFromValue(val: unknown): string {
+  if (val && typeof val === "object" && val !== null && "name" in val) {
+    return String((val as { name?: string }).name ?? "").trim();
+  }
+  if (typeof val === "string") return val.trim();
+  return "";
+}
+
+function formatPerToothSelectionMap(parsed: Record<string, unknown>): string {
+  const parts = Object.entries(parsed)
+    .filter(([key]) => isToothNumberKey(key))
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([tooth, val]) => {
+      const name = selectionNameFromValue(val);
+      return name ? `#${tooth} ${name}` : null;
+    })
+    .filter((part): part is string => Boolean(part));
+  return parts.join(", ");
+}
+
 /** Human-readable value — never returns raw JSON strings. */
 export function formatFieldValueForNote(
   raw: string | undefined | null,
@@ -163,7 +200,17 @@ export function formatFieldValueForNote(
       if ("name" in parsed && typeof (parsed as { name?: unknown }).name === "string") {
         return String((parsed as { name: string }).name);
       }
-      const entries = Object.entries(parsed as Record<string, unknown>);
+      const record = parsed as Record<string, unknown>;
+      const keys = Object.keys(record);
+      if (
+        keys.length > 0 &&
+        keys.every(isToothNumberKey) &&
+        !allKeysMatchAdvanceFieldIds(keys, advanceFields)
+      ) {
+        const perTooth = formatPerToothSelectionMap(record);
+        if (perTooth) return perTooth;
+      }
+      const entries = Object.entries(record);
       const parts: string[] = [];
       for (const [key, val] of entries) {
         if (val && typeof val === "object" && val !== null && "name" in val) {
