@@ -43,6 +43,8 @@ import { canShowAddProductButton } from "../utils/archAddProductReadiness";
 import { computeSlipValidationComplete } from "../utils/caseSummaryVisibility";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
+import { buildRushArchSlots } from "../utils/rushModalContext";
+import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
   findOppositeArchProductDonor,
   resolveProductStagesForDisplay,
@@ -901,6 +903,40 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     return Array.from(seen.entries()).map(([id, { name, addons }]) => ({ id, name, addons }));
   }, [state.maxillaryRetentionTypes, state.mandibularRetentionTypes, state.getToothProduct, props.selectedProductId, props.selectedProductName, props.addedProducts]);
 
+  const rushArchSlots = useMemo(
+    () =>
+      buildRushArchSlots({
+        getToothProduct: state.getToothProduct,
+        getToothProductCard: state.getToothProductCard,
+        maxillaryRetentionTypes: state.maxillaryRetentionTypes,
+        mandibularRetentionTypes: state.mandibularRetentionTypes ?? {},
+        maxillaryTeeth: state.maxillaryTeeth,
+        mandibularTeeth: state.mandibularTeeth ?? [],
+        selectedStages: state.selectedStages,
+        getFieldValue: state.getFieldValue,
+      }),
+    [
+      state.getToothProduct,
+      state.getToothProductCard,
+      state.maxillaryRetentionTypes,
+      state.mandibularRetentionTypes,
+      state.maxillaryTeeth,
+      state.mandibularTeeth,
+      state.selectedStages,
+      state.getFieldValue,
+    ]
+  );
+
+  const addOnArchSlots = useMemo(
+    () =>
+      rushArchSlots.filter((slot) =>
+        productSupportsAddons(state.getToothProduct(slot.arch, slot.repTooth))
+      ),
+    [rushArchSlots, state.getToothProduct]
+  );
+
+  const caseHasAddons = addOnArchSlots.length > 0;
+
   // Collect unique stage names from all tooth products for the attachment modal
   const caseStages = useMemo(() => {
     const stageSet = new Set<string>();
@@ -1557,6 +1593,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         mandibularHasRemovables={mandibularHasRemovables}
         maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
         mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
+        rushArchSlots={rushArchSlots}
+        caseHasAddons={caseHasAddons}
       />
 
       {/* All Modals */}
@@ -1681,16 +1719,25 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           ...(state.maxillaryTeeth.length > 0 ? ["maxillary" as const] : []),
           ...(state.mandibularTeeth.length > 0 ? ["mandibular" as const] : []),
         ]}
-        onAddOnsConfirm={(addOns, confirmArch) => {
-          const arch = confirmArch ?? state.currentAddOnsArch;
-          const baseTooth = state.currentAddOnsToothNumber;
-          if (baseTooth === null) return;
+        addOnArchSlots={addOnArchSlots}
+        onAddOnsConfirm={(addOns, confirmArch, meta) => {
+          const arch = meta?.arch ?? confirmArch ?? state.currentAddOnsArch;
+          const repTooth =
+            meta?.repTooth ??
+            state.currentAddOnsToothNumber ??
+            (arch === "maxillary"
+              ? state.maxillaryTeeth[0]
+              : state.mandibularTeeth[0]);
+          if (repTooth == null || Number.isNaN(repTooth)) return;
 
+          const baseTooth = repTooth;
           const openedFromCard0 =
-            (state.toothProductCardMap[`${state.currentAddOnsArch}_${baseTooth}`] ?? 0) === 0;
+            meta?.cardId === 0 ||
+            (state.toothProductCardMap[`${arch}_${baseTooth}`] ?? 0) === 0;
 
           let toothNum = baseTooth;
           if (
+            !meta &&
             openedFromCard0 &&
             props.initialArch === "both" &&
             isNonRetentionCategory(state.initialProductDetails)
@@ -1700,17 +1747,18 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             if (card0.length > 0) toothNum = card0[0];
           }
 
-          // Show qty in front of each name: "1x Name, 2x Other"
           const addonLabels = addOns.map((a) => `${a.qty}x ${a.name}`);
           const value = addonLabels.length === 0 ? "0 selected" : addonLabels.join(", ");
           const product = state.getToothProduct(arch, toothNum);
-          const isFixed = hasRetentionOptions(product);
+          const isFixed = meta?.isFixed ?? hasRetentionOptions(product);
           if (isFixed) {
             state.completeFieldStep(arch, toothNum, "fixed_addons", value);
           } else {
             state.completeFieldStep(arch, toothNum, "addons", value);
           }
-          const structuredAddons = addOns.filter((a) => a.qty > 0).map((a) => ({ addon_id: a.addon_id, qty: a.qty }));
+          const structuredAddons = addOns
+            .filter((a) => a.qty > 0)
+            .map((a) => ({ addon_id: a.addon_id, qty: a.qty }));
           const addonKey = `${arch}_${toothNum}`;
           state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => ({
             ...prev,
@@ -1733,6 +1781,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         handleRushConfirm={state.handleRushConfirm}
         rushedProducts={state.rushedProducts}
         handleRemoveRush={state.handleRemoveRush}
+        rushArchSlots={rushArchSlots}
+        rushCaseSchedule={props.rushCaseSchedule ?? null}
+        labBusinessHours={props.labBusinessHours ?? null}
         isStageModalOpen={state.isStageModalOpen}
         setIsStageModalOpen={state.setIsStageModalOpen}
         selectedStages={state.selectedStages}

@@ -1,4 +1,5 @@
 import type { ProductApiData } from "../types";
+import { productSupportsAddons } from "./addonDisplayHelpers";
 
 export interface ProductFormFlags {
   hasRetentionOptions: boolean;
@@ -38,6 +39,6 @@ export function getProductFormFlags(product: ProductApiData | null): ProductForm
     hasVariations: product.has_variation === "Yes" || product.has_variation === true,
     hasAdvanceFields: product.has_advance_field === "Yes",
     hasImpressions: product.has_impression === "Yes",
-    hasAddons: product.has_addon === "Yes",
+    hasAddons: productSupportsAddons(product),
   };
 }

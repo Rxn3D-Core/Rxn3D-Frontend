@@ -37,6 +37,7 @@ import {
   isSingleDefaultOnlyExtractionList,
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
+import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
@@ -1300,6 +1301,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Auto-populate addon field with product's is_default addons when field not yet set
   const autoPopulateDefaultAddons = useCallback(
     (arch: Arch, toothNumber: number, product: ProductApiData) => {
+      if (!productSupportsAddons(product)) return;
       const defaultAddons = (product.addons ?? []).filter(
         (a) => String(a.is_default ?? "").trim().toLowerCase() === "yes" &&
                String(a.status ?? "Active").trim().toLowerCase() === "active"

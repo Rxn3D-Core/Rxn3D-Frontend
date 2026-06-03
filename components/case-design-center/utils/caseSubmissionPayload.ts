@@ -18,6 +18,7 @@ import {
   buildRetentionOptions,
   buildTeethSelection,
   buildToothChart,
+  groupProductsIntoSlips,
   normalizeRush,
   partitionAdvanceFieldsForMultipart,
   prefetchImplantCatalogsForSnapshots,
@@ -191,12 +192,11 @@ export function snapshotToProduct(
     .filter((a) => a.qty > 0)
     .map((a) => ({ addon_id: a.addon_id, quantity: a.qty }));
 
-  const cardTeeth =
+  const productTeeth = [...snap.teethNumbers].sort((a, b) => a - b);
+  const extractionScopeTeeth =
     snap.allCardTeeth && snap.allCardTeeth.length > 0
-      ? snap.allCardTeeth
-      : snap.checkedTeeth && snap.checkedTeeth.length > 0
-        ? snap.checkedTeeth
-        : snap.teethNumbers;
+      ? [...snap.allCardTeeth].sort((a, b) => a - b)
+      : productTeeth;
 
   const retentionTypesByTooth = snap.retentionTypesByTooth ?? {};
   const toothExtractionMap = snap.toothExtractionMap ?? {};
@@ -206,21 +206,21 @@ export function snapshotToProduct(
     product,
     toothExtractionMap,
     claspTeeth,
-    cardTeeth
+    extractionScopeTeeth
   );
   const retention_options = buildRetentionOptions(
     product,
     retentionTypesByTooth,
-    cardTeeth
+    extractionScopeTeeth
   );
   const retentions = buildRetentions(
     product,
     snap.fieldValues,
     retentionTypesByTooth,
-    cardTeeth
+    extractionScopeTeeth
   );
   const material_id = resolveMaterialId(product, snap.fieldValues);
-  const variation_id = resolveVariationId(product, cardTeeth.length);
+  const variation_id = resolveVariationId(product, productTeeth.length);
   const rush = normalizeRush(snap.rush);
 
   const teeth_selection = buildTeethSelection(
@@ -228,7 +228,7 @@ export function snapshotToProduct(
     retentionTypesByTooth,
     toothExtractionMap,
     claspTeeth,
-    cardTeeth
+    productTeeth
   );
   const tooth_chart = buildToothChart(
     product,
@@ -236,7 +236,7 @@ export function snapshotToProduct(
     retentionTypesByTooth,
     toothExtractionMap,
     claspTeeth,
-    cardTeeth,
+    extractionScopeTeeth,
     snap.oppositeExtractions
   );
 
@@ -261,7 +261,7 @@ export function snapshotToProduct(
       ? { opposite_extractions: snap.oppositeExtractions }
       : {}),
     ...(tooth_chart.length > 0 ? { tooth_chart } : {}),
-    ...(rush ? { rush } : {}),
+    rush,
   };
 
   if (isFixed) {
@@ -488,8 +488,11 @@ export async function buildCaseSubmissionPayloadAsync(
     snapshotToProduct(snap, implantCatalogs.get(snap.productId))
   );
 
+  const slipProductGroups = groupProductsIntoSlips(products);
+  const orderedProducts = slipProductGroups.flat();
+
   const multipartFiles: SlipCreationMultipartFile[] = [];
-  products.forEach((product, productIndex) => {
+  orderedProducts.forEach((product, productIndex) => {
     const { jsonFields, fileSlots } = partitionAdvanceFieldsForMultipart(
       product.advance_fields,
       0,
@@ -506,10 +509,19 @@ export async function buildCaseSubmissionPayloadAsync(
   const labId = role === "lab_admin" ? customerId : completedLabId ?? 0;
   const officeId = role === "lab_admin" ? completedLabId ?? 0 : customerId;
 
+  const slips = slipProductGroups.map((slipProducts) => ({
+    status: "In Progress" as const,
+    products: slipProducts,
+    notes: slipProducts
+      .map((p) => p.notes)
+      .filter((note): note is string => Boolean(note))
+      .map((note) => ({ note })),
+  }));
+
   if (process.env.NODE_ENV === "development") {
     console.debug("[case-design-center] slip/create payload", {
       case: { lab_id: labId, office_id: officeId },
-      products,
+      slips,
       multipartFileKeys: multipartFiles.map((f) => f.formKey),
     });
   }
@@ -525,16 +537,7 @@ export async function buildCaseSubmissionPayloadAsync(
         ...(age ? { age: Number(age) } : {}),
         case_status: "In Progress",
       },
-      slips: [
-        {
-          status: "In Progress",
-          products,
-          notes: products
-            .map((p) => p.notes)
-            .filter((note): note is string => Boolean(note))
-            .map((note) => ({ note })),
-        },
-      ],
+      slips,
     },
     multipartFiles,
   };
@@ -548,6 +551,7 @@ export function buildCaseSubmissionPayload(
     (s) => s.teethNumbers.length > 0 || s.productId > 0
   );
   const products = filteredSnapshots.map((snap) => snapshotToProduct(snap));
+  const slipProductGroups = groupProductsIntoSlips(products);
   const labId = params.role === "lab_admin" ? params.customerId : params.completedLabId ?? 0;
   const officeId =
     params.role === "lab_admin" ? params.completedLabId ?? 0 : params.customerId;
@@ -562,15 +566,13 @@ export function buildCaseSubmissionPayload(
       ...(params.age ? { age: Number(params.age) } : {}),
       case_status: "In Progress",
     },
-    slips: [
-      {
-        status: "In Progress",
-        products,
-        notes: products
-          .map((p) => p.notes)
-          .filter((note): note is string => Boolean(note))
-          .map((note) => ({ note })),
-      },
-    ],
+    slips: slipProductGroups.map((slipProducts) => ({
+      status: "In Progress",
+      products: slipProducts,
+      notes: slipProducts
+        .map((p) => p.notes)
+        .filter((note): note is string => Boolean(note))
+        .map((note) => ({ note })),
+    })),
   };
 }

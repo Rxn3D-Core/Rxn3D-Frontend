@@ -6,6 +6,11 @@ import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
 import RushRequestModal from "@/components/rush-request-modal";
 import {
+  getRushFromStore,
+  rushSlotsShareProduct,
+  type RushArchSlot,
+} from "../utils/rushModalContext";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -13,7 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
-import type { AddOnsProduct } from "@/components/add-ons-modal";
+import type { AddOnsConfirmMeta, AddOnsProduct } from "@/components/add-ons-modal";
+import type { RushArchSlot } from "../utils/rushModalContext";
 import { getResolvedStageName } from "../utils/categoryHelpers";
 import { getDualModalArches } from "../utils/impressionFieldSync";
 import {
@@ -60,12 +66,15 @@ interface ModalOrchestratorProps {
   onAddOnsConfirm: (
     addOns: { addon_id: number; qty: number; category: string; subcategory: string; name: string; price: number }[],
     /** When the add-ons modal shows both arches, each arch is committed separately */
-    confirmArch?: Arch
+    confirmArch?: Arch,
+    meta?: AddOnsConfirmMeta
   ) => void;
   /** Products available in the case — shown as tabs in add-ons modal */
   addOnsProducts?: AddOnsProduct[];
   /** Which arch columns to display in add-ons modal */
   addOnsVisibleArches?: ("maxillary" | "mandibular")[];
+  /** One column per product card (same as rush modal slots). */
+  addOnArchSlots?: RushArchSlot[];
   // Attachment
   showAttachModal: boolean;
   setShowAttachModal: (v: boolean) => void;
@@ -82,6 +91,9 @@ interface ModalOrchestratorProps {
   handleRushConfirm: (rushData: any) => void;
   rushedProducts: Record<string, any>;
   handleRemoveRush: (arch: Arch, productId: string) => void;
+  rushArchSlots?: RushArchSlot[];
+  rushCaseSchedule?: import("@/lib/api-business-settings").CaseSchedule | null;
+  labBusinessHours?: import("@/lib/api-business-settings").BusinessHour[] | null;
   // Stage
   isStageModalOpen: boolean;
   setIsStageModalOpen: (v: boolean) => void;
@@ -187,6 +199,7 @@ export function ModalOrchestrator({
   onAddOnsConfirm,
   addOnsProducts,
   addOnsVisibleArches,
+  addOnArchSlots = [],
   // Attachment
   showAttachModal,
   setShowAttachModal,
@@ -202,6 +215,9 @@ export function ModalOrchestrator({
   handleRushConfirm,
   rushedProducts,
   handleRemoveRush,
+  rushArchSlots = [],
+  rushCaseSchedule = null,
+  labBusinessHours = null,
   // Stage
   isStageModalOpen,
   setIsStageModalOpen,
@@ -338,14 +354,15 @@ export function ModalOrchestrator({
       <AddOnsModal
         isOpen={showAddOnsModal}
         onClose={() => setShowAddOnsModal(false)}
-        onAddAddOns={(addOns, confirmArch) => {
-          onAddOnsConfirm(addOns, confirmArch);
+        onAddAddOns={(addOns, confirmArch, meta) => {
+          onAddOnsConfirm(addOns, confirmArch, meta);
         }}
         labId={0}
         productId={currentAddOnsProductId}
         arch={currentAddOnsArch}
         products={addOnsProducts}
-        visibleArches={addOnsVisibleArches}
+        visibleArches={addOnArchSlots.length > 0 ? undefined : addOnsVisibleArches}
+        archSlots={addOnArchSlots}
       />
 
       {/* Stage Selection Modal — auto-selects when only 1 stage is available */}
@@ -402,36 +419,104 @@ export function ModalOrchestrator({
       </Dialog>
 
       {/* Rush Request Modal */}
-      <RushRequestModal
-        isOpen={showRushModal}
-        onClose={() => setShowRushModal(false)}
-        onConfirm={handleRushConfirm}
-        isRushed={!!rushedProducts[`${currentRushArch}_${currentRushProductId}`]}
-        existingRushDate={rushedProducts[`${currentRushArch}_${currentRushProductId}`]?.targetDate}
-        onRemoveRush={() => handleRemoveRush(currentRushArch, currentRushProductId)}
-        maxRushed={!!currentRushMaxProductId && !!rushedProducts[`maxillary_${currentRushMaxProductId}`]}
-        maxExistingRushDate={currentRushMaxProductId ? rushedProducts[`maxillary_${currentRushMaxProductId}`]?.targetDate : undefined}
-        mandRushed={!!currentRushMandProductId && !!rushedProducts[`mandibular_${currentRushMandProductId}`]}
-        mandExistingRushDate={currentRushMandProductId ? rushedProducts[`mandibular_${currentRushMandProductId}`]?.targetDate : undefined}
-        onRemoveMaxRush={currentRushMaxProductId ? () => handleRemoveRush("maxillary", currentRushMaxProductId) : undefined}
-        onRemoveMandRush={currentRushMandProductId ? () => handleRemoveRush("mandibular", currentRushMandProductId) : undefined}
-        hasMaxillary={!!currentRushMaxProductId}
-        hasMandibular={!!currentRushMandProductId}
-        product={{
-          name:
-            currentRushProductId === "removable_1"
-              ? "Metal Frame Acrylic"
-              : "Full contour Zirconia",
-          stage:
-            currentRushProductId === "removable_1" ? "Bite Block" : "Finish",
-          deliveryDate:
-            currentRushProductId === "removable_1"
-              ? "01/25/2025 at 4pm"
-              : "02/10/2025 at 4pm",
-          price: 100,
-        }}
-        products={addOnsProducts}
-      />
+      {(() => {
+        const maxSlot = rushArchSlots.find((s) => s.arch === "maxillary");
+        const mandSlot = rushArchSlots.find((s) => s.arch === "mandibular");
+        const maxRushEntry = maxSlot
+          ? getRushFromStore(
+              rushedProducts,
+              "maxillary",
+              maxSlot.cardId,
+              maxSlot.repTooth,
+              maxSlot.isFixed
+            )
+          : currentRushMaxProductId
+            ? rushedProducts[`maxillary_${currentRushMaxProductId}`]
+            : null;
+        const mandRushEntry = mandSlot
+          ? getRushFromStore(
+              rushedProducts,
+              "mandibular",
+              mandSlot.cardId,
+              mandSlot.repTooth,
+              mandSlot.isFixed
+            )
+          : currentRushMandProductId
+            ? rushedProducts[`mandibular_${currentRushMandProductId}`]
+            : null;
+        const primarySlot = maxSlot ?? mandSlot;
+        const primaryRushKey =
+          (currentRushArch === "maxillary" ? maxSlot?.rushKey : mandSlot?.rushKey) ??
+          currentRushProductId;
+        const primaryEntry = primaryRushKey ? rushedProducts[primaryRushKey] : null;
+
+        return (
+          <RushRequestModal
+            isOpen={showRushModal}
+            onClose={() => setShowRushModal(false)}
+            onConfirm={handleRushConfirm}
+            isRushed={!!primaryEntry}
+            existingRushDate={primaryEntry?.targetDate as string | undefined}
+            onRemoveRush={() =>
+              primaryRushKey && handleRemoveRush(currentRushArch, primaryRushKey)
+            }
+            maxRushed={!!maxRushEntry}
+            maxExistingRushDate={maxRushEntry?.targetDate as string | undefined}
+            mandRushed={!!mandRushEntry}
+            mandExistingRushDate={mandRushEntry?.targetDate as string | undefined}
+            onRemoveMaxRush={
+              maxSlot
+                ? () => handleRemoveRush("maxillary", maxSlot.rushKey)
+                : currentRushMaxProductId
+                  ? () => handleRemoveRush("maxillary", currentRushMaxProductId)
+                  : undefined
+            }
+            onRemoveMandRush={
+              mandSlot
+                ? () => handleRemoveRush("mandibular", mandSlot.rushKey)
+                : currentRushMandProductId
+                  ? () => handleRemoveRush("mandibular", currentRushMandProductId)
+                  : undefined
+            }
+            hasMaxillary={!!maxSlot || !!currentRushMaxProductId}
+            hasMandibular={!!mandSlot || !!currentRushMandProductId}
+            archSlots={rushArchSlots.map((s) => {
+              const entry = getRushFromStore(
+                rushedProducts,
+                s.arch,
+                s.cardId,
+                s.repTooth,
+                s.isFixed
+              );
+              return {
+                arch: s.arch,
+                archLabel: s.archLabel,
+                productName: s.productName,
+                rushKey: s.rushKey,
+                cardId: s.cardId,
+                repTooth: s.repTooth,
+                actualDeliveryDate: s.actualDeliveryDate,
+                workDaysToDeliver: s.workDaysToDeliver,
+                stageName: s.stageName,
+                toothNumbersLabel: s.toothNumbersLabel,
+                isRushed: !!entry,
+                existingRushDate: entry?.targetDate as string | undefined,
+              };
+            })}
+            onRemoveRushByKey={(rushKey, arch) => handleRemoveRush(arch, rushKey)}
+            mirrorRushAcrossArches={rushSlotsShareProduct(rushArchSlots)}
+            rushCaseSchedule={rushCaseSchedule}
+            labBusinessHours={labBusinessHours}
+            product={{
+              name: primarySlot?.productName ?? "Product",
+              stage: "",
+              deliveryDate: "",
+              price: 100,
+            }}
+            products={rushArchSlots.length > 0 ? undefined : addOnsProducts}
+          />
+        );
+      })()}
     </>
   );
 }

@@ -8,9 +8,9 @@ export interface SlipProductSnapshot {
   type: string;
   productId: number;
   productApiData: ProductApiData | null;
-  /** Tooth numbers used for teeth_selection (may be extraction-filtered subset) */
+  /** Tooth numbers for `teeth_selection` (product/orange-header picks only) */
   teethNumbers: number[];
-  /** All teeth on this product card (for extractions / retention_options grouping) */
+  /** Full scope for `extractions` / `tooth_chart` (status boxes, clasps, TIM, etc.) */
   allCardTeeth?: number[];
   /** Representative tooth number (first in group — field values are keyed here) */
   repToothNumber: number;
@@ -133,6 +133,10 @@ export interface CaseDesignProps {
   onAnyModalOpenChange?: (isOpen: boolean) => void;
   /** When false, the Rush Case button is hidden. Defaults to true (visible). */
   rushCasesEnabled?: boolean;
+  /** Lab business profile case schedule (rush fee %, turnaround, etc.). */
+  rushCaseSchedule?: import("@/lib/api-business-settings").CaseSchedule | null;
+  /** Lab business hours for rush calendar (weekoffs). */
+  labBusinessHours?: import("@/lib/api-business-settings").BusinessHour[] | null;
   /** Fired when product field accordions are visible (compact slip header should be used). */
   onSlipHeaderCompactChange?: (compact: boolean) => void;
 }

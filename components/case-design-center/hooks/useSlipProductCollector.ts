@@ -1,5 +1,10 @@
 import { useCallback, useEffect } from "react";
 import { hasRetentionOptions } from "../utils/categoryHelpers";
+import { getRushFromStore } from "../utils/rushModalContext";
+import {
+  buildExtractionScopeTeeth,
+  resolveProductTeethForSlipSubmit,
+} from "../utils/removableToothDisplay";
 import { useCaseDesignState } from "./useCaseDesignState";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 
@@ -52,10 +57,15 @@ export function useSlipProductCollector({
         else cardGroups.set(cardId, [tn]);
       }
 
-      const HEADER_EXTRACTION_CODES = new Set(["MT", "WED", "WEOD", "FR", "CTS"]);
       const extractionMap = arch === "maxillary"
         ? state.maxillaryToothExtractionMap
         : state.mandibularToothExtractionMap;
+      const noActiveBoxTeeth =
+        arch === "maxillary"
+          ? state.maxillaryNoActiveBoxTeeth
+          : state.mandibularNoActiveBoxTeeth ?? [];
+      const archClaspTeeth =
+        arch === "maxillary" ? state.maxillaryClaspTeeth : state.mandibularClaspTeeth ?? [];
 
       cardGroups.forEach((teethNums, cardId) => {
         const sortedTeeth = [...teethNums].sort((a, b) => a - b);
@@ -65,6 +75,29 @@ export function useSlipProductCollector({
           ?? (props.addedProducts?.find((ap) => ap.id === cardId)?.productId)
           ?? props.selectedProductId
           ?? 0;
+        const isRemovable = !hasRetentionOptions(productApiData);
+        const archSelectedTeeth =
+          arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth ?? [];
+        const cardScopedSelected = archSelectedTeeth.filter(
+          (tn) => state.getToothProductCard(arch, tn) === cardId
+        );
+        const productTeeth = resolveProductTeethForSlipSubmit({
+          isRemovable,
+          cardTeeth:
+            isRemovable && cardScopedSelected.length > 0
+              ? cardScopedSelected
+              : sortedTeeth,
+          toothExtractionMap: extractionMap ?? {},
+          claspTeeth: archClaspTeeth,
+          noActiveBoxTeeth,
+          extractions: productApiData?.extractions,
+        });
+        const extractionScopeTeeth = buildExtractionScopeTeeth(
+          sortedTeeth,
+          extractionMap ?? {},
+          archClaspTeeth,
+          allTeeth
+        );
 
         const fieldValues: Record<string, string> = {};
         const allSteps = [
@@ -82,12 +115,6 @@ export function useSlipProductCollector({
         const isFixed = hasRetentionOptions(productApiData);
         const stageKey = isFixed ? `${arch}_fixed_${repTooth}` : `${arch}_prep_${repTooth}`;
         const stageName = state.selectedStages?.[stageKey] ?? fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
-
-        const filteredByExtraction = sortedTeeth.filter((tn) => {
-          const code = extractionMap?.[tn];
-          return code && HEADER_EXTRACTION_CODES.has(code);
-        });
-        const teethSelection = filteredByExtraction.length > 0 ? filteredByExtraction : sortedTeeth;
 
         const catalog = productApiData?.impressions ?? [];
         const resolveImpressionCode = (entryCode: string) => {
@@ -115,8 +142,15 @@ export function useSlipProductCollector({
           }
         }
 
-        const rushKey = `${arch}_${cardId}`;
-        const rush = state.rushedProducts?.[rushKey] ?? null;
+        const isFixedProduct = hasRetentionOptions(productApiData);
+        const rush =
+          getRushFromStore(
+            state.rushedProducts,
+            arch,
+            cardId,
+            repTooth,
+            isFixedProduct
+          ) ?? null;
 
         const retentionTypesByTooth =
           arch === "maxillary"
@@ -130,9 +164,6 @@ export function useSlipProductCollector({
                   .filter((tn) => (state.mandibularRetentionTypes?.[tn] ?? []).length)
                   .map((tn) => [tn, [...(state.mandibularRetentionTypes?.[tn] ?? [])]])
               );
-
-        const claspTeeth =
-          arch === "maxillary" ? state.maxillaryClaspTeeth : state.mandibularClaspTeeth ?? [];
 
         let oppositeExtractions: Array<{ extraction_id: number; teeth_numbers: number[] }> | undefined;
         if (
@@ -177,7 +208,7 @@ export function useSlipProductCollector({
 
         const implantDetailMap = arch === "maxillary" ? maxillaryImplantDetail : mandibularImplantDetail;
         const relevantImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData> = {};
-        for (const tn of teethSelection) {
+        for (const tn of productTeeth) {
           const detail = implantDetailMap[tn];
           if (detail && (detail.brand || detail.platform || detail.size)) {
             relevantImplantDetail[tn] = detail;
@@ -189,8 +220,8 @@ export function useSlipProductCollector({
           type,
           productId,
           productApiData: productApiData ?? null,
-          teethNumbers: teethSelection,
-          allCardTeeth: sortedTeeth,
+          teethNumbers: productTeeth,
+          allCardTeeth: extractionScopeTeeth,
           repToothNumber: repTooth,
           fieldValues,
           stageName,
@@ -199,7 +230,7 @@ export function useSlipProductCollector({
           rush,
           cardId,
           toothExtractionMap: { ...(extractionMap ?? {}) },
-          claspTeeth: claspTeeth.filter((tn) => sortedTeeth.includes(tn)),
+          claspTeeth: archClaspTeeth.filter((tn) => extractionScopeTeeth.includes(tn)),
           retentionTypesByTooth,
           selectedShades: { ...(state.selectedShades ?? {}) },
           shadeGuide: state.selectedShadeGuide ?? "Vita Classical",
@@ -223,10 +254,12 @@ export function useSlipProductCollector({
     state.getToothProduct,
     state.getToothProductCard,
     state.mandibularClaspTeeth,
+    state.mandibularNoActiveBoxTeeth,
     state.mandibularRetentionTypes,
     state.mandibularTeeth,
     state.mandibularToothExtractionMap,
     state.maxillaryClaspTeeth,
+    state.maxillaryNoActiveBoxTeeth,
     state.maxillaryRetentionTypes,
     state.maxillaryTeeth,
     state.maxillaryToothExtractionMap,

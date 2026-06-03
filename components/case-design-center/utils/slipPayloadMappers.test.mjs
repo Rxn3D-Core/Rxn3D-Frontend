@@ -8,6 +8,7 @@ import {
   buildRetentions,
   buildTeethSelection,
   buildToothChart,
+  groupProductsIntoSlips,
   normalizeRush,
 } from "./slipPayloadMappers.ts";
 
@@ -18,11 +19,49 @@ test("normalizeRush maps targetDate to API rush", () => {
   });
 });
 
+test("normalizeRush returns is_rush false when no rush", () => {
+  assert.deepEqual(normalizeRush(null), { is_rush: false });
+  assert.deepEqual(normalizeRush({}), { is_rush: false });
+});
+
+test("normalizeRush includes notes when provided", () => {
+  assert.deepEqual(
+    normalizeRush({
+      targetDate: "2025-07-20",
+      notes: "Patient needs this urgently",
+    }),
+    {
+      is_rush: true,
+      requested_rush_date: "2025-07-20",
+      notes: "Patient needs this urgently",
+    }
+  );
+});
+
 test("normalizeRush passes through API-shaped rush", () => {
   assert.deepEqual(
     normalizeRush({ is_rush: true, requested_rush_date: "2026-07-15" }),
     { is_rush: true, requested_rush_date: "2026-07-15" }
   );
+});
+
+test("groupProductsIntoSlips pairs same product_id on both arches", () => {
+  const upper = { type: "Upper", product_id: 101, stage_id: 2 };
+  const lower = { type: "Lower", product_id: 101, stage_id: 2 };
+  const otherUpper = { type: "Upper", product_id: 102, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upper, lower, otherUpper]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0], [upper, lower]);
+  assert.deepEqual(groups[1], [otherUpper]);
+});
+
+test("groupProductsIntoSlips splits different products into separate slips", () => {
+  const upper = { type: "Upper", product_id: 101, stage_id: 2 };
+  const lower = { type: "Lower", product_id: 102, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upper, lower]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0], [upper]);
+  assert.deepEqual(groups[1], [lower]);
 });
 
 test("buildProductExtractions groups teeth by extraction_id", () => {
@@ -141,7 +180,7 @@ test("buildTeethSelection emits per-tooth rows with optional retention/extractio
   };
   const rows = buildTeethSelection(product, { 8: ["Prep"] }, { 8: "MT" }, [], [8, 9]);
   assert.deepEqual(rows, [
-    { teeth_number: 8, retention_option_id: 55, extraction_ids: [202] },
+    { teeth_number: 8, retention_option_id: 55 },
     { teeth_number: 9 },
   ]);
 });

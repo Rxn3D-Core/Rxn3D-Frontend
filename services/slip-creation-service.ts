@@ -59,7 +59,8 @@ export interface SlipCreationCase {
 
 export interface SlipCreationRush {
   is_rush: boolean;
-  requested_rush_date: string;
+  requested_rush_date?: string;
+  notes?: string;
 }
 
 export interface SlipCreationImpression {

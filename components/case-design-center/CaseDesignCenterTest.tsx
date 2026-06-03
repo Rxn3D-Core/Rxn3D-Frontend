@@ -10,7 +10,11 @@ import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { getBusinessSettings } from "@/lib/api-business-settings";
+import {
+  getBusinessSettings,
+  type BusinessHour,
+  type CaseSchedule,
+} from "@/lib/api-business-settings";
 import { fetchCaseDesignProductDetails } from "./utils/caseDesignProductDetails";
 import { useCaseWizardSession } from "./hooks/useCaseWizardSession";
 import { resolveLibraryCustomerId } from "./utils/libraryCustomerId";
@@ -81,6 +85,8 @@ export default function Page() {
   const [hasToothStatusValidation, setHasToothStatusValidation] = useState(false);
   const [isAnyModalOpen, setIsAnyModalOpen] = useState(false);
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
+  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
+  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
 
   const {
     submissionState,
@@ -114,10 +120,15 @@ export default function Page() {
 
     getBusinessSettings(labCustomerId)
       .then((settings) => {
-        setRushCasesEnabled(settings?.case_schedule?.enable_rush_cases ?? true);
+        const schedule = settings?.case_schedule ?? null;
+        setRushCaseSchedule(schedule);
+        setLabBusinessHours(settings?.business_hours ?? null);
+        setRushCasesEnabled(schedule?.enable_rush_cases ?? true);
       })
       .catch(() => {
         setRushCasesEnabled(true);
+        setRushCaseSchedule(null);
+        setLabBusinessHours(null);
       });
   }, [completedLab?.id]);
 
@@ -198,6 +209,8 @@ export default function Page() {
               confirmDetailsChecked={confirmDetailsChecked}
               onAnyModalOpenChange={setIsAnyModalOpen}
               rushCasesEnabled={rushCasesEnabled}
+              rushCaseSchedule={rushCaseSchedule}
+              labBusinessHours={labBusinessHours}
             />
             <div style={{ height: "80px" }} />
           </div>

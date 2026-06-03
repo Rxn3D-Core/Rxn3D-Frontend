@@ -7,6 +7,15 @@ import {
   type SlipCreationMultipartFile,
   type SlipCreationPayload as ServiceSlipCreationPayload,
 } from "@/services/slip-creation-service"
+import {
+  SlipAttachmentsService,
+  type CaseAttachmentsParams,
+  type SlipAttachmentRecord,
+  type SlipAttachmentType,
+  type CaseAttachmentsData,
+  type SlipAttachmentUploadOptions,
+  type SlipAttachmentsListParams,
+} from "@/services/slip-attachments-service"
 
 // --- Types based on sample payload ---
 export interface SlipCreationCase {
@@ -209,13 +218,23 @@ interface SlipCreationContextType {
 
   // NEW: attachments for a slip
   slipAttachments: any[] | null
-  fetchSlipAttachments: (slipId: number) => Promise<any[]>
+  fetchSlipAttachments: (
+    slipId: number,
+    params?: SlipAttachmentsListParams
+  ) => Promise<SlipAttachmentRecord[]>
 
   uploadSlipAttachment: (
     slipId: number,
     file: File,
-    notes?: string
-  ) => Promise<any>
+    options?: SlipAttachmentUploadOptions
+  ) => Promise<SlipAttachmentRecord>
+
+  deleteSlipAttachment: (attachmentId: number) => Promise<void>
+  toggleSlipAttachmentArchive: (attachmentId: number) => Promise<SlipAttachmentRecord>
+  fetchCaseAttachments: (
+    caseId: number,
+    params?: CaseAttachmentsParams
+  ) => Promise<CaseAttachmentsData | null>
 
   holdSlip: (slipId: number, reason: string) => Promise<any>
   resumeSlip: (slipId: number, reason: string) => Promise<any>
@@ -834,54 +853,52 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     await requestPromise
   }, [token])
 
-  // Fetch attachments for a slip
-  const fetchSlipAttachments = useCallback(async (slipId: number) => {
-    try {
-      const url = new URL(`/v1/slip/attachments/${slipId}`, process.env.NEXT_PUBLIC_API_BASE_URL)
-      const res = await fetch(url.toString(), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (res.status === 401) {
-        window.location.href = "/login";
+  const fetchSlipAttachments = useCallback(
+    async (slipId: number, params?: SlipAttachmentsListParams) => {
+      try {
+        const json = await SlipAttachmentsService.getSlipAttachments(slipId, params)
+        const list = json.data || []
+        setSlipAttachments(list)
+        return list
+      } catch {
+        setSlipAttachments(null)
         return []
       }
-      const json = await res.json()
-      setSlipAttachments(json.data || [])
-      return json.data || []
-    } catch (e) {
-      setSlipAttachments(null)
-      return []
-    }
-  }, [token])
+    },
+    []
+  )
 
-  // --- Upload slip attachment API ---
   const uploadSlipAttachment = useCallback(
-    async (
-      slipId: number,
-      file: File,
-      notes?: string
-    ) => {
+    async (slipId: number, file: File, options?: SlipAttachmentUploadOptions) => {
       if (!slipId || !file) throw new Error("Slip ID and file are required")
-      const formData = new FormData()
-      formData.append("file", file)
-      if (notes) formData.append("notes", notes)
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/attachments/${slipId}/upload`,
-        {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: formData,
-        }
-      )
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      const json = await res.json()
+      const json = await SlipAttachmentsService.uploadSlipAttachment(slipId, file, options)
       if (!json.success) throw new Error(json.message || "Attachment upload failed")
       return json.data
     },
-    [token]
+    []
+  )
+
+  const deleteSlipAttachment = useCallback(async (attachmentId: number) => {
+    const json = await SlipAttachmentsService.deleteAttachment(attachmentId)
+    if (!json.success) throw new Error(json.message || "Failed to delete attachment")
+  }, [])
+
+  const toggleSlipAttachmentArchive = useCallback(async (attachmentId: number) => {
+    const json = await SlipAttachmentsService.toggleArchiveAttachment(attachmentId)
+    if (!json.success) throw new Error(json.message || "Failed to update attachment archive status")
+    return json.data
+  }, [])
+
+  const fetchCaseAttachments = useCallback(
+    async (caseId: number, params?: CaseAttachmentsParams) => {
+      try {
+        const json = await SlipAttachmentsService.getCaseAttachments(caseId, params)
+        return json.data ?? null
+      } catch {
+        return null
+      }
+    },
+    []
   )
 
   // --- Hold, Resume, Cancel APIs ---
@@ -1062,6 +1079,9 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         slipAttachments,
         fetchSlipAttachments,
         uploadSlipAttachment,
+        deleteSlipAttachment,
+        toggleSlipAttachmentArchive,
+        fetchCaseAttachments,
         holdSlip,
         resumeSlip,
         cancelSlip,

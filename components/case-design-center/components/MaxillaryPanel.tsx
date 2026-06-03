@@ -50,6 +50,7 @@ import {
   shouldSkipStageSelection,
   isDisplayableStageValue,
 } from "../utils/categoryHelpers";
+import { isProductRushed, resolveCardRepToothForRush } from "../utils/rushModalContext";
 import {
   productHasGrades,
   resolveProductGradesForDisplay,
@@ -63,7 +64,11 @@ import {
   isGradeFieldValueSkipped,
 } from "../utils/gradeHelpers";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
-import { hasVisibleAddonDisplay, parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import {
+  hasVisibleAddonDisplay,
+  parseAddonDisplayItems,
+  productSupportsAddons,
+} from "../utils/addonDisplayHelpers";
 import {
   isSingleDefaultOnlyExtractionList,
   requiresExtractionsAcknowledgement,
@@ -749,7 +754,10 @@ function hasAdvanceField(
   if (step === "impression") {
     return product?.has_impression === "Yes";
   }
-  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "addons"];
+  if (step === "addons" || step === "fixed_addons") {
+    return productSupportsAddons(product as ProductApiData);
+  }
+  const alwaysShow = ["fixed_stage", "fixed_impression", "stage"];
   if (alwaysShow.includes(step)) return true;
 
   // Shade steps: show when has_* flag is set, regardless of advance_fields
@@ -2058,8 +2066,13 @@ export function MaxillaryPanel({
                   getToothProduct,
                   "maxillary"
                 );
-                const apProductKey = `maxillary_prep_${apRepTn}`;
-                const hasRushedAp = rushedProducts[apProductKey];
+                const hasRushedAp = isProductRushed(
+                  rushedProducts,
+                  "maxillary",
+                  ap.id,
+                  apRepTn,
+                  hasRetentionOptions(apProduct)
+                );
                 const apStageKey = hasRetentionOptions(apProduct)
                   ? `maxillary_fixed_${apRepTn}`
                   : `maxillary_prep_${apRepTn}`;
@@ -2932,7 +2945,14 @@ export function MaxillaryPanel({
                 // Show filtered teeth if extraction codes exist, otherwise show all tooth numbers
                 const toothNumbersDisplay = toothNumbers.length > 0 ? `#${toothNumbers.join(",")}` : "";
                 const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
-                const hasRushed = toothNumbers.some((n) => rushedProducts[`maxillary_prep_${n}`] || rushedProducts[`maxillary_fixed_${n}`]);
+                const rushRepTooth = resolveCardRepToothForRush(toothNumbers);
+                const hasRushed = isProductRushed(
+                  rushedProducts,
+                  "maxillary",
+                  0,
+                  rushRepTooth,
+                  hasRetentionOptions(selectedProduct)
+                );
 
                 // Show skeleton while product is loading
                 const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("maxillary", t.toothNumber));
@@ -3049,17 +3069,17 @@ export function MaxillaryPanel({
                     }
                     estDaysText={estDays}
                     hasRush={hasRushed}
-                    canDelete={true}
+                    canDelete={!caseSubmitted}
                     onDelete={() => {
-                      const noOtherProducts = addedProducts.filter(p => p.arch === "maxillary").length === 0;
-                      const teethToClear = MAXILLARY_ALL_TEETH.filter(
-                        (tn) => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
-                      );
-                      teethToClear.forEach((tn) => {
+                      toothNumbers.forEach((tn) => {
                         clearToothProgress("maxillary", tn);
                         handleMaxillaryToothDeselect(tn);
                       });
-                      if (noOtherProducts) onBackToCategories?.("maxillary");
+                      const archStillHasTeeth = MAXILLARY_ALL_TEETH.some((tn) =>
+                        getToothProduct("maxillary", tn)
+                      );
+                      const archHasAdded = addedProducts.some((p) => p.arch === "maxillary");
+                      if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("maxillary");
                     }}
                     caseSubmitted={caseSubmitted}
                     customHeader={
@@ -3103,18 +3123,15 @@ export function MaxillaryPanel({
                         estDaysText={estDays}
                         canDelete={!caseSubmitted}
                         onDelete={() => {
-                          const noOtherProducts =
-                            addedProducts.filter((p) => p.arch === "maxillary").length === 0;
-                          const teethToClear = MAXILLARY_ALL_TEETH.filter(
-                            (tn) =>
-                              getToothProduct("maxillary", tn) &&
-                              getToothProductCard("maxillary", tn) === 0
-                          );
-                          teethToClear.forEach((tn) => {
+                          toothNumbers.forEach((tn) => {
                             clearToothProgress("maxillary", tn);
                             handleMaxillaryToothDeselect(tn);
                           });
-                          if (noOtherProducts) onBackToCategories?.("maxillary");
+                          const archStillHasTeeth = MAXILLARY_ALL_TEETH.some((tn) =>
+                            getToothProduct("maxillary", tn)
+                          );
+                          const archHasAdded = addedProducts.some((p) => p.arch === "maxillary");
+                          if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("maxillary");
                         }}
                         isCurrentlyActive={
                           activeFixedGroupProductId === selectedProduct?.id && card0FixedExpanded
@@ -3336,15 +3353,20 @@ export function MaxillaryPanel({
               const hasVariationMatch = variationDisplay.matched;
               const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
-              const repTnStage = cardTeeth[0];
+              const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
               const remCard0StageObj = cardProduct?.stages?.find(s => s.name === stageVal);
               const remCard0Days = remCard0StageObj?.days_to_process;
               const estDays = remCard0Days != null
                 ? `${remCard0Days} work day${remCard0Days === 1 ? "" : "s"} after submission`
                 : "10 work days after submission";
-              const removablesProductKey = `maxillary_prep_${cardTeeth[0]}`;
-              const hasRushedRemovables = rushedProducts[removablesProductKey];
+              const hasRushedRemovables = isProductRushed(
+                rushedProducts,
+                "maxillary",
+                0,
+                repTnStage,
+                hasRetentionOptions(cardProduct)
+              );
 
               // Compute extractions for this removable product
               const cardExtractionsSeen = new Set<number>();
@@ -3381,7 +3403,21 @@ export function MaxillaryPanel({
                   }
                   estDaysText={estDays}
                   hasRush={!!hasRushedRemovables}
-                  canDelete={false}
+                  canDelete={!caseSubmitted}
+                  onDelete={() => {
+                    const teethToClear = useMaxillaryArchSharedRemovable
+                      ? displayTeeth
+                      : cardTeeth;
+                    teethToClear.forEach((tn) => {
+                      clearToothProgress("maxillary", tn);
+                      handleMaxillaryToothDeselect(tn);
+                    });
+                    const archStillHasTeeth = MAXILLARY_ALL_TEETH.some((tn) =>
+                      getToothProduct("maxillary", tn)
+                    );
+                    const archHasAdded = addedProducts.some((p) => p.arch === "maxillary");
+                    if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("maxillary");
+                  }}
                   caseSubmitted={caseSubmitted}
                   customHeader={
                     <RestorationAccordionHeader
@@ -3427,6 +3463,21 @@ export function MaxillaryPanel({
                         getToothProduct
                       )}
                       estDaysText={estDays}
+                      canDelete={!caseSubmitted}
+                      onDelete={() => {
+                        const teethToClear = useMaxillaryArchSharedRemovable
+                          ? displayTeeth
+                          : cardTeeth;
+                        teethToClear.forEach((tn) => {
+                          clearToothProgress("maxillary", tn);
+                          handleMaxillaryToothDeselect(tn);
+                        });
+                        const archStillHasTeeth = MAXILLARY_ALL_TEETH.some((tn) =>
+                          getToothProduct("maxillary", tn)
+                        );
+                        const archHasAdded = addedProducts.some((p) => p.arch === "maxillary");
+                        if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("maxillary");
+                      }}
                       isCurrentlyActive={
                         isCurrentlyActiveProduct && isAccordionExpanded(SLOT_ID)
                       }

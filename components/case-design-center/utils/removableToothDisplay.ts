@@ -1,4 +1,9 @@
-import { isOverlayExtractionByFlag, isTimExtractionByFlag } from "./extractionHelpers";
+import {
+  isFullDentureProduct,
+  isOverlayExtractionByFlag,
+  isSingleDefaultOnlyExtractionList,
+  isTimExtractionByFlag,
+} from "./extractionHelpers";
 
 function getSortedUniqueTeeth(teeth: number[]): number[] {
   return [...new Set(teeth)].sort((a, b) => a - b);
@@ -149,6 +154,59 @@ export function getRemovableOrangeHeaderTeeth({
         noActiveBoxTeeth.includes(toothNumber)
     )
   );
+}
+
+/** All teeth that belong on this product card for extraction / tooth_chart payload. */
+export function buildExtractionScopeTeeth(
+  cardTeeth: number[],
+  toothExtractionMap: Record<number, string>,
+  claspTeeth: number[],
+  archTeeth: number[]
+): number[] {
+  const inArch = new Set(archTeeth);
+  const out = new Set<number>();
+  for (const toothNumber of cardTeeth) {
+    if (inArch.has(toothNumber)) out.add(toothNumber);
+  }
+  for (const toothNumber of claspTeeth) {
+    if (inArch.has(toothNumber)) out.add(toothNumber);
+  }
+  for (const [key, code] of Object.entries(toothExtractionMap)) {
+    if (!code) continue;
+    const toothNumber = Number(key);
+    if (inArch.has(toothNumber)) out.add(toothNumber);
+  }
+  return getSortedUniqueTeeth([...out]);
+}
+
+/** Teeth selected for the product (orange header) — only these go in `teeth_selection`. */
+export function resolveProductTeethForSlipSubmit({
+  isRemovable,
+  cardTeeth,
+  toothExtractionMap,
+  claspTeeth,
+  noActiveBoxTeeth,
+  extractions,
+}: {
+  isRemovable: boolean;
+  cardTeeth: number[];
+  toothExtractionMap: Record<number, string>;
+  claspTeeth: number[];
+  noActiveBoxTeeth: number[];
+  extractions?: ReadonlyArray<{ code?: string | null; overlay?: string }>;
+}): number[] {
+  if (!isRemovable) {
+    return getSortedUniqueTeeth(cardTeeth);
+  }
+  return getRemovableOrangeHeaderTeeth({
+    selectedTeeth: cardTeeth,
+    toothExtractionMap,
+    claspTeeth,
+    noActiveBoxTeeth,
+    extractions,
+    isFullDenture: isFullDentureProduct(extractions),
+    isSingleDefaultOnly: isSingleDefaultOnlyExtractionList(extractions),
+  });
 }
 
 export function getToothStatusBoxDisplayMap({
