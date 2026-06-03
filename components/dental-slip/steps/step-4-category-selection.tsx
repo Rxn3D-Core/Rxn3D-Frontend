@@ -67,7 +67,7 @@ export const Step4CategorySelection: React.FC<Step4CategorySelectionProps> = ({
           <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50">
             <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center">
               <img
-                src="/images/ajax-loader.gif"
+                src="/images/ajax-loader.gif?v=20260602"
                 alt="Loading..."
                 className="h-24 w-24 mb-6"
               />
