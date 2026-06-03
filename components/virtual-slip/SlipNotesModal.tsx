@@ -17,11 +17,40 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useSlipNotes } from "@/hooks/use-slip-notes"
-import { joinSlipNotesText, type SlipNote } from "@/lib/api/slip-notes"
+import {
+  DEFAULT_SLIP_NOTE_TYPE,
+  joinSlipNotesText,
+  SLIP_NOTE_TYPE_OPTIONS,
+  type SlipNote,
+  type SlipNoteType,
+} from "@/lib/api/slip-notes"
 
 const MAX_NOTE_LENGTH = 2000
+
+function slipNoteTypeLabel(type: string | undefined): string {
+  const normalized = type?.toLowerCase().replace(/\s+/g, "_")
+  const match = SLIP_NOTE_TYPE_OPTIONS.find((o) => o.value === normalized)
+  if (match) return match.label
+  if (!type) return "Internal"
+  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function normalizeSlipNoteType(type: string | undefined): SlipNoteType {
+  const normalized = type?.toLowerCase().replace(/\s+/g, "_") as SlipNoteType
+  if (SLIP_NOTE_TYPE_OPTIONS.some((o) => o.value === normalized)) {
+    return normalized
+  }
+  return DEFAULT_SLIP_NOTE_TYPE
+}
 
 function formatNoteTimestamp(iso: string): string {
   const d = new Date(iso)
@@ -59,8 +88,10 @@ export function SlipNotesModal({
 
   const [searchTerm, setSearchTerm] = useState("")
   const [newNoteContent, setNewNoteContent] = useState("")
+  const [newNoteType, setNewNoteType] = useState<SlipNoteType>(DEFAULT_SLIP_NOTE_TYPE)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editContent, setEditContent] = useState("")
+  const [editNoteType, setEditNoteType] = useState<SlipNoteType>(DEFAULT_SLIP_NOTE_TYPE)
 
   useEffect(() => {
     if (isOpen && slipId) {
@@ -87,7 +118,7 @@ export function SlipNotesModal({
   const handleAddNote = async () => {
     const text = newNoteContent.trim()
     if (!text) return
-    const created = await addNote(text)
+    const created = await addNote(text, newNoteType)
     if (created) {
       setNewNoteContent("")
       notifyParent([created, ...notes])
@@ -97,16 +128,18 @@ export function SlipNotesModal({
   const startEdit = (note: SlipNote) => {
     setEditingId(note.id)
     setEditContent(note.note)
+    setEditNoteType(normalizeSlipNoteType(note.type))
   }
 
   const cancelEdit = () => {
     setEditingId(null)
     setEditContent("")
+    setEditNoteType(DEFAULT_SLIP_NOTE_TYPE)
   }
 
   const handleSaveEdit = async () => {
     if (editingId == null) return
-    const updated = await editNote(editingId, editContent)
+    const updated = await editNote(editingId, editContent, editNoteType)
     if (updated) {
       cancelEdit()
       const next = notes.map((n) => (n.id === updated.id ? updated : n))
@@ -184,6 +217,26 @@ export function SlipNotesModal({
                 </Badge>
               )}
             </div>
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <label className="text-sm font-medium text-gray-700" htmlFor="new-slip-note-type">
+                Note type
+              </label>
+              <Select
+                value={newNoteType}
+                onValueChange={(v) => setNewNoteType(v as SlipNoteType)}
+              >
+                <SelectTrigger id="new-slip-note-type" className="w-[180px]">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SLIP_NOTE_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Textarea
               placeholder="Add a slip note..."
               value={newNoteContent}
@@ -233,6 +286,9 @@ export function SlipNotesModal({
                           {formatNoteTimestamp(note.created_at)}
                         </span>
                         <span>{note.added_by?.name ?? "Unknown"}</span>
+                        <Badge variant="secondary" className="bg-gray-200 text-xs text-gray-700">
+                          {slipNoteTypeLabel(note.type)}
+                        </Badge>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -255,6 +311,21 @@ export function SlipNotesModal({
                     </div>
                     {editingId === note.id ? (
                       <div className="space-y-2">
+                        <Select
+                          value={editNoteType}
+                          onValueChange={(v) => setEditNoteType(v as SlipNoteType)}
+                        >
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Note type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SLIP_NOTE_TYPE_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <Textarea
                           value={editContent}
                           onChange={(e) =>

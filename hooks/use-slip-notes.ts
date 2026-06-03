@@ -7,6 +7,7 @@ import {
   getSlipNotes,
   updateSlipNote,
   type SlipNote,
+  type SlipNoteType,
   type SlipNotesListParams,
 } from "@/lib/api/slip-notes"
 
@@ -43,13 +44,16 @@ export function useSlipNotes(slipId: number | null) {
   )
 
   const addNote = useCallback(
-    async (text: string) => {
-      if (!slipId || !text.trim()) return null
+    async (text: string, type: SlipNoteType) => {
+      if (!slipId || !text.trim() || !type) return null
 
       setIsSaving(true)
       setError(null)
       try {
-        const created = await createSlipNote(slipId, text.trim())
+        const created = await createSlipNote(slipId, {
+          note: text.trim(),
+          type,
+        })
         setNotes((prev) => [created, ...prev])
         return created
       } catch (err) {
@@ -64,24 +68,30 @@ export function useSlipNotes(slipId: number | null) {
     [slipId]
   )
 
-  const editNote = useCallback(async (noteId: number, text: string) => {
-    if (!text.trim()) return null
+  const editNote = useCallback(
+    async (noteId: number, text: string, type?: SlipNoteType) => {
+      if (!text.trim()) return null
 
-    setIsSaving(true)
-    setError(null)
-    try {
-      const updated = await updateSlipNote(noteId, text.trim())
-      setNotes((prev) => prev.map((n) => (n.id === noteId ? updated : n)))
-      return updated
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to update note"
-      setError(message)
-      return null
-    } finally {
-      setIsSaving(false)
-    }
-  }, [])
+      setIsSaving(true)
+      setError(null)
+      try {
+        const updated = await updateSlipNote(noteId, {
+          note: text.trim(),
+          ...(type ? { type } : {}),
+        })
+        setNotes((prev) => prev.map((n) => (n.id === noteId ? updated : n)))
+        return updated
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to update note"
+        setError(message)
+        return null
+      } finally {
+        setIsSaving(false)
+      }
+    },
+    []
+  )
 
   const removeNote = useCallback(async (noteId: number) => {
     setIsSaving(true)

@@ -1,5 +1,19 @@
 import { apiClient } from "@/lib/api/client"
 
+/** Backend note type values (required on create). */
+export type SlipNoteType = "internal" | "stage" | "lab_connect"
+
+export const SLIP_NOTE_TYPE_OPTIONS: {
+  value: SlipNoteType
+  label: string
+}[] = [
+  { value: "internal", label: "Internal" },
+  { value: "stage", label: "Stage" },
+  { value: "lab_connect", label: "Lab Connect" },
+]
+
+export const DEFAULT_SLIP_NOTE_TYPE: SlipNoteType = "internal"
+
 export interface SlipNoteUser {
   id: number
   name: string
@@ -9,9 +23,20 @@ export interface SlipNoteUser {
 export interface SlipNote {
   id: number
   note: string
+  type?: SlipNoteType | string
   created_at: string
   updated_at: string
   added_by: SlipNoteUser
+}
+
+export interface CreateSlipNotePayload {
+  note: string
+  type: SlipNoteType
+}
+
+export interface UpdateSlipNotePayload {
+  note: string
+  type?: SlipNoteType
 }
 
 export interface SlipNotesListParams {
@@ -69,8 +94,14 @@ export async function getSlipNotes(
 }
 
 /** POST /slip/notes/{slipId}/create */
-export async function createSlipNote(slipId: number, note: string): Promise<SlipNote> {
-  const response = await apiClient.post<unknown>(`/slip/notes/${slipId}/create`, { note })
+export async function createSlipNote(
+  slipId: number,
+  payload: CreateSlipNotePayload
+): Promise<SlipNote> {
+  const response = await apiClient.post<unknown>(`/slip/notes/${slipId}/create`, {
+    note: payload.note,
+    type: payload.type,
+  })
   return unwrapOne<SlipNote>(response.data)
 }
 
@@ -81,8 +112,11 @@ export async function getSlipNote(noteId: number): Promise<SlipNote> {
 }
 
 /** PUT /slip/notes/note/{noteId} */
-export async function updateSlipNote(noteId: number, note: string): Promise<SlipNote> {
-  const response = await apiClient.put<unknown>(`/slip/notes/note/${noteId}`, { note })
+export async function updateSlipNote(
+  noteId: number,
+  payload: UpdateSlipNotePayload
+): Promise<SlipNote> {
+  const response = await apiClient.put<unknown>(`/slip/notes/note/${noteId}`, payload)
   return unwrapOne<SlipNote>(response.data)
 }
 

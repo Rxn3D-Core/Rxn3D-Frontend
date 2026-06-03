@@ -3,6 +3,7 @@
 import { Children, type ReactNode } from "react";
 import Image from "next/image";
 import { Pencil } from "lucide-react";
+import { RushIcon } from "@/components/case-design-center/components/CenterActionIcons";
 import type { VirtualSlipHeaderVM } from "@/lib/virtual-slip-view-model";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 
@@ -161,7 +162,21 @@ export function VirtualSlipHeader({ header }: { header: VirtualSlipHeaderVM }) {
             <Field label="Delivery Time" value={header.deliveryTime} />
           </Column>
           <Column>
-            <Field label="Due Date" value={header.dueDate} />
+            {header.isRush ? (
+              <>
+                <div className="flex items-center gap-[9px] font-sans">
+                  <RushIcon className="h-[18px] w-[18px] shrink-0 sm:h-[20px] sm:w-[20px]" />
+                  <Field
+                    label="Rush due"
+                    value={header.rushDueDate}
+                    valueClassName="text-[#CF0202] font-medium"
+                  />
+                </div>
+                <Field label="Normal due" value={header.standardDueDate} />
+              </>
+            ) : (
+              <Field label="Due Date" value={header.dueDate} />
+            )}
             <Field label="Pick up date" value={header.pickupDate} />
           </Column>
         </div>

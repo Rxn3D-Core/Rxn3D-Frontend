@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
+import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalog";
 import { virtualSlipSlotsToAddonArchSlots } from "@/lib/virtual-slip-addon-slots";
 import { buildVirtualSlipRushArchSlots } from "@/lib/virtual-slip-rush-slots";
-import { buildVirtualSlipVM, isoDateFromApiTimestamp } from "@/lib/virtual-slip-view-model";
+import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
@@ -42,18 +44,20 @@ export default function VirtualSlipV2Page() {
 
   const vm = useMemo(() => buildVirtualSlipVM(virtualSlipDetails), [virtualSlipDetails]);
 
-  const rushDeliveryDateIso = useMemo(
+  const slipDeliveryDates = useMemo(
     () =>
-      isoDateFromApiTimestamp(
-        (virtualSlipDetails as { delivery?: { delivery_date?: string } } | null)?.delivery
-          ?.delivery_date
+      resolveSlipDeliveryDates(
+        virtualSlipDetails,
+        Array.isArray((virtualSlipDetails as { products?: unknown[] } | null)?.products)
+          ? (virtualSlipDetails as { products: unknown[] }).products
+          : []
       ),
     [virtualSlipDetails]
   );
 
   const rushArchSlots = useMemo(
-    () => buildVirtualSlipRushArchSlots(vm.arches, rushDeliveryDateIso),
-    [vm.arches, rushDeliveryDateIso]
+    () => buildVirtualSlipRushArchSlots(vm.arches, slipDeliveryDates.standardDateIso),
+    [vm.arches, slipDeliveryDates.standardDateIso]
   );
 
   const addonArchSlots = useMemo(
@@ -77,11 +81,11 @@ export default function VirtualSlipV2Page() {
       });
       const api = card?.apiProduct ?? {};
       const nested = api?.product ?? {};
-      const rawAddons = nested?.addons ?? api?.addons;
+      const catalogAddons = catalogAddonsFromProductPayload(nested?.addons);
       out.push({
         id: pid,
         name: slot.productName ?? nested?.name ?? "Product",
-        addons: Array.isArray(rawAddons) ? rawAddons : undefined,
+        addons: catalogAddons,
       });
     }
     return out;
@@ -186,7 +190,8 @@ export default function VirtualSlipV2Page() {
         rushArchSlots={rushArchSlots}
         addonArchSlots={addonArchSlots}
         addonProducts={addonProducts}
-        deliveryDateIso={rushDeliveryDateIso}
+        deliveryDateIso={slipDeliveryDates.standardDateIso}
+        slipIsRush={slipDeliveryDates.isRush}
         productName={primaryRushSlot?.productName ?? "Case"}
         productStage={primaryRushSlot?.stageName ?? "Unknown Stage"}
         onAddonsChanged={() => {
