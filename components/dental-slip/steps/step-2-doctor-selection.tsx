@@ -33,7 +33,7 @@ export const Step2DoctorSelection: React.FC<Step2DoctorSelectionProps> = ({
         <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-[10000] flex items-center justify-center">
           <div className="bg-white rounded-xl shadow-2xl p-8 flex flex-col items-center">
             <img
-              src="/images/ajax-loader.gif"
+              src="/images/ajax-loader.gif?v=20260602"
               alt="Loading..."
               className="h-24 w-24 mb-6"
             />

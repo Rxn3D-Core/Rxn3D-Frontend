@@ -981,7 +981,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType") : null
     const bodyPayload = customerType === "office" ? { case_ids: caseIds } : { slip_ids: caseIds }
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/generate-paper-slips`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/generate-portrait-v2-paper-slips`, {
       method: "POST",
       headers: {
       "Content-Type": "application/json",
