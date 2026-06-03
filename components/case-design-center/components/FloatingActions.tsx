@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Play,
   ChevronsRight,
+  Paperclip,
 } from "lucide-react";
 
 interface ActionButton {
@@ -38,6 +39,8 @@ export interface FloatingActionsProps {
   hasImageAttachment?: boolean;
   /** Show STL attachment indicator icon */
   hasStlAttachment?: boolean;
+  /** Open slip file attachments modal */
+  onAttachments?: () => void;
   onEditSlip?: () => void;
   onPrint?: () => void;
   onPickupDropoff?: () => void;
@@ -60,6 +63,7 @@ export function FloatingActions({
   hasNextStage = false,
   hasImageAttachment = false,
   hasStlAttachment = false,
+  onAttachments,
   onEditSlip,
   onPrint,
   onPickupDropoff,
@@ -312,6 +316,17 @@ export function FloatingActions({
             </button>
           ))}
         </div>
+      )}
+
+      {onAttachments && (
+        <button
+          type="button"
+          aria-label="Attachments"
+          onClick={onAttachments}
+          className="w-[46.67px] h-[46.67px] shrink-0 rounded-full bg-[#1162A8] hover:bg-[#0E5290] flex items-center justify-center drop-shadow-[2px_4px_6px_rgba(0,0,0,0.25)] transition-colors duration-200 cursor-pointer ml-[10px]"
+        >
+          <Paperclip size={17} className="text-white" strokeWidth={2} />
+        </button>
       )}
 
       {/* Attachment indicators — shown when image or STL files are attached */}

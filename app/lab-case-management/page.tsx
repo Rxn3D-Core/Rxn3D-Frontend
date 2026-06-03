@@ -236,7 +236,7 @@ export default function LabSlipPage() {
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
 
   const { slips, loading, fetchLabSlips, fetchDriverPrintData, createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates, readyToSend, labListingPagination } = useSlipContext();
-  const { fetchProductAddons, generatePaperSlips, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const { generatePaperSlips, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -336,9 +336,20 @@ export default function LabSlipPage() {
     setShowAttachModal(true)
   }
 
-  const handleAttachmentsUploaded = (attachments: any[]) => {
-    // Handle the uploaded attachments if needed
-    // You could update the slip data here or refresh the list
+  const handleAttachmentsUploaded = () => {
+    const customerId = getLabCustomerId()
+    if (!customerId) return
+    void fetchLabSlips(customerId, {
+      q: search.trim() || undefined,
+      office_code: office !== "All" ? office : undefined,
+      status: status !== "All" ? status : undefined,
+      location_id: location !== "All" ? Number(location) : undefined,
+      has_attachments: showWithAttachments ? true : undefined,
+      delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
+      delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
+      page: currentPage,
+      per_page: itemsPerPage,
+    })
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -427,16 +438,8 @@ export default function LabSlipPage() {
   }
 
   const handleAddOnsClick = (slip: any) => {
-    if (slip?.id) {
-      fetchProductAddons(slip?.id);
-    }
     setSelectedSlipForAddOns(slip)
     setShowAddOnsModal(true)
-  }
-
-  const handleAddAddOns = (addOns: any[]) => {
-    // You can update the slip or refresh the list here if needed
-    setShowAddOnsModal(false)
   }
 
   const handleCallLogClick = (slip: any) => {
@@ -2063,6 +2066,8 @@ export default function LabSlipPage() {
                 setShowAttachModal={setShowAttachModal}
                 isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
                 slipId={selectedSlipForAttachment.id}
+                doctorName={selectedSlipForAttachment.doctor}
+                patientName={selectedSlipForAttachment.patient}
                 onAttachmentsUploaded={handleAttachmentsUploaded}
               />
             )}
@@ -2187,10 +2192,12 @@ export default function LabSlipPage() {
         <AddOnsModal
           isOpen={showAddOnsModal}
           onClose={() => setShowAddOnsModal(false)}
-          onAddAddOns={handleAddAddOns}
-          labId={selectedSlipForAddOns?.labId || 0}
-          productId={selectedSlipForAddOns?.productId || 0}
-          existingAddOns={selectedSlipForAddOns?.addOns || []}
+          onAddAddOns={() => {}}
+          labId={0}
+          productId=""
+          arch="maxillary"
+          slipId={selectedSlipForAddOns?.id}
+          onSlipAddonsSaved={refreshCurrentListing}
         />
 
         {/* Call Log Modal */}

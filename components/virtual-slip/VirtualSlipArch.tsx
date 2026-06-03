@@ -3,11 +3,28 @@
 import type { ArchVM } from "@/lib/virtual-slip-view-model";
 import { VirtualSlipToothChart } from "./VirtualSlipToothChart";
 import { VirtualSlipProductSummary } from "./VirtualSlipProductSummary";
+import { VirtualSlipOpposingSection } from "./VirtualSlipOpposingSection";
 
 /** One arch column body: read-only tooth chart + product summaries.
  *  The arch title (MAXILLARY / MANDIBULAR) is rendered by the page so the two
  *  titles and "CASE DESIGN CENTER" stay aligned on a single row. */
 export function VirtualSlipArch({ data }: { data: ArchVM }) {
+  const isOpposingOnly = data.products.length === 0 && data.opposing != null;
+
+  if (isOpposingOnly) {
+    return (
+      <section className="min-w-0 flex-1">
+        <VirtualSlipToothChart
+          arch={data.arch}
+          teeth={data.teeth}
+          selectedTeeth={[]}
+          extractionDisplay={data.extractionDisplay}
+        />
+        {data.opposing && <VirtualSlipOpposingSection opposing={data.opposing} />}
+      </section>
+    );
+  }
+
   return (
     <section className="min-w-0 flex-1">
       <VirtualSlipToothChart
@@ -15,12 +32,9 @@ export function VirtualSlipArch({ data }: { data: ArchVM }) {
         teeth={data.teeth}
         selectedTeeth={data.selectedTeeth}
         toothChartSelectionsByTooth={data.toothChartSelectionsByTooth}
+        extractionDisplay={data.extractionDisplay}
       />
-      {data.opposingImpression && (
-        <p className="mt-1 font-sans text-[13px] text-[#4C4D55]">
-          <span className="font-bold">Opposing Impression:</span> {data.opposingImpression}
-        </p>
-      )}
+      {data.opposing && <VirtualSlipOpposingSection opposing={data.opposing} />}
       {data.products.map((product, i) => (
         <VirtualSlipProductSummary key={i} product={product} />
       ))}

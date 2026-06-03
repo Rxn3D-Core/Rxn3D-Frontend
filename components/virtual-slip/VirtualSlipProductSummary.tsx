@@ -4,10 +4,13 @@ import { useState } from "react";
 import Image from "next/image";
 import { ChevronDown } from "lucide-react";
 import type { ProductVM } from "@/lib/virtual-slip-view-model";
+import { buildVirtualSlipStatusBoxProps } from "@/lib/virtual-slip-extraction-display";
+import { hasDisplayValue } from "@/lib/virtual-slip-display";
+import { VirtualSlipExtractionStatusBoxes } from "./VirtualSlipExtractionStatusBoxes";
 
 /** A single "Label: Value" detail row (Verdana, #4C4D55). */
 function Detail({ label, value }: { label: string; value: string }) {
-  if (!value) return null;
+  if (!hasDisplayValue(value)) return null;
   return (
     <div className="flex items-center gap-[14px] py-[1px] font-sans text-[15.4px] tracking-[-0.02em]">
       <span className="min-w-[129px] font-bold text-[#4C4D55]">{label}:</span>
@@ -16,33 +19,55 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** A colored teeth chip (Missing / Will extract / Clasp). */
-function TeethChip({
-  label,
-  teeth,
-  bg,
-  text = "#000000",
-}: {
-  label: string;
-  teeth: number[];
-  bg: string;
-  text?: string;
-}) {
-  if (teeth.length === 0) return null;
-  return (
-    <div
-      className="flex flex-col items-center justify-center rounded-[6px] px-[10px] py-[6px] text-center font-sans text-[14px] leading-[18px] tracking-[-0.02em] shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)]"
-      style={{ background: bg, color: text }}
-    >
-      <span>{label}</span>
-      <span>#{teeth.join(",")}</span>
-    </div>
-  );
+/** Advance field row — splits multi-part values (per-tooth or sub-fields) for readability. */
+function AdvanceFieldDetail({ label, value }: { label: string; value: string }) {
+  if (!hasDisplayValue(value)) return null;
+
+  const segments = value.includes("; ")
+    ? value.split("; ").filter((part) => hasDisplayValue(part))
+    : null;
+  const toothSegments =
+    !segments && value.includes("#") && value.includes(",")
+      ? value.split(",").map((part) => part.trim()).filter(Boolean)
+      : null;
+
+  if (segments && segments.length > 1) {
+    return (
+      <div className="py-[2px] font-sans text-[15.4px] tracking-[-0.02em]">
+        <div className="font-bold text-[#4C4D55]">{label}:</div>
+        <ul className="mt-1 space-y-[2px] pl-4 text-[#4C4D55]">
+          {segments.map((segment) => (
+            <li key={segment}>{segment}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (toothSegments && toothSegments.length > 1) {
+    return (
+      <div className="py-[2px] font-sans text-[15.4px] tracking-[-0.02em]">
+        <div className="font-bold text-[#4C4D55]">{label}:</div>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 pl-1 text-[#4C4D55]">
+          {toothSegments.map((segment) => (
+            <span key={segment}>{segment}</span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return <Detail label={label} value={value} />;
 }
 
 export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const showImplantColumn = product.isImplant && product.implants.length > 0;
+  const statusBoxProps = buildVirtualSlipStatusBoxProps(
+    product.extractionDisplay,
+    product.arch,
+    { apiProduct: product.apiProduct },
+  );
 
   return (
     <div className="mt-5">
@@ -73,16 +98,9 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
         </div>
       </div>
 
-      {/* Missing / will-extract chips */}
-      {(product.missingTeeth.length > 0 || product.willExtractTeeth.length > 0) && (
-        <div className="mt-[10px] flex flex-wrap items-center gap-[10px]">
-          <TeethChip label="Missing teeth" teeth={product.missingTeeth} bg="#D3D3D3" />
-          <TeethChip
-            label="Will extract on delivery"
-            teeth={product.willExtractTeeth}
-            bg="#E92520"
-            text="#FFFFFF"
-          />
+      {statusBoxProps && (
+        <div className="mt-[10px] w-full">
+          <VirtualSlipExtractionStatusBoxes boxProps={statusBoxProps} />
         </div>
       )}
 
@@ -142,7 +160,7 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
           {advanceOpen && (
             <div className="mt-2">
               {product.advanceFields.map((f, i) => (
-                <Detail key={i} label={f.label} value={f.value} />
+                <AdvanceFieldDetail key={i} label={f.label} value={f.value} />
               ))}
             </div>
           )}

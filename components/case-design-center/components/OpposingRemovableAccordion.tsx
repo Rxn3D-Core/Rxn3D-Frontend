@@ -9,7 +9,7 @@ import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
 import { RushIcon } from "./CenterActionIcons";
-import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
 import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExtractionHelpers";
 import {
@@ -65,7 +65,10 @@ function hasAdvanceField(
   if (step === "impression") {
     return product?.has_impression === "Yes";
   }
-  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "addons"];
+  if (step === "addons" || step === "fixed_addons") {
+    return productSupportsAddons(product as ProductApiData);
+  }
+  const alwaysShow = ["fixed_stage", "fixed_impression", "stage"];
   if (alwaysShow.includes(step)) return true;
   if (step === "fixed_stump_shade" && (product?.has_teeth_shade === "Yes" || product?.has_gum_shade === "Yes")) {
     return true;

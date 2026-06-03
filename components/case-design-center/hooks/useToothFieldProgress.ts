@@ -5,6 +5,7 @@ import type React from "react";
 import type { Arch, RetentionType, ProductApiData, ProductAdvanceField } from "../types";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 import { productHasGrades } from "../utils/gradeHelpers";
+import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 
 /**
  * The sequential fields shown one by one when Prep or Pontic is selected.
@@ -97,6 +98,7 @@ export function getRetentionFieldChain(
     // (characterization, contact_icons, margin, metal, proximal_contact).
     return FIXED_FIELD_STEPS.filter((step) => {
       if (step === "fixed_stage" && shouldSkipStageSelection(product)) return false;
+      if (step === "fixed_addons" && !productSupportsAddons(product)) return false;
       if (step === "fixed_stump_shade") return hasTeethShadeFlag || hasGumShadeFlag;
       if (step === "fixed_shade_trio") return hasTeethShadeFlag;
       return !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
@@ -138,6 +140,7 @@ export function getSelectionFieldChain(
   return FIELD_STEPS.filter((step) => {
     if (step === "stage" && shouldSkipStageSelection(product)) return false;
     if (step === "grade" && productHasGrades(product)) return true;
+    if (step === "addons") return productSupportsAddons(product);
     const flagKey = stepFlagMap[step];
     if (!flagKey) return true;
     const val = product[flagKey];

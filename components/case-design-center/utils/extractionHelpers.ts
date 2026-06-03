@@ -26,6 +26,20 @@ export function isTimExtractionByFlag(extraction: ExtractionLike | undefined | n
   return String(extraction?.is_tim ?? "").trim().toLowerCase() === "yes";
 }
 
+/** TIM / "Teeth in mouth" row — matches CDC panels and tooth-status popover conventions. */
+export function isTimExtractionRow(extraction: ExtractionLike | undefined | null): boolean {
+  if (!extraction) return false;
+  if (isTimExtractionByFlag(extraction)) return true;
+  const code = String(extraction.code ?? "")
+    .trim()
+    .toUpperCase();
+  if (code === "TIM" || code.startsWith("TIM")) return true;
+  const name = String(extraction.name ?? "")
+    .toLowerCase()
+    .trim();
+  return name === "teeth in mouth" || name.includes("in mouth");
+}
+
 export function isOverlayExtractionByFlag(extraction: ExtractionLike | undefined | null): boolean {
   return String(extraction?.overlay ?? "").trim().toLowerCase() === "yes";
 }
@@ -65,6 +79,22 @@ export function toothHasTimBaseExtraction(
 
 function isTimExtraction(extraction: ExtractionLike): boolean {
   return isTimExtractionByFlag(extraction);
+}
+
+/** Full-denture products: no TIM row; only missing-teeth style extractions. */
+export function isFullDentureProduct(
+  extractions: ReadonlyArray<{ code?: string; name?: string; status?: string }> | undefined | null
+): boolean {
+  if (!extractions?.length) return false;
+  const active = extractions.filter((e) => isActiveExtractionRow(e));
+  if (active.length === 0) return false;
+  const hasTim = active.some(
+    (e) => e.code === "TIM" || (e.name ?? "").toLowerCase().trim() === "teeth in mouth"
+  );
+  if (hasTim) return false;
+  return active.every(
+    (e) => e.code === "MT" || (e.name ?? "").toLowerCase().trim() === "missing teeth"
+  );
 }
 
 export function isSingleDefaultOnlyExtractionList(

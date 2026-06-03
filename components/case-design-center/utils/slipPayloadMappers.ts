@@ -3,6 +3,7 @@ import type {
   SlipCreationAdvanceField,
   SlipCreationExtraction,
   SlipCreationImplantDetail,
+  SlipCreationProduct,
   SlipCreationRetention,
   SlipCreationRetentionOption,
   SlipCreationRush,
@@ -25,18 +26,77 @@ import type { RetentionOptionItem } from "@/components/retention-type-popover";
 
 export type RushUiState = Record<string, unknown> | null | undefined;
 
-/** Normalize rush modal state (`targetDate`) to API `rush` object. */
-export function normalizeRush(rush: RushUiState): SlipCreationRush | undefined {
-  if (!rush || typeof rush !== "object") return undefined;
+/** Normalize rush modal state (`targetDate`) to API `rush` object (always includes `is_rush`). */
+export function normalizeRush(rush: RushUiState): SlipCreationRush {
+  if (!rush || typeof rush !== "object") {
+    return { is_rush: false };
+  }
   const r = rush as Record<string, unknown>;
+  if (r.is_rush === false) {
+    return { is_rush: false };
+  }
+  const notes =
+    typeof r.notes === "string" && r.notes.trim() ? r.notes.trim() : undefined;
   if (r.is_rush === true && typeof r.requested_rush_date === "string" && r.requested_rush_date) {
-    return { is_rush: true, requested_rush_date: r.requested_rush_date };
+    return {
+      is_rush: true,
+      requested_rush_date: r.requested_rush_date,
+      ...(notes ? { notes } : {}),
+    };
   }
   const targetDate = r.targetDate;
   if (typeof targetDate === "string" && targetDate.trim()) {
-    return { is_rush: true, requested_rush_date: targetDate.trim() };
+    return {
+      is_rush: true,
+      requested_rush_date: targetDate.trim(),
+      ...(notes ? { notes } : {}),
+    };
   }
-  return undefined;
+  return { is_rush: false };
+}
+
+/**
+ * Group slip products into `slips[]` entries: same `product_id` on Upper and Lower
+ * share one slip; otherwise each arch product is its own slip.
+ */
+export function groupProductsIntoSlips(
+  products: SlipCreationProduct[]
+): SlipCreationProduct[][] {
+  const uppers = products.filter((p) => p.type === "Upper");
+  const lowers = products.filter((p) => p.type === "Lower");
+  const lowersByProductId = new Map<number, SlipCreationProduct[]>();
+
+  for (const lower of lowers) {
+    const list = lowersByProductId.get(lower.product_id) ?? [];
+    list.push(lower);
+    lowersByProductId.set(lower.product_id, list);
+  }
+
+  const slips: SlipCreationProduct[][] = [];
+  const unpairedUppers: SlipCreationProduct[] = [];
+
+  for (const upper of uppers) {
+    const lowerQueue = lowersByProductId.get(upper.product_id);
+    if (lowerQueue && lowerQueue.length > 0) {
+      slips.push([upper, lowerQueue.shift()!]);
+    } else {
+      unpairedUppers.push(upper);
+    }
+  }
+
+  const unpairedLowers: SlipCreationProduct[] = [];
+  for (const queue of lowersByProductId.values()) {
+    unpairedLowers.push(...queue);
+  }
+
+  for (const upper of unpairedUppers) {
+    slips.push([upper]);
+  }
+  for (const lower of unpairedLowers) {
+    slips.push([lower]);
+  }
+
+  return slips;
 }
 
 function resolveExtractionId(row: { extraction_id?: number; id?: number } | undefined): number {
@@ -361,19 +421,9 @@ export function buildTeethSelection(
       product.has_retention === "Yes"
         ? resolveRetentionOptionIdForTooth(product, retentionTypesByTooth, toothNumber)
         : {};
-    const extraction_id =
-      product.has_extraction === "Yes"
-        ? resolveExtractionIdForTooth(
-            product,
-            toothNumber,
-            toothExtractionMap,
-            claspTeeth
-          )
-        : undefined;
     out.push({
       teeth_number: toothNumber,
       ...(retention_option_id ? { retention_option_id } : {}),
-      ...(extraction_id ? { extraction_ids: [extraction_id] } : {}),
     });
   }
   return out;

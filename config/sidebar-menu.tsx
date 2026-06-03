@@ -354,34 +354,34 @@ export const officeAdminMenu: MenuItem[] = [
     icon: <Building className="h-5 w-5" />,
     path: "/office-profile",
   },
-  // {
-  //   id: "user-management",
-  //   title: "User Management",
-  //   icon: <Users className="h-5 w-5" />,
-  //   path: "#",
-  //   children: [
-  //     {
-  //       id: "all-users",
-  //       title: "All Users",
-  //       path: "/office-administrator/user-management",
-  //     },
-  //     {
-  //       id: "office-admin",
-  //       title: "Office Admin",
-  //       path: "/office-administrator/office-admin",
-  //     },
-  //     {
-  //       id: "doctors",
-  //       title: "Doctors",
-  //       path: "/office-administrator/doctors",
-  //     },
-  //     {
-  //       id: "users",
-  //       title: "Users",
-  //       path: "/office-administrator/users",
-  //     },
-  //   ],
-  // },
+  {
+    id: "user-management",
+    title: "User Management",
+    icon: <Users className="h-5 w-5" />,
+    path: "#",
+    children: [
+      {
+        id: "all-users",
+        title: "All Users",
+        path: "/office-administrator/user-management",
+      },
+      {
+        id: "office-admin",
+        title: "Office Admin",
+        path: "/office-administrator/office-admin",
+      },
+      {
+        id: "doctors",
+        title: "Doctors",
+        path: "/office-administrator/doctors",
+      },
+      {
+        id: "users",
+        title: "Users",
+        path: "/office-administrator/users",
+      },
+    ],
+  },
   {
     id: "case-management",
     title: "Case Management",
