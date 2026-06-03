@@ -303,7 +303,7 @@ export default function SlipPage() {
     const isInteractiveElement = target.closest('button, a, svg, input, [role="button"]')
     
     if (!isInteractiveElement) {
-      window.open(`/virtual-slip/${slip.id}`, '_blank')
+      window.open(`/virtual-slip-v2/${slip.id}`, '_blank')
     }
   }
 

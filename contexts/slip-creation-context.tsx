@@ -46,9 +46,14 @@ export interface SlipCreationProduct {
   category_id: number
   product_id: number
   subcategory_id: number
+  variation_id?: number
   stage_id: number
   grade_id: number
-  teeth_selection: string
+  teeth_selection: Array<{
+    teeth_number: number
+    retention_option_id?: number
+    extraction_ids?: number[]
+  }>
   teeth_shade_brand_id: number
   teeth_shade_id: number
   gum_shade_brand_id: number
@@ -57,6 +62,7 @@ export interface SlipCreationProduct {
   notes?: string
   rush?: SlipCreationProductRush
   impressions?: SlipCreationImpression[]
+  opposite_impressions?: SlipCreationImpression[]
   addons?: SlipCreationAddon[]
   extractions?: SlipCreationExtraction[]
   opposite_extractions?: SlipCreationExtraction[]
@@ -253,6 +259,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   const [slipDetails, setSlipDetails] = useState<any | null>(null)
   const [virtualSlipDetails, setVirtualSlipDetails] = useState<any | null>(null)
   const [slipAttachments, setSlipAttachments] = useState<any[] | null>(null)
+  const virtualSlipDetailsInflightRef = useRef<Map<number, Promise<void>>>(new Map())
 
   // Get token from localStorage (if available)
   let token = ""
@@ -796,20 +803,35 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   const fetchVirtualSlipDetails = useCallback(async (slipId: number) => {
-    try {
-      const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
-      const res = await fetch(url.toString(), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      const json = await res.json()
-      setVirtualSlipDetails(json.data || null)
-    } catch (e) {
-      setVirtualSlipDetails(null)
+    if (!slipId) return
+
+    const inFlight = virtualSlipDetailsInflightRef.current.get(slipId)
+    if (inFlight) {
+      await inFlight
+      return
     }
+
+    const requestPromise = (async () => {
+      try {
+        const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
+        const res = await fetch(url.toString(), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        const json = await res.json()
+        setVirtualSlipDetails(json.data || null)
+      } catch (e) {
+        setVirtualSlipDetails(null)
+      } finally {
+        virtualSlipDetailsInflightRef.current.delete(slipId)
+      }
+    })()
+
+    virtualSlipDetailsInflightRef.current.set(slipId, requestPromise)
+    await requestPromise
   }, [token])
 
   // Fetch attachments for a slip

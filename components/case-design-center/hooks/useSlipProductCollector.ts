@@ -22,6 +22,10 @@ export function useSlipProductCollector({
     const MAXILLARY_ALL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
     const MANDIBULAR_ALL = [17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
     const snapshots: SlipProductSnapshot[] = [];
+    const getOpposingArch = (arch: "maxillary" | "mandibular") =>
+      arch === "maxillary" ? "mandibular" : "maxillary";
+    const getOpposingArchTeeth = (arch: "maxillary" | "mandibular") =>
+      arch === "maxillary" ? MANDIBULAR_ALL : MAXILLARY_ALL;
 
     const processArch = (arch: "maxillary" | "mandibular", type: "Upper" | "Lower", allTeeth: number[]) => {
       const cardGroups = new Map<number, number[]>();
@@ -85,15 +89,29 @@ export function useSlipProductCollector({
         });
         const teethSelection = filteredByExtraction.length > 0 ? filteredByExtraction : sortedTeeth;
 
+        const catalog = productApiData?.impressions ?? [];
+        const resolveImpressionCode = (entryCode: string) => {
+          const match = catalog.find((i) => i.code === entryCode);
+          return match?.code ?? entryCode;
+        };
+
         const impressions: Record<string, number> = {};
         if (productApiData?.has_impression === "Yes") {
           const archEntries = state.selectedImpressions?.[arch] ?? [];
           for (const entry of archEntries) {
             if (entry.qty <= 0) continue;
-            const catalog = productApiData.impressions ?? [];
-            const match = catalog.find((i) => i.code === entry.code);
-            const code = match?.code ?? entry.code;
-            impressions[code] = entry.qty;
+            impressions[resolveImpressionCode(entry.code)] = entry.qty;
+          }
+        }
+
+        const oppositeImpressions: Record<string, number> = {};
+        if (productApiData?.opposite_impression === "Yes") {
+          const opposingArch = getOpposingArch(arch);
+          const opposingEntries = state.selectedImpressions?.[opposingArch] ?? [];
+          for (const entry of opposingEntries) {
+            if (entry.qty <= 0) continue;
+            const code = resolveImpressionCode(entry.code);
+            oppositeImpressions[code] = entry.qty;
           }
         }
 
@@ -133,6 +151,28 @@ export function useSlipProductCollector({
               (opExt as { extraction_id?: number })?.extraction_id ?? opExt?.id ?? 0;
             return { extraction_id, teeth_numbers: toothNums.sort((a, b) => a - b) };
           }).filter((entry) => entry.extraction_id !== 0);
+        } else if (productApiData?.opposite_extractions?.length) {
+          const defaultOpposingExtraction = productApiData.opposite_extractions.find(
+            (ext) => String((ext as { is_default?: string })?.is_default ?? "").trim().toLowerCase() === "yes"
+          );
+          const defaultExtractionId = Number(
+            (defaultOpposingExtraction as { extraction_id?: number })?.extraction_id ??
+              defaultOpposingExtraction?.id ??
+              0
+          );
+          if (defaultExtractionId > 0) {
+            const opposingArch = getOpposingArch(arch);
+            const defaultTeeth =
+              state.opposingSelectedTeeth.length > 0
+                ? state.opposingSelectedTeeth
+                : getOpposingArchTeeth(opposingArch);
+            oppositeExtractions = [
+              {
+                extraction_id: defaultExtractionId,
+                teeth_numbers: [...defaultTeeth].sort((a, b) => a - b),
+              },
+            ];
+          }
         }
 
         const implantDetailMap = arch === "maxillary" ? maxillaryImplantDetail : mandibularImplantDetail;
@@ -155,6 +195,7 @@ export function useSlipProductCollector({
           fieldValues,
           stageName,
           impressions,
+          ...(Object.keys(oppositeImpressions).length > 0 ? { oppositeImpressions } : {}),
           rush,
           cardId,
           toothExtractionMap: { ...(extractionMap ?? {}) },

@@ -18,8 +18,13 @@ export interface SlipProductSnapshot {
   fieldValues: Record<string, string>;
   /** Stage name selected for this product */
   stageName: string | null;
-  /** Impression selections: { impressionCode: quantity } */
+  /** Impression selections for the product arch: { impressionCode: quantity } */
   impressions: Record<string, number>;
+  /**
+   * Opposing-arch impression selections when opposite_impression is enabled.
+   * Submitted as `opposite_impressions` on the slip product (not merged into `impressions`).
+   */
+  oppositeImpressions?: Record<string, number>;
   /** Rush data if applicable (UI: `targetDate`; normalized at submit) */
   rush: Record<string, unknown> | null;
   /** Per-tooth extraction code assignments for this card */

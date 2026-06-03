@@ -90,6 +90,21 @@ export interface SlipCreationRetentionOption {
   teeth_number: number;
 }
 
+export interface SlipCreationToothChart {
+  tooth_number: number;
+  chart_type?: string;
+  retention_id?: number;
+  retention_option_id?: number;
+  extraction_id?: number;
+  opposite_extraction_id?: number;
+}
+
+export interface SlipCreationTeethSelection {
+  teeth_number: number;
+  retention_option_id?: number;
+  extraction_ids?: number[];
+}
+
 export interface SlipCreationImplantDetail {
   teeth_number: number;
   implant_id: number;
@@ -99,7 +114,9 @@ export interface SlipCreationImplantDetail {
 
 export interface SlipCreationAbutmentDetail {
   teeth_number: number;
+  abutment_id?: number;
   abutment_type_id: number;
+  abutment_option_id?: number;
 }
 
 export interface SlipCreationAdvanceField {
@@ -108,6 +125,12 @@ export interface SlipCreationAdvanceField {
   advance_field_value?: string | null;
   /** Present only while building payload; stripped before JSON and sent as nested multipart file keys. */
   file?: File;
+}
+
+export interface SlipCreationShadeDetail {
+  advance_field_id: number;
+  teeth_shade_brand_id: number;
+  teeth_shade_id: number;
 }
 
 export interface SlipCreationNote {
@@ -119,9 +142,10 @@ export interface SlipCreationProduct {
   category_id: number;
   product_id: number;
   subcategory_id: number;
+  variation_id?: number;
   stage_id?: number;
   grade_id?: number;
-  teeth_selection?: string;
+  teeth_selection?: SlipCreationTeethSelection[];
   teeth_shade_brand_id?: number;
   teeth_shade_id?: number;
   gum_shade_brand_id?: number;
@@ -131,11 +155,14 @@ export interface SlipCreationProduct {
   notes?: string;
   rush?: SlipCreationRush;
   impressions?: SlipCreationImpression[];
+  opposite_impressions?: SlipCreationImpression[];
   extractions?: SlipCreationExtraction[];
   opposite_extractions?: SlipCreationExtraction[];
   addons?: SlipCreationAddon[];
   retentions?: SlipCreationRetention[];
   retention_options?: SlipCreationRetentionOption[];
+  tooth_chart?: SlipCreationToothChart[];
+  shade_details?: SlipCreationShadeDetail[];
   advance_fields?: SlipCreationAdvanceField[];
   implant_details?: SlipCreationImplantDetail[];
   abutment_details?: SlipCreationAbutmentDetail[];

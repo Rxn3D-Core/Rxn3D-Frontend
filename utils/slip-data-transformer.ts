@@ -397,6 +397,26 @@ function transformProduct(
       }))
     : undefined;
 
+  const extractionIdsByTooth = new Map<number, number[]>();
+  (extractions ?? []).forEach((ext) => {
+    (ext.teeth_numbers ?? []).forEach((toothNumber) => {
+      const existing = extractionIdsByTooth.get(toothNumber) ?? [];
+      existing.push(ext.extraction_id);
+      extractionIdsByTooth.set(toothNumber, existing);
+    });
+  });
+
+  const teethSelectionRows = teeth
+    .slice()
+    .sort((a, b) => a - b)
+    .map((toothNumber) => ({
+      teeth_number: toothNumber,
+      ...(retentionOptionId ? { retention_option_id: retentionOptionId } : {}),
+      ...(extractionIdsByTooth.get(toothNumber)?.length
+        ? { extraction_ids: extractionIdsByTooth.get(toothNumber) }
+        : {}),
+    }));
+
   const product: SlipCreationProduct = {
     type,
     category_id: savedProduct.categoryId,
@@ -404,7 +424,7 @@ function transformProduct(
     subcategory_id: savedProduct.subcategoryId,
     stage_id: stageId,
     grade_id: gradeId,
-    teeth_selection: teeth.length > 0 ? teeth.sort((a, b) => a - b).join(",") : undefined,
+    teeth_selection: teethSelectionRows.length > 0 ? teethSelectionRows : undefined,
     teeth_shade_brand_id: teethShadeBrandId,
     teeth_shade_id: teethShadeId,
     gum_shade_brand_id: gumShadeBrandId,

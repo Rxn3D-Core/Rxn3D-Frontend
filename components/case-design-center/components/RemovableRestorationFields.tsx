@@ -518,9 +518,6 @@ export function SelectionProductFields({
                 "tooth_shade",
                 `prep_${firstToothNumber}`
               );
-              if (!isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")) {
-                completeFieldStepFn(arch, firstToothNumber, "teeth_shade", "Vita Classical");
-              }
             }}
           >
             <legend

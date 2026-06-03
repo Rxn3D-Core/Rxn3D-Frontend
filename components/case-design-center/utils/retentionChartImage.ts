@@ -124,8 +124,11 @@ export function getRetentionChartImageUrl(
     retentionTypesByTooth,
     retentionOptions
   );
-  if (!opt || !retentionOptionHasFullArchImages(opt, arch)) return null;
+  if (!opt) return null;
 
+  // Full-arch images: preferred path (CDC). Single-tooth images also work (virtual slip read-only).
+  // Selector-shape options have no images array entries, so toothImageFromImagesArray returns null
+  // and the selector-shape path in getRetentionSelectorShape takes over as before.
   return toothImageFromImagesArray(opt.images, toothNumber);
 }
 
