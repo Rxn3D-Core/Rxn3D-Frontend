@@ -73,6 +73,7 @@ import {
   productHasOpposingImpression,
 } from "./virtual-slip-extraction-display";
 import { hasDisplayValue } from "./virtual-slip-display";
+import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates";
 
 export type { ExtractionDisplayVM, OpposingArchVM } from "./virtual-slip-extraction-display";
 
@@ -117,6 +118,12 @@ export interface VirtualSlipHeaderVM {
   deliveryTime: string;
   dueDate: string;
   pickupDate: string;
+  /** Slip or any product is on rush. */
+  isRush: boolean;
+  /** Standard (non-rush) due date when rushed; same as dueDate when not rushed. */
+  standardDueDate: string;
+  /** Rush target due date when rushed. */
+  rushDueDate: string;
 }
 
 export type SlipProductArchKey = "maxillary" | "mandibular";
@@ -534,10 +541,15 @@ function collectNotes(slipNotes: unknown, products: any[]): string {
 function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM | null {
   const archProducts = allProducts.filter((p) => archFromType(p?.type) === arch);
   /** Opposite_* fields live on the other arch's products; render on this column (CDC layout). */
-  const opposing = buildOpposingArchVM(
+  let opposing = buildOpposingArchVM(
     arch === "mandibular" ? "maxillary" : "mandibular",
     allProducts,
   );
+  // When this column has its own product(s), opposing impressions belong on the
+  // product summary — not in the cross-arch "Opposing" block (CDC dual-arch slip).
+  if (opposing && archProducts.length > 0) {
+    opposing = { ...opposing, showImpression: false, impression: "" };
+  }
   const hasOpposingData = opposing != null;
 
   // Return null only when there are no direct products AND no opposing data for this arch.
@@ -702,13 +714,14 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
   });
 
   const opposingOnly = archProducts.length === 0 && opposing != null;
+  const opposingColumn = opposingOnly ? opposing : null;
 
   return {
-    arch: opposingOnly ? opposing.arch : arch,
-    teeth: opposingOnly ? opposing.teeth : teeth,
-    selectedTeeth: opposingOnly ? [] : Array.from(selected),
-    toothChartSelectionsByTooth: opposingOnly ? {} : toothChartSelectionsByTooth,
-    extractionDisplay: opposingOnly ? opposing.extractionDisplay : extractionDisplay,
+    arch: opposingColumn?.arch ?? arch,
+    teeth: opposingColumn?.teeth ?? teeth,
+    selectedTeeth: opposingColumn ? [] : Array.from(selected),
+    toothChartSelectionsByTooth: opposingColumn ? {} : toothChartSelectionsByTooth,
+    extractionDisplay: opposingColumn?.extractionDisplay ?? extractionDisplay,
     products: productVMs,
     opposingImpression: opposing?.impression ?? "",
     opposing,
@@ -736,6 +749,8 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
   // created_by appears both top-level (slip / paper-slip responses) and nested
   // under `case` (case-details response); read name/image across both so the
   // avatar resolves from whichever source carries it.
+  const deliveryDates = resolveSlipDeliveryDates(safe, products);
+
   const header: VirtualSlipHeaderVM = {
     officeName: firstStr(caseObj.office?.name, safe.office?.name),
     officeLogo: firstStr(caseObj.office?.logo_url, caseObj.office?.image) || null,
@@ -754,8 +769,11 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
     status: firstStr(safe.status, caseObj.case_status),
     location: firstStr(safe.location?.name),
     deliveryTime: formatTime(safe.delivery?.delivery_time),
-    dueDate: formatDate(safe.delivery?.delivery_date),
+    dueDate: deliveryDates.dueDate,
     pickupDate: formatDate(safe.delivery?.pickup_date),
+    isRush: deliveryDates.isRush,
+    standardDueDate: deliveryDates.standardDueDate,
+    rushDueDate: deliveryDates.rushDueDate,
   };
 
   // Slip notes are an array ({ note }), one per added note. Join them; fall back

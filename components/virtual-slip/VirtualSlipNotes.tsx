@@ -28,6 +28,8 @@ interface VirtualSlipNotesProps {
   productStage?: string;
   /** Standard delivery as `yyyy-MM-dd` for rush modal (not display-formatted due date). */
   deliveryDateIso?: string;
+  /** Slip already has rush — enables Remove Rush in modal. */
+  slipIsRush?: boolean;
   /** One column per product; only arches with products (slip-creation parity). */
   rushArchSlots?: VirtualSlipRushArchSlot[];
   /** Per-product add-on columns (product-details catalogs per slot). */
@@ -54,6 +56,7 @@ export function VirtualSlipNotes({
   productName = "Case",
   productStage = "Unknown Stage",
   deliveryDateIso = "",
+  slipIsRush = false,
   rushArchSlots = [],
   addonArchSlots = [],
   addonProducts = [],
@@ -72,7 +75,7 @@ export function VirtualSlipNotes({
     ] as SlipProductArchKey[]);
   const router = useRouter();
   const { toast } = useToast();
-  const { requestSlipRush } = useSlipCreation();
+  const { requestSlipRush, cancelSlipRush } = useSlipCreation();
   const [displayNotes, setDisplayNotes] = useState(notes);
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [addonsModalOpen, setAddonsModalOpen] = useState(false);
@@ -88,6 +91,29 @@ export function VirtualSlipNotes({
   const handleNotesChanged = (summaryText: string) => {
     setDisplayNotes(summaryText);
     onNotesChanged?.(summaryText);
+  };
+
+  const handleRemoveRush = async () => {
+    if (!slipId || slipId <= 0) return;
+    setRushSubmitting(true);
+    try {
+      await cancelSlipRush(slipId);
+      toast({
+        title: "Rush removed",
+        description: "The rush request was cancelled.",
+        duration: 3000,
+      });
+      setRushModalOpen(false);
+      onRushChanged?.();
+    } catch (error) {
+      toast({
+        title: "Unable to remove rush",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRushSubmitting(false);
+    }
   };
 
   const handleConfirmRush = async (rushData: { targetDate?: string | null }) => {
@@ -170,6 +196,32 @@ export function VirtualSlipNotes({
           isOpen
           onClose={() => setRushModalOpen(false)}
           onConfirm={handleConfirmRush}
+          isRushed={slipIsRush || rushArchSlots.some((s) => s.isRushed)}
+          existingRushDate={
+            rushArchSlots.find((s) => s.existingRushDate)?.existingRushDate
+          }
+          onRemoveRush={handleRemoveRush}
+          onRemoveRushByKey={() => {
+            void handleRemoveRush();
+          }}
+          maxRushed={rushArchSlots.some((s) => s.arch === "maxillary" && s.isRushed)}
+          maxExistingRushDate={
+            rushArchSlots.find((s) => s.arch === "maxillary")?.existingRushDate
+          }
+          mandRushed={rushArchSlots.some((s) => s.arch === "mandibular" && s.isRushed)}
+          mandExistingRushDate={
+            rushArchSlots.find((s) => s.arch === "mandibular")?.existingRushDate
+          }
+          onRemoveMaxRush={
+            rushArchSlots.some((s) => s.arch === "maxillary" && s.isRushed)
+              ? handleRemoveRush
+              : undefined
+          }
+          onRemoveMandRush={
+            rushArchSlots.some((s) => s.arch === "mandibular" && s.isRushed)
+              ? handleRemoveRush
+              : undefined
+          }
           archSlots={rushArchSlots}
           hasMaxillary={
             rushArchSlots.length > 0

@@ -16,6 +16,7 @@ import {
   type SlipAttachmentUploadOptions,
   type SlipAttachmentsListParams,
 } from "@/services/slip-attachments-service"
+import { removeSlipRush } from "@/lib/api/slip-rush"
 
 // --- Types based on sample payload ---
 export interface SlipCreationCase {
@@ -246,6 +247,8 @@ interface SlipCreationContextType {
 
   // Request a rush for a slip using TanStack React Query
   requestSlipRush: (slipId: number, payload: { requested_delivery_date: string }) => Promise<any>
+  /** Remove rush from an existing slip (DELETE /v1/slip/{id}/rush). */
+  cancelSlipRush: (slipId: number) => Promise<any>
 
   // Create a new slip (POST /slip/create)
   createSlip: (
@@ -325,6 +328,16 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   const requestSlipRush = useCallback(async (slipId: number, payload: { requested_delivery_date: string }) => {
     return rushMutation.mutateAsync({ slipId, payload })
   }, [rushMutation])
+
+  const cancelSlipRush = useCallback(async (slipId: number) => {
+    const data = await removeSlipRush(slipId)
+    if (data && typeof data === "object") {
+      setVirtualSlipDetails(data)
+    }
+    queryClient.invalidateQueries({ queryKey: ["slipDetails", slipId] })
+    queryClient.invalidateQueries({ queryKey: ["slipAttachments", slipId] })
+    return data
+  }, [queryClient])
 
   // --- API fetchers ---
   const fetchConnectedLabs = useCallback(async (params?: { search?: string; sort_by?: string; sort_order?: string }) => {
@@ -1088,6 +1101,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         sendBackToOfficeSlip,
         generatePaperSlips,
         requestSlipRush,
+        cancelSlipRush,
         createSlip,
       }}
     >
