@@ -237,7 +237,7 @@ export default function LabSlipPage() {
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
 
-  const { slips, loading, fetchLabSlips, fetchDriverPrintData, createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates, readyToSend, labListingPagination } = useSlipContext();
+  const { slips, loading, fetchLabSlips, fetchDriverPrintData, fetchOfficeSlips, readyToSend, labListingPagination } = useSlipContext();
   const { generatePaperSlips, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
@@ -402,42 +402,28 @@ export default function LabSlipPage() {
     }
   }
 
-  const handleDateChange = async (date: string, time: string, reason: string) => {
-    if (!selectedSlipForDateChange) return;
+  const refreshSlipsAfterCustomDeliveryDate = () => {
     try {
-      const slipId = selectedSlipForDateChange.id;
-      const res = await createCustomDeliveryDate(slipId, date, time, reason);
-      if (res && res.success) {
-        toast({ title: 'Saved', description: res.message || 'Custom delivery date created', duration: 3000 });
-        // refresh slips for current customer
-        try {
-          if (typeof window !== 'undefined') {
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            const customerId = user?.customers?.[0]?.id;
-            const customerType = localStorage.getItem('customerType');
-            if (customerId) {
-              if (customerType === 'lab') {
-                void fetchLabSlips(customerId);
-              } else if (customerType === 'office') {
-                void fetchOfficeSlips(customerId);
-              } else {
-                void fetchLabSlips(customerId);
-                void fetchOfficeSlips(customerId);
-              }
-            }
+      if (typeof window !== "undefined") {
+        const userStr = localStorage.getItem("user");
+        const user = userStr ? JSON.parse(userStr) : null;
+        const customerId = user?.customers?.[0]?.id;
+        const customerType = localStorage.getItem("customerType");
+        if (customerId) {
+          if (customerType === "lab") {
+            void fetchLabSlips(customerId);
+          } else if (customerType === "office") {
+            void fetchOfficeSlips(customerId);
+          } else {
+            void fetchLabSlips(customerId);
+            void fetchOfficeSlips(customerId);
           }
-        } catch (err) {
-          console.error('Error refreshing slips after creating custom date:', err);
         }
-      } else {
-        toast({ title: 'Save failed', description: res?.message || 'Failed to save custom delivery date', variant: 'destructive' });
       }
     } catch (err) {
-      console.error('Error saving custom delivery date:', err);
-      toast({ title: 'Error', description: 'Unexpected error while saving', variant: 'destructive' });
+      console.error("Error refreshing slips after creating custom date:", err);
     }
-  }
+  };
 
   const handleAddOnsClick = (slip: any) => {
     setSelectedSlipForAddOns(slip)
@@ -2103,7 +2089,7 @@ export default function LabSlipPage() {
             deliveryTime="10:00"
             slipId={selectedSlipForDateChange.id}
             history={getChangeDateHistory(selectedSlipForDateChange.id)}
-            onSave={handleDateChange}
+            onSaved={refreshSlipsAfterCustomDeliveryDate}
           />
         )}
 

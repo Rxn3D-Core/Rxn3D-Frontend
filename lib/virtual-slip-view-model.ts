@@ -115,6 +115,8 @@ export interface VirtualSlipHeaderVM {
   panNumber: string;
   status: string;
   location: string;
+  /** `slip_locations` id when API provides it (listing / FAB actions). */
+  locationId?: number;
   deliveryTime: string;
   dueDate: string;
   pickupDate: string;
@@ -767,7 +769,15 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
     caseNumber: firstStr(caseObj.case_number),
     panNumber: firstStr(safe.casepan?.number, caseObj.casepan?.number),
     status: firstStr(safe.status, caseObj.case_status),
-    location: firstStr(safe.location?.name),
+    location: firstStr(safe.location?.current?.name, safe.location?.name),
+    locationId:
+      typeof safe.location?.current?.id === "number"
+        ? safe.location.current.id
+        : typeof safe.location?.id === "number"
+          ? safe.location.id
+          : typeof safe.location_id === "number"
+            ? safe.location_id
+            : undefined,
     deliveryTime: formatTime(safe.delivery?.delivery_time),
     dueDate: deliveryDates.dueDate,
     pickupDate: formatDate(safe.delivery?.pickup_date),

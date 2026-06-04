@@ -75,19 +75,35 @@ function getOptionName(opt: RetentionOptionItem): string {
   return opt.name || opt.retention_option?.name || opt.lab_retention_option?.name || 'Unknown'
 }
 
-function getRetentionChartType(opt: RetentionOptionItem): RetentionChartType | null {
+function getOptionHasImplant(opt: RetentionOptionItem): boolean {
+  const raw =
+    opt.has_implant ??
+    opt.retention_option?.has_implant ??
+    opt.lab_retention_option?.has_implant
+  return raw === 'Yes'
+}
+
+/**
+ * Resolve which tooth-chart category a retention option renders as.
+ * Priority: explicit `tooth_chart_type` from the API → otherwise derive from
+ * `has_implant` (Yes → Implant, No → Prep). Always returns a category so that
+ * every active retention option from the product is shown in the popover.
+ */
+function getRetentionChartType(opt: RetentionOptionItem): RetentionChartType {
   const rawType =
     opt.tooth_chart_type ||
     opt.retention_option?.tooth_chart_type ||
-    opt.lab_retention_option?.tooth_chart_type ||
-    getOptionName(opt)
+    opt.lab_retention_option?.tooth_chart_type
 
-  const mapped = NAME_TO_RETENTION_TYPE[rawType]
-  if (mapped) return mapped
-  if (RETENTION_CHART_TYPES.includes(rawType as RetentionChartType)) {
-    return rawType as RetentionChartType
+  if (rawType) {
+    const mapped = NAME_TO_RETENTION_TYPE[rawType]
+    if (mapped) return mapped
+    if (RETENTION_CHART_TYPES.includes(rawType as RetentionChartType)) {
+      return rawType as RetentionChartType
+    }
   }
-  return null
+
+  return getOptionHasImplant(opt) ? 'Implant' : 'Prep'
 }
 
 function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
@@ -108,28 +124,20 @@ function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
 function buildRetentionPopoverOptions(
   retentionOptions: RetentionOptionItem[] | undefined,
   toothNumber: number
-): Array<{ toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
+): Array<{ id: number; toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
   if (!retentionOptions?.length) return []
 
-  const seen = new Set<RetentionChartType>()
-  const result: Array<{ toothChartType: RetentionChartType; name: string; imageUrl: string | null }> = []
-
-  const sorted = [...retentionOptions]
+  // Show every active retention option from the product (no whitelist, no
+  // collapsing by category) so the popover is fully driven by product data.
+  return [...retentionOptions]
     .filter((opt) => (opt.status || 'Active') === 'Active')
     .sort((a, b) => (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER))
-
-  for (const opt of sorted) {
-    const toothChartType = getRetentionChartType(opt)
-    if (!toothChartType || seen.has(toothChartType)) continue
-    seen.add(toothChartType)
-    result.push({
-      toothChartType,
+    .map((opt) => ({
+      id: opt.id,
+      toothChartType: getRetentionChartType(opt),
       name: getOptionName(opt),
       imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
-    })
-  }
-
-  return result
+    }))
 }
 
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
@@ -161,6 +169,12 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
     () => buildRetentionPopoverOptions(retentionOptions, toothNumber),
     [retentionOptions, toothNumber]
   )
+
+  // The chart stores/renders by category, so highlight the first option matching
+  // the selected category (the representative the chart draws), not every variant.
+  const selectedOptionId = selectedType
+    ? options.find((opt) => opt.toothChartType === selectedType)?.id
+    : undefined
 
   const showArrow = typeof arrowOffsetX === 'number'
 
@@ -198,10 +212,10 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
       <div className="z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors">
         <div className="flex gap-2">
           {options.map((opt) => {
-            const isSelected = selectedType === opt.toothChartType
+            const isSelected = opt.id === selectedOptionId
             return (
               <button
-                key={opt.toothChartType}
+                key={opt.id}
                 type="button"
                 onClick={() => {
                   onSelectRetentionType(opt.toothChartType)

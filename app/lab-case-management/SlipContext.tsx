@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { buildApiUrl } from "@/lib/api/client";
 
 type Slip = {
   id: number;
@@ -199,6 +200,15 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
+      if (!API_BASE_URL) {
+        console.error(
+          "fetchLabSlips: NEXT_PUBLIC_API_BASE_URL is not set. Copy .env.example to .env.local and restart the dev server."
+        );
+        setSlips([]);
+        setLabListingPagination(null);
+        return;
+      }
+
       const token = getToken();
       const params = new URLSearchParams();
       params.set("customer_id", String(customerId));
@@ -216,10 +226,10 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);
       if (effectiveQuery.sort_by) params.set("sort_by", effectiveQuery.sort_by);
 
-      const url = new URL("/v1/slip/listing/lab", API_BASE_URL);
-      url.search = params.toString();
+      const qs = params.toString();
+      const url = `${buildApiUrl("/slip/listing/lab")}${qs ? `?${qs}` : ""}`;
 
-      const res = await fetch(url.toString(), {
+      const res = await fetch(url, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: "application/json",
@@ -228,6 +238,13 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
       if (res.status === 401) {
         handleUnauthorized();
+        return;
+      }
+
+      if (!res.ok) {
+        console.error(`fetchLabSlips: HTTP ${res.status} for ${url}`);
+        setSlips([]);
+        setLabListingPagination(null);
         return;
       }
 
@@ -250,6 +267,10 @@ export function SlipProvider({ children }: { children: ReactNode }) {
           last_page: 1,
         });
       }
+    } catch (error) {
+      console.error("fetchLabSlips: network or request error", error);
+      setSlips([]);
+      setLabListingPagination(null);
     } finally {
       setLoading(false);
     }
@@ -258,25 +279,38 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   const fetchOfficeSlips = useCallback(async (customerId: number) => {
     setLoading(true);
     try {
+      if (!API_BASE_URL) {
+        console.error("fetchOfficeSlips: NEXT_PUBLIC_API_BASE_URL is not set.");
+        setSlips([]);
+        return;
+      }
+
       const token = getToken();
-      const res = await fetch(
-        `${API_BASE_URL}/slip/listing/office?customer_id=${customerId}`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      
+      const url = `${buildApiUrl("/slip/listing/office")}?customer_id=${customerId}`;
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+      });
+
       if (res.status === 401) {
         handleUnauthorized();
         return;
       }
-      
+
+      if (!res.ok) {
+        console.error(`fetchOfficeSlips: HTTP ${res.status}`);
+        setSlips([]);
+        return;
+      }
+
       const api = await res.json();
       const arr = api?.data?.data || [];
       setSlips(arr.map(mapApiSlip));
+    } catch (error) {
+      console.error("fetchOfficeSlips: network or request error", error);
+      setSlips([]);
     } finally {
       setLoading(false);
     }
@@ -553,14 +587,13 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /v1/slip/action/{slipId}/ready-to-send — no body. Success: { success, message }.
+   * POST /slip/action/{slipId}/ready-to-send — no body. Success: { success, message }.
    */
   const readyToSend = useCallback(async (slipId: number): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
-      const url = new URL(`/v1/slip/action/${slipId}/ready-to-send`, API_BASE_URL);
-      const res = await fetch(url.toString(), {
+      const res = await fetch(buildApiUrl(`/slip/action/${slipId}/ready-to-send`), {
         method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),

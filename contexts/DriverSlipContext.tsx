@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
+import { buildApiUrl } from "@/lib/api/client";
 import { slipService, QRScanPayload, QRScanResponse, QRScanResponseData } from "@/services/slip";
 
 // Types for the driver slip context
@@ -73,7 +74,7 @@ export function DriverSlipProvider({ children }: { children: ReactNode }) {
     
     try {
       const token = getToken();
-      const response = await fetch(`${API_BASE_URL}/slip/driver-history/slip/${slipId}`, {
+      const response = await fetch(buildApiUrl(`/slip/driver-history/slip/${slipId}`), {
         method: "GET",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
