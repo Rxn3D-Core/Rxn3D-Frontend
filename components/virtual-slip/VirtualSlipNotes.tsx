@@ -43,6 +43,12 @@ interface VirtualSlipNotesProps {
   hasMaxillary?: boolean;
   hasMandibular?: boolean;
   visibleArches?: SlipProductArchKey[];
+  /** When true, opens the slip notes modal (e.g. FAB Edit Slip). */
+  openNotesModal?: boolean;
+  onOpenNotesModalChange?: (open: boolean) => void;
+  /** When true, opens the rush modal (e.g. FAB Rush case). */
+  openRushModal?: boolean;
+  onOpenRushModalChange?: (open: boolean) => void;
 }
 
 /** Case summary notes + slip notes modal (edit icon) + jump-to-slip + related slip chips. */
@@ -66,6 +72,10 @@ export function VirtualSlipNotes({
   hasMaxillary = true,
   hasMandibular = true,
   visibleArches,
+  openNotesModal,
+  onOpenNotesModalChange,
+  openRushModal,
+  onOpenRushModalChange,
 }: VirtualSlipNotesProps) {
   const productArches =
     visibleArches ??
@@ -85,6 +95,14 @@ export function VirtualSlipNotes({
   useEffect(() => {
     setDisplayNotes(notes);
   }, [notes]);
+
+  useEffect(() => {
+    if (openNotesModal) setNotesModalOpen(true);
+  }, [openNotesModal]);
+
+  useEffect(() => {
+    if (openRushModal) setRushModalOpen(true);
+  }, [openRushModal]);
 
   const summaryNotes = displayNotes;
 
@@ -194,7 +212,10 @@ export function VirtualSlipNotes({
       {slipId > 0 && rushModalOpen && rushArchSlots.length > 0 && (
         <RushRequestModal
           isOpen
-          onClose={() => setRushModalOpen(false)}
+          onClose={() => {
+            setRushModalOpen(false);
+            onOpenRushModalChange?.(false);
+          }}
           onConfirm={handleConfirmRush}
           isRushed={slipIsRush || rushArchSlots.some((s) => s.isRushed)}
           existingRushDate={
@@ -245,7 +266,10 @@ export function VirtualSlipNotes({
       {slipId > 0 && (
         <SlipNotesModal
           isOpen={notesModalOpen}
-          onClose={() => setNotesModalOpen(false)}
+          onClose={() => {
+            setNotesModalOpen(false);
+            onOpenNotesModalChange?.(false);
+          }}
           slipId={slipId}
           slipNumber={slipNumber}
           patientName={patientName}

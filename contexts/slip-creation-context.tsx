@@ -17,6 +17,11 @@ import {
   type SlipAttachmentsListParams,
 } from "@/services/slip-attachments-service"
 import { removeSlipRush } from "@/lib/api/slip-rush"
+import {
+  postSlipCancel,
+  postSlipHold,
+  postSlipResume,
+} from "@/lib/api/slip-case-actions"
 
 // --- Types based on sample payload ---
 export interface SlipCreationCase {
@@ -915,59 +920,20 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   )
 
   // --- Hold, Resume, Cancel APIs ---
-  const holdSlip = useCallback(async (slipId: number, reason: string) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/action/${slipId}/hold`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ reason }),
-    });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Failed to put slip on hold");
-    return json;
-  }, [token]);
+  const holdSlip = useCallback(
+    async (slipId: number, reason: string) => postSlipHold(slipId, reason),
+    []
+  );
 
-  const resumeSlip = useCallback(async (slipId: number, reason: string) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/action/${slipId}/resume`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ reason }),
-    });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Failed to resume slip");
-    return json;
-  }, [token]);
+  const resumeSlip = useCallback(
+    async (slipId: number, reason: string) => postSlipResume(slipId, reason),
+    []
+  );
 
-  const cancelSlip = useCallback(async (slipId: number, reason: string) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/action/${slipId}/cancel`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ reason }),
-    });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Failed to cancel slip");
-    return json;
-  }, [token]);
+  const cancelSlip = useCallback(
+    async (slipId: number, reason: string) => postSlipCancel(slipId, reason),
+    []
+  );
 
   const sendBackToOfficeSlip = useCallback(async (slipId: number, reason: string) => {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/action/${slipId}/send-back-to-office`, {

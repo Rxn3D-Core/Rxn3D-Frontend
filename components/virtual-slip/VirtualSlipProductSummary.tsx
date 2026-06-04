@@ -7,6 +7,7 @@ import type { ProductVM } from "@/lib/virtual-slip-view-model";
 import { buildVirtualSlipStatusBoxProps } from "@/lib/virtual-slip-extraction-display";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 import { VirtualSlipExtractionStatusBoxes } from "./VirtualSlipExtractionStatusBoxes";
+import { VirtualSlipImplantDetailsAccordion } from "./VirtualSlipImplantDetailsAccordion";
 
 /** A single "Label: Value" detail row (Verdana, #4C4D55). */
 function Detail({ label, value }: { label: string; value: string }) {
@@ -123,23 +124,7 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
         </div>
 
         {showImplantColumn && (
-          <div className="space-y-3">
-            {product.implants.map((imp) => (
-              <div key={imp.toothNumber}>
-                {imp.toothNumber > 0 && (
-                  <p className="mb-1 font-sans text-[13px] font-bold text-[#4C4D55]">
-                    #{imp.toothNumber}
-                  </p>
-                )}
-                <Detail label="Implant Brand" value={imp.brand} />
-                <Detail label="Implant Platform" value={imp.platform} />
-                <Detail label="Implant Size" value={imp.size} />
-                <Detail label="Abutment Type" value={imp.abutmentType} />
-                <Detail label="Abutment Option" value={imp.abutmentOption} />
-                <Detail label="Retention" value={imp.retentionMechanism} />
-              </div>
-            ))}
-          </div>
+          <VirtualSlipImplantDetailsAccordion implants={product.implants} />
         )}
       </div>
 

@@ -1,11 +1,13 @@
 /**
  * Slip rush API — remove active rush from an existing slip.
  *
- * DELETE /v1/slip/{slipId}/rush
+ * DELETE /slip/{slipId}/rush (base URL already includes /v1 when configured)
  * - No request body
  * - 400 when slip has no active rush or slip is Finished/Cancelled
  * - Returns full slip details in `data` (SlipDetailResource)
  */
+
+import { buildApiUrl } from "@/lib/api/client";
 
 function getAuthHeaders(): HeadersInit {
   const token =
@@ -16,15 +18,9 @@ function getAuthHeaders(): HeadersInit {
   }
 }
 
-function apiBase(): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL
-  if (!base) throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured")
-  return base.endsWith("/") ? base.slice(0, -1) : base
-}
-
 /** Remove rush from slip; returns updated slip detail payload. */
 export async function removeSlipRush(slipId: number): Promise<unknown> {
-  const res = await fetch(`${apiBase()}/v1/slip/${slipId}/rush`, {
+  const res = await fetch(buildApiUrl(`/slip/${slipId}/rush`), {
     method: "DELETE",
     headers: getAuthHeaders(),
   })

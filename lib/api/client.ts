@@ -22,6 +22,11 @@ const ensureAbsoluteUrl = (url: string): string => {
   return `${baseUrl}${path}`
 }
 
+/** Build an absolute API URL from a path (e.g. `/slip/listing/lab`). */
+export function buildApiUrl(path: string): string {
+  return ensureAbsoluteUrl(path)
+}
+
 // Helper function to get auth headers
 const getAuthHeaders = () => {
   if (typeof window === 'undefined') return {}

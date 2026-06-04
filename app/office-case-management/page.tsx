@@ -1065,7 +1065,6 @@ export default function SlipPage() {
           deliveryTime="10:00"
           slipId={selectedSlipForDateChange.id}
           history={getChangeDateHistory(selectedSlipForDateChange.id)}
-          onSave={() => {}}
         />
       )}
 

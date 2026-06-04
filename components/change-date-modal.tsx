@@ -13,29 +13,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar as LucideCalendar, Clock, X, MoreVertical, Info } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { useSlipContext } from "@/app/lab-case-management/SlipContext";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-interface ChangeDateHistoryItem {
-  id: number;
-  slip_id: number;
-  delivery_date: string;
-  delivery_time: string;
-  notes: string;
-  created_at: string;
-  formatted_delivery_date: string;
-  formatted_delivery_time: string;
-  created_by: {
-    id: number;
-    name: string;
-    email: string;
-  };
-}
+import { useToast } from "@/components/ui/use-toast";
+import {
+  createSlipCustomDeliveryDate,
+  getSlipCustomDeliveryDates,
+  normalizeDeliveryTimeForInput,
+  type CustomDeliveryDateEntry,
+} from "@/lib/api/slip-custom-delivery-dates";
 
 interface ChangeDateModalProps {
   open: boolean;
@@ -46,8 +36,12 @@ interface ChangeDateModalProps {
   deliveryDate: string;
   deliveryTime: string;
   slipId?: number;
-  history?: ChangeDateHistoryItem[]; // Keep for backward compatibility but we'll fetch our own
-  onSave?: (date: string, time: string, reason: string) => void; // Keep for backward compatibility
+  /** Raw delivery time from slip API (optional; falls back to deliveryTime display string). */
+  deliveryTimeRaw?: string;
+  history?: CustomDeliveryDateEntry[];
+  onSave?: (date: string, time: string, reason: string) => void;
+  /** Called after a successful API save (e.g. refresh virtual slip). */
+  onSaved?: () => void;
 }
 
 export default function ChangeDateModal({
@@ -59,9 +53,12 @@ export default function ChangeDateModal({
   deliveryDate,
   deliveryTime,
   slipId,
-  history = [], // Keep for backward compatibility
-  onSave, // Keep for backward compatibility
+  deliveryTimeRaw,
+  history = [],
+  onSave,
+  onSaved,
 }: ChangeDateModalProps) {
+  const { toast } = useToast();
   // Calculate default date: 2 days from today if no deliveryDate provided
   const defaultDate = useMemo(() => {
     if (deliveryDate) {
@@ -74,20 +71,25 @@ export default function ChangeDateModal({
   }, [deliveryDate]);
 
   const [date, setDate] = useState(defaultDate);
-  const [time, setTime] = useState(deliveryTime || "17:00");
+  const initialTime = useMemo(
+    () => normalizeDeliveryTimeForInput(deliveryTimeRaw ?? deliveryTime),
+    [deliveryTimeRaw, deliveryTime]
+  );
+  const [time, setTime] = useState(initialTime);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [customDeliveryDates, setCustomDeliveryDates] = useState<ChangeDateHistoryItem[]>([]);
+  const [customDeliveryDates, setCustomDeliveryDates] = useState<
+    CustomDeliveryDateEntry[]
+  >([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-
-  const { createCustomDeliveryDate, fetchCustomDeliveryDates } = useSlipContext();
 
   // Update date when modal opens or deliveryDate changes
   useEffect(() => {
     if (open) {
       setDate(defaultDate);
+      setTime(initialTime);
     }
-  }, [open, defaultDate]);
+  }, [open, defaultDate, initialTime]);
 
   // Fetch history when modal opens and slipId is available
   useEffect(() => {
@@ -101,8 +103,8 @@ export default function ChangeDateModal({
     
     setLoadingHistory(true);
     try {
-      const response = await fetchCustomDeliveryDates(slipId);
-      if (response && response.success && Array.isArray(response.data)) {
+      const response = await getSlipCustomDeliveryDates(slipId);
+      if (Array.isArray(response.data)) {
         setCustomDeliveryDates(response.data);
       }
     } catch (error) {
@@ -127,15 +129,26 @@ export default function ChangeDateModal({
 
     setSaving(true);
     try {
-      const res = await createCustomDeliveryDate(slipId, date, time, reason);
-      if (res && res.success) {
-        setReason("");
-        // Reload history after successful save
-        await loadHistory();
-        // Don't close the modal - just reset the form
-      }
+      const res = await createSlipCustomDeliveryDate(slipId, {
+        delivery_date: date,
+        delivery_time: time,
+        notes: reason,
+      });
+      setReason("");
+      await loadHistory();
+      onSaved?.();
+      toast({
+        title: "Saved",
+        description: res.message || "Custom delivery date created",
+      });
     } catch (error) {
-      console.error('Error saving custom delivery date:', error);
+      console.error("Error saving custom delivery date:", error);
+      toast({
+        title: "Save failed",
+        description:
+          error instanceof Error ? error.message : "Failed to save custom delivery date",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -281,7 +294,7 @@ export default function ChangeDateModal({
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div className="text-base text-gray-500 leading-relaxed italic">
-                      {new Date(item.created_at).toLocaleDateString()} @ {item.created_by.name} changed delivery date to {item.formatted_delivery_date} at {new Date(item.delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(item.created_at).toLocaleDateString()} @ {item.created_by.name} changed delivery date to {item.formatted_delivery_date} at {item.formatted_delivery_time ?? normalizeDeliveryTimeForInput(item.delivery_time)}
                     </div>
                     <Button
                       variant="ghost"
