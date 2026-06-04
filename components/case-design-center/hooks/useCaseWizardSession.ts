@@ -8,8 +8,20 @@ import { mapOfficeDoctorsToWizardShape } from "../components/DoctorEditModal";
 
 type WizardMode = "initial" | "addProduct" | "backToProducts";
 
+export type CaseDesignBootstrap = {
+  doctor: WizardDoctorShape | null;
+  lab: WizardLabShape | null;
+  patientName: string;
+  gender: string;
+  age: string;
+  addedProducts: AddedProduct[];
+  initialArch?: "maxillary" | "mandibular" | "both";
+};
+
 interface UseCaseWizardSessionParams {
   fetchProductDetails: (productId: number) => Promise<CaseDesignProductDetails | null>;
+  /** Open CDC immediately with seeded header/products (add-new-stage). */
+  bootstrap?: CaseDesignBootstrap | null;
 }
 
 function buildAddedProductStub(
@@ -44,7 +56,10 @@ function buildAddedProductStub(
   };
 }
 
-export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessionParams) {
+export function useCaseWizardSession({
+  fetchProductDetails,
+  bootstrap,
+}: UseCaseWizardSessionParams) {
   const [wizardComplete, setWizardComplete] = useState(false);
   const [completedDoctor, setCompletedDoctor] = useState<WizardDoctorShape | null>(null);
   const [completedLab, setCompletedLab] = useState<WizardLabShape | null>(null);
@@ -75,6 +90,21 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     setRole(currentRole);
     localStorage.removeItem("cdc_added_products");
   }, []);
+
+  useEffect(() => {
+    if (!bootstrap) return;
+    setCompletedDoctor(bootstrap.doctor);
+    setCompletedLab(bootstrap.lab);
+    setCompletedPatientName(bootstrap.patientName);
+    setCompletedGender(bootstrap.gender);
+    setCompletedAge(bootstrap.age);
+    setAddedProducts(bootstrap.addedProducts);
+    if (bootstrap.initialArch) setInitialArch(bootstrap.initialArch);
+    setLabEditMode(false);
+    setDoctorEditModalOpen(false);
+    setWizardComplete(true);
+    setCaseDesignMounted(true);
+  }, [bootstrap]);
 
   const customerId = useMemo(() => {
     if (typeof window === "undefined") return null;

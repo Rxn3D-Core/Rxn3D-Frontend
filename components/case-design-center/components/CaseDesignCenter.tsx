@@ -50,6 +50,7 @@ import {
   resolveProductStagesForDisplay,
 } from "../utils/gradeHelpers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAddStageStagePrompt } from "@/components/add-new-stage/useAddStageStagePrompt";
 
 const MAXILLARY_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 const MANDIBULAR_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
@@ -117,6 +118,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   useEffect(() => {
     onAnyModalOpenChangeRef.current?.(isAnyModalOpen);
   }, [isAnyModalOpen]);
+
+  useAddStageStagePrompt({
+    enabled: Boolean(
+      props.preloadInitialSlipState && props.addStageContext?.promptStagesOnLoad
+    ),
+    addedProducts: props.addedProducts ?? [],
+    maxillaryTeeth: state.maxillaryTeeth,
+    mandibularTeeth: state.mandibularTeeth,
+    focusAccordion: state.focusAccordion,
+    handleOpenStageModal: state.handleOpenStageModal,
+    isStageModalOpen: state.isStageModalOpen,
+  });
+
+  const addStageStageHistoryForModal =
+    props.addStageContext?.historyByArch?.[state.currentStageArch] ?? undefined;
 
   // Unified setter used by both CenterNavigation and MandibularPanel so the override state stays in sync.
   const handleSetShowMandibular = useCallback((v: boolean) => {
@@ -1425,6 +1441,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           peerImplantDetailByTooth={mandibularImplantDetailPeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
+          addStageStageHistory={props.addStageContext?.historyByArch?.maxillary}
           isAnyModalOpen={state.showImpressionModal || state.isStageModalOpen}
           opposingOnlyLayout={props.initialArch !== "both"}
           showInlineAddProductPicker={props.inlineAddProductArch === "maxillary"}
@@ -1562,6 +1579,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           peerImplantDetailByTooth={maxillaryImplantDetailPeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
+          addStageStageHistory={props.addStageContext?.historyByArch?.mandibular}
           isAnyModalOpen={state.showImpressionModal || state.isStageModalOpen}
           suppressAutoOpen={
             // When both arches selected, suppress mandibular auto-opens until maxillary impression is done
@@ -1817,6 +1835,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }));
         })()}
         handleStageSelect={state.handleStageSelect}
+        stageHistory={addStageStageHistoryForModal}
         caseSubmitted={props.caseSubmitted}
         onStageConfirm={(stageName) => {
           const arch = state.currentStageArch;

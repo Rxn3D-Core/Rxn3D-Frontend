@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { Pause, Play, X } from "lucide-react";
@@ -24,6 +24,7 @@ import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   slipCanHold,
   slipCanReadyToSend,
+  slipIsInOffice,
   slipPickupDropoffAction,
   slipPickupDropoffLabel,
   slipShowsPickupDropoff,
@@ -175,6 +176,11 @@ export default function VirtualSlipPage() {
 
   const canPutOnHold = slipCanHold(slipLocationRef);
   const caseOnHold = isSlipCaseOnHold(slipVm.header.status);
+  const showAddStageFab = slipIsInOffice(slipLocationRef);
+
+  const handleAddStage = useCallback(() => {
+    router.push("/case-design-center");
+  }, [router]);
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
@@ -319,7 +325,6 @@ export default function VirtualSlipPage() {
         )}
       </div>
 
-      {/* Floating action buttons — bottom right, same as case design center */}
       <FloatingActions
         onPrint={() => window.print()}
         onPickupDropoff={() => setPickupDropoffOpen(true)}
@@ -344,6 +349,8 @@ export default function VirtualSlipPage() {
           caseOnHold ? undefined : () => setCaseStatusModal("cancel")
         }
         onChangeDueDate={() => setChangeDueDateOpen(true)}
+        hasNextStage={showAddStageFab}
+        onAddStage={showAddStageFab ? handleAddStage : undefined}
       />
 
       <ChangeDateModal

@@ -312,18 +312,18 @@ export function FloatingActions({
     ...caseStatusFabActions,
   ];
 
+  const addStageFab: ActionButton | null = hasNextStage
+    ? {
+          icon: "add-stage",
+          iconClassName: "h-[24px] w-auto max-w-[28px]",
+          bg: "bg-[#6366F1]",
+          hover: "hover:bg-[#4F46E5]",
+          label: "Add stage",
+        }
+      : null;
+
   const officeQuickActions: ActionButton[] = [
-    ...(hasNextStage
-      ? [
-          {
-            icon: "add-stage" as const,
-            iconClassName: "h-[24px] w-auto max-w-[28px]",
-            bg: "bg-[#6366F1]",
-            hover: "hover:bg-[#4F46E5]",
-            label: "Add stage",
-          },
-        ]
-      : []),
+    ...(addStageFab ? [addStageFab] : []),
     {
       icon: "printer",
       bg: "bg-[#F59E0B]",
@@ -337,6 +337,8 @@ export function FloatingActions({
       label: "Driver History",
     },
   ];
+
+  const labQuickActions: ActionButton[] = addStageFab ? [addStageFab] : [];
 
   const actionHandlers: Record<string, (() => void) | undefined> = {
     "Edit Slip": onEditSlip,
@@ -364,7 +366,11 @@ export function FloatingActions({
   const isOfficeAdmin = role === "office_admin";
 
   const expandableActions = isLabAdmin ? labActions : isOfficeAdmin ? officeActions : [];
-  const quickActions = isOfficeAdmin ? officeQuickActions : [];
+  const quickActions = isOfficeAdmin
+    ? officeQuickActions
+    : isLabAdmin
+      ? labQuickActions
+      : [];
 
   if (!isLabAdmin && !isOfficeAdmin) return null;
 

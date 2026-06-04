@@ -3,6 +3,9 @@ import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip
 /** Slip location id for "In lab" — ready-to-send action applies here (listing parity). */
 export const SLIP_LOCATION_IN_LAB = 3;
 
+/** Slip location id for "In office" (delivered to office) — add-stage FAB on virtual slip. */
+export const SLIP_LOCATION_IN_OFFICE = 6;
+
 export type SlipLocationRef = {
   locationId?: number;
   location: string;
@@ -19,6 +22,13 @@ export function slipCanReadyToSend(ref: SlipLocationRef): boolean {
   if (slipAtLocation(ref, SLIP_LOCATION_IN_LAB)) return true;
   const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
   return label === "in lab";
+}
+
+/** True when slip is at office delivery location "In office" (not "ready to pickup" variants). */
+export function slipIsInOffice(ref: SlipLocationRef): boolean {
+  if (slipAtLocation(ref, SLIP_LOCATION_IN_OFFICE)) return true;
+  const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return label === "in office";
 }
 
 /** API requires slip at "In lab" before hold. */

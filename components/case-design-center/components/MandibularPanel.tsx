@@ -129,6 +129,8 @@ import { SelectionProductFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
 import { RestorationAccordionHeader } from "./RestorationAccordionHeader";
 import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
+import { StageHistoryBlock } from "./StageHistoryBlock";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { MAXILLARY_SENTINEL } from "../utils/opposingImpressionReadiness";
 import { addedProductSlotId } from "../utils/productAccordionFocus";
 
@@ -803,6 +805,7 @@ interface MandibularPanelProps {
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
+  addStageStageHistory?: NewStageEligibilityStageRef[];
   /** When true (stage or impression modal is open), disables the teeth SVG. */
   isAnyModalOpen?: boolean;
   /** When true, suppresses auto-open helpers (shade, gum shade, impression) on this panel.
@@ -933,6 +936,7 @@ export function MandibularPanel({
   onBackToCategories,
   onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
+  addStageStageHistory,
   isAnyModalOpen = false,
   suppressAutoOpen = false,
   opposingOnlyLayout = false,
@@ -2489,6 +2493,12 @@ export function MandibularPanel({
                               caseSubmitted={caseSubmitted}
                               blockAutoOpen={isAnyModalOpen}
                             />
+                            {addStageStageHistory && addStageStageHistory.length > 0 ? (
+                              <StageHistoryBlock
+                                history={addStageStageHistory}
+                                className="mx-3 mb-1"
+                              />
+                            ) : null}
                             <div className="rounded-lg p-3 space-y-3">
                               {/* Row 1: Grade / Stage */}
                               {(isF("grade") || (isF("stage") && !singleStageSkip)) && (

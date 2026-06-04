@@ -135,6 +135,8 @@ import { ProductImagePreview } from "./ProductImagePreview";
 import { ProductAccordionCard } from "./ProductAccordionCard";
 import { RestorationAccordionHeader } from "./RestorationAccordionHeader";
 import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
+import { StageHistoryBlock } from "./StageHistoryBlock";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { MANDIBULAR_SENTINEL } from "../utils/opposingImpressionReadiness";
 import { addedProductSlotId } from "../utils/productAccordionFocus";
 import {
@@ -711,6 +713,8 @@ interface MaxillaryPanelProps {
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
+  /** Add-new-stage: prior slip stages for maxillary products. */
+  addStageStageHistory?: NewStageEligibilityStageRef[];
   /** When true (stage or impression modal is open), disables the teeth SVG. */
   isAnyModalOpen?: boolean;
   /** Single-arch slip: opposing accordion shows extractions/impression only, not primary product. */
@@ -953,6 +957,7 @@ export function MaxillaryPanel({
   onBackToCategories,
   onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
+  addStageStageHistory,
   isAnyModalOpen = false,
   opposingOnlyLayout = false,
   disabled = false,
@@ -2502,6 +2507,12 @@ export function MaxillaryPanel({
                               caseSubmitted={caseSubmitted}
                               blockAutoOpen={isAnyModalOpen}
                             />
+                            {addStageStageHistory && addStageStageHistory.length > 0 ? (
+                              <StageHistoryBlock
+                                history={addStageStageHistory}
+                                className="mx-3 mb-1"
+                              />
+                            ) : null}
                             <div className="rounded-lg p-3 space-y-3">
                               {/* Row 1: Grade / Stage */}
                               {(isF("grade") || (isF("stage") && !singleStageSkip)) && (

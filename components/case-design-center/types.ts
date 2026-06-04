@@ -1,6 +1,7 @@
 import type React from "react";
 import type { ImplantDetailData } from "./components/ImplantDetailSection";
 import type { ProductAbutment } from "@/services/implant-api";
+import type { AddStageDesignContext } from "@/lib/add-stage/session";
 
 /** Snapshot of per-product design data collected at submit time */
 export interface SlipProductSnapshot {
@@ -127,6 +128,16 @@ export interface CaseDesignProps {
    * without requiring interactive tooth selection. Has no effect in interactive mode.
    */
   initialSlipState?: VirtualSlipInitialState;
+  /**
+   * When true with initialSlipState, hydrates CDC on mount even when caseSubmitted is false
+   * (add-new-stage preload from source slip).
+   */
+  preloadInitialSlipState?: boolean;
+  /**
+   * Add-new-stage only: per-arch stage history from eligibility API and optional
+   * sequential stage modal prompt on load (maxillary, then mandibular).
+   */
+  addStageContext?: AddStageDesignContext;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   /** Called whenever any full-screen modal (impression, stage, add-ons, etc.) opens or closes. */

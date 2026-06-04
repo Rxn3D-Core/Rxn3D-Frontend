@@ -1,4 +1,4 @@
-import type { Arch } from "../types";
+import type { AddedProduct, Arch } from "../types";
 
 /** Stable key for the single expanded product accordion (one arch at a time). */
 export function productAccordionKey(arch: Arch, slotId: string): string {
@@ -9,7 +9,29 @@ export function addedProductSlotId(productId: number): string {
   return `added:${productId}`;
 }
 
-export function defaultActiveAccordionKey(initialArch?: string): string {
+/** First preloaded added product to focus (add-new-stage / slip hydrate). */
+export function firstPreloadedAccordionFocus(
+  initialArch: string | undefined,
+  addedProducts: AddedProduct[] | undefined
+): { key: string; productCardId: number; arch: Arch } | null {
+  const list = addedProducts ?? [];
+  if (list.length === 0) return null;
+  const preferredArch: Arch = initialArch === "mandibular" ? "mandibular" : "maxillary";
+  const first = list.find((p) => p.arch === preferredArch) ?? list[0];
+  const arch = first.arch as Arch;
+  return {
+    arch,
+    productCardId: first.id,
+    key: productAccordionKey(arch, addedProductSlotId(first.id)),
+  };
+}
+
+export function defaultActiveAccordionKey(
+  initialArch?: string,
+  addedProducts?: AddedProduct[]
+): string {
+  const focus = firstPreloadedAccordionFocus(initialArch, addedProducts);
+  if (focus) return focus.key;
   if (initialArch === "mandibular") return productAccordionKey("mandibular", "removable0");
   return productAccordionKey("maxillary", "removable0");
 }

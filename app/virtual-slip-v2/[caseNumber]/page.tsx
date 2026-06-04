@@ -13,10 +13,12 @@ import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   slipCanHold,
   slipCanReadyToSend,
+  slipIsInOffice,
   slipPickupDropoffAction,
   slipPickupDropoffLabel,
   slipShowsPickupDropoff,
 } from "@/lib/slip-location";
+import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
 import { Button } from "@/components/ui/button";
@@ -76,6 +78,7 @@ export default function VirtualSlipV2Page() {
   const [caseStatusModal, setCaseStatusModal] = useState<CaseStatusModal>(null);
   const [caseStatusSubmitting, setCaseStatusSubmitting] = useState(false);
   const [changeDueDateOpen, setChangeDueDateOpen] = useState(false);
+  const [addStageEligible, setAddStageEligible] = useState(false);
 
   useEffect(() => {
     if (!slipId || isNaN(slipId)) {
@@ -84,7 +87,37 @@ export default function VirtualSlipV2Page() {
     }
     setLoading(true);
     fetchVirtualSlipDetails(slipId).finally(() => setLoading(false));
-  }, [slipId]);
+  }, [slipId, fetchVirtualSlipDetails]);
+
+  const slipLocationRefForEligibility = useMemo(() => {
+    const vmEarly = buildVirtualSlipVM(virtualSlipDetails);
+    return {
+      locationId: vmEarly.header.locationId,
+      location: vmEarly.header.location,
+    };
+  }, [virtualSlipDetails]);
+
+  useEffect(() => {
+    if (!slipId || isNaN(slipId)) {
+      setAddStageEligible(false);
+      return;
+    }
+    if (!slipIsInOffice(slipLocationRefForEligibility)) {
+      setAddStageEligible(false);
+      return;
+    }
+    let cancelled = false;
+    fetchNewStageEligibility(slipId)
+      .then((res) => {
+        if (!cancelled) setAddStageEligible(Boolean(res.data?.eligible));
+      })
+      .catch(() => {
+        if (!cancelled) setAddStageEligible(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slipId, slipLocationRefForEligibility]);
 
   const vm = useMemo(() => buildVirtualSlipVM(virtualSlipDetails), [virtualSlipDetails]);
 
@@ -211,6 +244,11 @@ export default function VirtualSlipV2Page() {
   );
 
   const canPutOnHold = slipCanHold(slipLocationRef);
+  const showAddStageFab = slipIsInOffice(slipLocationRef) && addStageEligible;
+
+  const handleAddStage = useCallback(() => {
+    router.push(`/add-new-stage?sourceSlipId=${slipId}`);
+  }, [router, slipId]);
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
@@ -309,7 +347,6 @@ export default function VirtualSlipV2Page() {
   const showReadyToSendFab = slipCanReadyToSend(slipLocationRef);
   const showPickupDropoffFab = slipShowsPickupDropoff(slipLocationRef);
 
-
   return (
     <div className="flex min-h-full flex-col bg-white">
       <VirtualSlipHeader header={vm.header} />
@@ -400,6 +437,8 @@ export default function VirtualSlipV2Page() {
           caseOnHold ? undefined : () => setCaseStatusModal("cancel")
         }
         onChangeDueDate={() => setChangeDueDateOpen(true)}
+        hasNextStage={showAddStageFab}
+        onAddStage={showAddStageFab ? handleAddStage : undefined}
       />
 
       <ChangeDateModal

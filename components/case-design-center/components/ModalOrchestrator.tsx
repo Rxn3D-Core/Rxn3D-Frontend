@@ -21,6 +21,7 @@ import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsConfirmMeta, AddOnsProduct } from "@/components/add-ons-modal";
 import type { RushArchSlot } from "../utils/rushModalContext";
 import { getResolvedStageName } from "../utils/categoryHelpers";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { getDualModalArches } from "../utils/impressionFieldSync";
 import {
   buildImpressionDisplayText,
@@ -106,6 +107,8 @@ interface ModalOrchestratorProps {
   currentStageProduct?: ProductApiData | null;
   handleStageSelect: (stageName: string) => void;
   onStageConfirm: (stageName: string) => void;
+  /** Prior slips/stages for this arch (add-new-stage). */
+  stageHistory?: NewStageEligibilityStageRef[];
   /** When true (virtual slip / read-only view), all modals are suppressed */
   caseSubmitted?: boolean;
 }
@@ -229,6 +232,7 @@ export function ModalOrchestrator({
   currentStageProduct = null,
   handleStageSelect,
   onStageConfirm,
+  stageHistory,
   caseSubmitted = false,
 }: ModalOrchestratorProps) {
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
@@ -379,6 +383,7 @@ export function ModalOrchestrator({
           <StageSelectionModal
             stages={currentStageOptions}
             selectedStage={selectedStages[currentStageProductId]}
+            stageHistory={stageHistory}
             onSelect={(stageName) => {
               handleStageSelect(stageName);
               onStageConfirm(stageName);
