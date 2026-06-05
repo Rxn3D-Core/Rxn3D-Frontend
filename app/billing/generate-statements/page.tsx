@@ -817,7 +817,7 @@ export default function GenerateStatementsPage() {
             <div ref={previewContentRef} className="mx-auto max-w-[78rem]">
               <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
                 <div>
-                  <img src="/images/rxn3d-logo.png" alt="RXN3D logo" className="h-20 w-auto object-contain" />
+                  <img src="/images/hmc2.png" alt="RXN3D logo" className="h-20 w-auto object-contain" />
                   <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
                     <p>{activePreviewStatement?.lab?.address || "—"}</p>
                     <p>

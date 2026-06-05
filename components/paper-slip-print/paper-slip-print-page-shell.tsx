@@ -1,0 +1,138 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { buildPaperSlipSectionModels } from "@/app/paper-slip/print/page-helpers";
+import { PaperSlipPrintDocument } from "@/components/paper-slip-print/paper-slip-print-document";
+import { buildPaperSlipPrintSlipVM, type PaperSlipPrintableSlipVM } from "@/lib/paper-slip-print-view-model";
+
+function PaperSlipStateCard({
+  title,
+  body,
+  tone = "default",
+}: {
+  title: string;
+  body: string;
+  tone?: "default" | "error";
+}) {
+  const toneClasses =
+    tone === "error"
+      ? "border-[#fecaca] bg-[#fff1f2] text-[#991b1b]"
+      : "border-[#d6d6d6] bg-white text-[#2f3542]";
+
+  return (
+    <div className="min-h-screen bg-[#f4f4f5] px-4 py-10">
+      <div className={`mx-auto max-w-[760px] rounded-[28px] border p-8 shadow-[0_18px_48px_rgba(15,23,42,0.08)] ${toneClasses}`}>
+        <div className="text-[12px] font-semibold uppercase tracking-[0.22em] opacity-70">Paper Slip Print</div>
+        <h1 className="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{title}</h1>
+        <p className="mt-3 text-[14px] leading-6 opacity-90">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function mapSlipPrintRecords(records: unknown[]): PaperSlipPrintableSlipVM[] {
+  return records.map((record) => buildPaperSlipPrintSlipVM(record));
+}
+
+export function PaperSlipPrintPageShell({
+  error,
+  caseIds,
+  initialSlips,
+  slipIds,
+}: {
+  error: string | null;
+  caseIds: number[];
+  initialSlips: PaperSlipPrintableSlipVM[];
+  slipIds: number[];
+}) {
+  const [slips, setSlips] = useState<PaperSlipPrintableSlipVM[]>(initialSlips);
+  const [loading, setLoading] = useState(initialSlips.length === 0 && !error);
+  const [fetchError, setFetchError] = useState<string | null>(error);
+  const [printed, setPrinted] = useState(false);
+  const hasRequestedFetch = useRef(false);
+
+  useEffect(() => {
+    if (fetchError || slips.length > 0 || hasRequestedFetch.current) return;
+    if (slipIds.length === 0 && caseIds.length === 0) return;
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token) {
+      setFetchError("You must be logged in to print paper slips.");
+      setLoading(false);
+      return;
+    }
+
+    hasRequestedFetch.current = true;
+    setLoading(true);
+
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/paper-slip-print-data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        ...(slipIds.length > 0 ? { slip_ids: slipIds } : {}),
+        ...(caseIds.length > 0 ? { case_ids: caseIds } : {}),
+      }),
+    })
+      .then(async (response) => {
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return null;
+        }
+
+        const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.success) {
+          throw new Error(json?.message || "Failed to load paper slip print data.");
+        }
+
+        return json?.data ?? [];
+      })
+      .then((data) => {
+        if (!data) return;
+        setSlips(mapSlipPrintRecords(Array.isArray(data) ? data : []));
+        setFetchError(null);
+      })
+      .catch((fetchFailure) => {
+        setFetchError(fetchFailure instanceof Error ? fetchFailure.message : "Failed to load paper slip print data.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [caseIds, fetchError, slipIds, slips.length]);
+
+  useEffect(() => {
+    if (printed || loading || slips.length === 0) return;
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrinted(true);
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [loading, printed, slips.length]);
+
+  if (fetchError) {
+    return <PaperSlipStateCard body={fetchError} title="Unable to prepare paper slip document" tone="error" />;
+  }
+
+  if (loading) {
+    return (
+      <PaperSlipStateCard
+        body={`Preparing printable paper-slip data for ${slipIds.length > 0 ? `slip ID${slipIds.length === 1 ? "" : "s"} ${slipIds.join(", ")}` : `case ID${caseIds.length === 1 ? "" : "s"} ${caseIds.join(", ")}`}.`}
+        title="Preparing printable paper slips"
+      />
+    );
+  }
+
+  if (slips.length === 0) {
+    return (
+      <PaperSlipStateCard
+        body="No printable paper slip data was returned for the requested selection."
+        title="No paper slips found"
+        tone="error"
+      />
+    );
+  }
+
+  return <PaperSlipPrintDocument sections={buildPaperSlipSectionModels(slips)} />;
+}

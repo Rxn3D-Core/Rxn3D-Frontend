@@ -11,7 +11,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Download, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 import { useSlipContext } from "./SlipContext";
@@ -32,6 +31,7 @@ import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import { buildLabCaseDropdownActions } from "./dropdown-actions.mjs"
+import { buildPaperSlipPrintRoute } from "./paper-slip-print-route.mjs"
 import {
   SLIP_LOCATION_FILTER_OPTIONS,
   LAB_SLIP_STATUS_OPTIONS,
@@ -67,38 +67,6 @@ function canSendBackToOffice(row: { locationId?: number; location: string }): bo
 
 function canPrintStatement(row: { billingId?: number | null }): boolean {
   return typeof row.billingId === "number" && Number.isFinite(row.billingId)
-}
-
-// Utility to decode and print base64 HTML
-function printPaperSlip(base64Html: string) {
-  const html = atob(base64Html);
-  
-  // Create a temporary iframe for printing
-  const printFrame = document.createElement('iframe');
-  printFrame.style.position = 'absolute';
-  printFrame.style.left = '-9999px';
-  printFrame.style.top = '-9999px';
-  printFrame.style.width = '0';
-  printFrame.style.height = '0';
-  printFrame.style.border = 'none';
-  
-  document.body.appendChild(printFrame);
-  
-  const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
-  if (frameDoc) {
-    frameDoc.open();
-    frameDoc.write(html);
-    frameDoc.close();
-    
-    // Wait for content to load then print
-    printFrame.onload = () => {
-      printFrame.contentWindow?.print();
-      // Remove the iframe after printing
-      setTimeout(() => {
-        document.body.removeChild(printFrame);
-      }, 1000);
-    };
-  }
 }
 
 const READY_TO_SEND_BLUE = "#0E66B2"
@@ -199,7 +167,6 @@ export default function LabSlipPage() {
     actions: true,
   })
   const [selected, setSelected] = useState<number[]>([])
-  const [isGeneratingPaperSlip, setIsGeneratingPaperSlip] = useState(false)
   const [menuRow, setMenuRow] = useState<number | null>(null)
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
@@ -237,8 +204,24 @@ export default function LabSlipPage() {
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
 
-  const { slips, loading, fetchLabSlips, fetchDriverPrintData, fetchOfficeSlips, readyToSend, labListingPagination } = useSlipContext();
-  const { generatePaperSlips, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const {
+    slips,
+    loading,
+    fetchLabSlips,
+    fetchDriverPrintData,
+    createCustomDeliveryDate,
+    fetchOfficeSlips,
+    fetchCustomDeliveryDates,
+    readyToSend,
+    labListingPagination,
+  } = useSlipContext();
+  const {
+    generatePaperSlips,
+    fetchProductAddons,
+    requestSlipRush,
+    cancelSlip,
+    sendBackToOfficeSlip,
+  } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -568,98 +551,34 @@ export default function LabSlipPage() {
       return;
     }
     try {
-      setIsGeneratingPaperSlip(true);
-      const data = await generatePaperSlips([idToSend]);
-      // API returns { paper_slips: <base64> } or { paper_slips: [<base64>] }
-      if (data?.paper_slips) {
-        let base64Html;
-        if (Array.isArray(data.paper_slips)) {
-          base64Html = data.paper_slips[0];
-        } else {
-          base64Html = data.paper_slips;
-        }
-        // Use the printPaperSlip utility to trigger print dialog
-        printPaperSlip(base64Html);
-      } else {
+      const printRoute = buildPaperSlipPrintRoute({
+        customerType,
+        ids: [idToSend],
+      });
+
+      if (!printRoute) {
         toast({
-          title: "No paper slip data returned.",
-          variant: "destructive"
+          title: "No valid slip",
+          description: "This slip does not have a valid slip ID.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer,width=1200,height=900");
+      if (!printWindow) {
+        toast({
+          title: "Pop-up blocked",
+          description: "Please allow pop-ups for this site and try again.",
+          variant: "destructive",
         });
       }
     } catch (err: any) {
       toast({
-        title: "Failed to generate paper slip",
+        title: "Failed to open paper slip",
         description: err?.message || String(err),
         variant: "destructive"
       });
-    } finally {
-      setIsGeneratingPaperSlip(false);
-    }
-  }
-
-  // Function to print content directly without new window
-  const openPrintWindow = (base64Html: string, slip: any) => {
-    const html = atob(base64Html);
-    
-    // Create a hidden iframe for printing
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.left = '-9999px';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = 'none';
-    
-    document.body.appendChild(iframe);
-    
-    // Enhanced HTML for printing
-    const printHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Print Slip - ${slip.patient} - ${slip.id}</title>
-        <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            margin: 0; 
-            background: white;
-          }
-          .print-content {
-            width: 100%;
-          }
-          @media print {
-            body { 
-              margin: 0; 
-            }
-            .print-content {
-              width: 100%;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-content">
-          ${html}
-        </div>
-      </body>
-      </html>
-    `;
-    
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(printHtml);
-      iframeDoc.close();
-      
-      // Wait for content to load then print
-      setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        
-        // Remove iframe after printing
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000);
-      }, 500);
     }
   }
 
@@ -684,36 +603,37 @@ export default function LabSlipPage() {
         });
         return;
       }
+      const printRoute = buildPaperSlipPrintRoute({
+        customerType: userRole,
+        ids: slipIds,
+      });
 
-      setIsGeneratingPaperSlip(true);
-      const data = await generatePaperSlips(slipIds);
-
-      if (data?.paper_slips) {
-        const arr = Array.isArray(data.paper_slips)
-          ? data.paper_slips
-          : [data.paper_slips];
-
-        arr.forEach((base64Html: string, index: number) => {
-          const row = selectedRows[index] || selectedRows[0];
-          setTimeout(() => openPrintWindow(base64Html, row), index * 200);
-        });
-
-        toast({ title: "Paper slips generated", description: `${arr.length} slip(s) ready to print.` });
-      } else {
+      if (!printRoute) {
         toast({
-          title: "No paper slip data returned",
-          description: "The server didn't return any printable content.",
+          title: "No valid slips",
+          description: "Please select slips with valid IDs.",
           variant: "destructive",
         });
+        return;
       }
+
+      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer,width=1200,height=900");
+      if (!printWindow) {
+        toast({
+          title: "Pop-up blocked",
+          description: "Please allow pop-ups for this site and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({ title: "Paper slips opened", description: `${slipIds.length} slip(s) are being prepared for print.` });
     } catch (err: any) {
       toast({
-        title: "Failed to generate paper slips",
+        title: "Failed to open paper slips",
         description: err?.message || String(err),
         variant: "destructive",
       });
-    } finally {
-      setIsGeneratingPaperSlip(false);
     }
   };
 
@@ -1090,12 +1010,6 @@ export default function LabSlipPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Paper slip generation loading overlay */}
-      <LoadingOverlay
-        isLoading={isGeneratingPaperSlip}
-        title="Generating paper slip"
-        message="Preparing your paper slip for printing..."
-      />
       {/* HIPAA Compliance Banner */}
       <div className="px-4 py-2">
         <HIPAAComplianceBanner variant="default" showDetails={false} />
