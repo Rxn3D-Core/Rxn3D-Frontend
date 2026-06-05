@@ -24,7 +24,7 @@ import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
 
 export default function Page() {
-  const { createSlip } = useSlipCreation();
+  const { createSlip, uploadSlipAttachment } = useSlipCreation();
   const { toast } = useToast();
   const router = useRouter();
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
@@ -96,6 +96,7 @@ export default function Page() {
     submit,
   } = useCaseSubmissionFlow({
     createSlip,
+    uploadSlipAttachment,
     router,
     toast,
     slipCollectorRef,

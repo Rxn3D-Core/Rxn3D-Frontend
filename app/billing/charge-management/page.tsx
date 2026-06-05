@@ -73,7 +73,7 @@ import type {
 import { useAuth } from "@/contexts/auth-context"
 import { useCustomer } from "@/contexts/customer-context"
 import { useConnectedOffices } from "@/hooks/use-connected-offices"
-import { pdfBlobFromBase64 } from "@/lib/open-pdf-from-base64"
+import { openBlobInNewTab, pdfBlobFromBase64 } from "@/lib/open-pdf-from-base64"
 import {
   Dialog,
   DialogClose,
@@ -269,6 +269,12 @@ function buildStatementPdfFilename(office: string, statementId: string | number)
       .trim()
       .slice(0, 48) || "statement"
   return `${seg(office)}-${seg(String(statementId))}.pdf`
+}
+
+function normalizeStatementSubject(subject: string | null | undefined): string {
+  const trimmed = subject?.trim()
+  if (!trimmed) return ""
+  return trimmed.replace(/RXn3D/gi, "HMC Innovs")
 }
 
 /** Apply preset to YYYY-MM-DD range for toolbar / advanced search */
@@ -1191,24 +1197,18 @@ export default function ChargeManagementPage() {
   }
 
   const handleViewInvoicePdf = async (charge: ChargeRow) => {
-    setPdfViewerTitle(`${charge.invoiceNumber} · ${charge.patient} · ${charge.officeName}`)
-    if (pdfViewerBlobUrlRef.current) {
-      URL.revokeObjectURL(pdfViewerBlobUrlRef.current)
-      pdfViewerBlobUrlRef.current = null
-    }
-    setPdfViewerUrl(null)
-    setPdfViewerLoading(true)
-    setPdfViewerOpen(true)
     try {
       const blob = await fetchInvoicePdfBlob(charge.billingInvoiceId)
-      const url = URL.createObjectURL(blob)
-      pdfViewerBlobUrlRef.current = url
-      setPdfViewerUrl(url)
+      const opened = openBlobInNewTab(blob)
+      if (!opened) {
+        toast({
+          title: "Pop-up blocked",
+          description: "Please allow pop-ups for this site and try again.",
+          variant: "destructive",
+        })
+      }
     } catch {
       toast({ title: "Could not open invoice PDF", variant: "destructive" })
-      closePdfViewer()
-    } finally {
-      setPdfViewerLoading(false)
     }
   }
 
@@ -1386,7 +1386,9 @@ export default function ChargeManagementPage() {
     setSendCcValue(joinEmails(preview.cc_emails))
     setSendBccValue(joinEmails(preview.bcc_emails))
     setSendSubjectValue(
-      preview.subject || statement.subject || `Your statement from ${statement.lab?.name || statement.office?.name || "RXn3D"} is ready`,
+      normalizeStatementSubject(
+        preview.subject || statement.subject || `Your statement from ${statement.lab?.name || statement.office?.name || "HMC Innovs"} is ready`,
+      ),
     )
     setSendMessageValue(preview.message || statement.message || "")
     setSendPreviewHtml(preview.preview_html || "")

@@ -214,14 +214,9 @@ export default function LabSlipPage() {
     fetchCustomDeliveryDates,
     readyToSend,
     labListingPagination,
+    updateSlipAttachmentState,
   } = useSlipContext();
-  const {
-    generatePaperSlips,
-    fetchProductAddons,
-    requestSlipRush,
-    cancelSlip,
-    sendBackToOfficeSlip,
-  } = useSlipCreation();
+  const { fetchProductAddons, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -335,6 +330,16 @@ export default function LabSlipPage() {
       page: currentPage,
       per_page: itemsPerPage,
     })
+
+    const handleAttachmentsUploaded = (attachments: any[]) => {
+      if (!selectedSlipForAttachment?.id) return
+      updateSlipAttachmentState(selectedSlipForAttachment.id, attachments.length > 0)
+    }
+  
+    const handleAttachmentStateChange = (hasAttachments: boolean) => {
+      if (!selectedSlipForAttachment?.id) return
+      updateSlipAttachmentState(selectedSlipForAttachment.id, hasAttachments)
+    }
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -565,7 +570,7 @@ export default function LabSlipPage() {
         return;
       }
 
-      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer,width=1200,height=900");
+      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer");
       if (!printWindow) {
         toast({
           title: "Pop-up blocked",
@@ -617,7 +622,7 @@ export default function LabSlipPage() {
         return;
       }
 
-      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer,width=1200,height=900");
+      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer");
       if (!printWindow) {
         toast({
           title: "Pop-up blocked",
@@ -1983,6 +1988,7 @@ export default function LabSlipPage() {
                 doctorName={selectedSlipForAttachment.doctor}
                 patientName={selectedSlipForAttachment.patient}
                 onAttachmentsUploaded={handleAttachmentsUploaded}
+                onAttachmentStateChange={handleAttachmentStateChange}
               />
             )}
           </DialogContent>

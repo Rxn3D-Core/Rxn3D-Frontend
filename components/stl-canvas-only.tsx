@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Canvas, useThree } from "@react-three/fiber"
+import { Canvas, useThree, useFrame } from "@react-three/fiber"
 import { OrbitControls, Grid, Environment } from "@react-three/drei"
 import * as THREE from "three"
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader"
@@ -12,9 +12,25 @@ interface STLCanvasOnlyProps {
   showGrid?: boolean
   modelColor?: string
   realistic?: boolean
+  /** Glossy ceramic/enamel look — white, shiny clearcoat highlights, non-metallic. Takes precedence over `realistic`. */
+  glossy?: boolean
+  /** Continuously auto-rotate the model (matches the card-thumbnail animation). */
+  autoRotate?: boolean
 }
 
-function STLModel({ src, color, isWireframe, realistic }: { src: string; color: string; isWireframe: boolean; realistic: boolean }) {
+function STLModel({
+  src,
+  color,
+  isWireframe,
+  realistic,
+  glossy,
+}: {
+  src: string
+  color: string
+  isWireframe: boolean
+  realistic: boolean
+  glossy: boolean
+}) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   useEffect(() => {
@@ -37,6 +53,21 @@ function STLModel({ src, color, isWireframe, realistic }: { src: string; color: 
   }, [src])
 
   if (!geometry) return null
+
+  if (glossy && !isWireframe) {
+    // Mirror the card-thumbnail look (SimpleSTLViewer): MeshStandardMaterial,
+    // roughness 0.18, no clearcoat, no env map.
+    return (
+      <mesh geometry={geometry} castShadow receiveShadow>
+        <meshStandardMaterial
+          color={color}
+          metalness={0}
+          roughness={0.18}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+    )
+  }
 
   if (realistic && !isWireframe) {
     return (
@@ -65,11 +96,15 @@ function STLModel({ src, color, isWireframe, realistic }: { src: string; color: 
   )
 }
 
-function SceneSetup({ realistic }: { realistic: boolean }) {
+function SceneSetup({ realistic, glossy }: { realistic: boolean; glossy: boolean }) {
   const { gl, scene } = useThree()
 
   useEffect(() => {
-    if (realistic) {
+    if (glossy) {
+      gl.toneMapping = THREE.NoToneMapping
+      gl.toneMappingExposure = 1
+      scene.background = new THREE.Color("#e0e0e0")
+    } else if (realistic) {
       gl.toneMapping = THREE.ACESFilmicToneMapping
       gl.toneMappingExposure = 1.2
       scene.background = new THREE.Color("#1a3a5c")
@@ -78,12 +113,12 @@ function SceneSetup({ realistic }: { realistic: boolean }) {
       gl.toneMappingExposure = 1
       scene.background = new THREE.Color("#e9ecef")
     }
-  }, [realistic, gl, scene])
+  }, [realistic, glossy, gl, scene])
 
   return null
 }
 
-function CameraControls() {
+function CameraControls({ autoRotate = false }: { autoRotate?: boolean }) {
   const { invalidate } = useThree()
   const controlsRef = useRef<any>(null)
 
@@ -99,7 +134,21 @@ function CameraControls() {
     }
   }, [invalidate])
 
-  return <OrbitControls ref={controlsRef} makeDefault />
+  // Drive the auto-rotation every frame (matches the thumbnail's OrbitControls.autoRotate)
+  useFrame(() => {
+    if (autoRotate && controlsRef.current) {
+      controlsRef.current.update()
+    }
+  })
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      makeDefault
+      autoRotate={autoRotate}
+      autoRotateSpeed={0.5}
+    />
+  )
 }
 
 export default function STLCanvasOnly({
@@ -108,6 +157,8 @@ export default function STLCanvasOnly({
   showGrid = false,
   modelColor = "#f9c74f",
   realistic = true,
+  glossy = false,
+  autoRotate = false,
 }: STLCanvasOnlyProps) {
   if (models.length === 0) {
     return (
@@ -120,12 +171,21 @@ export default function STLCanvasOnly({
   return (
     <div className="w-full h-full">
       <Canvas
-        shadows={realistic}
+        shadows={realistic || glossy}
+        frameloop={autoRotate ? "always" : "demand"}
         camera={{ position: [0, 0, 80], fov: 75 }}
         style={{ width: "100%", height: "100%" }}
       >
-        <SceneSetup realistic={realistic} />
-        {realistic ? (
+        <SceneSetup realistic={realistic} glossy={glossy} />
+        {glossy ? (
+          <>
+            {/* Match SimpleSTLViewer thumbnail lighting exactly */}
+            <hemisphereLight args={[0xffffff, 0x444444, 0.8]} position={[0, 50, 0]} />
+            <directionalLight position={[10, 20, 10]} intensity={1} castShadow />
+            <spotLight position={[-15, 25, 15]} intensity={0.5} castShadow />
+            <ambientLight intensity={0.2} />
+          </>
+        ) : realistic ? (
           <>
             <ambientLight intensity={0.3} />
             <directionalLight
@@ -161,10 +221,11 @@ export default function STLCanvasOnly({
             color={model.color || modelColor}
             isWireframe={isWireframe}
             realistic={realistic}
+            glossy={glossy}
           />
         ))}
         {showGrid && <Grid args={[100, 100]} />}
-        <CameraControls />
+        <CameraControls autoRotate={autoRotate} />
       </Canvas>
     </div>
   )

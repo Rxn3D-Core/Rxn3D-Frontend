@@ -30,6 +30,7 @@ import {
   findMatchingBillingInvoiceId,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
+import { buildStatementPreviewRoute } from "./preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "$0.00"
@@ -347,10 +348,21 @@ export default function GenerateStatementsPage() {
   const handlePreview = async (statement: StatementRecord) => {
     setPreviewingId(statement.id)
     try {
-      setPreviewStatement(statement)
-      setIsEditMode(false)
-      setHeaderDraft(null)
-      setPreviewDialogOpen(true)
+      const previewRoute = buildStatementPreviewRoute(statement.id)
+      if (!previewRoute) {
+        throw new Error("This statement does not have a valid preview route.")
+      }
+
+      const previewWindow = window.open(previewRoute, "_blank", "noopener,noreferrer")
+      if (!previewWindow) {
+        throw new Error("Please allow pop-ups for this site and try again.")
+      }
+    } catch (previewError) {
+      toast({
+        title: "Unable to open statement preview",
+        description: previewError instanceof Error ? previewError.message : "Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setPreviewingId(null)
     }
@@ -817,7 +829,7 @@ export default function GenerateStatementsPage() {
             <div ref={previewContentRef} className="mx-auto max-w-[78rem]">
               <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
                 <div>
-                  <img src="/images/hmc2.png" alt="RXN3D logo" className="h-20 w-auto object-contain" />
+                  <img src="/images/hmc.svg" alt="RXN3D logo" className="h-20 w-auto object-contain" />
                   <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
                     <p>{activePreviewStatement?.lab?.address || "—"}</p>
                     <p>

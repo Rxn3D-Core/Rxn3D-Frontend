@@ -56,6 +56,7 @@ type LocalUploadItem = {
   attachmentType?: string
   notes?: string
 }
+import { toProxiedFileUrl } from "@/lib/file-proxy"
 
 // Lazy-load only the 3D Canvas (no controls UI) to keep the bundle small
 const STLCanvasOnly = dynamic(() => import("@/components/stl-canvas-only"), {
@@ -82,6 +83,7 @@ interface FileAttachmentModalContentProps {
   isCaseSubmitted: boolean
   slipId?: number
   onAttachmentsUploaded?: (attachments: any[]) => void
+  onAttachmentStateChange?: (hasAttachments: boolean) => void
   doctorName?: string
   patientName?: string
   savedProducts?: SavedProduct[]
@@ -118,6 +120,7 @@ export default function FileAttachmentModalContent({
   isCaseSubmitted,
   slipId,
   onAttachmentsUploaded,
+  onAttachmentStateChange,
   doctorName: propDoctorName,
   patientName: propPatientName,
   savedProducts = [],
@@ -145,10 +148,17 @@ export default function FileAttachmentModalContent({
     })
   }
 
-  const [simulatedUploads, setSimulatedUploads] = useState<LocalUploadItem[]>(restoreCachedUploads)
+  const [simulatedUploads, setSimulatedUploads] = useState<
+    Array<{ file: any, url: string, type: "stl" | "image" | "3dobject" | "other", archived?: boolean, remoteId?: any, remoteMeta?: any, stage?: string, isPublic?: boolean, generatedPath?: string }>
+  >(restoreCachedUploads)
   const [description, setDescription] = useState("")
   const [attachmentType, setAttachmentType] = useState<SlipAttachmentType>("global")
-  const [hideArchived, setHideArchived] = useState(true)
+  // "Make files available to related cases" — controls the isPublic flag stamped on new uploads
+  const [shareWithRelatedCases, setShareWithRelatedCases] = useState(true)
+  // Filters
+  const [stageFilter, setStageFilter] = useState("all-stages")
+  const [visibilityFilter, setVisibilityFilter] = useState("all-visibility")
+  const [hideArchived, setHideArchived] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [viewing3dUrl, setViewing3dUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -183,7 +193,7 @@ export default function FileAttachmentModalContent({
   // STL viewer display state
   const [isWireframe, setIsWireframe] = useState(false)
   const [showGrid, setShowGrid] = useState(false)
-  const [modelColor, setModelColor] = useState("#f9c74f")
+  const [modelColor, setModelColor] = useState("#f5ecd0")
 
   // Viewer items: STL files and images assigned to layout cells
   const [viewerStlUrls, setViewerStlUrls] = useState<string[]>([])
@@ -294,7 +304,18 @@ export default function FileAttachmentModalContent({
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    if (files) addLocalFiles(files)
+    if (files) {
+      const targetStage = activeStage || stages[0]
+      const newUploads = Array.from(files).map(file => {
+        const url = URL.createObjectURL(file)
+        let type: "stl" | "image" | "3dobject" | "other" = "other"
+        if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
+        else if (file.type.startsWith("image/")) type = "image"
+        return { file, url, type, stage: targetStage, isPublic: shareWithRelatedCases }
+      })
+      setSimulatedUploads(prev => [...prev, ...newUploads])
+    }
   }
 
   const handleUploadButtonClick = () => {
@@ -315,93 +336,163 @@ export default function FileAttachmentModalContent({
     event.preventDefault()
     event.stopPropagation()
     const files = event.dataTransfer.files
-    if (files && files.length > 0) addLocalFiles(files)
-  }, [activeStage, stages, attachmentType, description])
+    if (files && files.length > 0) {
+      const targetStage = activeStage || stages[0]
+      const newUploads = Array.from(files).map(file => {
+        const url = URL.createObjectURL(file)
+        let type: "stl" | "image" | "3dobject" | "other" = "other"
+        if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
+        else if (file.type.startsWith("image/")) type = "image"
+        return { file, url, type, stage: targetStage, isPublic: shareWithRelatedCases }
+      })
+      setSimulatedUploads(prev => [...prev, ...newUploads])
+    }
+  }, [activeStage, stages, shareWithRelatedCases])
 
   const uploadedFilesSize = simulatedUploads.reduce((sum, { file }) => sum + file.size, 0)
   const totalSizeMB = (uploadedFilesSize / (1024 * 1024)).toFixed(2)
 
-  const loadRemoteAttachments = useCallback(async () => {
-    if (!slipId) return
-    try {
-      const data = await fetchSlipAttachments(Number(slipId), {
-        archived: hideArchived ? false : undefined,
-        per_page: 100,
-      })
-      if (!data || !Array.isArray(data)) return
-      const mapped = data.map(mapSlipAttachmentToLocalItem)
-      setSimulatedUploads((prev) => {
-        const localOnly = prev.filter((p) => !p.remoteId)
-        const remoteUrls = new Set(mapped.map((m) => m.url))
-        const mergedLocal = localOnly.filter((p) => !remoteUrls.has(p.url))
-        return [...mergedLocal, ...mapped]
-      })
-    } catch (err) {
-      console.error("Failed to fetch slip attachments:", err)
-    }
-  }, [slipId, fetchSlipAttachments, hideArchived])
+  // Guards against duplicate fetches for the same slipId (StrictMode double-invoke
+  // and callback-identity churn both re-run the effect below).
+  const fetchedSlipIdRef = useRef<number | null>(null)
 
+  // Fetch remote attachments
   useEffect(() => {
-    void loadRemoteAttachments()
-  }, [loadRemoteAttachments])
+    if (!slipId) return
+    const numericSlipId = Number(slipId)
+    if (fetchedSlipIdRef.current === numericSlipId) return
+    fetchedSlipIdRef.current = numericSlipId
+    let mounted = true
+    ;(async () => {
+      try {
+        const data = await fetchSlipAttachments(numericSlipId)
+        if (!mounted || !data || !Array.isArray(data)) return
+        const mapped = data.map((a: any) => {
+          const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
+          let type: "stl" | "image" | "3dobject" | "other" = "other"
+          if (a.is_stl || fileName.endsWith(".stl")) type = "stl"
+          else if (fileName.endsWith(".3dobject") || a.is_3d) type = "3dobject"
+          else if (a.is_image) type = "image"
+          else if (a.is_pdf) type = "other"
+          const fileLike = {
+            name: a.file_name || a.download_url?.split("/").pop() || "remote-file",
+            size: Number(a.file_size) || 0,
+            lastModified: a.created_at ? new Date(a.created_at).getTime() : Date.now(),
+          }
+          const isPublic =
+            a.is_public ?? a.visibility === "public" ?? a.share_with_related_cases ?? true
+          return {
+            file: fileLike,
+            url: a.download_url || a.file_path,
+            type,
+            archived: a.archived || a.is_archived || false,
+            remoteId: a.id,
+            remoteMeta: a,
+            isPublic: Boolean(isPublic),
+            generatedPath: a.file_path || a.download_url || undefined,
+          }
+        })
+        setSimulatedUploads((prev: any[]) => {
+          const existing = new Set(prev.map(p => p.url))
+          const toAdd = mapped.filter(m => m.url && !existing.has(m.url))
+          if (toAdd.length === 0) return prev
+          return [...prev, ...toAdd]
+        })
+        onAttachmentStateChange?.(mapped.length > 0)
+      } catch (err) {
+        // Error handled: state remains as-is, UI shows empty attachments section
+      }
+    })()
+    return () => { mounted = false }
+  }, [slipId, fetchSlipAttachments])
 
-  const handleAttachFiles = async () => {
-    const attachments = simulatedUploads.map(({ file, url, type }) => ({
+  // Pull the backend-generated storage path / URL out of an upload response
+  const extractGeneratedPath = (data: any): string | undefined => {
+    if (!data || typeof data !== "object") return undefined
+    return data.file_path || data.download_url || data.path || data.url || undefined
+  }
+
+  const buildAttachmentMeta = (uploads: typeof simulatedUploads) =>
+    uploads.map(({ file, url, type, isPublic, generatedPath }) => ({
       name: file.name,
       size: file.size,
       type: "type" in file ? file.type : undefined,
       lastModified: file.lastModified,
       previewUrl: url,
       fileType: type,
+      isPublic: isPublic !== false,
+      generatedPath: generatedPath || null,
       description,
     }))
 
+  const persistAttachmentCache = (uploads: typeof simulatedUploads) => {
+    if (typeof window === "undefined") return
+    ;(window as any).__caseDesignAttachments = uploads
+    try {
+      const cacheStr = localStorage.getItem("caseDesignCache") || "{}"
+      const cache = JSON.parse(cacheStr || "{}")
+      cache.attachments = buildAttachmentMeta(uploads)
+      localStorage.setItem("caseDesignCache", JSON.stringify(cache))
+    } catch (err) {
+      // Error handled: cache write failed, non-critical for functionality
+    }
+  }
+
+  const handleAttachFiles = async () => {
+    setUploadError(null)
+
+    // When a slip already exists, upload local files now and capture the generated path.
     if (slipId) {
       setUploading(true)
-      setUploadError(null)
       try {
-        const pending = simulatedUploads.filter(
-          (item) => !item.remoteId && item.file instanceof File
+        const uploaded = await Promise.all(
+          simulatedUploads.map(async (upload) => {
+            // Already-remote files keep their existing path — don't re-upload.
+            if (upload.remoteId || upload.generatedPath) return upload
+            const data = await uploadSlipAttachment(
+              Number(slipId),
+              upload.file as File,
+              description,
+            )
+            const generatedPath = extractGeneratedPath(data)
+            return {
+              ...upload,
+              remoteId: data?.id ?? upload.remoteId,
+              remoteMeta: data ?? upload.remoteMeta,
+              generatedPath: generatedPath ?? upload.generatedPath,
+              url: generatedPath ?? upload.url,
+            }
+          }),
         )
-        for (const item of pending) {
-          await uploadSlipAttachment(Number(slipId), item.file as File, {
-            notes: description || item.notes,
-            attachment_type: item.attachmentType || attachmentType,
-          })
-        }
-        await loadRemoteAttachments()
-        if (onAttachmentsUploaded) onAttachmentsUploaded(simulatedUploads)
+        setSimulatedUploads(uploaded)
+        persistAttachmentCache(uploaded)
+        onAttachmentsUploaded?.(uploaded)
+        onAttachmentStateChange?.(uploaded.length > 0)
         setShowAttachModal(false)
         return
       } catch (e) {
-        const message = e instanceof Error ? e.message : "Failed to upload attachments"
+        const message = e instanceof Error ? e.message : "Attachment upload failed"
         setUploadError(message)
-        console.error("Error uploading attachments:", e)
+        return
       } finally {
         setUploading(false)
       }
     }
 
-    if (onAttachmentsUploaded) {
-      onAttachmentsUploaded(simulatedUploads)
-    }
-
-    if (typeof window !== 'undefined') {
-      ;(window as any).__caseDesignAttachments = simulatedUploads
-    }
-
-    if (typeof window !== "undefined") {
-      try {
-        const cacheStr = localStorage.getItem("caseDesignCache") || "{}"
-        const cache = JSON.parse(cacheStr || "{}")
-        cache.attachments = attachments
-        localStorage.setItem("caseDesignCache", JSON.stringify(cache))
-      } catch (err) {
-        console.error('Failed to save attachments metadata to localStorage', err)
-      }
-    }
-
+    // Slip-creation path: defer real upload to submit. Generated paths are filled in later.
+    onAttachmentsUploaded?.(simulatedUploads)
+    onAttachmentStateChange?.(simulatedUploads.length > 0)
+    persistAttachmentCache(simulatedUploads)
     setShowAttachModal(false)
+  }
+
+  // Apply the Visibility + Hide-Archived filters to a single upload
+  const passesFilters = (file: typeof simulatedUploads[number]): boolean => {
+    if (hideArchived && file.archived) return false
+    if (visibilityFilter === "public" && file.isPublic === false) return false
+    if (visibilityFilter === "private" && file.isPublic !== false) return false
+    return true
   }
 
   const groupFilesByStage = () => {
@@ -409,7 +500,8 @@ export default function FileAttachmentModalContent({
     stages.forEach((stage) => {
       grouped[stage] = []
     })
-    visibleUploads.forEach((file) => {
+    simulatedUploads.forEach((file) => {
+      if (!passesFilters(file)) return
       const stage = file.stage || activeStage || stages[0]
       if (!grouped[stage]) grouped[stage] = []
       grouped[stage].push(file)
@@ -418,6 +510,18 @@ export default function FileAttachmentModalContent({
   }
 
   const filesByStage = groupFilesByStage()
+
+  // Stages shown in the list — narrowed by the Stage filter
+  const visibleStages =
+    stageFilter === "all-stages"
+      ? stages
+      : stages.filter((s) => s.toLowerCase().replace(/\s+/g, "-") === stageFilter)
+
+  // Total files visible after all filters — drives the empty state
+  const visibleFileCount = visibleStages.reduce(
+    (sum, stage) => sum + (filesByStage[stage]?.length || 0),
+    0,
+  )
 
   const [expanded, setExpanded] = useState<{ [key: string]: boolean }>(() => {
     const initial: { [key: string]: boolean } = {}
@@ -676,7 +780,8 @@ export default function FileAttachmentModalContent({
             id="shareFiles"
             className="rounded border-gray-300 w-3.5 h-3.5"
             disabled={isCaseSubmitted}
-            defaultChecked
+            checked={shareWithRelatedCases}
+            onChange={(e) => setShareWithRelatedCases(e.target.checked)}
           />
           <Label htmlFor="shareFiles" className={`${isViewerOpen ? "text-[10px]" : "text-xs"}`}>
             Make files available to related cases
@@ -717,7 +822,7 @@ export default function FileAttachmentModalContent({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Select defaultValue="all-stages" disabled={isCaseSubmitted}>
+            <Select value={stageFilter} onValueChange={setStageFilter} disabled={isCaseSubmitted}>
               <SelectTrigger className={`${isViewerOpen ? "w-[100px] h-7 text-[10px]" : "w-[120px] h-8 text-xs"}`}>
                 <SelectValue />
               </SelectTrigger>
@@ -728,7 +833,7 @@ export default function FileAttachmentModalContent({
                 ))}
               </SelectContent>
             </Select>
-            <Select defaultValue="all-visibility" disabled={isCaseSubmitted}>
+            <Select value={visibilityFilter} onValueChange={setVisibilityFilter} disabled={isCaseSubmitted}>
               <SelectTrigger className={`${isViewerOpen ? "w-[100px] h-7 text-[10px]" : "w-[120px] h-8 text-xs"}`}>
                 <SelectValue />
               </SelectTrigger>
@@ -741,12 +846,12 @@ export default function FileAttachmentModalContent({
             <Button
               variant="outline"
               size="sm"
-              className={`${hideArchived ? "bg-[#1162A8] text-white hover:bg-[#0d4a85] hover:text-white border-[#1162A8]" : ""} ${isViewerOpen ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3"}`}
+              className={`${hideArchived ? "bg-[#0d4a85]" : "bg-[#1162A8]"} text-white hover:bg-[#0d4a85] hover:text-white border-[#1162A8] hover:border-[#0d4a85] ${isViewerOpen ? "h-7 text-[10px] px-2" : "h-8 text-xs px-3"}`}
               disabled={isCaseSubmitted}
               onClick={() => setHideArchived((prev) => !prev)}
             >
               <Archive className={`${isViewerOpen ? "w-3 h-3" : "w-3.5 h-3.5"} mr-1`} />
-              {hideArchived ? "Hide Archived" : "Show Archived"}
+              {hideArchived ? "Show Archived" : "Hide Archived"}
             </Button>
           </div>
         </div>
@@ -759,9 +864,15 @@ export default function FileAttachmentModalContent({
               <div className="text-sm font-semibold mb-0.5">No files selected</div>
               <div className="text-[10px]">Files you add will appear here for preview.</div>
             </div>
+          ) : visibleFileCount === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <Paperclip className="w-8 h-8 mb-1" />
+              <div className="text-sm font-semibold mb-0.5">No files match these filters</div>
+              <div className="text-[10px]">Adjust the stage, visibility, or archived filters.</div>
+            </div>
           ) : (
             <div className="space-y-2">
-              {stages.map((stage) => {
+              {visibleStages.map((stage) => {
                 const stageFiles = filesByStage[stage] || []
                 const stageKey = stage.toLowerCase().replace(/\s+/g, "-")
                 return (
@@ -836,11 +947,11 @@ export default function FileAttachmentModalContent({
                                     geometryType="cube"
                                     fileSize={`${(file.size / 1024 / 1024).toFixed(1)} MB`}
                                     dimensions="Unknown"
-                                    stlUrl={url}
-                                    materialColor="#f9c74f"
+                                    stlUrl={toProxiedFileUrl(url)}
+                                    materialColor="#f5ecd0"
                                     viewerKey={url}
                                     autoOpen={false}
-                                    thumbnailUrls={selectedImageThumbnailUrls}
+                                    thumbnailUrls={selectedImageThumbnailUrls.map(toProxiedFileUrl)}
                                   />
                                 ) : is3dObj ? (
                                   <div className="flex flex-col items-center justify-center">
@@ -848,7 +959,7 @@ export default function FileAttachmentModalContent({
                                     <span className="text-[8px] text-gray-400 font-medium mt-0.5">3D Object</span>
                                   </div>
                                 ) : isImage ? (
-                                  <img src={url} alt={file.name || 'Image'} className="object-cover w-full h-full rounded-t-lg" />
+                                  <img src={toProxiedFileUrl(url)} alt={file.name || 'Image'} className="object-cover w-full h-full rounded-t-lg" />
                                 ) : (
                                   <FileText className={`text-gray-300 ${isViewerOpen ? "w-8 h-8" : "w-10 h-10"}`} />
                                 )}
@@ -941,7 +1052,7 @@ export default function FileAttachmentModalContent({
               <div className="w-4 h-4 bg-blue-600 rounded flex items-center justify-center">
                 <span className="text-white text-[8px]">3D</span>
               </div>
-              <span className="font-semibold text-xs">Studio</span>
+              <span className="font-semibold text-xs">My Studio</span>
             </div>
             <div className="flex items-center gap-0.5">
               <button className="p-1 hover:bg-gray-100 rounded" title="Full screen" onClick={() => setIsFullscreen(true)}>
@@ -957,12 +1068,12 @@ export default function FileAttachmentModalContent({
           {viewerItems.length > 0 && (
             <div className="flex gap-2 px-3 py-2.5 border-b overflow-x-auto bg-gray-50">
               {viewerItems.map((item, idx) => (
-                <div key={item.url} className={`w-[100px] h-[75px] flex-shrink-0 rounded-md border-2 overflow-hidden relative group/thumb cursor-pointer ${idx === 0 ? "border-blue-500" : "border-gray-200"}`}>
+                <div key={item.url} className={`w-[130px] h-[95px] flex-shrink-0 rounded-md border-2 overflow-hidden relative group/thumb cursor-pointer ${idx === 0 ? "border-blue-500" : "border-gray-200"}`}>
                   {item.type === "image" ? (
-                    <img src={item.url} className="w-full h-full object-cover" alt={`Viewer ${idx + 1}`} />
+                    <img src={toProxiedFileUrl(item.url)} className="w-full h-full object-cover" alt={`Viewer ${idx + 1}`} />
                   ) : (
                     <div className="w-full h-full bg-[#2a3a4a] flex items-center justify-center">
-                      <Box className="w-6 h-6 text-yellow-400" />
+                      <Box className="w-8 h-8 text-yellow-400" />
                     </div>
                   )}
                   <div className="absolute top-0.5 left-0.5 bg-black/50 text-white text-[8px] font-medium px-1 rounded">
@@ -1092,10 +1203,12 @@ export default function FileAttachmentModalContent({
                       {item?.type === "stl" ? (
                         <div className="absolute inset-0">
                           <STLCanvasOnly
-                            models={[{ src: item.url, color: modelColor }]}
+                            models={[{ src: toProxiedFileUrl(item.url), color: modelColor }]}
                             isWireframe={isWireframe}
                             showGrid={showGrid}
                             modelColor={modelColor}
+                            glossy
+                            autoRotate
                           />
                         </div>
                       ) : item?.type === "image" ? (
@@ -1130,7 +1243,7 @@ export default function FileAttachmentModalContent({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={item.url}
+                            src={toProxiedFileUrl(item.url)}
                             alt={`Preview ${idx + 1}`}
                             className="w-full h-full object-contain select-none"
                             draggable={false}
@@ -1268,7 +1381,7 @@ export default function FileAttachmentModalContent({
                     <div key={`fs-${selectedLayout}-${idx}`} className="bg-[#e9ecef] overflow-hidden relative" style={{ gridColumn: `span ${cell.colSpan}`, gridRow: `span ${cell.rowSpan}` }}>
                       {item?.type === "stl" ? (
                         <div className="absolute inset-0">
-                          <STLCanvasOnly models={[{ src: item.url, color: modelColor }]} isWireframe={isWireframe} showGrid={showGrid} modelColor={modelColor} />
+                          <STLCanvasOnly models={[{ src: item.url, color: modelColor }]} isWireframe={isWireframe} showGrid={showGrid} modelColor={modelColor} glossy autoRotate />
                         </div>
                       ) : item?.type === "image" ? (
                         <div className="absolute inset-0 bg-white overflow-hidden cursor-grab active:cursor-grabbing"
