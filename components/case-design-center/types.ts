@@ -1,6 +1,7 @@
 import type React from "react";
 import type { ImplantDetailData } from "./components/ImplantDetailSection";
 import type { ProductAbutment } from "@/services/implant-api";
+import type { AddStageDesignContext } from "@/lib/add-stage/session";
 
 /** Snapshot of per-product design data collected at submit time */
 export interface SlipProductSnapshot {
@@ -8,9 +9,9 @@ export interface SlipProductSnapshot {
   type: string;
   productId: number;
   productApiData: ProductApiData | null;
-  /** Tooth numbers used for teeth_selection (may be extraction-filtered subset) */
+  /** Tooth numbers for `teeth_selection` (product/orange-header picks only) */
   teethNumbers: number[];
-  /** All teeth on this product card (for extractions / retention_options grouping) */
+  /** Full scope for `extractions` / `tooth_chart` (status boxes, clasps, TIM, etc.) */
   allCardTeeth?: number[];
   /** Representative tooth number (first in group — field values are keyed here) */
   repToothNumber: number;
@@ -127,12 +128,26 @@ export interface CaseDesignProps {
    * without requiring interactive tooth selection. Has no effect in interactive mode.
    */
   initialSlipState?: VirtualSlipInitialState;
+  /**
+   * When true with initialSlipState, hydrates CDC on mount even when caseSubmitted is false
+   * (add-new-stage preload from source slip).
+   */
+  preloadInitialSlipState?: boolean;
+  /**
+   * Add-new-stage only: per-arch stage history from eligibility API and optional
+   * sequential stage modal prompt on load (maxillary, then mandibular).
+   */
+  addStageContext?: AddStageDesignContext;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   /** Called whenever any full-screen modal (impression, stage, add-ons, etc.) opens or closes. */
   onAnyModalOpenChange?: (isOpen: boolean) => void;
   /** When false, the Rush Case button is hidden. Defaults to true (visible). */
   rushCasesEnabled?: boolean;
+  /** Lab business profile case schedule (rush fee %, turnaround, etc.). */
+  rushCaseSchedule?: import("@/lib/api-business-settings").CaseSchedule | null;
+  /** Lab business hours for rush calendar (weekoffs). */
+  labBusinessHours?: import("@/lib/api-business-settings").BusinessHour[] | null;
   /** Fired when product field accordions are visible (compact slip header should be used). */
   onSlipHeaderCompactChange?: (compact: boolean) => void;
 }

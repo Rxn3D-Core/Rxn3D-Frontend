@@ -14,31 +14,60 @@ import clsx from "clsx"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import { useToast } from "@/hooks/use-toast"
+import {
+  buildPickupDeliveryEntryFromSlip,
+  type PickupDeliveryEntry,
+} from "@/lib/virtual-slip-pickup-entry"
+import {
+  slipPickupDropoffAction,
+  slipNextLocationIdFromRef,
+  type SlipPickupDropoffAction,
+} from "@/lib/slip-location"
+import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
 
-interface DeliveryEntry {
-  id: string
-  office: string
-  patientName: string
-  location: string
-  isChecked: boolean
-  case_id?: number
-  slip_id?: number
-  case_number?: string
-  slip_number?: string
-  casepan_number?: string
-  location_id?: number
-  customer_code?: string
-  customer_id?: number
+function pickupDropoffModalCopy(action: SlipPickupDropoffAction | null) {
+  if (action === "dropoff") {
+    return {
+      title: "Drop off",
+      subtitle: "Confirm drop off for this slip.",
+      signaturePlaceholder: "Please sign to confirm drop off...",
+      entriesLabel: "Drop off",
+    }
+  }
+  if (action === "pickup") {
+    return {
+      title: "Pick up",
+      subtitle: "Confirm pick up for this slip.",
+      signaturePlaceholder: "Please sign to confirm pick up...",
+      entriesLabel: "Pick up",
+    }
+  }
+  return {
+    title: "Pick up and Drop off",
+    subtitle: "Select cases to confirm pick up or drop off.",
+    signaturePlaceholder: "Please sign to confirm pick up or drop off...",
+    entriesLabel: "Delivery Entries",
+  }
 }
+
+type DeliveryEntry = PickupDeliveryEntry
 
 interface DriverHistoryModalProps {
   isOpen: boolean
   onClose: () => void
   slip?: any
   qrScanData?: QRScanResponseData[] // Optional QR scan data to pre-populate
+  /** Virtual slip: use loaded slip details only — do not POST /slip/pickup-delivery-slips */
+  singleSlipMode?: boolean
 }
 
-export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }: DriverHistoryModalProps) {
+export default function DriverHistoryModal({
+  isOpen,
+  onClose,
+  slip,
+  qrScanData,
+  singleSlipMode = false,
+}: DriverHistoryModalProps) {
   const [deliveryEntries, setDeliveryEntries] = useState<DeliveryEntry[]>([])
   const [signature, setSignature] = useState("")
   const { qrScanData: contextQrScanData, qrScanLoading, qrScanError, sessionKey } = useDriverSlip()
@@ -67,14 +96,15 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
     }))
   }
 
-  // Update delivery entries when QR scan data is available
+  // Update delivery entries when QR scan data is available (listing / header scan flows)
   useEffect(() => {
+    if (singleSlipMode) return
     const activeQrData = qrScanData || contextQrScanData?.data
     if (activeQrData && activeQrData.length > 0) {
       const qrEntries = convertQRDataToDeliveryEntries(activeQrData)
       setDeliveryEntries(qrEntries)
     }
-  }, [qrScanData, contextQrScanData])
+  }, [qrScanData, contextQrScanData, singleSlipMode])
 
   // Derive a stable primitive slipId from the slip prop to avoid effect loops
   const slipId = useMemo(() => {
@@ -82,9 +112,39 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
     return typeof slip === 'number' ? slip : slip.slip_id || slip.id || null
   }, [slip])
 
-  // Fetch pickup/delivery slips when modal opens (if slipId provided)
+  const pickupDropoffAction = useMemo((): SlipPickupDropoffAction | null => {
+    if (!singleSlipMode || !slip) return null
+    const entry = buildPickupDeliveryEntryFromSlip(slip)
+    if (!entry) return null
+    return slipPickupDropoffAction({
+      locationId: entry.location_id,
+      location: entry.location,
+    })
+  }, [singleSlipMode, slip])
+
+  const modalCopy = useMemo(
+    () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
+    [singleSlipMode, pickupDropoffAction]
+  )
+
+  // Virtual slip: one row from details already on the page (no pickup-delivery-slips API)
+  useEffect(() => {
+    if (!singleSlipMode || !isOpen || !slip) return
+    const entry = buildPickupDeliveryEntryFromSlip(slip)
+    if (!entry) {
+      setPickupError(`Could not load slip details for ${modalCopy.title.toLowerCase()}.`)
+      setDeliveryEntries([])
+      return
+    }
+    setPickupError(null)
+    setDeliveryEntries([entry])
+    if (slipId) lastFetchedSlipIdRef.current = Number(slipId)
+  }, [singleSlipMode, isOpen, slip, slipId, modalCopy.title])
+
+  // Fetch pickup/delivery slips when modal opens (listing / multi-slip flows)
   useEffect(() => {
     const loadPickup = async () => {
+      if (singleSlipMode) return
       if (!isOpen) return
       if (!slipId) return
       if (lastFetchedSlipIdRef.current === Number(slipId)) return // already fetched
@@ -109,7 +169,7 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
     }
 
     void loadPickup()
-  }, [isOpen, slipId, fetchPickupDeliverySlips])
+  }, [isOpen, slipId, fetchPickupDeliverySlips, singleSlipMode])
 
   // Reset entries when modal closes
   useEffect(() => {
@@ -177,6 +237,50 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
     }
 
     if (slipIds.length > 0) {
+      if (singleSlipMode && slipIds.length === 1) {
+        const entry = selectedCases[0]
+        const fromLocationId = entry.location_id
+        const toLocationId =
+          typeof fromLocationId === "number"
+            ? slipNextLocationIdFromRef({
+                locationId: fromLocationId,
+                location: entry.location,
+              })
+            : slipNextLocationIdFromRef({ location: entry.location })
+
+        if (toLocationId == null) {
+          toast({
+            title: "Invalid location",
+            description: "This slip cannot be moved from its current location.",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const result = await postSlipDriverHistoryChangeLocation({
+          slip_ids: slipIds,
+          to_location_id: toLocationId,
+          notes: signature.trim(),
+        })
+        if (result.success) {
+          toast({
+            title: "Submission Successful",
+            description:
+              result.message || "Location updated successfully",
+            duration: 3000,
+          })
+          onClose()
+        } else {
+          toast({
+            title: "Submission Failed",
+            description: result.message || "Failed to update location",
+            variant: "destructive",
+            duration: 5000,
+          })
+        }
+        return
+      }
+
       const result = await submitScannedSlips(slipIds, signature)
       if (result && result.success) {
         toast({ title: "Submission Successful", description: result.message || "Scanned slips submitted successfully", duration: 3000 })
@@ -207,7 +311,7 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
             </svg>
 
             <DialogTitle className="text-xl sm:text-2xl font-semibold text-gray-900">
-              Pick up and Drop off
+              {modalCopy.title}
             </DialogTitle>
           </div>
           <Button
@@ -223,7 +327,7 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
         {/* Subtitle & Description */}
         <div className="px-6 pt-4 pb-2">
           <div className="font-semibold text-base flex flex-wrap items-center gap-2">
-            Delivery Entries
+            {singleSlipMode ? modalCopy.entriesLabel : "Delivery Entries"}
             {contextQrScanData && (
               <span className="text-xs sm:text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-normal">
                 QR Scanned ({contextQrScanData.scanned_cases_count} cases)
@@ -231,8 +335,10 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
             )}
           </div>
           <div className="text-gray-600 text-xs sm:text-sm mt-1">
-            Select cases to confirm pick up or drop off.
-            {sessionKey && (
+            {singleSlipMode
+              ? modalCopy.subtitle
+              : "Select cases to confirm pick up or drop off."}
+            {sessionKey && !singleSlipMode && (
               <div className="text-[10px] sm:text-xs text-blue-600 mt-1">
                 Session: {sessionKey.substring(0, 8)}...
               </div>
@@ -317,7 +423,9 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
               ))
             ) : deliveryEntries.length === 0 ? (
               <div className="py-8 text-center text-gray-500 text-sm">
-                No entries available. Click "Add Case" to add one manually or scan a QR code.
+                {singleSlipMode
+                  ? `Slip details are not available for ${modalCopy.title.toLowerCase()}.`
+                  : 'No entries available. Click "Add Case" to add one manually or scan a QR code.'}
               </div>
             ) : (
               deliveryEntries.map((entry) => {
@@ -531,18 +639,19 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
           </div>
         </div>
 
-        {/* Add Case Button */}
-        <div className="px-6 py-4 flex justify-center border-t border-gray-100 bg-gray-50/50">
-          <Button
-            variant="outline"
-            className="border border-blue-500 text-blue-600 font-medium rounded-lg flex items-center gap-2 px-6 py-2 hover:bg-blue-50/80 transition-colors"
-            onClick={handleAddCase}
-            type="button"
-          >
-            <Plus className="w-5 h-5" />
-            Add Case
-          </Button>
-        </div>
+        {!singleSlipMode ? (
+          <div className="px-6 py-4 flex justify-center border-t border-gray-100 bg-gray-50/50">
+            <Button
+              variant="outline"
+              className="border border-blue-500 text-blue-600 font-medium rounded-lg flex items-center gap-2 px-6 py-2 hover:bg-blue-50/80 transition-colors"
+              onClick={handleAddCase}
+              type="button"
+            >
+              <Plus className="w-5 h-5" />
+              Add Case
+            </Button>
+          </div>
+        ) : null}
 
         {/* Signature */}
         <div className="px-6 py-4 border-t border-gray-100 bg-white">
@@ -551,7 +660,7 @@ export default function DriverHistoryModal({ isOpen, onClose, slip, qrScanData }
           </Label>
           <Textarea
             id="signature"
-            placeholder="Please sign to confirm pick up or drop off..."
+            placeholder={modalCopy.signaturePlaceholder}
             rows={2}
             className="resize-none rounded-lg border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
             value={signature}

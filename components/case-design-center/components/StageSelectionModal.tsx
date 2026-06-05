@@ -8,15 +8,19 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
+import { StageHistoryBlock } from "./StageHistoryBlock";
 
 export function StageSelectionModal({
   stages,
   selectedStage,
+  stageHistory,
   onSelect,
   onClose,
 }: {
   stages: { name: string; letter: string }[];
   selectedStage?: string;
+  stageHistory?: NewStageEligibilityStageRef[];
   onSelect: (stageName: string) => void;
   onClose: () => void;
 }) {
@@ -35,6 +39,12 @@ export function StageSelectionModal({
             <span className="text-xl sm:text-[30px]">Select stage</span>
           </DialogTitle>
         </DialogHeader>
+
+        {stageHistory && stageHistory.length > 0 ? (
+          <div className="px-3 sm:px-6 pb-2">
+            <StageHistoryBlock history={stageHistory} />
+          </div>
+        ) : null}
 
         <div className="px-3 sm:px-6 py-3 sm:py-4 overflow-y-auto sm:overflow-y-auto max-h-[70vh]">
           {/* Mobile: horizontal carousel */}

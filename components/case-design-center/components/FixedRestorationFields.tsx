@@ -45,7 +45,7 @@ import {
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import { shouldSkipStageSelection } from "../utils/categoryHelpers";
 import { productHasGrades } from "../utils/gradeHelpers";
-import { parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
   getShadeGuideAdvanceFields,
   getShadeFieldType,
@@ -124,7 +124,10 @@ export function hasAdvanceField(
   if ((step === "stage" || step === "fixed_stage") && shouldSkipStageSelection(product)) {
     return false;
   }
-  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "impression", "addons"];
+  if (step === "addons" || step === "fixed_addons") {
+    return productSupportsAddons(product as ProductApiData | null);
+  }
+  const alwaysShow = ["fixed_stage", "fixed_impression", "stage", "impression"];
   if (alwaysShow.includes(step)) return true;
 
   const hasTeethShadeFlag = product?.has_teeth_shade === "Yes";

@@ -27,6 +27,10 @@ export interface ImplantVM {
 }
 
 export interface ProductVM {
+  /** Raw slip product row (catalog icons for extraction status boxes). */
+  apiProduct: any;
+  arch: "maxillary" | "mandibular";
+  extractionDisplay: ExtractionDisplayVM;
   image: string | null;
   /** Product display name, e.g. "Stay plate 4 teeth to replace". */
   title: string;
@@ -34,6 +38,7 @@ export interface ProductVM {
   teethLabel: string;
   missingTeeth: number[];
   willExtractTeeth: number[];
+  claspTeeth: number[];
   restoration: string;
   productName: string;
   grade: string;
@@ -43,6 +48,8 @@ export interface ProductVM {
   stumpShade: string;
   /** "1x Clean impression, 1x STL" */
   impression: string;
+  /** "1x Light body, 1x Heavy body" from `opposite_impressions` when configured. */
+  opposingImpression: string;
   /** ["3x Gold tooth"] */
   addOns: string[];
   isFixed: boolean;
@@ -51,20 +58,24 @@ export interface ProductVM {
   implants: ImplantVM[];
   /** Advance Mode configuration fields. */
   advanceFields: Array<{ label: string; value: string }>;
-  /** True when the product has an opposing arch section to render. */
-  hasOpposing: boolean;
-  /** The opposing arch (opposite of the product's own arch). */
-  opposingArch: "maxillary" | "mandibular" | null;
-  /** Formatted opposing arch impressions, e.g. "1x Alginate". */
-  opposingImpression: string;
-  /** Opposing arch tooth numbers that should be highlighted on the chart. */
-  opposingSelectedTeeth: number[];
-  /**
-   * Per-tooth image overrides for the opposing arch chart.
-   * Keyed by OPPOSING tooth number (derived as 33 − main_tooth for universal numbering).
-   */
-  opposingToothChartByTooth: Record<number, string | null>;
 }
+
+import { formatFieldValueForNote } from "@/components/case-design-center/utils/caseNoteBuilder";
+import type { ExtractionDisplayVM } from "./virtual-slip-extraction-display";
+import {
+  buildExtractionDisplayFromSlipProduct,
+  buildOpposingArchVM,
+  extractionChipTeethFromSlipProduct,
+  formatOpposingImpressions,
+  hasExtractionChartOverlay,
+  isGroupedSlipExtractions,
+  mergeArchExtractionDisplays,
+  productHasOpposingImpression,
+} from "./virtual-slip-extraction-display";
+import { hasDisplayValue } from "./virtual-slip-display";
+import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates";
+
+export type { ExtractionDisplayVM, OpposingArchVM } from "./virtual-slip-extraction-display";
 
 export interface ArchVM {
   arch: "maxillary" | "mandibular";
@@ -74,12 +85,17 @@ export interface ArchVM {
     number,
     { chartType: "Implant" | "Prep" | "Pontic" | null; imageUrl: string | null }
   >;
+  /** visibility_type / overlay / clasp image state for removable tooth charts. */
+  extractionDisplay: ExtractionDisplayVM;
   products: ProductVM[];
   /**
    * Impressions contributed by products on the OPPOSITE arch that have
    * `opposite_impression: "Yes"`. Displayed below the tooth chart on this side.
+   * @deprecated Prefer `opposing.impression` when `opposing` is set.
    */
   opposingImpression: string;
+  /** Opposing-arch chart + impressions (CDC opposing accordion), when configured. */
+  opposing: import("./virtual-slip-extraction-display").OpposingArchVM | null;
 }
 
 export interface VirtualSlipHeaderVM {
@@ -99,14 +115,32 @@ export interface VirtualSlipHeaderVM {
   panNumber: string;
   status: string;
   location: string;
+  /** `slip_locations` id when API provides it (listing / FAB actions). */
+  locationId?: number;
   deliveryTime: string;
   dueDate: string;
   pickupDate: string;
+  /** Slip or any product is on rush. */
+  isRush: boolean;
+  /** Standard (non-rush) due date when rushed; same as dueDate when not rushed. */
+  standardDueDate: string;
+  /** Rush target due date when rushed. */
+  rushDueDate: string;
+}
+
+export type SlipProductArchKey = "maxillary" | "mandibular";
+
+export interface SlipProductArchVisibility {
+  hasMaxillary: boolean;
+  hasMandibular: boolean;
+  /** Arches that have at least one slip product (Upper/Lower). Same rule as slip creation. */
+  visibleArches: SlipProductArchKey[];
 }
 
 export interface VirtualSlipVM {
   header: VirtualSlipHeaderVM;
   arches: { maxillary: ArchVM | null; mandibular: ArchVM | null };
+  productArchVisibility: SlipProductArchVisibility;
   notes: string;
   relatedSlips: string[];
 }
@@ -117,8 +151,52 @@ const MAXILLARY_TEETH = Array.from({ length: 16 }, (_, i) => i + 1); // 1..16
 const MANDIBULAR_TEETH = Array.from({ length: 16 }, (_, i) => 32 - i); // 32..17
 
 /** "Upper" → maxillary, "Lower" → mandibular. */
-function archFromType(type: string | null | undefined): "maxillary" | "mandibular" {
-  return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
+function archFromType(type: string | null | undefined): SlipProductArchKey {
+  const t = String(type ?? "").trim().toLowerCase();
+  if (t === "lower" || t === "mandibular") return "mandibular";
+  return "maxillary";
+}
+
+/** Which arches have rendered products (same source as rush arch slots). */
+export function getProductArchVisibilityFromArches(
+  arches: VirtualSlipVM["arches"]
+): SlipProductArchVisibility {
+  const hasMaxillary = (arches.maxillary?.products?.length ?? 0) > 0;
+  const hasMandibular = (arches.mandibular?.products?.length ?? 0) > 0;
+  const visibleArches: SlipProductArchKey[] = [];
+  if (hasMaxillary) visibleArches.push("maxillary");
+  if (hasMandibular) visibleArches.push("mandibular");
+  if (visibleArches.length === 0) {
+    return {
+      hasMaxillary: true,
+      hasMandibular: true,
+      visibleArches: ["maxillary", "mandibular"],
+    };
+  }
+  return { hasMaxillary, hasMandibular, visibleArches };
+}
+
+/** Which arches have products on this slip (raw API `type` field). */
+export function getSlipProductArchVisibility(products: unknown[]): SlipProductArchVisibility {
+  let hasMaxillary = false;
+  let hasMandibular = false;
+  for (const p of products) {
+    if (!p || typeof p !== "object") continue;
+    const arch = archFromType((p as { type?: string }).type);
+    if (arch === "maxillary") hasMaxillary = true;
+    else hasMandibular = true;
+  }
+  const visibleArches: SlipProductArchKey[] = [];
+  if (hasMaxillary) visibleArches.push("maxillary");
+  if (hasMandibular) visibleArches.push("mandibular");
+  if (visibleArches.length === 0) {
+    return {
+      hasMaxillary: true,
+      hasMandibular: true,
+      visibleArches: ["maxillary", "mandibular"],
+    };
+  }
+  return { hasMaxillary, hasMandibular, visibleArches };
 }
 
 /** Parse a teeth value that may be a comma string, an array of numbers, or an array of objects. */
@@ -166,6 +244,13 @@ function formatDate(iso: string | null | undefined): string {
   return `${month}/${day}/${year.slice(2)}`;
 }
 
+/** `yyyy-MM-dd` prefix for APIs/modals (rush modal, date pickers). */
+export function isoDateFromApiTimestamp(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(iso);
+  return m ? m[1] : "";
+}
+
 /**
  * Format a time to "h:mm AM/PM". Reads the hour/minute directly from the ISO
  * string's time portion (the stored UTC value, not the viewer's local time).
@@ -185,15 +270,7 @@ function formatTime(iso: string | null | undefined): string {
 
 /** Format an impressions array into "1x Clean impression, 1x STL". */
 function formatImpressions(impressions: unknown): string {
-  if (!Array.isArray(impressions)) return "";
-  return impressions
-    .map((imp: any) => {
-      const qty = imp?.quantity ?? imp?.qty ?? 1;
-      const name = firstStr(imp?.impression?.name, imp?.name, imp?.impression?.code, imp?.code);
-      return name ? `${qty}x ${name}` : "";
-    })
-    .filter(Boolean)
-    .join(", ");
+  return formatOpposingImpressions(impressions);
 }
 
 /** Format an addons array into ["3x Gold tooth", ...]. */
@@ -338,10 +415,17 @@ function buildProduct(apiProduct: any): ProductVM {
   const isFixed = !isRemovable;
 
   const teeth = parseTeeth(apiProduct?.teeth_selection ?? apiProduct?.teeth);
-  const missingTeeth = parseTeeth(apiProduct?.missing_teeth ?? apiProduct?.missing);
-  const willExtractTeeth = parseTeeth(
-    apiProduct?.extraction_teeth ?? apiProduct?.will_extract ?? apiProduct?.extractions,
-  );
+  const extractionDisplay = buildExtractionDisplayFromSlipProduct(apiProduct);
+  const productArch = archFromType(apiProduct?.type);
+  const chipTeeth = hasExtractionChartOverlay(extractionDisplay)
+    ? extractionChipTeethFromSlipProduct(apiProduct, extractionDisplay, productArch)
+    : null;
+  const missingTeeth =
+    chipTeeth?.missingTeeth ??
+    parseTeeth(apiProduct?.missing_teeth ?? apiProduct?.missing);
+  const willExtractTeeth =
+    chipTeeth?.willExtractTeeth ??
+    parseTeeth(apiProduct?.extraction_teeth ?? apiProduct?.will_extract);
 
   const teethLabel = teeth.length > 0 ? `#${teeth.join(",")}` : "";
 
@@ -365,12 +449,23 @@ function buildProduct(apiProduct: any): ProductVM {
         if (def?.id) defs[def.id] = def?.name ?? "";
       }
     }
+    const productAdvanceDefs = Array.isArray(product?.advance_fields)
+      ? product.advance_fields
+      : undefined;
     for (const saved of apiProduct.advance_fields) {
       const id = saved?.advance_field_id ?? saved?.id;
-      const value = firstStr(saved?.advance_field_value, saved?.value);
+      const rawValue = firstStr(
+        saved?.advance_field_value,
+        saved?.value,
+        saved?.teeth_shade?.name,
+        saved?.file?.name,
+      );
+      const value =
+        formatFieldValueForNote(rawValue, productAdvanceDefs) ||
+        (rawValue.startsWith("{") || rawValue.startsWith("[") ? "" : rawValue);
       // Prefer the nested advance_field.name (present in v2 response); fall back to defs map.
       const label = firstStr(saved?.advance_field?.name, defs[id], saved?.name);
-      if (label && value) advanceFields.push({ label, value });
+      if (label && hasDisplayValue(value)) advanceFields.push({ label, value });
     }
   }
 
@@ -397,73 +492,16 @@ function buildProduct(apiProduct: any): ProductVM {
     return "";
   })();
 
-  // ── Opposing arch ───────────────────────────────────────────────────────────
-  const productArch = archFromType(apiProduct?.type);
-  const opposingArch: "maxillary" | "mandibular" =
-    productArch === "maxillary" ? "mandibular" : "maxillary";
-
-  // Opposing impressions: dedicated field preferred, falls back to empty string.
-  const opposingImpression = formatImpressions(
-    apiProduct?.opposing_impressions ??
-    apiProduct?.opposite_impressions ??
-    [],
-  );
-
-  // Build per-tooth opposing image map from selected_teeth[].tooth_chart_entry.
-  // The opposing tooth number is derived as 33 − mainTooth (universal dental numbering).
-  const opposingToothChartByTooth: Record<number, string | null> = {};
-  const opposingSelectedTeethSet = new Set<number>();
-
-  const selectedTeethSource: any[] = Array.isArray(apiProduct?.selected_teeth)
-    ? apiProduct.selected_teeth
-    : Array.isArray(apiProduct?.selected_teeth_map)
-      ? apiProduct.selected_teeth_map
-      : [];
-
-  for (const row of selectedTeethSource) {
-    const mainTooth = Number(row?.tooth_number);
-    if (!Number.isFinite(mainTooth) || mainTooth < 1 || mainTooth > 32) continue;
-    const entry = row?.tooth_chart_entry ?? {};
-    const oppUrl =
-      firstStr(
-        entry?.opposite_extraction_image_url,
-        row?.opposite_extraction_image_url,
-      ) || null;
-    if (oppUrl) {
-      const oppTooth = 33 - mainTooth;
-      opposingToothChartByTooth[oppTooth] = oppUrl;
-      opposingSelectedTeethSet.add(oppTooth);
-    }
-  }
-
-  // Also collect opposing teeth from the saved opposite_extractions list.
-  if (Array.isArray(apiProduct?.opposite_extractions)) {
-    for (const ext of apiProduct.opposite_extractions) {
-      // Each entry is { extraction_id, teeth_numbers: number[] } (creation payload shape)
-      // OR { extraction_id, teeth_number } (single-tooth shape).
-      const tns: number[] = Array.isArray(ext?.teeth_numbers)
-        ? ext.teeth_numbers.map(Number)
-        : ext?.teeth_number != null
-          ? [Number(ext.teeth_number)]
-          : [];
-      for (const tn of tns) {
-        if (Number.isFinite(tn)) opposingSelectedTeethSet.add(tn);
-      }
-    }
-  }
-
-  const opposingSelectedTeeth = Array.from(opposingSelectedTeethSet);
-  const hasOpposing =
-    (product?.opposite_impression === "Yes") ||
-    opposingSelectedTeeth.length > 0 ||
-    !!opposingImpression;
-
   return {
+    apiProduct,
+    arch: productArch,
+    extractionDisplay,
     image: variationImage ?? productImage,
     title: variationTitle || productTitle,
     teethLabel,
     missingTeeth,
     willExtractTeeth,
+    claspTeeth: chipTeeth?.claspTeeth ?? [],
     restoration: categoryName,
     productName: firstStr(product?.name, apiProduct?.name),
     grade: firstStr(apiProduct?.grade?.name, apiProduct?.grade_name),
@@ -472,16 +510,14 @@ function buildProduct(apiProduct: any): ProductVM {
     gumShade: firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name),
     stumpShade: firstStr(apiProduct?.stump_shade?.name, apiProduct?.stump_shade_name, stumpShadeFromAdvance),
     impression: formatImpressions(apiProduct?.impressions),
+    opposingImpression: productHasOpposingImpression(apiProduct)
+      ? formatOpposingImpressions(apiProduct?.opposite_impressions)
+      : "",
     addOns: formatAddOns(apiProduct?.addons ?? apiProduct?.add_ons),
     isFixed,
     isImplant,
     implants: isImplant ? implants : [],
     advanceFields,
-    hasOpposing,
-    opposingArch: hasOpposing ? opposingArch : null,
-    opposingImpression,
-    opposingSelectedTeeth,
-    opposingToothChartByTooth,
   };
 }
 
@@ -506,70 +542,37 @@ function collectNotes(slipNotes: unknown, products: any[]): string {
  *  by products on the OTHER arch so they appear on the correct side. */
 function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM | null {
   const archProducts = allProducts.filter((p) => archFromType(p?.type) === arch);
-  const opposingProducts = allProducts.filter((p) => archFromType(p?.type) !== arch);
-
-  // Collect opposing tooth-chart images from the other arch's products.
-  // The opposing tooth number is derived as 33 − mainTooth (universal dental numbering).
-  const opposingToothChartForThisArch: Record<
-    number,
-    { chartType: null; imageUrl: string }
-  > = {};
-  const opposingSelectedForThisArch = new Set<number>();
-  const opposingImpressionParts: string[] = [];
-
-  for (const p of opposingProducts) {
-    const rows: any[] = Array.isArray(p?.selected_teeth)
-      ? p.selected_teeth
-      : Array.isArray(p?.selected_teeth_map)
-        ? p.selected_teeth_map
-        : [];
-
-    for (const row of rows) {
-      const mainTooth = Number(row?.tooth_number);
-      if (!Number.isFinite(mainTooth) || mainTooth < 1 || mainTooth > 32) continue;
-      const entry = row?.tooth_chart_entry ?? {};
-      const oppUrl =
-        firstStr(
-          entry?.opposite_extraction_image_url,
-          row?.opposite_extraction_image_url,
-        ) || null;
-      if (oppUrl) {
-        const oppTooth = 33 - mainTooth;
-        opposingToothChartForThisArch[oppTooth] = { chartType: null, imageUrl: oppUrl };
-        opposingSelectedForThisArch.add(oppTooth);
-      }
-    }
-
-    // Collect opposing impressions contributed by the other arch's products.
-    const oppImp = formatImpressions(
-      p?.opposing_impressions ?? p?.opposite_impressions ?? [],
-    );
-    if (oppImp) opposingImpressionParts.push(oppImp);
-
-    // Also honour explicit opposite_extractions teeth.
-    if (Array.isArray(p?.opposite_extractions)) {
-      for (const ext of p.opposite_extractions) {
-        const tns: number[] = Array.isArray(ext?.teeth_numbers)
-          ? ext.teeth_numbers.map(Number)
-          : ext?.teeth_number != null
-            ? [Number(ext.teeth_number)]
-            : [];
-        for (const tn of tns) {
-          if (Number.isFinite(tn)) opposingSelectedForThisArch.add(tn);
-        }
-      }
-    }
+  /** Opposite_* fields live on the other arch's products; render on this column (CDC layout). */
+  let opposing = buildOpposingArchVM(
+    arch === "mandibular" ? "maxillary" : "mandibular",
+    allProducts,
+  );
+  // When this column has its own product(s), opposing impressions belong on the
+  // product summary — not in the cross-arch "Opposing" block (CDC dual-arch slip).
+  if (opposing && archProducts.length > 0) {
+    opposing = { ...opposing, showImpression: false, impression: "" };
   }
-
-  const hasOpposingData =
-    Object.keys(opposingToothChartForThisArch).length > 0 ||
-    opposingSelectedForThisArch.size > 0 ||
-    opposingImpressionParts.length > 0;
+  const hasOpposingData = opposing != null;
 
   // Return null only when there are no direct products AND no opposing data for this arch.
   if (archProducts.length === 0 && !hasOpposingData) return null;
 
   const productVMs = archProducts.map(buildProduct);
+
+  let extractionDisplay = mergeArchExtractionDisplays(
+    archProducts.map(buildExtractionDisplayFromSlipProduct),
+  );
+  if (
+    opposing &&
+    archProducts.length > 0 &&
+    hasExtractionChartOverlay(opposing.extractionDisplay)
+  ) {
+    extractionDisplay = mergeArchExtractionDisplays([
+      extractionDisplay,
+      opposing.extractionDisplay,
+    ]);
+  }
+  const useExtractionOverlay = hasExtractionChartOverlay(extractionDisplay);
 
   // Aggregate per-tooth statuses across all products in this arch.
   const missing = new Set<number>();
@@ -581,19 +584,53 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     { chartType: "Implant" | "Prep" | "Pontic" | null; imageUrl: string | null }
   > = {};
 
-  // Seed with opposing images first so direct arch images can override them.
-  for (const [tn, entry] of Object.entries(opposingToothChartForThisArch)) {
-    toothChartSelectionsByTooth[Number(tn)] = entry;
-  }
-  for (const tn of opposingSelectedForThisArch) selected.add(tn);
-
   const normalizeChartType = (raw: unknown): "Implant" | "Prep" | "Pontic" | null => {
     const value = firstStr(raw).toLowerCase();
     if (!value) return null;
+    if (value === "i") return "Implant";
+    if (value === "p") return "Prep";
     if (value.includes("implant")) return "Implant";
     if (value.includes("prep")) return "Prep";
     if (value.includes("pontic")) return "Pontic";
     return null;
+  };
+
+  const isFixedSlipProduct = (product: any): boolean => {
+    const categoryName = firstStr(
+      product?.category?.name,
+      product?.product?.subcategory?.category?.name,
+      product?.product?.category_name,
+    );
+    return !categoryName.toLowerCase().includes("removable");
+  };
+
+  const applyRetentionOptionsToChart = (product: any) => {
+    if (!isFixedSlipProduct(product) || !Array.isArray(product?.retention_options)) return;
+
+    for (const opt of product.retention_options) {
+      const toothNumber = Number(opt?.teeth_number ?? opt?.tooth_number);
+      if (!Number.isFinite(toothNumber)) continue;
+
+      const chartType = normalizeChartType(
+        opt?.tooth_chart_type ?? opt?.name ?? opt?.code ?? opt?.retention_option?.name,
+      );
+      const imageUrl =
+        firstStr(
+          opt?.selected_tooth_image_url,
+          opt?.selected_image_url,
+          opt?.image_url,
+          opt?.retention_option?.selected_tooth_image_url,
+          opt?.retention_option?.image_url,
+        ) || null;
+
+      if (!chartType && !imageUrl) continue;
+
+      const existing = toothChartSelectionsByTooth[toothNumber];
+      toothChartSelectionsByTooth[toothNumber] = {
+        chartType: chartType ?? existing?.chartType ?? null,
+        imageUrl: imageUrl ?? existing?.imageUrl ?? null,
+      };
+    }
   };
 
   const getToothChartRows = (product: any): any[] => {
@@ -604,6 +641,7 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
       product?.tooth_chart_entries,
       product?.tooth_chart_details,
       product?.tooth_selections,
+      product?.teeth_selection,
     ];
     for (const candidate of candidates) {
       if (Array.isArray(candidate)) return candidate;
@@ -613,10 +651,13 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
   for (const p of archProducts) {
     parseTeeth(p?.teeth_selection ?? p?.teeth).forEach((t) => selected.add(t));
-    parseTeeth(p?.missing_teeth ?? p?.missing).forEach((t) => missing.add(t));
-    parseTeeth(p?.extraction_teeth ?? p?.will_extract ?? p?.extractions).forEach((t) =>
-      willExtract.add(t),
-    );
+    if (!useExtractionOverlay) {
+      parseTeeth(p?.missing_teeth ?? p?.missing).forEach((t) => missing.add(t));
+      parseTeeth(p?.extraction_teeth ?? p?.will_extract).forEach((t) => willExtract.add(t));
+      if (!isGroupedSlipExtractions(p?.extractions)) {
+        parseTeeth(p?.extractions).forEach((t) => willExtract.add(t));
+      }
+    }
     if (Array.isArray(p?.retentions)) {
       for (const r of p.retentions) {
         const name = (r?.retention?.name ?? r?.retention_name ?? "").toLowerCase();
@@ -645,6 +686,24 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
       toothChartSelectionsByTooth[toothNumber] = { chartType, imageUrl };
     }
+
+    applyRetentionOptionsToChart(p);
+
+    // Product teeth: fall back to TIM / tooth-chart extraction images when the API
+    // omits selected_image_url on tooth_chart rows.
+    const productDisplay = buildExtractionDisplayFromSlipProduct(p);
+    for (const toothNumber of parseTeeth(p?.teeth_selection ?? p?.teeth)) {
+      const code = productDisplay.toothExtractionMap[toothNumber];
+      const extractionImageUrl = code
+        ? productDisplay.extractionImagesByCode[code]?.[toothNumber] ?? null
+        : null;
+      if (!extractionImageUrl) continue;
+      const existing = toothChartSelectionsByTooth[toothNumber];
+      toothChartSelectionsByTooth[toothNumber] = {
+        chartType: existing?.chartType ?? "Prep",
+        imageUrl: existing?.imageUrl ?? extractionImageUrl,
+      };
+    }
   }
 
   const order = arch === "maxillary" ? MAXILLARY_TEETH : MANDIBULAR_TEETH;
@@ -656,13 +715,18 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     return { number, status };
   });
 
+  const opposingOnly = archProducts.length === 0 && opposing != null;
+  const opposingColumn = opposingOnly ? opposing : null;
+
   return {
-    arch,
-    teeth,
-    selectedTeeth: Array.from(selected),
-    toothChartSelectionsByTooth,
+    arch: opposingColumn?.arch ?? arch,
+    teeth: opposingColumn?.teeth ?? teeth,
+    selectedTeeth: opposingColumn ? [] : Array.from(selected),
+    toothChartSelectionsByTooth: opposingColumn ? {} : toothChartSelectionsByTooth,
+    extractionDisplay: opposingColumn?.extractionDisplay ?? extractionDisplay,
     products: productVMs,
-    opposingImpression: opposingImpressionParts.join(", "),
+    opposingImpression: opposing?.impression ?? "",
+    opposing,
   };
 }
 
@@ -687,6 +751,8 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
   // created_by appears both top-level (slip / paper-slip responses) and nested
   // under `case` (case-details response); read name/image across both so the
   // avatar resolves from whichever source carries it.
+  const deliveryDates = resolveSlipDeliveryDates(safe, products);
+
   const header: VirtualSlipHeaderVM = {
     officeName: firstStr(caseObj.office?.name, safe.office?.name),
     officeLogo: firstStr(caseObj.office?.logo_url, caseObj.office?.image) || null,
@@ -703,22 +769,36 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
     caseNumber: firstStr(caseObj.case_number),
     panNumber: firstStr(safe.casepan?.number, caseObj.casepan?.number),
     status: firstStr(safe.status, caseObj.case_status),
-    location: firstStr(safe.location?.name),
+    location: firstStr(safe.location?.current?.name, safe.location?.name),
+    locationId:
+      typeof safe.location?.current?.id === "number"
+        ? safe.location.current.id
+        : typeof safe.location?.id === "number"
+          ? safe.location.id
+          : typeof safe.location_id === "number"
+            ? safe.location_id
+            : undefined,
     deliveryTime: formatTime(safe.delivery?.delivery_time),
-    dueDate: formatDate(safe.delivery?.delivery_date),
+    dueDate: deliveryDates.dueDate,
     pickupDate: formatDate(safe.delivery?.pickup_date),
+    isRush: deliveryDates.isRush,
+    standardDueDate: deliveryDates.standardDueDate,
+    rushDueDate: deliveryDates.rushDueDate,
   };
 
   // Slip notes are an array ({ note }), one per added note. Join them; fall back
   // to per-product notes if the slip-level notes array is empty.
   const notes = collectNotes(safe.notes, products);
 
+  const arches = {
+    maxillary: buildArch("maxillary", products),
+    mandibular: buildArch("mandibular", products),
+  };
+
   return {
     header,
-    arches: {
-      maxillary: buildArch("maxillary", products),
-      mandibular: buildArch("mandibular", products),
-    },
+    arches,
+    productArchVisibility: getProductArchVisibilityFromArches(arches),
     notes,
     relatedSlips,
   };

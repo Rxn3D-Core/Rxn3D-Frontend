@@ -204,8 +204,24 @@ export default function LabSlipPage() {
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
 
-  const { slips, loading, fetchLabSlips, fetchDriverPrintData, createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates, readyToSend, labListingPagination } = useSlipContext();
-  const { fetchProductAddons, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const {
+    slips,
+    loading,
+    fetchLabSlips,
+    fetchDriverPrintData,
+    createCustomDeliveryDate,
+    fetchOfficeSlips,
+    fetchCustomDeliveryDates,
+    readyToSend,
+    labListingPagination,
+  } = useSlipContext();
+  const {
+    generatePaperSlips,
+    fetchProductAddons,
+    requestSlipRush,
+    cancelSlip,
+    sendBackToOfficeSlip,
+  } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -305,9 +321,20 @@ export default function LabSlipPage() {
     setShowAttachModal(true)
   }
 
-  const handleAttachmentsUploaded = (attachments: any[]) => {
-    // Handle the uploaded attachments if needed
-    // You could update the slip data here or refresh the list
+  const handleAttachmentsUploaded = () => {
+    const customerId = getLabCustomerId()
+    if (!customerId) return
+    void fetchLabSlips(customerId, {
+      q: search.trim() || undefined,
+      office_code: office !== "All" ? office : undefined,
+      status: status !== "All" ? status : undefined,
+      location_id: location !== "All" ? Number(location) : undefined,
+      has_attachments: showWithAttachments ? true : undefined,
+      delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
+      delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
+      page: currentPage,
+      per_page: itemsPerPage,
+    })
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -358,54 +385,32 @@ export default function LabSlipPage() {
     }
   }
 
-  const handleDateChange = async (date: string, time: string, reason: string) => {
-    if (!selectedSlipForDateChange) return;
+  const refreshSlipsAfterCustomDeliveryDate = () => {
     try {
-      const slipId = selectedSlipForDateChange.id;
-      const res = await createCustomDeliveryDate(slipId, date, time, reason);
-      if (res && res.success) {
-        toast({ title: 'Saved', description: res.message || 'Custom delivery date created', duration: 3000 });
-        // refresh slips for current customer
-        try {
-          if (typeof window !== 'undefined') {
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            const customerId = user?.customers?.[0]?.id;
-            const customerType = localStorage.getItem('customerType');
-            if (customerId) {
-              if (customerType === 'lab') {
-                void fetchLabSlips(customerId);
-              } else if (customerType === 'office') {
-                void fetchOfficeSlips(customerId);
-              } else {
-                void fetchLabSlips(customerId);
-                void fetchOfficeSlips(customerId);
-              }
-            }
+      if (typeof window !== "undefined") {
+        const userStr = localStorage.getItem("user");
+        const user = userStr ? JSON.parse(userStr) : null;
+        const customerId = user?.customers?.[0]?.id;
+        const customerType = localStorage.getItem("customerType");
+        if (customerId) {
+          if (customerType === "lab") {
+            void fetchLabSlips(customerId);
+          } else if (customerType === "office") {
+            void fetchOfficeSlips(customerId);
+          } else {
+            void fetchLabSlips(customerId);
+            void fetchOfficeSlips(customerId);
           }
-        } catch (err) {
-          console.error('Error refreshing slips after creating custom date:', err);
         }
-      } else {
-        toast({ title: 'Save failed', description: res?.message || 'Failed to save custom delivery date', variant: 'destructive' });
       }
     } catch (err) {
-      console.error('Error saving custom delivery date:', err);
-      toast({ title: 'Error', description: 'Unexpected error while saving', variant: 'destructive' });
+      console.error("Error refreshing slips after creating custom date:", err);
     }
-  }
+  };
 
   const handleAddOnsClick = (slip: any) => {
-    if (slip?.id) {
-      fetchProductAddons(slip?.id);
-    }
     setSelectedSlipForAddOns(slip)
     setShowAddOnsModal(true)
-  }
-
-  const handleAddAddOns = (addOns: any[]) => {
-    // You can update the slip or refresh the list here if needed
-    setShowAddOnsModal(false)
   }
 
   const handleCallLogClick = (slip: any) => {
@@ -1975,6 +1980,8 @@ export default function LabSlipPage() {
                 setShowAttachModal={setShowAttachModal}
                 isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
                 slipId={selectedSlipForAttachment.id}
+                doctorName={selectedSlipForAttachment.doctor}
+                patientName={selectedSlipForAttachment.patient}
                 onAttachmentsUploaded={handleAttachmentsUploaded}
               />
             )}
@@ -1996,7 +2003,7 @@ export default function LabSlipPage() {
             deliveryTime="10:00"
             slipId={selectedSlipForDateChange.id}
             history={getChangeDateHistory(selectedSlipForDateChange.id)}
-            onSave={handleDateChange}
+            onSaved={refreshSlipsAfterCustomDeliveryDate}
           />
         )}
 
@@ -2099,10 +2106,12 @@ export default function LabSlipPage() {
         <AddOnsModal
           isOpen={showAddOnsModal}
           onClose={() => setShowAddOnsModal(false)}
-          onAddAddOns={handleAddAddOns}
-          labId={selectedSlipForAddOns?.labId || 0}
-          productId={selectedSlipForAddOns?.productId || 0}
-          existingAddOns={selectedSlipForAddOns?.addOns || []}
+          onAddAddOns={() => {}}
+          labId={0}
+          productId=""
+          arch="maxillary"
+          slipId={selectedSlipForAddOns?.id}
+          onSlipAddonsSaved={refreshCurrentListing}
         />
 
         {/* Call Log Modal */}

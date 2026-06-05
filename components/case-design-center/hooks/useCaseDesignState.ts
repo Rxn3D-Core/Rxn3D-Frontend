@@ -37,6 +37,7 @@ import {
   isSingleDefaultOnlyExtractionList,
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
+import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
@@ -52,6 +53,7 @@ import {
 import {
   addedProductSlotId,
   defaultActiveAccordionKey,
+  firstPreloadedAccordionFocus,
   productAccordionKey,
 } from "../utils/productAccordionFocus";
 import { buildShadeSelectionKey } from "../utils/shadeGuideAdvanceFields";
@@ -197,7 +199,11 @@ async function fetchProductDetails(productId: number, customerId: number): Promi
 
 export function useCaseDesignState(props: CaseDesignProps) {
   // 0 = initial product; any other value = AddedProduct.id
-  const [activeProductCardId, setActiveProductCardId] = useState<number>(0);
+  const [activeProductCardId, setActiveProductCardId] = useState<number>(() => {
+    if (!props.preloadInitialSlipState) return 0;
+    const focus = firstPreloadedAccordionFocus(props.initialArch, props.addedProducts);
+    return focus?.productCardId ?? 0;
+  });
 
   // Expansion states
   const [expandedCard, setExpandedCard] = useState(true);
@@ -302,7 +308,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   /** Only one product accordion (upper or lower) is expanded and interactive at a time. */
   const [activeAccordionKey, setActiveAccordionKey] = useState<string>(() =>
-    defaultActiveAccordionKey(props.initialArch)
+    props.preloadInitialSlipState
+      ? defaultActiveAccordionKey(props.initialArch, props.addedProducts)
+      : defaultActiveAccordionKey(props.initialArch)
   );
 
   const syncAddedExpanded = useCallback(
@@ -368,6 +376,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
     },
     [activeAccordionKey]
   );
+
+  const preloadAccordionFocusDoneRef = useRef(false);
+  useEffect(() => {
+    if (!props.preloadInitialSlipState || preloadAccordionFocusDoneRef.current) return;
+    const added = props.addedProducts ?? [];
+    if (added.length === 0) return;
+    const focus = firstPreloadedAccordionFocus(props.initialArch, added);
+    if (!focus) return;
+    preloadAccordionFocusDoneRef.current = true;
+    focusAccordion(focus.arch, addedProductSlotId(focus.productCardId), focus.productCardId);
+  }, [props.preloadInitialSlipState, props.addedProducts, props.initialArch, focusAccordion]);
 
   const prevAddedProductsLengthRef = useRef((props.addedProducts ?? []).length);
   useEffect(() => {
@@ -1300,6 +1319,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Auto-populate addon field with product's is_default addons when field not yet set
   const autoPopulateDefaultAddons = useCallback(
     (arch: Arch, toothNumber: number, product: ProductApiData) => {
+      if (!productSupportsAddons(product)) return;
       const defaultAddons = (product.addons ?? []).filter(
         (a) => String(a.is_default ?? "").trim().toLowerCase() === "yes" &&
                String(a.status ?? "Active").trim().toLowerCase() === "active"
@@ -2229,10 +2249,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // When this component mounts in read-only mode (caseSubmitted=true) with pre-built
   // state from the API response, hydrate all sub-hooks in a single effect.
   // The empty dep array is intentional: we only want to hydrate once on mount.
-  // Interactive (non-submitted) flows never provide initialSlipState, so this is a no-op for them.
+  // Interactive flows use preloadInitialSlipState (add-new-stage); read-only virtual slip uses caseSubmitted.
   useEffect(() => {
     const s = props.initialSlipState;
-    if (!props.caseSubmitted || !s) return;
+    if (!s) return;
+    if (!props.caseSubmitted && !props.preloadInitialSlipState) return;
 
     // Teeth selection
     teeth.setMaxillaryTeeth(s.maxillaryTeeth);

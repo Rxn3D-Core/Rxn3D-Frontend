@@ -1,3 +1,5 @@
+import { Info } from "lucide-react";
+
 /**
  * Small badge/tag used inside accordion headers to show category, subcategory, stage, etc.
  */
@@ -42,11 +44,16 @@ export function removableProductTitleBoxClassName({
 export function EstDaysLabel({ rushed, text }: { rushed: boolean; text: string }) {
   return (
     <span
-      className={`font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] whitespace-nowrap ${
+      className={`inline-flex items-center gap-1 font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] ${
         rushed ? "text-[#CF0202] font-medium" : "text-[#B4B0B0]"
       }`}
+      title="Estimated turnaround in lab working days (Monday–Friday, excluding holidays) after submission."
     >
-      Est days: {text}
+      <span className="whitespace-nowrap">Est days: {text}</span>
+      <Info
+        className={`w-3 h-3 flex-shrink-0 ${rushed ? "text-[#CF0202]" : "text-[#B4B0B0]"}`}
+        aria-hidden
+      />
     </span>
   );
 }

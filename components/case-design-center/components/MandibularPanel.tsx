@@ -53,6 +53,7 @@ import {
   shouldSkipStageSelection,
   isDisplayableStageValue,
 } from "../utils/categoryHelpers";
+import { isProductRushed, resolveCardRepToothForRush } from "../utils/rushModalContext";
 import {
   productHasGrades,
   resolveProductGradesForDisplay,
@@ -87,7 +88,11 @@ import {
 } from "../utils/resolveAddedCardProduct";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
 import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
-import { hasVisibleAddonDisplay, parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
+import {
+  hasVisibleAddonDisplay,
+  parseAddonDisplayItems,
+  productSupportsAddons,
+} from "../utils/addonDisplayHelpers";
 import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
@@ -124,6 +129,8 @@ import { SelectionProductFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
 import { RestorationAccordionHeader } from "./RestorationAccordionHeader";
 import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
+import { StageHistoryBlock } from "./StageHistoryBlock";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { MAXILLARY_SENTINEL } from "../utils/opposingImpressionReadiness";
 import { addedProductSlotId } from "../utils/productAccordionFocus";
 
@@ -487,7 +494,10 @@ function hasAdvanceField(
   if (step === "impression") {
     return product?.has_impression === "Yes";
   }
-  const alwaysShow = ["fixed_stage", "fixed_impression", "fixed_addons", "stage", "addons"];
+  if (step === "addons" || step === "fixed_addons") {
+    return productSupportsAddons(product as ProductApiData);
+  }
+  const alwaysShow = ["fixed_stage", "fixed_impression", "stage"];
   if (alwaysShow.includes(step)) return true;
 
   // Shade steps: show when has_* flag is set, regardless of advance_fields
@@ -795,6 +805,7 @@ interface MandibularPanelProps {
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
+  addStageStageHistory?: NewStageEligibilityStageRef[];
   /** When true (stage or impression modal is open), disables the teeth SVG. */
   isAnyModalOpen?: boolean;
   /** When true, suppresses auto-open helpers (shade, gum shade, impression) on this panel.
@@ -925,6 +936,7 @@ export function MandibularPanel({
   onBackToCategories,
   onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
+  addStageStageHistory,
   isAnyModalOpen = false,
   suppressAutoOpen = false,
   opposingOnlyLayout = false,
@@ -1997,33 +2009,38 @@ export function MandibularPanel({
                   getToothProduct,
                   "mandibular"
                 );
-                const apProductKey = `mandibular_prep_${apRepTn}`;
-                const hasRushedAp = rushedProducts[apProductKey];
+                const hasRushedAp = isProductRushed(
+                  rushedProducts,
+                  "mandibular",
+                  ap.id,
+                  apRepTn,
+                  hasRetentionOptions(apProduct)
+                );
+                const apStageKey = hasRetentionOptions(apProduct)
+                  ? `mandibular_fixed_${apRepTn}`
+                  : `mandibular_prep_${apRepTn}`;
                 const apStageVal =
-                  selectedStages[apProductKey] ||
-                  getFieldValue("mandibular", apRepTn, "stage") ||
+                  selectedStages[apStageKey] ||
+                  getFieldValue(
+                    "mandibular",
+                    apRepTn,
+                    hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"
+                  ) ||
                   "";
-                const apRemStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
-                const apRemDays = apRemStageObj?.days_to_process;
-                const apRemEstDaysText = apRemDays != null
-                  ? `${apRemDays} work day${apRemDays === 1 ? "" : "s"} after submission`
+                const apStageObj = cardProduct?.stages?.find((s) => s.name === apStageVal);
+                const apDays = apStageObj?.days_to_process;
+                const apEstDaysText = apDays != null
+                  ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
                   : "10 work days after submission";
-                const apEstDaysText = (() => {
-                  const apStageKey = hasRetentionOptions(apProduct)
-                    ? `mandibular_fixed_${apRepTn}`
-                    : `mandibular_prep_${apRepTn}`;
-                  const apStageValForDays =
-                    selectedStages[apStageKey] ||
-                    getFieldValue(
-                      "mandibular",
-                      apRepTn,
-                      hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"
-                    ) ||
+                const apRemEstDaysText = (() => {
+                  const apRemStageVal =
+                    selectedStages[`mandibular_prep_${apRepTn}`] ||
+                    getFieldValue("mandibular", apRepTn, "stage") ||
                     "";
-                  const apStageObj = cardProduct?.stages?.find((s) => s.name === apStageValForDays);
-                  const apDays = apStageObj?.days_to_process;
-                  return apDays != null
-                    ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
+                  const apRemStageObj = cardProduct?.stages?.find((s) => s.name === apRemStageVal);
+                  const apRemDays = apRemStageObj?.days_to_process;
+                  return apRemDays != null
+                    ? `${apRemDays} work day${apRemDays === 1 ? "" : "s"} after submission`
                     : "10 work days after submission";
                 })();
 
@@ -2476,6 +2493,12 @@ export function MandibularPanel({
                               caseSubmitted={caseSubmitted}
                               blockAutoOpen={isAnyModalOpen}
                             />
+                            {addStageStageHistory && addStageStageHistory.length > 0 ? (
+                              <StageHistoryBlock
+                                history={addStageStageHistory}
+                                className="mx-3 mb-1"
+                              />
+                            ) : null}
                             <div className="rounded-lg p-3 space-y-3">
                               {/* Row 1: Grade / Stage */}
                               {(isF("grade") || (isF("stage") && !singleStageSkip)) && (
@@ -2912,7 +2935,14 @@ export function MandibularPanel({
                 const headerTeeth = toothNumbers.filter(tn => !!mandibularToothExtractionMap[tn]);
                 const toothNumbersDisplay = toothNumbers.length > 0 ? `#${toothNumbers.join(",")}` : "";
                 const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
-                const hasRushed = toothNumbers.some((n) => rushedProducts[`mandibular_prep_${n}`] || rushedProducts[`mandibular_fixed_${n}`]);
+                const rushRepTooth = resolveCardRepToothForRush(toothNumbers);
+                const hasRushed = isProductRushed(
+                  rushedProducts,
+                  "mandibular",
+                  0,
+                  rushRepTooth,
+                  hasRetentionOptions(selectedProduct)
+                );
 
                 // Show skeleton while product is loading
                 const isLoading = !selectedProduct && teeth.some((t) => isProductLoading("mandibular", t.toothNumber));
@@ -3027,17 +3057,17 @@ export function MandibularPanel({
                     stageName={(!isSingleStageNoStages(selectedProduct) && (selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed])) ? (selectedStages[`mandibular_prep_${firstToothNumber}`] || selectedStages[groupStageProductIdFixed]) : undefined}
                     estDaysText={estDays}
                     hasRush={hasRushed}
-                    canDelete={true}
+                    canDelete={!caseSubmitted}
                     onDelete={() => {
-                      const noOtherProducts = addedProducts.filter(p => p.arch === "mandibular").length === 0;
-                      const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                        (tn) => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
-                      );
-                      teethToClear.forEach((tn) => {
+                      toothNumbers.forEach((tn) => {
                         clearToothProgress("mandibular", tn);
                         handleMandibularToothDeselect(tn);
                       });
-                      if (noOtherProducts) onBackToCategories?.("mandibular");
+                      const archStillHasTeeth = MANDIBULAR_ALL_TEETH.some((tn) =>
+                        getToothProduct("mandibular", tn)
+                      );
+                      const archHasAdded = addedProducts.some((p) => p.arch === "mandibular");
+                      if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("mandibular");
                     }}
                     caseSubmitted={caseSubmitted}
                     customHeader={
@@ -3079,18 +3109,15 @@ export function MandibularPanel({
                         estDaysText={estDays}
                         canDelete={!caseSubmitted}
                         onDelete={() => {
-                          const noOtherProducts =
-                            addedProducts.filter((p) => p.arch === "mandibular").length === 0;
-                          const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                            (tn) =>
-                              getToothProduct("mandibular", tn) &&
-                              getToothProductCard("mandibular", tn) === 0
-                          );
-                          teethToClear.forEach((tn) => {
+                          toothNumbers.forEach((tn) => {
                             clearToothProgress("mandibular", tn);
                             handleMandibularToothDeselect(tn);
                           });
-                          if (noOtherProducts) onBackToCategories?.("mandibular");
+                          const archStillHasTeeth = MANDIBULAR_ALL_TEETH.some((tn) =>
+                            getToothProduct("mandibular", tn)
+                          );
+                          const archHasAdded = addedProducts.some((p) => p.arch === "mandibular");
+                          if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("mandibular");
                         }}
                         isCurrentlyActive={
                           activeFixedGroupProductId === selectedProduct?.id && card0FixedExpanded
@@ -3311,15 +3338,20 @@ export function MandibularPanel({
               const hasVariationMatch = variationDisplay.matched;
               const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
-              const repTnStage = cardTeeth[0];
+              const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`mandibular_prep_${repTnStage}`] || getFieldValue("mandibular", repTnStage, "stage");
               const remCard0StageObj = cardProduct?.stages?.find(s => s.name === stageVal);
               const remCard0Days = remCard0StageObj?.days_to_process;
               const estDays = remCard0Days != null
                 ? `${remCard0Days} work day${remCard0Days === 1 ? "" : "s"} after submission`
                 : "10 work days after submission";
-              const removablesProductKey = `mandibular_prep_${cardTeeth[0]}`;
-              const hasRushedRemovables = rushedProducts[removablesProductKey];
+              const hasRushedRemovables = isProductRushed(
+                rushedProducts,
+                "mandibular",
+                0,
+                repTnStage,
+                hasRetentionOptions(cardProduct)
+              );
 
               // Compute extractions for this removable product
               const cardExtractionsSeen = new Set<number>();
@@ -3357,7 +3389,21 @@ export function MandibularPanel({
                   }
                   estDaysText={estDays}
                   hasRush={!!hasRushedRemovables}
-                  canDelete={false}
+                  canDelete={!caseSubmitted}
+                  onDelete={() => {
+                    const teethToClear = useMandibularArchSharedRemovable
+                      ? displayTeeth
+                      : cardTeeth;
+                    teethToClear.forEach((tn) => {
+                      clearToothProgress("mandibular", tn);
+                      handleMandibularToothDeselect(tn);
+                    });
+                    const archStillHasTeeth = MANDIBULAR_ALL_TEETH.some((tn) =>
+                      getToothProduct("mandibular", tn)
+                    );
+                    const archHasAdded = addedProducts.some((p) => p.arch === "mandibular");
+                    if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("mandibular");
+                  }}
                   confirmDetailsChecked={confirmDetailsChecked}
                   caseSubmitted={caseSubmitted}
                   customHeader={
@@ -3407,19 +3453,18 @@ export function MandibularPanel({
                       estDaysText={estDays}
                       canDelete={!caseSubmitted}
                       onDelete={() => {
-                        const noOtherProducts =
-                          addedProducts.filter((p) => p.arch === "mandibular").length === 0;
-                        const teethToClear = MANDIBULAR_ALL_TEETH.filter(
-                          (tn) =>
-                            getToothProduct("mandibular", tn) &&
-                            getToothProductCard("mandibular", tn) === 0
-                        );
+                        const teethToClear = useMandibularArchSharedRemovable
+                          ? displayTeeth
+                          : cardTeeth;
                         teethToClear.forEach((tn) => {
                           clearToothProgress("mandibular", tn);
                           handleMandibularToothDeselect(tn);
                         });
-                        setActiveProductCardId(0);
-                        if (noOtherProducts) onBackToCategories?.("mandibular");
+                        const archStillHasTeeth = MANDIBULAR_ALL_TEETH.some((tn) =>
+                          getToothProduct("mandibular", tn)
+                        );
+                        const archHasAdded = addedProducts.some((p) => p.arch === "mandibular");
+                        if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("mandibular");
                       }}
                       isCurrentlyActive={
                         isCurrentlyActiveProduct && isAccordionExpanded(SLOT_ID)

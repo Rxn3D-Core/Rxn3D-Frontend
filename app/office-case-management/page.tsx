@@ -170,7 +170,17 @@ export default function SlipPage() {
     setShowAttachModal(true)
   }
 
-  const handleAttachmentsUploaded = (attachments: any[]) => {
+  const handleAttachmentsUploaded = async () => {
+    try {
+      const userStr = localStorage.getItem("user")
+      const user = userStr ? JSON.parse(userStr) : null
+      const customerId = user?.customers?.[0]?.id
+      if (customerId) {
+        await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
+      }
+    } catch (err) {
+      console.error("Error refreshing slips after attachment upload:", err)
+    }
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -188,9 +198,6 @@ export default function SlipPage() {
     setShowAddOnsModal(true)
   }
 
-  const handleAddAddOns = (addOns: any[]) => {
-    setShowAddOnsModal(false)
-  }
 
   const handleCallLogClick = (slip: any) => {
     setSelectedSlipForCallLog(slip)
@@ -1035,6 +1042,8 @@ export default function SlipPage() {
               setShowAttachModal={setShowAttachModal}
               isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
               slipId={selectedSlipForAttachment.id}
+              doctorName={selectedSlipForAttachment.doctorName}
+              patientName={selectedSlipForAttachment.patientName}
               onAttachmentsUploaded={handleAttachmentsUploaded}
             />
           )}
@@ -1056,7 +1065,6 @@ export default function SlipPage() {
           deliveryTime="10:00"
           slipId={selectedSlipForDateChange.id}
           history={getChangeDateHistory(selectedSlipForDateChange.id)}
-          onSave={() => {}}
         />
       )}
 
@@ -1071,10 +1079,15 @@ export default function SlipPage() {
       <AddOnsModal
         isOpen={showAddOnsModal}
         onClose={() => setShowAddOnsModal(false)}
-        onAddAddOns={handleAddAddOns}
-        labId={selectedSlipForAddOns?.labId || 0}
-        productId={selectedSlipForAddOns?.productId || 0}
-        existingAddOns={selectedSlipForAddOns?.addOns || []}
+        onAddAddOns={() => {}}
+        labId={0}
+        productId=""
+        arch="maxillary"
+        slipId={selectedSlipForAddOns?.id}
+        onSlipAddonsSaved={() => {
+          const customerId = localStorage.getItem("customerId")
+          if (customerId) void fetchOfficeSlips(Number(customerId), currentPage, itemsPerPage)
+        }}
       />
 
       {/* Call Log Modal */}

@@ -77,17 +77,25 @@ export function useModalState() {
     setShowRushModal(true);
   };
 
-  const handleRushConfirm = (rushData: any) => {
+  const handleRushConfirm = (rushData: {
+    arch?: Arch;
+    rushKey?: string;
+    targetDate?: string | null;
+    [key: string]: unknown;
+  }) => {
     const arch: Arch = rushData.arch ?? currentRushArch;
-    const productId = arch === "maxillary"
-      ? (currentRushMaxProductId || currentRushProductId)
-      : (currentRushMandProductId || currentRushProductId);
-    const key = `${arch}_${productId}`;
+    const productId =
+      arch === "maxillary"
+        ? currentRushMaxProductId || currentRushProductId
+        : currentRushMandProductId || currentRushProductId;
+    const key = rushData.rushKey ?? `${arch}_${productId}`;
     setRushedProducts((prev) => ({ ...prev, [key]: rushData }));
   };
 
-  const handleRemoveRush = (arch: Arch, productId: string) => {
-    const key = `${arch}_${productId}`;
+  const handleRemoveRush = (arch: Arch, productIdOrRushKey: string) => {
+    const key = productIdOrRushKey.includes("_prep_") || productIdOrRushKey.includes("_fixed_")
+      ? productIdOrRushKey
+      : `${arch}_${productIdOrRushKey}`;
     setRushedProducts((prev) => {
       const next = { ...prev };
       delete next[key];

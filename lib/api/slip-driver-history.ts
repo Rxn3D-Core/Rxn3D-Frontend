@@ -1,0 +1,295 @@
+/**
+ * Slip Driver History API — GET history, POST change-location.
+ * @see Slip Driver History API documentation
+ */
+
+import { buildApiUrl } from "@/lib/api/client";
+
+export type SlipDriverHistoryLocation = {
+  id: number;
+  name: string;
+  description?: string;
+};
+
+export type SlipDriverHistoryDriver = {
+  id: number;
+  name: string;
+  email?: string;
+};
+
+/** Nested history row (documented API shape). */
+export type SlipDriverHistoryEntry = {
+  id: number;
+  slip_id: number;
+  from_location: SlipDriverHistoryLocation;
+  to_location: SlipDriverHistoryLocation;
+  action_date_time: string;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  driver?: SlipDriverHistoryDriver;
+  driver_id?: number;
+  driver_name?: string;
+  location_transition?: string;
+};
+
+/** Flat history row returned by GET /slip/driver-history/slip/{id} in production. */
+export type SlipDriverHistoryRecord = SlipDriverHistoryEntry & {
+  slip_number?: string;
+  case_id?: number;
+  case_number?: string;
+  patient_name?: string;
+  case_status?: string;
+  office_id?: number;
+  office_name?: string;
+  office_code?: string;
+  doctor_id?: number;
+  doctor_name?: string;
+  stage_name?: string;
+  stage_code?: string;
+  product_name?: string;
+  final_delivery_dates?: {
+    is_rush?: boolean;
+    formatted_delivery_date?: string;
+    formatted_delivery_time?: string;
+  };
+};
+
+export type SlipDriverHistorySlip = {
+  id: number;
+  slip_number: string;
+  current_location: SlipDriverHistoryLocation;
+};
+
+export type GetSlipDriverHistoryResponse = {
+  success: boolean;
+  message?: string;
+  data?:
+    | SlipDriverHistoryRecord[]
+    | {
+        slip: SlipDriverHistorySlip;
+        driver_history: SlipDriverHistoryEntry[];
+      };
+};
+
+export type NormalizedSlipDriverHistory = {
+  slipId: number;
+  slipNumber: string;
+  currentLocation: string;
+  officeName?: string;
+  officeCode?: string;
+  patientName?: string;
+  caseNumber?: string;
+  stageName?: string;
+  deliveryDateLabel?: string;
+  isRush?: boolean;
+  timeline: Array<{
+    timestamp: string;
+    location: string;
+    user: string;
+    receiver: string;
+  }>;
+};
+
+function formatHistoryTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function timelineLocation(entry: SlipDriverHistoryEntry): string {
+  if (entry.location_transition?.trim()) return entry.location_transition;
+  const from = entry.from_location?.name ?? "";
+  const to = entry.to_location?.name ?? "";
+  if (from && to) return `${from} → ${to}`;
+  return to || from || "—";
+}
+
+function receiverFromNotes(notes?: string | null): string {
+  const text = notes?.trim();
+  if (!text) return "—";
+  const m = text.match(/^signature:\s*(.+)$/i);
+  return m ? m[1].trim() : text;
+}
+
+function deliveryLabel(dates?: SlipDriverHistoryRecord["final_delivery_dates"]): string | undefined {
+  if (!dates) return undefined;
+  const date = dates.formatted_delivery_date?.trim();
+  const time = dates.formatted_delivery_time?.trim();
+  if (date && time) return `${date} @ ${time}`;
+  return date || time;
+}
+
+function mapTimelineRow(entry: SlipDriverHistoryEntry) {
+  return {
+    timestamp: formatHistoryTimestamp(entry.action_date_time),
+    location: timelineLocation(entry),
+    user: entry.driver_name ?? entry.driver?.name ?? "—",
+    receiver: receiverFromNotes(entry.notes),
+  };
+}
+
+/** Supports flat `data[]` (production) and nested `{ slip, driver_history }` (docs). */
+export function normalizeSlipDriverHistoryPayload(
+  data: GetSlipDriverHistoryResponse["data"],
+  fallbackSlipId?: number
+): NormalizedSlipDriverHistory | null {
+  if (data == null) return null;
+
+  if (Array.isArray(data)) {
+    if (data.length === 0) {
+      return {
+        slipId: fallbackSlipId ?? 0,
+        slipNumber: "—",
+        currentLocation: "—",
+        timeline: [],
+      };
+    }
+
+    const sorted = [...data].sort(
+      (a, b) =>
+        new Date(a.action_date_time).getTime() - new Date(b.action_date_time).getTime()
+    );
+    const latest = sorted[sorted.length - 1];
+    const meta = data[0];
+
+    return {
+      slipId: meta.slip_id ?? fallbackSlipId ?? 0,
+      slipNumber: meta.slip_number ?? "—",
+      currentLocation: latest.to_location?.name ?? "—",
+      officeName: meta.office_name,
+      officeCode: meta.office_code,
+      patientName: meta.patient_name,
+      caseNumber: meta.case_number,
+      stageName: meta.stage_name,
+      deliveryDateLabel: deliveryLabel(meta.final_delivery_dates),
+      isRush: meta.final_delivery_dates?.is_rush,
+      timeline: sorted.map(mapTimelineRow),
+    };
+  }
+
+  const slip = data.slip;
+  const history = data.driver_history ?? [];
+  const sorted = [...history].sort(
+    (a, b) =>
+      new Date(a.action_date_time).getTime() - new Date(b.action_date_time).getTime()
+  );
+  const latest = sorted[sorted.length - 1];
+
+  return {
+    slipId: slip?.id ?? fallbackSlipId ?? 0,
+    slipNumber: slip?.slip_number ?? "—",
+    currentLocation: slip?.current_location?.name ?? latest?.to_location?.name ?? "—",
+    timeline: sorted.map(mapTimelineRow),
+  };
+}
+
+export type ChangeLocationRequest = {
+  slip_ids: number[];
+  to_location_id: number;
+  action_date_time?: string;
+  notes?: string;
+};
+
+export type ChangeLocationProcessedSlip = {
+  slip_id: number;
+  slip_number?: string;
+  previous_location?: SlipDriverHistoryLocation;
+  new_location?: SlipDriverHistoryLocation;
+  location_history_id?: number;
+  action_date_time?: string;
+  driver?: SlipDriverHistoryDriver;
+  status?: string;
+};
+
+export type ChangeLocationResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    processed_slips?: ChangeLocationProcessedSlip[];
+    total_processed?: number;
+    total_requested?: number;
+    errors?: string[];
+  };
+  errors?: string[];
+};
+
+function getAuthHeaders(): HeadersInit {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function handleUnauthorized(res: Response): Promise<void> {
+  if (res.status === 401 && typeof window !== "undefined") {
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
+  }
+}
+
+export async function getSlipDriverHistory(
+  slipId: number
+): Promise<GetSlipDriverHistoryResponse> {
+  const res = await fetch(buildApiUrl(`/slip/driver-history/slip/${slipId}`), {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  await handleUnauthorized(res);
+
+  const json: GetSlipDriverHistoryResponse = await res.json().catch(() => ({
+    success: false,
+    message: "Invalid response",
+  }));
+
+  if (!res.ok && !json.success) {
+    return {
+      success: false,
+      message: json.message || `Request failed (${res.status})`,
+    };
+  }
+
+  return json;
+}
+
+export async function postSlipDriverHistoryChangeLocation(
+  body: ChangeLocationRequest
+): Promise<ChangeLocationResponse> {
+  const res = await fetch(buildApiUrl("/slip/driver-history/change-location"), {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  await handleUnauthorized(res);
+
+  const json: ChangeLocationResponse = await res.json().catch(() => ({
+    success: false,
+    message: "Invalid response",
+  }));
+
+  if (!res.ok && !json.success) {
+    const errList = json.errors ?? json.data?.errors;
+    const detail =
+      Array.isArray(errList) && errList.length > 0
+        ? errList.join("; ")
+        : json.message;
+    return {
+      success: false,
+      message: detail || `Request failed (${res.status})`,
+      errors: errList,
+    };
+  }
+
+  return json;
+}
