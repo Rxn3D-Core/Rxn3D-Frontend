@@ -86,8 +86,13 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
 import { EditBillingInvoiceDialog } from "@/components/billing/edit-billing-invoice-dialog"
+import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
+import {
+  applyStatementEmailMessageToPreviewHtml,
+  normalizeStatementEmailMessageHtml,
+} from "@/lib/statement-email-rich-text"
 
 function resolveBillingAssetUrl(href: string): string {
   if (href.startsWith("http://") || href.startsWith("https://")) return href
@@ -470,6 +475,7 @@ export default function ChargeManagementPage() {
   const [showCcBcc, setShowCcBcc] = useState(false)
   const [sendSubjectValue, setSendSubjectValue] = useState("")
   const [sendMessageValue, setSendMessageValue] = useState("")
+  const [sendPreviewBaseHtml, setSendPreviewBaseHtml] = useState("")
   const [sendPreviewHtml, setSendPreviewHtml] = useState("")
   const [sendPreviewLoading, setSendPreviewLoading] = useState(false)
   const [statementActionLoading, setStatementActionLoading] = useState<"generate" | "send" | null>(null)
@@ -1262,6 +1268,7 @@ export default function ChargeManagementPage() {
     )
     setGeneratedStatements([])
     setSendQueueIndex(0)
+    setSendPreviewBaseHtml("")
     setSendPreviewHtml("")
     setSendToValue("")
     setSendCcValue("")
@@ -1390,8 +1397,11 @@ export default function ChargeManagementPage() {
         preview.subject || statement.subject || `Your statement from ${statement.lab?.name || statement.office?.name || "HMC Innovs"} is ready`,
       ),
     )
-    setSendMessageValue(preview.message || statement.message || "")
-    setSendPreviewHtml(preview.preview_html || "")
+    const nextMessage = normalizeStatementEmailMessageHtml(preview.message || statement.message || "")
+    const nextPreview = preview.preview_html || ""
+    setSendMessageValue(nextMessage)
+    setSendPreviewBaseHtml(nextPreview)
+    setSendPreviewHtml(applyStatementEmailMessageToPreviewHtml(nextPreview, nextMessage))
   }, [])
 
   const loadSendPreviewForStatement = useCallback(async (statement: StatementRecord) => {
@@ -1400,12 +1410,18 @@ export default function ChargeManagementPage() {
       const preview = await previewStatementEmail(statement.id).unwrap()
       buildSendDraftFromPreview(statement, preview)
     } catch {
+      setSendPreviewBaseHtml("")
       setSendPreviewHtml("")
       buildSendDraftFromPreview(statement, {})
     } finally {
       setSendPreviewLoading(false)
     }
   }, [buildSendDraftFromPreview, previewStatementEmail])
+
+  useEffect(() => {
+    if (!sendPreviewBaseHtml) return
+    setSendPreviewHtml(applyStatementEmailMessageToPreviewHtml(sendPreviewBaseHtml, sendMessageValue))
+  }, [sendMessageValue, sendPreviewBaseHtml])
 
   const handleGenerateAndSendStatements = useCallback(async () => {
     if (selectedStatementGroups.length === 0) return
@@ -1539,8 +1555,7 @@ export default function ChargeManagementPage() {
     if (!currentSendStatement) return
     const previewWindow = window.open("", "_blank", "noopener,noreferrer")
     try {
-      const preview = await previewStatementEmail(currentSendStatement.id).unwrap()
-      const html = preview.preview_html || sendPreviewHtml || "<p>No preview available.</p>"
+      const html = sendPreviewHtml || "<p>No preview available.</p>"
       if (!previewWindow) throw new Error("Preview window was blocked")
       previewWindow.document.open()
       previewWindow.document.write(html)
@@ -1553,7 +1568,7 @@ export default function ChargeManagementPage() {
         variant: "destructive",
       })
     }
-  }, [currentSendStatement, previewStatementEmail, sendPreviewHtml, toast])
+  }, [currentSendStatement, sendPreviewHtml, toast])
 
   const handleSendCurrentEmail = useCallback(async () => {
     if (!currentSendStatement) return
@@ -2429,6 +2444,14 @@ export default function ChargeManagementPage() {
                         </div>
                       </div>
                     ) : null}
+                  </div>
+
+                  <div className="mt-4 sm:mt-5">
+                    <StatementEmailRichTextEditor
+                      label="Body"
+                      value={sendMessageValue}
+                      onChange={setSendMessageValue}
+                    />
                   </div>
 
                   <div className="mt-4 overflow-hidden rounded-xl border bg-white sm:mt-5">
