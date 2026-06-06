@@ -43,9 +43,11 @@ export async function postLabOnboardComplete(body: LabOnboardCompleteBody): Prom
   const json = await response.json().catch(() => ({}))
 
   if (!response.ok) {
+    // The backend returns a generic `message` ("Lab complete onboarding failed")
+    // alongside a more specific `error` detail — prefer the specific one.
     const msg =
-      (typeof json?.message === "string" && json.message) ||
       (typeof json?.error === "string" && json.error) ||
+      (typeof json?.message === "string" && json.message) ||
       `HTTP ${response.status}`
     throw new Error(msg)
   }

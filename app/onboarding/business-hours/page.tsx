@@ -18,9 +18,11 @@ import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
 import { buildLabOnboardCompleteBody } from "@/lib/lab-onboard-complete-payload"
 import { postLabOnboardComplete } from "@/lib/api-lab-onboarding"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function BusinessHoursPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const { user, logout } = useAuth()
   const {
     isOnboardingComplete,
@@ -151,6 +153,15 @@ export default function BusinessHoursPage() {
         router.replace("/dashboard")
       } catch (err) {
         console.error("Lab onboarding completion failed:", err)
+        const description =
+          err instanceof Error && err.message
+            ? err.message
+            : "Failed to complete onboarding. Please try again."
+        toast({
+          title: "Onboarding failed",
+          description,
+          variant: "destructive",
+        })
         setIsCompleting(false)
       }
     }

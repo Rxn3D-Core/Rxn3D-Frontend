@@ -41,28 +41,28 @@ export function DashboardDoctorInviteModal({
 
   return (
     <Dialog open={showModal} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none shadow-2xl">
-        <div className="bg-[#1162a8] p-6 text-white text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-            <UserPlus className="h-8 w-8 text-white" />
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[500px] p-0 overflow-hidden border-none shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="bg-[#1162a8] p-5 sm:p-6 text-white text-center shrink-0">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 backdrop-blur-sm">
+            <UserPlus className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
           </div>
-          <DialogTitle className="text-2xl font-bold mb-2">Add Your First Doctor</DialogTitle>
-          <DialogDescription className="text-blue-100">
+          <DialogTitle className="text-xl sm:text-2xl font-bold mb-2">Add Your First Doctor</DialogTitle>
+          <DialogDescription className="text-sm text-blue-100">
             Your practice needs at least one doctor to manage clinical cases and approvals.
           </DialogDescription>
         </div>
-        
-        <div className="p-8 bg-white max-h-[70vh] overflow-y-auto">
+
+        <div className="p-5 sm:p-8 bg-white flex-1 min-h-0 overflow-y-auto">
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center">
-              <PlusCircle className="w-4 h-4 mr-2 text-[#1162a8]" />
+              <PlusCircle className="w-4 h-4 mr-2 text-[#1162a8] shrink-0" />
               Enter doctor details to send invitation
             </h3>
             <InvitationForm type="Doctor" onSuccess={handleSuccess} />
           </div>
-          
+
           <div className="text-center pt-4 border-t border-gray-100">
-            <button 
+            <button
               onClick={handleClose}
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
             >

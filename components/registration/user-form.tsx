@@ -230,6 +230,7 @@ export function UserForm({
         validationState={userValidationErrors[name] ? "error" : fieldValue ? "valid" : "default"}
         errorMessage={userValidationErrors[name]}
         disabled={shouldDisable}
+        revealToggle={type === "password"}
       />
     )
   }

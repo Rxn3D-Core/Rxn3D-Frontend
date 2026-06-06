@@ -42,6 +42,7 @@ import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 import { UserProfileModal } from "@/components/user-profile-modal"
+import { DashboardOfficeInviteModal } from "@/components/dashboard/dashboard-office-invite-modal"
 import {
   fetchCurrentUserProfile,
   updateCurrentUserProfile,
@@ -108,6 +109,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
+  const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const { t } = useTranslation()
@@ -816,6 +818,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <Button
                   size="sm"
                   className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  onClick={() => setShowNewOfficeModal(true)}
                 >
                   <span>{t("header.newOffice", "New Office")}</span>
                 </Button>
@@ -1039,6 +1042,14 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           </div>
         </div>
       </header>
+
+      <DashboardOfficeInviteModal
+        practicesCount={0}
+        invitationsCount={0}
+        isOpen={showNewOfficeModal}
+        forceOpen
+        onClose={() => setShowNewOfficeModal(false)}
+      />
 
       {/* Enhanced Scanner Dialog with maintained functionality */}
       <Dialog

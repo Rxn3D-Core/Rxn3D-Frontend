@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, AlertTriangle, X } from "lucide-react"
+import { Check, AlertTriangle, X, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type ValidationState = "default" | "valid" | "warning" | "error" | "disabled"
@@ -12,6 +12,8 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   errorMessage?: string
   warningMessage?: string
   showValidIcon?: boolean
+  /** When the input is a password, show an eye toggle to reveal/hide the value. */
+  revealToggle?: boolean
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
@@ -24,6 +26,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       errorMessage,
       warningMessage,
       showValidIcon = true,
+      revealToggle = false,
       disabled,
       value,
       ...props
@@ -31,7 +34,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     const [isFocused, setIsFocused] = React.useState(false)
+    const [isRevealed, setIsRevealed] = React.useState(false)
     const hasValue = value !== undefined && value !== null && value !== ""
+
+    const canReveal = revealToggle && type === "password"
+    const effectiveType = canReveal && isRevealed ? "text" : type
 
     // Determine border color based on validation state
     const getBorderColorValue = () => {
@@ -87,34 +94,60 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       return null
     }
 
+    // Reveal/hide toggle for password fields
+    const getRevealToggle = () => {
+      if (!canReveal) return null
+
+      return (
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setIsRevealed((prev) => !prev)}
+          className="shrink-0 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none"
+          aria-label={isRevealed ? "Hide password" : "Show password"}
+          aria-pressed={isRevealed}
+        >
+          {isRevealed ? (
+            <EyeOff className="h-5 w-5" />
+          ) : (
+            <Eye className="h-5 w-5" />
+          )}
+        </button>
+      )
+    }
+
     // If no label, return simple input
     if (!label) {
       return (
-        <input
-          type={type}
-          ref={ref}
-          value={value}
-          disabled={disabled || validationState === "disabled"}
+        <div
           style={{ borderColor: getBorderColorValue() }}
           className={cn(
-            "flex h-10 w-full rounded-lg border-[1.5px] bg-white px-4 py-2 text-base",
+            "flex h-10 w-full min-w-0 items-center gap-2 rounded-lg border-[1.5px] bg-white px-4 py-2",
             "transition-all duration-200 ease-out",
-            "focus:outline-none",
             getRingEffect(),
             !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
             (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
             className
           )}
-          onFocus={(e) => {
-            setIsFocused(true)
-            props.onFocus?.(e)
-          }}
-          onBlur={(e) => {
-            setIsFocused(false)
-            props.onBlur?.(e)
-          }}
-          {...props}
-        />
+        >
+          <input
+            type={effectiveType}
+            ref={ref}
+            value={value}
+            disabled={disabled || validationState === "disabled"}
+            className="min-w-0 flex-1 bg-transparent text-base outline-none disabled:cursor-not-allowed"
+            onFocus={(e) => {
+              setIsFocused(true)
+              props.onFocus?.(e)
+            }}
+            onBlur={(e) => {
+              setIsFocused(false)
+              props.onBlur?.(e)
+            }}
+            {...props}
+          />
+          {getRevealToggle()}
+        </div>
       )
     }
 
@@ -146,7 +179,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </label>
           <div className="flex items-center gap-2 min-w-0 w-full">
             <input
-              type={type}
+              type={effectiveType}
               ref={ref}
               value={value}
               disabled={disabled || validationState === "disabled"}
@@ -163,6 +196,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               {...props}
             />
             {getValidationIcon()}
+            {getRevealToggle()}
           </div>
         </div>
         {validationState === "error" && errorMessage && (
