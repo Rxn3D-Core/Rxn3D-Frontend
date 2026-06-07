@@ -24,6 +24,14 @@ export function slipCanReadyToSend(ref: SlipLocationRef): boolean {
   return label === "in lab";
 }
 
+/** True when slip is at "In lab" (location id 3) — edit slip, hold, ready-to-send. */
+export function slipIsInLab(ref: SlipLocationRef): boolean {
+  return slipCanReadyToSend(ref);
+}
+
+export const SLIP_EDIT_REQUIRES_IN_LAB_MESSAGE =
+  "Slip must be in lab location to edit.";
+
 /** True when slip is at office delivery location "In office" (not "ready to pickup" variants). */
 export function slipIsInOffice(ref: SlipLocationRef): boolean {
   if (slipAtLocation(ref, SLIP_LOCATION_IN_OFFICE)) return true;
@@ -39,16 +47,17 @@ export function slipCanHold(ref: SlipLocationRef): boolean {
   return slipCanReadyToSend(ref);
 }
 
-/** Lab listing: green truck = pick up (1, 4, 6); red truck = drop off (2, 5). */
+/** Lab listing: green truck = pick up (1, 4); red truck = drop off (2, 5). Location 6 (In office) has no driver action. */
 export type SlipPickupDropoffAction = "pickup" | "dropoff";
 
 export function slipPickupDropoffAction(
   ref: SlipLocationRef
 ): SlipPickupDropoffAction | null {
   if (slipCanReadyToSend(ref)) return null;
+  if (slipIsInOffice(ref)) return null;
 
   if (slipAtLocation(ref, 2) || slipAtLocation(ref, 5)) return "dropoff";
-  if (slipAtLocation(ref, 1) || slipAtLocation(ref, 4) || slipAtLocation(ref, 6)) {
+  if (slipAtLocation(ref, 1) || slipAtLocation(ref, 4)) {
     return "pickup";
   }
 
@@ -67,7 +76,6 @@ export function slipPickupDropoffAction(
   ) {
     return "pickup";
   }
-  if (label === "in office" || label.startsWith("in office ")) return "pickup";
 
   return null;
 }
@@ -110,7 +118,7 @@ export function slipNextLocationIdFromRef(ref: SlipLocationRef): number | null {
   }
   const action = slipPickupDropoffAction(ref);
   if (action === "pickup") {
-    if (slipAtLocation(ref, 4) || slipAtLocation(ref, 6)) return 5;
+    if (slipAtLocation(ref, 4)) return 5;
     return 2;
   }
   if (action === "dropoff") {

@@ -431,7 +431,7 @@ export default function LabSlipPage() {
   }, [fetchLabSlips])
 
   const handleEditCase = (slip: any) => {
-    window.open(`/virtual-slip-v2/${slip.id}`, "_blank")
+    router.push(`/virtual-slip-v2/${slip.id}`)
   }
 
   const handleOpenRushCase = (slip: any) => {
@@ -988,8 +988,7 @@ export default function LabSlipPage() {
     const isInteractiveElement = target.closest('button, a, svg, input, [role="button"]')
     
     if (!isInteractiveElement) {
-      // Navigate to virtual slip page
-      window.open(`/virtual-slip-v2/${slip.id}`, '_blank')
+      router.push(`/virtual-slip-v2/${slip.id}`)
     }
   }
 

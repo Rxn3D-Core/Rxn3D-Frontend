@@ -5,21 +5,12 @@ import {
 } from "./slipPayloadMappers";
 import { snapshotToProduct } from "./caseSubmissionPayload";
 import type { AddStageToSlipPayload } from "@/lib/api/slip-add-stage";
-import type { SlipCreationProduct } from "@/services/slip-creation-service";
 
 export interface BuildAddStagePayloadParams {
   snapshots: SlipProductSnapshot[];
   sourceSlipLocationId?: number | null;
   labCustomerId?: number;
   createdBy?: number;
-}
-
-function requireStageId(product: SlipCreationProduct, archLabel: string): SlipCreationProduct {
-  const stage_id = product.stage_id;
-  if (!stage_id || stage_id <= 0) {
-    throw new Error(`Stage is required for ${archLabel} before creating the new stage slip.`);
-  }
-  return product;
 }
 
 export async function buildAddStageSubmissionPayloadAsync(
@@ -36,13 +27,9 @@ export async function buildAddStageSubmissionPayloadAsync(
     labCustomerId ?? 0
   );
 
-  const products = filteredSnapshots.map((snap) => {
-    const built = snapshotToProduct(
-      snap,
-      implantCatalogs.get(snap.productId)
-    );
-    return requireStageId(built, snap.type);
-  });
+  const products = filteredSnapshots.map((snap) =>
+    snapshotToProduct(snap, implantCatalogs.get(snap.productId))
+  );
 
   products.forEach((product) => {
     const { jsonFields } = partitionAdvanceFieldsForMultipart(
