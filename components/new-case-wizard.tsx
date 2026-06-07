@@ -1092,7 +1092,6 @@ function StepSubProduct({
   subcategoryProducts?: Record<number, LibraryProductApi[] | undefined>;
   onArchPickForSingle?: (subcatId: number, arch: "maxillary" | "mandibular" | "both") => void;
 }) {
-  const [accordionOpen, setAccordionOpen] = useState(false);
   const [activeSubLabelHeight, setActiveSubLabelHeight] = useState(0);
   const subCardRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const subLabelRefs = useRef<Record<number, HTMLSpanElement | null>>({});
@@ -1144,7 +1143,7 @@ function StepSubProduct({
           onClick={onBack}
           className="self-start text-[14px] font-semibold text-[#1162A8] hover:underline mt-2 mb-1"
         >
-          ← Back to Categories
+          <svg width="27" height="25" viewBox="0 0 27 25" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 " aria-hidden="true"><path d="M12.3958 22.6042L2.1875 12.3958L12.3958 2.1875M24.0625 22.6042L13.8542 12.3958L24.0625 2.1875" stroke="url(#backToProductsIconGradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"></path><defs><linearGradient id="backToProductsIconGradient" x1="29.9926" y1="2.46022" x2="0.157808" y2="27.922" gradientUnits="userSpaceOnUse"><stop stop-color="#2AA6DE"></stop><stop offset="0.5" stop-color="#82298D"></stop><stop offset="1" stop-color="#C9539F"></stop></linearGradient></defs></svg>
         </button>
       )}
 
@@ -1249,23 +1248,6 @@ function StepSubProduct({
             })()}
           </div>
         ))}
-      </div>
-
-      {/* Category accordion */}
-      <div className="max-w-[600px] mx-auto w-full">
-        <button
-          type="button"
-          onClick={() => setAccordionOpen(!accordionOpen)}
-          className="w-full flex items-center justify-between bg-[#dfeefb]/50 hover:bg-[#dfeefb]/70 px-4 py-3 rounded-lg transition-colors"
-        >
-          <span className="text-[13px] font-semibold text-[#1d1d1b]">
-            {categoryName}
-          </span>
-          <ChevronDown
-            size={18}
-            className={`text-[#7f7f7f] transition-transform ${accordionOpen ? "rotate-180" : ""}`}
-          />
-        </button>
       </div>
     </div>
   );
@@ -1407,7 +1389,7 @@ function StepMaterial({
           onClick={onBack}
           className="self-start text-[14px] font-semibold text-[#1162A8] hover:underline mt-2 mb-1"
         >
-          ← Back to Subcategories
+          <svg width="27" height="25" viewBox="0 0 27 25" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 " aria-hidden="true"><path d="M12.3958 22.6042L2.1875 12.3958L12.3958 2.1875M24.0625 22.6042L13.8542 12.3958L24.0625 2.1875" stroke="url(#backToProductsIconGradient)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"></path><defs><linearGradient id="backToProductsIconGradient" x1="29.9926" y1="2.46022" x2="0.157808" y2="27.922" gradientUnits="userSpaceOnUse"><stop stop-color="#2AA6DE"></stop><stop offset="0.5" stop-color="#82298D"></stop><stop offset="1" stop-color="#C9539F"></stop></linearGradient></defs></svg>
         </button>
       )}
 
@@ -1457,7 +1439,7 @@ function StepMaterial({
       )}
 
       {!shouldAutoSelectSingle && !shouldAskArchOnly && (
-        <div className="flex flex-row flex-nowrap gap-4 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex flex-row flex-nowrap justify-center gap-4 mb-6 overflow-x-auto pb-2 scrollbar-hide w-full">
           {products.map((prod) => {
             const prodId = String(prod.id);
             const isSelected = selected === prodId;
@@ -1549,13 +1531,13 @@ function StepMaterial({
 
       {/* Arch hint when adding product to a specific arch */}
       {forceArch && (
-        <p className="text-center text-[13px] text-[#7f7f7f] mb-4" style={{ fontFamily: "Verdana, sans-serif" }}>
+        <p className="text-center text-[13px] text-[#7f7f7f] mb-4 hidden" style={{ fontFamily: "Verdana, sans-serif" }}>
           This product will be added to the <span className="font-semibold text-[#1162A8]">{forceArch === "maxillary" ? "upper (maxillary)" : "lower (mandibular)"}</span> arch
         </p>
       )}
 
       {/* Breadcrumb bar showing category > sub-product */}
-      <div className="max-w-[600px] mx-auto w-full">
+      <div className="max-w-[600px] mx-auto w-full hidden">
         <div className="flex items-center justify-between bg-[#dfeefb]/50 px-4 py-3 rounded-lg">
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-semibold text-[#1d1d1b] bg-white px-3 py-1 rounded border border-[#d9d9d9]">
@@ -2294,7 +2276,7 @@ export default function NewCaseWizard({
       {step >= 4 && (
         <SlipCreationStepFooter
           mode="navigation"
-          showPrevious={true}
+          showPrevious={false}
           onPrevious={() => {
             if (step > 1) {
               setStep(step - 1);

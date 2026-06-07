@@ -177,6 +177,7 @@ export default function VirtualSlipPage() {
   const canPutOnHold = slipCanHold(slipLocationRef);
   const caseOnHold = isSlipCaseOnHold(slipVm.header.status);
   const showAddStageFab = slipIsInOffice(slipLocationRef);
+  const slipInOffice = slipIsInOffice(slipLocationRef);
 
   const handleAddStage = useCallback(() => {
     router.push("/case-design-center");
@@ -342,13 +343,15 @@ export default function VirtualSlipPage() {
           caseOnHold ? () => setCaseStatusModal("resume") : undefined
         }
         onHold={
-          caseOnHold ? undefined : () => setCaseStatusModal("hold")
+          caseOnHold || slipInOffice ? undefined : () => setCaseStatusModal("hold")
         }
         canPutOnHold={canPutOnHold}
         onCancel={
-          caseOnHold ? undefined : () => setCaseStatusModal("cancel")
+          caseOnHold || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
         }
-        onChangeDueDate={() => setChangeDueDateOpen(true)}
+        onChangeDueDate={
+          slipInOffice ? undefined : () => setChangeDueDateOpen(true)
+        }
         hasNextStage={showAddStageFab}
         onAddStage={showAddStageFab ? handleAddStage : undefined}
       />

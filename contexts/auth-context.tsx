@@ -5,6 +5,7 @@ import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
+import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -523,19 +524,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }, 100)
             return true
           } else {
-            // Onboarding is complete - safe to go to dashboard
-            console.log('Onboarding complete, redirecting to dashboard')
+            // Onboarding is complete - safe to go to the role's landing page
+            const landingPath = getPostLoginLandingPath(userRoles)
+            console.log(`Onboarding complete, redirecting to ${landingPath}`)
             if (shouldSeeMultiLocation && hasMultipleLocations) {
               router.replace("/multiple-location")
             } else {
-              // Single location or no multi-location role - go directly to dashboard
+              // Single location or no multi-location role - go directly to landing page
               if (shouldSeeMultiLocation && customers.length === 1) {
                 // Set the single location automatically via API
                 handleSingleLocation(customers[0]).then(() => {
-                  router.replace("/dashboard")
+                  router.replace(landingPath)
                 })
               } else {
-                router.replace("/dashboard")
+                router.replace(landingPath)
               }
             }
             return true

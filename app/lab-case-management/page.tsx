@@ -35,6 +35,7 @@ import { buildPaperSlipPrintRoute } from "./paper-slip-print-route.mjs"
 import {
   SLIP_LOCATION_FILTER_OPTIONS,
   LAB_SLIP_STATUS_OPTIONS,
+  SLIP_LISTING_DEFAULT_PER_PAGE,
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 
@@ -151,7 +152,7 @@ export default function LabSlipPage() {
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [showColumnsDialog, setShowColumnsDialog] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState({
     timestamp: true,
@@ -430,7 +431,7 @@ export default function LabSlipPage() {
   }, [fetchLabSlips])
 
   const handleEditCase = (slip: any) => {
-    window.open(`/virtual-slip-v2/${slip.id}`, "_blank")
+    router.push(`/virtual-slip-v2/${slip.id}`)
   }
 
   const handleOpenRushCase = (slip: any) => {
@@ -987,8 +988,7 @@ export default function LabSlipPage() {
     const isInteractiveElement = target.closest('button, a, svg, input, [role="button"]')
     
     if (!isInteractiveElement) {
-      // Navigate to virtual slip page
-      window.open(`/virtual-slip-v2/${slip.id}`, '_blank')
+      router.push(`/virtual-slip-v2/${slip.id}`)
     }
   }
 

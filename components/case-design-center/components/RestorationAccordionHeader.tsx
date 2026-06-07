@@ -50,7 +50,7 @@ export interface RestorationAccordionHeaderProps {
   retentionDoneAcknowledged?: boolean;
   onRetentionDoneChange?: (value: boolean) => void;
 
-  /** e.g. ToothStatusBoxes between title box and footer badges */
+  /** e.g. ToothStatusBoxes below title box, above Est days */
   middleContent?: ReactNode;
   /** Callback when the plus icon is clicked to activate product tooth selection */
   onPlusClick?: () => void;
@@ -116,7 +116,7 @@ export function RestorationAccordionHeader({
         expandEnabled={expandEnabled}
       />
       <div
-        className="flex items-stretch gap-[10px] px-[8px] py-[14px]"
+        className="flex items-stretch gap-[10px] px-[8px] pt-[14px]"
         onClick={(e) => e.stopPropagation()}
       >
         <ProductImagePreview
@@ -130,7 +130,7 @@ export function RestorationAccordionHeader({
             </div>
           }
         />
-        <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+        <div className="flex-1 min-w-0 flex flex-col gap-[2px]">
           {showHeaderContent && (
             <>
               {/* Hidden: Currently active + category/subcategory badges — set to true to restore */}
@@ -193,6 +193,7 @@ export function RestorationAccordionHeader({
                   <p className={`${removableHeaderToothClass} text-[#666666]`}>{toothDisplay}</p>
                 ) : null}
               </fieldset>
+              {middleContent}
               <div className="flex justify-center items-center gap-2 w-full">
                 <EstDaysLabel
                   rushed={hasRush}
@@ -213,7 +214,6 @@ export function RestorationAccordionHeader({
                   </button>
                 ) : null}
               </div>
-              {middleContent}
               {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
                 <div className="w-full flex justify-center mt-2 py-2 overflow-visible" onClick={(e) => e.stopPropagation()}>
                   <DoneTransitionButton onComplete={() => onRetentionDoneChange(true)} />

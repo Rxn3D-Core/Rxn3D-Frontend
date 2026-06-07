@@ -99,10 +99,7 @@ export function DashboardHeader({ toggleSidebar }: { toggleSidebar: () => void }
             </div>
             <Avatar className="h-9 w-9 border border-gray-200">
               <AvatarImage
-                src={getUserAvatar(
-                  getUserProfileImageUrl(user) || null,
-                  user?.email || user?.id || user?.name,
-                )}
+                src={getUserAvatar(getUserProfileImageUrl(user) || null)}
                 alt="User"
               />
               <AvatarFallback>

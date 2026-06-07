@@ -1313,6 +1313,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         onAddMandibularProduct={() => props.onAddProduct?.("mandibular")}
         showMaxillaryProductButton={showMaxillaryProductButton}
         showMandibularProductButton={showMandibularProductButton}
+        maxillaryHasExistingProducts={hasMaxillaryProducts}
+        mandibularHasExistingProducts={hasMandibularProducts}
         showSelectTeethToReplaceMaxillary={showSelectTeethToReplaceMaxillary}
         showSelectTeethToReplaceMandibular={showSelectTeethToReplaceMandibular}
       />

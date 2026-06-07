@@ -2602,11 +2602,9 @@ export function DentalSlipPageContent({
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <img
-                                  src="/images/doctor-image.png"
-                                  alt="Default Doctor"
-                                  className="w-full h-full object-cover"
-                                />
+                                <span className="text-2xl font-semibold text-[#1162a8]">
+                                  {`${(selectedDoctor as any)?.first_name?.[0] || addSlipFormData.doctor?.[0] || "?"}${(selectedDoctor as any)?.last_name?.[0] || ""}`.toUpperCase()}
+                                </span>
                               )}
                             </div>
                           )
@@ -2803,11 +2801,9 @@ export function DentalSlipPageContent({
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <img
-                                  src="/images/doctor-image.png"
-                                  alt="Default Doctor"
-                                  className="w-full h-full object-cover"
-                                />
+                                <span className="text-3xl font-semibold text-[#1162a8]">
+                                  {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                                </span>
                               )}
                             </div>
                             {/* Selection indicator */}

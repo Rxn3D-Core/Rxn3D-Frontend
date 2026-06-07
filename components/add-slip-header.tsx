@@ -175,11 +175,10 @@ export default function AddSlipHeader({
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <img
-                        src="/images/doctor-image.png"
-                        alt="Default Doctor"
-                        className="w-full h-full object-cover"
-                      />
+                      <span className="text-lg font-semibold text-[#1162a8]">
+                        {(selectedDoctor?.first_name?.[0] || formData.doctor?.[0] || "?").toUpperCase()}
+                        {(selectedDoctor?.last_name?.[0] || "").toUpperCase()}
+                      </span>
                     )
                   })()}
                 </div>

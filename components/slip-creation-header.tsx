@@ -312,7 +312,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
           <div className="relative">
             <Avatar className="w-[50px] h-[50px] sm:w-[75px] sm:h-[75px]">
               <AvatarImage
-                src={doctor?.image || "/images/doctor-image.png"}
+                src={doctor?.image || undefined}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
               />
               <AvatarFallback className="bg-[#1162a8] text-white text-base sm:text-xl font-bold">
@@ -340,7 +340,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
       <div className="relative">
         <Avatar className="w-20 h-20">
           <AvatarImage
-            src={doctor?.image || "/images/doctor-image.png"}
+            src={doctor?.image || undefined}
             alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
           />
           <AvatarFallback className="bg-[#1162a8] text-white text-xl font-semibold">

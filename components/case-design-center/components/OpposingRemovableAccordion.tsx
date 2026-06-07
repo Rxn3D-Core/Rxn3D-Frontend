@@ -32,6 +32,18 @@ import {
   resolveOpposingImpressionProductId,
 } from "../utils/opposingImpressionReadiness";
 
+function OpposingImpressionSkippedNotice() {
+  return (
+    <p
+      className="text-sm leading-snug text-[#555555]"
+      style={{ fontFamily: "Verdana, sans-serif" }}
+    >
+      No impression will be sent on this appointment. Please note that opposing scan is{" "}
+      <span className="font-bold text-[#CF0202]">required</span> for this impression.
+    </p>
+  );
+}
+
 function isFullDentureProduct(
   extractions: Array<{ code: string; name: string; status: string }> | undefined
 ): boolean {
@@ -334,10 +346,13 @@ export function OpposingRemovableAccordion({
     opposingImpressionText ||
     getImpressionDisplayText(impressionModalProductId, opposingArch) ||
     fVal("impression");
+  const hasOpposingImpressionSelected = archHasOpposingImpressionSelections(
+    selectedImpressions,
+    opposingArch
+  );
   const impressionComplete =
     isFComplete("impression") ||
-    (!!impressionDisplay &&
-      archHasOpposingImpressionSelections(selectedImpressions, opposingArch));
+    (!!impressionDisplay && hasOpposingImpressionSelected);
 
   const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;
   const hasOpposingImpressionConfigured = opposingProductData.opposite_impression === "Yes";
@@ -360,7 +375,7 @@ export function OpposingRemovableAccordion({
             />
           </PanelDiv>
           <PanelDiv
-            className={`flex flex-col gap-[9.94px] px-[8px] py-[14px] ${opposingOnlyLayout ? "w-full" : "flex items-stretch gap-[10px]"}`}
+            className={`flex flex-col gap-[9.94px] px-[8px] pt-[14px] ${opposingOnlyLayout ? "w-full" : "flex items-stretch gap-[10px]"}`}
             onClick={(e) => e.stopPropagation()}
           >
             {!opposingOnlyLayout && (
@@ -415,31 +430,34 @@ export function OpposingRemovableAccordion({
                       disableRequiredValidation
                     />
                   )}
-                  {showOpposingImpressionField && (
-                    <fieldset
-                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
-                      onClick={() => {
-                        if (caseSubmitted) return;
-                        handleOpenImpressionModal(
-                          opposingArch,
-                          impressionModalProductId,
-                          opposingRepTn
-                        );
-                      }}
-                    >
-                      <legend
-                        className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                  {showOpposingImpressionField &&
+                    (hasOpposingImpressionSelected ? (
+                      <fieldset
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
+                        onClick={() => {
+                          if (caseSubmitted) return;
+                          handleOpenImpressionModal(
+                            opposingArch,
+                            impressionModalProductId,
+                            opposingRepTn
+                          );
+                        }}
                       >
-                        Impression
-                      </legend>
-                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
-                        {impressionDisplay || "No Opposing"}
-                      </span>
-                      {impressionComplete && !caseSubmitted && (
-                        <Check size={14} className="text-[#34a853] flex-shrink-0" />
-                      )}
-                    </fieldset>
-                  )}
+                        <legend
+                          className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                        >
+                          Impression
+                        </legend>
+                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                          {impressionDisplay}
+                        </span>
+                        {impressionComplete && !caseSubmitted && (
+                          <Check size={14} className="text-[#34a853] flex-shrink-0" />
+                        )}
+                      </fieldset>
+                    ) : (
+                      <OpposingImpressionSkippedNotice />
+                    ))}
                 </>
               ) : (
                 shouldShowRemovableHeaderContent({
@@ -746,36 +764,34 @@ export function OpposingRemovableAccordion({
                   </PanelDiv>
                 )}
 
-                {showOpposingImpressionField && (
-                  <fieldset
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
-                    onClick={() => {
-                      if (caseSubmitted) return;
-                      handleOpenImpressionModal(
-                        opposingArch,
-                        impressionModalProductId,
-                        opposingRepTn
-                      );
-                    }}
-                  >
-                    <legend
-                      className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                {showOpposingImpressionField &&
+                  (hasOpposingImpressionSelected ? (
+                    <fieldset
+                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
+                      onClick={() => {
+                        if (caseSubmitted) return;
+                        handleOpenImpressionModal(
+                          opposingArch,
+                          impressionModalProductId,
+                          opposingRepTn
+                        );
+                      }}
                     >
-                      Impression
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
-                      {impressionDisplay || "No Opposing"}
-                    </span>
-                    {impressionComplete && !caseSubmitted && (
-                      <Check size={14} className="text-[#34a853] flex-shrink-0" />
-                    )}
-                  </fieldset>
-                )}
-                {!impressionDisplay && showOpposingImpressionField && (
-                  <p className="font-['Verdana'] text-sm text-[#7f7f7f]">
-                    Opposing impression is optional for this product.
-                  </p>
-                )}
+                      <legend
+                        className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                      >
+                        Impression
+                      </legend>
+                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                        {impressionDisplay}
+                      </span>
+                      {impressionComplete && !caseSubmitted && (
+                        <Check size={14} className="text-[#34a853] flex-shrink-0" />
+                      )}
+                    </fieldset>
+                  ) : (
+                    <OpposingImpressionSkippedNotice />
+                  ))}
 
                 {!opposingOnlyLayout && isF("addons") && (() => {
                   const addonsVal = fVal("addons") || "";

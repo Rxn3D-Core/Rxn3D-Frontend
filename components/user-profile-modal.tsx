@@ -163,7 +163,7 @@ export function UserProfileModal({
 
   const displayAvatar =
     avatarPreview ??
-    getUserAvatar(getUserProfileImageUrl(userData) || null, userData?.email || userData?.id)
+    getUserAvatar(getUserProfileImageUrl(userData) || null)
 
   const statusLabel = userData?.status
     ? userData.status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())

@@ -22,9 +22,9 @@ function Field({
   if (!hasDisplayValue(value)) return null;
 
   return (
-    <div className={`flex items-center gap-[9px] font-sans ${allowWrap ? "" : "whitespace-nowrap"}`}>
-      <span className="shrink-0 text-[12px] text-[#7F7F7F] sm:text-[14px]">{label}:</span>
-      <span className={`text-[14px] sm:text-[17px] ${valueClassName} ${allowWrap ? "break-words" : ""}`}>
+    <div className={`flex items-baseline gap-[9px] font-sans ${allowWrap ? "" : "whitespace-nowrap"}`}>
+      <span className="min-w-[129px] shrink-0 text-[16px] font-bold text-[#4C4D55]">{label}:</span>
+      <span className={`text-[16px] ${valueClassName} ${allowWrap ? "break-words" : ""}`}>
         {value.trim()}
       </span>
     </div>
@@ -118,7 +118,7 @@ export function VirtualSlipHeader({ header }: { header: VirtualSlipHeaderVM }) {
       </div>
 
       {/* Patient info strip: doctor | fields | created by. */}
-      <div className="flex flex-wrap items-start justify-between gap-4 border border-[#D9D9D9] px-3 py-[15px] sm:gap-6 sm:px-5 lg:items-center lg:gap-8">
+      <div className="flex flex-wrap items-start justify-between gap-4 border border-[#D9D9D9] px-3 py-[2px] sm:gap-6 sm:px-5 lg:items-center lg:gap-8">
         {/* Doctor */}
         <div className="flex shrink-0 flex-col items-center gap-[7px]">
           <div className="relative">
@@ -139,7 +139,7 @@ export function VirtualSlipHeader({ header }: { header: VirtualSlipHeaderVM }) {
         </div>
 
         {/* Fields — five two-row columns that wrap as space allows */}
-        <div className="flex min-w-[240px] flex-1 flex-wrap items-start gap-x-[24px] gap-y-[14px] lg:gap-x-[40px] lg:gap-y-[20px]">
+        <div className="flex min-w-[240px] flex-1 flex-wrap items-start" style={{ justifyContent: "space-between" }}>
           <Column>
             <Field label="Patient name" value={header.patientName} allowWrap />
             {showGenderAge && (
@@ -155,11 +155,11 @@ export function VirtualSlipHeader({ header }: { header: VirtualSlipHeaderVM }) {
           </Column>
           <Column>
             <Field label="Pan #" value={header.panNumber} />
-            <Field label="Status" value={header.status} />
           </Column>
           <Column>
             <Field label="Location" value={header.location} allowWrap />
-            <Field label="Delivery Time" value={header.deliveryTime} />
+            <Field label="Status" value={header.status} />
+            {/* <Field label="Delivery Time" value={header.deliveryTime} /> */}
           </Column>
           <Column>
             {header.isRush ? (
@@ -175,7 +175,7 @@ export function VirtualSlipHeader({ header }: { header: VirtualSlipHeaderVM }) {
                 <Field label="Normal due" value={header.standardDueDate} />
               </>
             ) : (
-              <Field label="Due Date" value={header.dueDate} />
+              <Field label="Due Date" value={header.dueDate + " @ " + header.deliveryTime} />
             )}
             <Field label="Pick up date" value={header.pickupDate} />
           </Column>

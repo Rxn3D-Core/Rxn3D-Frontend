@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { buildApiUrl } from "@/lib/api/client";
+import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 import { applySlipAttachmentState } from "./attachment-state.mjs";
 
 type Slip = {
@@ -264,7 +265,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       } else {
         setLabListingPagination({
           total: arr.length,
-          per_page: effectiveQuery.per_page ?? (arr.length > 0 ? arr.length : 10),
+          per_page: effectiveQuery.per_page ?? (arr.length > 0 ? arr.length : SLIP_LISTING_DEFAULT_PER_PAGE),
           current_page: effectiveQuery.page ?? 1,
           last_page: 1,
         });

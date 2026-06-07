@@ -3,14 +3,13 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { Truck, X, Check, Plus, UserRoundCog, MapPin, UserCheck, Loader2, AlertCircle, Trash2 } from "lucide-react"
-import { Label } from "@/components/ui/label"
-import clsx from "clsx"
+import { X, Plus, Loader2, AlertCircle, Trash2 } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import { useToast } from "@/hooks/use-toast"
@@ -51,6 +50,38 @@ function pickupDropoffModalCopy(action: SlipPickupDropoffAction | null) {
 }
 
 type DeliveryEntry = PickupDeliveryEntry
+
+function DirectionsIcon() {
+  return (
+    <svg width="30" height="26" viewBox="0 0 30 26" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path d="M8.33761 17.114C8.33761 17.6369 8.13442 18.1383 7.77275 18.508C7.41107 18.8777 6.92053 19.0854 6.40904 19.0854C5.89755 19.0854 5.40701 18.8777 5.04533 18.508C4.68366 18.1383 4.48047 17.6369 4.48047 17.114C4.48047 16.5912 4.68366 16.0897 5.04533 15.72C5.40701 15.3503 5.89755 15.1426 6.40904 15.1426C6.92053 15.1426 7.41107 15.3503 7.77275 15.72C8.13442 16.0897 8.33761 16.5912 8.33761 17.114Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11.2307 17.1141C11.2307 21.8074 6.40932 24.507 6.40932 24.507C6.40932 24.507 1.58789 21.8074 1.58789 17.1141C1.58789 15.807 2.09586 14.5534 3.00005 13.6291C3.90425 12.7048 5.1306 12.1855 6.40932 12.1855C7.68804 12.1855 8.91439 12.7048 9.81858 13.6291C10.7228 14.5534 11.2307 15.807 11.2307 17.1141Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M25.695 6.60033C25.695 7.12319 25.4918 7.62463 25.1302 7.99435C24.7685 8.36406 24.278 8.57176 23.7665 8.57176C23.255 8.57176 22.7644 8.36406 22.4028 7.99435C22.0411 7.62463 21.8379 7.12319 21.8379 6.60033C21.8379 6.07748 22.0411 5.57604 22.4028 5.20632C22.7644 4.83661 23.255 4.62891 23.7665 4.62891C24.278 4.62891 24.7685 4.83661 25.1302 5.20632C25.4918 5.57604 25.695 6.07748 25.695 6.60033Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M28.5882 6.60045C28.5882 11.2938 23.7667 13.9933 23.7667 13.9933C23.7667 13.9933 18.9453 11.2938 18.9453 6.60045C18.9453 5.29331 19.4533 4.03971 20.3575 3.11542C21.2617 2.19113 22.488 1.67188 23.7667 1.67188C25.0455 1.67188 26.2718 2.19113 27.176 3.11542C28.0802 4.03971 28.5882 5.29331 28.5882 6.60045Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.08789 24.6725H25.1412C26.6897 24.6725 27.945 23.4172 27.945 21.8687V21.8687C27.945 20.3202 26.6897 19.0649 25.1412 19.0649H20.3172C18.9623 19.0649 17.8639 17.9665 17.8639 16.6115V16.6115C17.8639 15.2566 18.9623 14.1582 20.3172 14.1582H24.2486" stroke="#1162A8" strokeWidth="1.5" />
+    </svg>
+  )
+}
+
+function DeliveryActionIcon({ clipId }: { clipId: string }) {
+  return (
+    <svg width="23" height="33" viewBox="0 0 24 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <g clipPath={`url(#${clipId})`}>
+        <path d="M8.95658 6.95117H2.75481C1.69774 6.95117 0.84082 7.80677 0.84082 8.8622V16.2821C0.84082 17.3376 1.69774 18.1932 2.75481 18.1932H8.95658C10.0136 18.1932 10.8706 17.3376 10.8706 16.2821V8.8622C10.8706 7.80677 10.0136 6.95117 8.95658 6.95117Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
+        <path d="M5.85561 18.7695L1.87793 23.4564H9.84399L5.85561 18.7695Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
+        <path d="M5.85547 23.457V32.9161" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
+        <path d="M19.0824 6.51344C20.6651 6.51344 21.9481 5.23243 21.9481 3.65223C21.9481 2.07202 20.6651 0.791016 19.0824 0.791016C17.4998 0.791016 16.2168 2.07202 16.2168 3.65223C16.2168 5.23243 17.4998 6.51344 19.0824 6.51344Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
+        <path d="M12.9661 15.1931L18.4729 8.83008H20.0554C20.4724 8.83008 20.8573 9.03293 21.1353 9.38524L21.8838 10.3461C22.1725 10.7198 22.3329 11.1788 22.3329 11.6486V19.5916L16.4947 26.0934V30.0863C16.4947 30.9084 16.2702 31.7304 15.789 32.3603C15.7034 32.4671 15.6286 32.5525 15.5644 32.5952C15.265 32.7874 14.5059 32.7447 14.1851 32.5952C14.1209 32.5632 14.0354 32.4991 14.0354 32.4991C13.4045 31.9013 13.1265 31.1326 13.1265 30.3425V26.3283L18.3125 19.8265L18.1093 14.5525L14.9122 18.3639H5.85547" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
+        <path d="M22.7717 22.0039V29.7014C22.7717 30.5235 22.5899 31.3455 22.2049 31.9754C22.1408 32.0822 22.0766 32.1676 22.0232 32.2103C21.7879 32.4025 21.1678 32.3598 20.9111 32.2103C20.8577 32.1783 20.7935 32.1142 20.7187 32.0288C20.291 31.5164 20.0664 30.7477 20.0664 29.9576V25.9434" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
+      </g>
+      <defs>
+        <clipPath id={clipId}>
+          <rect width="23" height="33" fill="white" transform="translate(0.306641 0.257812)" />
+        </clipPath>
+      </defs>
+    </svg>
+  )
+}
 
 interface DriverHistoryModalProps {
   isOpen: boolean
@@ -294,398 +325,229 @@ export default function DriverHistoryModal({
     }
   }
 
+  const tableScrollable = deliveryEntries.length > 5
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl w-[calc(100%-2rem)] md:w-full p-0 bg-white rounded-2xl shadow-2xl mx-auto overflow-hidden">
-        {/* Modal Header */}
-        <div className="flex justify-between items-center px-6 pt-6 pb-2 border-b">
-          <div className="flex items-center gap-3">
-            <svg width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-              <rect x="0.128906" y="0.527344" width="41.2246" height="41.2246" rx="6" fill="#1162A8" />
-              <path d="M16.522 13.4141H11.1292C10.21 13.4141 9.46484 14.0882 9.46484 14.9197V20.7657C9.46484 21.5973 10.21 22.2714 11.1292 22.2714H16.522C17.4412 22.2714 18.1864 21.5973 18.1864 20.7657V14.9197C18.1864 14.0882 17.4412 13.4141 16.522 13.4141Z" stroke="white" strokeMiterlimit="10" />
-              <path d="M13.826 22.7246L10.3672 26.4173H17.2942L13.826 22.7246Z" stroke="white" strokeMiterlimit="10" />
-              <path d="M13.8252 26.418V33.8706" stroke="white" strokeMiterlimit="10" />
-              <path d="M25.3268 13.0691C26.703 13.0691 27.8187 12.0598 27.8187 10.8148C27.8187 9.56983 26.703 8.56055 25.3268 8.56055C23.9506 8.56055 22.835 9.56983 22.835 10.8148C22.835 12.0598 23.9506 13.0691 25.3268 13.0691Z" stroke="white" strokeMiterlimit="10" />
-              <path d="M20.0084 19.9078L24.7968 14.8945H26.1729C26.5356 14.8945 26.8703 15.0544 27.112 15.3319L27.7629 16.089C28.0139 16.3834 28.1534 16.7451 28.1534 17.1152V23.3733L23.0767 28.496V31.6419C23.0767 32.2895 22.8814 32.9372 22.463 33.4335C22.3887 33.5176 22.3236 33.5849 22.3236 33.5849C22.0074 33.77 21.3473 33.7363 21.0683 33.6186C21.0125 33.5933 20.9382 33.5429 20.9382 33.5429C20.3896 33.0718 20.1478 32.4662 20.1478 31.8437V28.681L24.6574 23.5584L24.4807 19.4031L21.7006 22.406H13.8252" stroke="white" strokeMiterlimit="10" />
-              <path d="M28.535 25.2734V31.3381C28.535 31.9858 28.3769 32.6335 28.0422 33.1298C27.9864 33.2139 27.9306 33.2812 27.8842 33.3148C27.6796 33.4663 27.1403 33.4326 26.9172 33.3148C26.8707 33.2896 26.8149 33.2391 26.7498 33.1719C26.3779 32.7681 26.1826 32.1625 26.1826 31.54V28.3773" stroke="white" strokeMiterlimit="10" />
-            </svg>
-
-            <DialogTitle className="text-xl sm:text-2xl font-semibold text-gray-900">
-              {modalCopy.title}
-            </DialogTitle>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full hover:bg-gray-100"
+      <DialogContent
+        showCloseButton={false}
+        className="flex w-[min(96vw,1080px)] max-w-none flex-col overflow-hidden rounded-none border border-[#D9D9D9] bg-white p-0 shadow-xl sm:rounded-lg max-h-[90dvh]"
+      >
+        <div className="flex shrink-0 items-center justify-between px-5 py-4 sm:px-8 sm:py-5">
+          <DialogTitle className="text-xl font-bold tracking-[-0.02em] text-[#1F2937] sm:text-[22px]">
+            {modalCopy.title}
+          </DialogTitle>
+          <button
+            type="button"
             onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center text-[#9CA3AF] transition-colors hover:text-[#4B5563]"
+            aria-label="Close"
           >
-            <X className="w-6 h-6 text-gray-500" />
-          </Button>
+            <X className="h-6 w-6" />
+          </button>
         </div>
 
-        {/* Subtitle & Description */}
-        <div className="px-6 pt-4 pb-2">
-          <div className="font-semibold text-base flex flex-wrap items-center gap-2">
-            {singleSlipMode ? modalCopy.entriesLabel : "Delivery Entries"}
-            {contextQrScanData && (
-              <span className="text-xs sm:text-sm bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-normal">
-                QR Scanned ({contextQrScanData.scanned_cases_count} cases)
-              </span>
+        <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 sm:px-8 sm:pb-6">
+          {!singleSlipMode && contextQrScanData ? (
+            <p className="mb-3 text-xs text-green-700">
+              QR scanned ({contextQrScanData.scanned_cases_count} cases)
+              {sessionKey ? ` · session ${sessionKey.substring(0, 8)}…` : ""}
+            </p>
+          ) : null}
+
+          {loadingPickup ? (
+            <div className="mb-4 flex items-center justify-center gap-2 py-6 text-[#1162A8]">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Loading entries…</span>
+            </div>
+          ) : null}
+
+          {pickupError ? (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{pickupError}</span>
+            </div>
+          ) : null}
+
+          <div
+            className={cn(
+              "w-full overflow-x-auto",
+              tableScrollable && "max-h-[min(42dvh,320px)] overflow-y-auto",
             )}
-          </div>
-          <div className="text-gray-600 text-xs sm:text-sm mt-1">
-            {singleSlipMode
-              ? modalCopy.subtitle
-              : "Select cases to confirm pick up or drop off."}
-            {sessionKey && !singleSlipMode && (
-              <div className="text-[10px] sm:text-xs text-blue-600 mt-1">
-                Session: {sessionKey.substring(0, 8)}...
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Loading and Error States for QR */}
-        {loadingPickup && (
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-center gap-2 text-blue-600">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Processing QR scan...</span>
-            </div>
-          </div>
-        )}
-
-        {pickupError && (
-          <div className="px-6 py-2">
-            <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg">
-              <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">{pickupError}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Select All Bar on Mobile only */}
-        {deliveryEntries.length > 0 && (
-          <div className="px-6 sm:hidden">
-            <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg border text-xs font-semibold text-gray-700">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="select-all-mobile"
-                  checked={allChecked}
-                  onCheckedChange={handleAllToggle}
-                  className="h-4 w-4 animate-fade-in"
-                  aria-label="Select all mobile"
-                />
-                <Label htmlFor="select-all-mobile" className="cursor-pointer">
-                  Select All Cases
-                </Label>
-              </div>
-              <span className="text-[10px] text-gray-500 font-normal">
-                ({deliveryEntries.filter(e => e.isChecked).length}/{deliveryEntries.length} selected)
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Entries Table / List Container */}
-        <div className="px-6 pb-0 max-h-[350px] overflow-y-auto pr-1 select-none">
-          {/* Table Header (hidden on Mobile) */}
-          <div className="hidden sm:grid sm:grid-cols-[40px_120px_1.5fr_2fr_60px] items-center py-2 border-b text-sm font-semibold bg-gray-50 rounded-t-md">
-            <Checkbox
-              checked={allChecked}
-              onCheckedChange={handleAllToggle}
-              className="mx-auto"
-              aria-label="Select all"
-            />
-            <div className="pl-2">Office</div>
-            <div>Patient name</div>
-            <div>Location</div>
-            <div className="text-center">Action</div>
-          </div>
-
-          <div className="divide-y divide-gray-100 sm:divide-y">
-            {loadingPickup ? (
-              // Skeleton placeholders while loading
-              Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={`skeleton-${i}`}
-                  className="grid grid-cols-1 sm:grid-cols-[40px_120px_1.5fr_2fr_60px] gap-2 sm:gap-0 items-start sm:items-center py-4 sm:py-3 px-3 sm:px-0 border-b sm:border-b-0 text-sm bg-white"
-                >
-                  <div className="hidden sm:block mx-auto w-4 h-4 rounded-full bg-gray-200 animate-pulse" />
-                  <div className="h-4 w-28 bg-gray-200 rounded animate-pulse sm:pl-2" />
-                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
-                  <div className="flex sm:justify-center items-center">
-                    <div className="h-6 w-6 bg-gray-200 rounded animate-pulse" />
-                  </div>
-                </div>
-              ))
-            ) : deliveryEntries.length === 0 ? (
-              <div className="py-8 text-center text-gray-500 text-sm">
-                {singleSlipMode
-                  ? `Slip details are not available for ${modalCopy.title.toLowerCase()}.`
-                  : 'No entries available. Click "Add Case" to add one manually or scan a QR code.'}
-              </div>
-            ) : (
-              deliveryEntries.map((entry) => {
-                const isManual = !entry.slip_id;
-                return (
-                  <div key={entry.id}>
-                    {/* Desktop View (sm and up) */}
-                    <div className="hidden sm:grid sm:grid-cols-[40px_120px_1.5fr_2fr_60px] items-center py-3 text-sm bg-white hover:bg-gray-50/50 transition-colors">
-                      <Checkbox
-                        id={`entry-${entry.id}`}
-                        checked={entry.isChecked}
-                        onCheckedChange={() => handleCheckboxToggle(entry.id)}
-                        className="mx-auto"
-                        aria-label={`Select ${entry.patientName}`}
-                      />
-                      
-                      {/* Office Column */}
-                      {isManual ? (
-                        <div className="pl-2 pr-2">
-                          <Input
-                            value={entry.office}
-                            onChange={(e) => handleUpdateManualEntry(entry.id, "office", e.target.value)}
-                            placeholder="Office Code"
-                            className="h-8 w-24 text-xs"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-gray-900 font-medium pl-2 pr-2 min-w-0">
-                          <svg width="24" height="20" viewBox="0 0 30 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                            <path d="M8.33761 17.114C8.33761 17.6369 8.13442 18.1383 7.77275 18.508C7.41107 18.8777 6.92053 19.0854 6.40904 19.0854C5.89755 19.0854 5.40701 18.8777 5.04533 18.508C4.68366 18.1383 4.48047 17.6369 4.48047 17.114C4.48047 16.5912 4.68366 16.0897 5.04533 15.72C5.40701 15.3503 5.89755 15.1426 6.40904 15.1426C6.92053 15.1426 7.41107 15.3503 7.77275 15.72C8.13442 16.0897 8.33761 16.5912 8.33761 17.114Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M11.2307 17.1141C11.2307 21.8074 6.40932 24.507 6.40932 24.507C6.40932 24.507 1.58789 21.8074 1.58789 17.1141C1.58789 15.807 2.09586 14.5534 3.00005 13.6291C3.90425 12.7048 5.1306 12.1855 6.40932 12.1855C7.68804 12.1855 8.91439 12.7048 9.81858 13.6291C10.7228 14.5534 11.2307 15.807 11.2307 17.1141Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M25.695 6.60033C25.695 7.12319 25.4918 7.62463 25.1302 7.99435C24.7685 8.36406 24.278 8.57176 23.7665 8.57176C23.255 8.57176 22.7644 8.36406 22.4028 7.99435C22.0411 7.62463 21.8379 7.12319 21.8379 6.60033C21.8379 6.07748 22.0411 5.57604 22.4028 5.20632C22.7644 4.83661 23.255 4.62891 23.7665 4.62891C24.278 4.62891 24.7685 4.83661 25.1302 5.20632C25.4918 5.57604 25.695 6.07748 25.695 6.60033Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M28.5882 6.60045C28.5882 11.2938 23.7667 13.9933 23.7667 13.9933C23.7667 13.9933 18.9453 11.2938 18.9453 6.60045C18.9453 5.29331 19.4533 4.03971 20.3575 3.11542C21.2617 2.19113 22.488 1.67188 23.7667 1.67188C25.0455 1.67188 26.2718 2.19113 27.176 3.11542C28.0802 4.03971 28.5882 5.29331 28.5882 6.60045Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="M6.08789 24.6725H25.1412C26.6897 24.6725 27.945 23.4172 27.945 21.8687V21.8687C27.945 20.3202 26.6897 19.0649 25.1412 19.0649H20.3172C18.9623 19.0649 17.8639 17.9665 17.8639 16.6115V16.6115C17.8639 15.2566 18.9623 14.1582 20.3172 14.1582H24.2486" stroke="#1162A8" strokeWidth="1.5" />
-                          </svg>
-                          <span className="text-gray-700 truncate">{entry.office || "Unknown"}</span>
-                        </div>
-                      )}
-
-                      {/* Patient Name Column */}
-                      {isManual ? (
-                        <div className="pr-2">
-                          <Input
-                            value={entry.patientName}
-                            onChange={(e) => handleUpdateManualEntry(entry.id, "patientName", e.target.value)}
-                            placeholder="Patient Name"
-                            className="h-8 w-full text-xs"
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-gray-800 font-medium truncate pr-2">{entry.patientName}</div>
-                      )}
-
-                      {/* Location Column */}
-                      {isManual ? (
-                        <div className="pr-2">
-                          <Input
-                            value={entry.location}
-                            onChange={(e) => handleUpdateManualEntry(entry.id, "location", e.target.value)}
-                            placeholder="Location"
-                            className="h-8 w-full text-xs"
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-gray-600 flex items-center gap-1.5 min-w-0 pr-2">
-                          <span className="truncate">{entry.location}</span>
-                          {entry.slip_number && (
-                            <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-mono font-bold flex-shrink-0">
-                              {entry.slip_number}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Action / Delete Column */}
-                      <div className="flex items-center justify-center">
-                        {isManual ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50"
-                            onClick={() => handleDeleteManualEntry(entry.id)}
-                            title="Delete manual entry"
-                            type="button"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        ) : (
-                          <svg width="20" height="28" viewBox="0 0 24 34" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-green-500">
-                            <g clipPath="url(#clip0_4154_20833_desktop)">
-                              <path d="M8.95658 6.95117H2.75481C1.69774 6.95117 0.84082 7.80677 0.84082 8.8622V16.2821C0.84082 17.3376 1.69774 18.1932 2.75481 18.1932H8.95658C10.0136 18.1932 10.8706 17.3376 10.8706 16.2821V8.8622C10.8706 7.80677 10.0136 6.95117 8.95658 6.95117Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                              <path d="M5.85561 18.7695L1.87793 23.4564H9.84399L5.85561 18.7695Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                              <path d="M5.85547 23.457V32.9161" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                              <path d="M19.0824 6.51344C20.6651 6.51344 21.9481 5.23243 21.9481 3.65223C21.9481 2.07202 20.6651 0.791016 19.0824 0.791016C17.4998 0.791016 16.2168 2.07202 16.2168 3.65223C16.2168 5.23243 17.4998 6.51344 19.0824 6.51344Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                              <path d="M12.9661 15.1931L18.4729 8.83008H20.0554C20.4724 8.83008 20.8573 9.03293 21.1353 9.38524L21.8838 10.3461C22.1725 10.7198 22.3329 11.1788 22.3329 11.6486V19.5916L16.4947 26.0934V30.0863C16.4947 30.9084 16.2702 31.7304 15.789 32.3603C15.7034 32.4671 15.6286 32.5525 15.5644 32.5952C15.265 32.7874 14.5059 32.7447 14.1851 32.5952C14.1209 32.5632 14.0354 32.4991 14.0354 32.4991C13.4045 31.9013 13.1265 31.1326 13.1265 30.3425V26.3283L18.3125 19.8265L18.1093 14.5525L14.9122 18.3639H5.85547" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                              <path d="M22.7717 22.0039V29.7014C22.7717 30.5235 22.5899 31.3455 22.2049 31.9754C22.1408 32.0822 22.0766 32.1676 22.0232 32.2103C21.7879 32.4025 21.1678 32.3598 20.9111 32.2103C20.8577 32.1783 20.7935 32.1142 20.7187 32.0288C20.291 31.5164 20.0664 30.7477 20.0664 29.9576V25.9434" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                            </g>
-                            <defs>
-                              <clipPath id="clip0_4154_20833_desktop">
-                                <rect width="23" height="33" fill="white" transform="translate(0.306641 0.257812)" />
-                              </clipPath>
-                            </defs>
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Mobile View (smaller than sm) */}
-                    <div className="flex sm:hidden items-start gap-3 p-3.5 bg-white border border-gray-100 rounded-xl my-1.5 hover:bg-gray-50/20 transition-colors shadow-sm relative">
-                      <div className="pt-0.5 flex-shrink-0">
-                        <Checkbox
-                          id={`entry-mobile-${entry.id}`}
-                          checked={entry.isChecked}
-                          onCheckedChange={() => handleCheckboxToggle(entry.id)}
-                          className="h-5 w-5"
-                          aria-label={`Select ${entry.patientName}`}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
+          >
+            <table className="w-full min-w-[720px] border-collapse text-left">
+              <thead>
+                <tr className="bg-[#1162A8] text-white">
+                  <th className="px-4 py-3 text-[15px] font-semibold sm:px-5 sm:py-3.5">Location</th>
+                  <th className="w-[72px] px-2 py-3 text-center text-[15px] font-semibold sm:py-3.5">
+                    Directions
+                  </th>
+                  <th className="w-[52px] px-2 py-3 text-center sm:py-3.5">
+                    <Checkbox
+                      checked={allChecked}
+                      onCheckedChange={handleAllToggle}
+                      className="mx-auto border-white data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-[#1162A8]"
+                      aria-label="Select all"
+                    />
+                  </th>
+                  <th className="w-[88px] px-3 py-3 text-[15px] font-semibold sm:px-4 sm:py-3.5">Office</th>
+                  <th className="w-[72px] px-2 py-3 text-center text-[15px] font-semibold sm:py-3.5">Action</th>
+                  <th className="min-w-[140px] px-4 py-3 text-[15px] font-semibold sm:px-5 sm:py-3.5">
+                    Patient Name
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingPickup ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={`skeleton-${i}`} className="bg-[#F5F5F5]">
+                      <td colSpan={6} className="px-5 py-4">
+                        <div className="h-4 w-full max-w-md animate-pulse rounded bg-gray-200" />
+                      </td>
+                    </tr>
+                  ))
+                ) : deliveryEntries.length === 0 ? (
+                  <tr className="bg-[#F5F5F5]">
+                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-600">
+                      {singleSlipMode
+                        ? `Slip details are not available for ${modalCopy.title.toLowerCase()}.`
+                        : 'No entries available. Click "Add Case" to add one manually or scan a QR code.'}
+                    </td>
+                  </tr>
+                ) : (
+                  deliveryEntries.map((entry) => {
+                    const isManual = !entry.slip_id
+                    return (
+                      <tr key={entry.id} className="bg-[#F5F5F5] text-[15px] text-[#1F2937]">
+                        <td className="px-4 py-4 align-middle sm:px-5">
                           {isManual ? (
-                            <span className="text-[10px] font-bold tracking-wide uppercase text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full inline-flex items-center border border-blue-100">
-                              Manual Entry
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold tracking-wide uppercase text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-blue-100 truncate max-w-[120px]">
-                              {entry.office || "Unknown"}
-                            </span>
-                          )}
-
-                          <div className="flex-shrink-0 flex items-center gap-1">
-                            {isManual ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50 p-0"
-                                onClick={() => handleDeleteManualEntry(entry.id)}
-                                title="Delete manual entry"
-                                type="button"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            ) : (
-                              <svg width="18" height="24" viewBox="0 0 24 34" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-green-500">
-                                <g clipPath="url(#clip0_4154_20833_mobile)">
-                                  <path d="M8.95658 6.95117H2.75481C1.69774 6.95117 0.84082 7.80677 0.84082 8.8622V16.2821C0.84082 17.3376 1.69774 18.1932 2.75481 18.1932H8.95658C10.0136 18.1932 10.8706 17.3376 10.8706 16.2821V8.8622C10.8706 7.80677 10.0136 6.95117 8.95658 6.95117Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                                  <path d="M5.85561 18.7695L1.87793 23.4564H9.84399L5.85561 18.7695Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                                  <path d="M5.85547 23.457V32.9161" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                                  <path d="M19.0824 6.51344C20.6651 6.51344 21.9481 5.23243 21.9481 3.65223C21.9481 2.07202 20.6651 0.791016 19.0824 0.791016C17.4998 0.791016 16.2168 2.07202 16.2168 3.65223C16.2168 5.23243 17.4998 6.51344 19.0824 6.51344Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                                  <path d="M12.9661 15.1931L18.4729 8.83008H20.0554C20.4724 8.83008 20.8573 9.03293 21.1353 9.38524L21.8838 10.3461C22.1725 10.7198 22.3329 11.1788 22.3329 11.6486V19.5916L16.4947 26.0934V30.0863C16.4947 30.9084 16.2702 31.7304 15.789 32.3603C15.7034 32.4671 15.6286 32.5525 15.5644 32.5952C15.265 32.7874 14.5059 32.7447 14.1851 32.5952C14.1209 32.5632 14.0354 32.4991 14.0354 32.4991C13.4045 31.9013 13.1265 31.1326 13.1265 30.3425V26.3283L18.3125 19.8265L18.1093 14.5525L14.9122 18.3639H5.85547" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                                  <path d="M22.7717 22.0039V29.7014C22.7717 30.5235 22.5899 31.3455 22.2049 31.9754C22.1408 32.0822 22.0766 32.1676 22.0232 32.2103C21.7879 32.4025 21.1678 32.3598 20.9111 32.2103C20.8577 32.1783 20.7935 32.1142 20.7187 32.0288C20.291 31.5164 20.0664 30.7477 20.0664 29.9576V25.9434" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-                                </g>
-                                <defs>
-                                  <clipPath id="clip0_4154_20833_mobile">
-                                    <rect width="23" height="33" fill="white" transform="translate(0.306641 0.257812)" />
-                                  </clipPath>
-                                </defs>
-                              </svg>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Patient & Details */}
-                        {isManual ? (
-                          <div className="space-y-2 mt-2">
-                            <div className="flex gap-2">
-                              <Input
-                                value={entry.office}
-                                onChange={(e) => handleUpdateManualEntry(entry.id, "office", e.target.value)}
-                                placeholder="Office Code"
-                                className="h-8 w-1/3 text-xs"
-                              />
-                              <Input
-                                value={entry.patientName}
-                                onChange={(e) => handleUpdateManualEntry(entry.id, "patientName", e.target.value)}
-                                placeholder="Patient Name"
-                                className="h-8 w-2/3 text-xs"
-                              />
-                            </div>
                             <Input
                               value={entry.location}
                               onChange={(e) => handleUpdateManualEntry(entry.id, "location", e.target.value)}
                               placeholder="Location"
-                              className="h-8 w-full text-xs"
+                              className="h-9 border-[#D9D9D9] bg-white text-sm"
                             />
-                          </div>
-                        ) : (
-                          <>
-                            <div className="text-sm font-semibold text-gray-900 mb-1">
-                              {entry.patientName}
+                          ) : (
+                            <span className="block max-w-[280px] leading-snug">{entry.location}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-4 text-center align-middle">
+                          {!isManual ? <DirectionsIcon /> : null}
+                        </td>
+                        <td className="px-2 py-4 text-center align-middle">
+                          <Checkbox
+                            id={`entry-${entry.id}`}
+                            checked={entry.isChecked}
+                            onCheckedChange={() => handleCheckboxToggle(entry.id)}
+                            className="mx-auto border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
+                            aria-label={`Select ${entry.patientName || "entry"}`}
+                          />
+                        </td>
+                        <td className="px-3 py-4 align-middle sm:px-4">
+                          {isManual ? (
+                            <Input
+                              value={entry.office}
+                              onChange={(e) => handleUpdateManualEntry(entry.id, "office", e.target.value)}
+                              placeholder="Office"
+                              className="h-9 w-full min-w-[72px] border-[#D9D9D9] bg-white text-sm"
+                            />
+                          ) : (
+                            <span className="font-medium">{entry.office || "—"}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-4 text-center align-middle">
+                          {isManual ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                              onClick={() => handleDeleteManualEntry(entry.id)}
+                              title="Delete manual entry"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <div className="flex justify-center">
+                              <DeliveryActionIcon clipId={`delivery-action-${entry.id}`} />
                             </div>
-                            <div className="text-xs text-gray-600 flex flex-wrap items-center gap-1.5 mt-1">
-                              <span className="inline-flex items-center gap-1 text-gray-500 bg-gray-100/70 px-2 py-0.5 rounded truncate max-w-[150px]">
-                                <MapPin className="w-3 h-3 flex-shrink-0" />
-                                {entry.location}
-                              </span>
-                              {entry.slip_number && (
-                                <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-mono font-bold">
-                                  Slip: {entry.slip_number}
-                                </span>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-middle sm:px-5">
+                          {isManual ? (
+                            <Input
+                              value={entry.patientName}
+                              onChange={(e) =>
+                                handleUpdateManualEntry(entry.id, "patientName", e.target.value)
+                              }
+                              placeholder="Patient Name"
+                              className="h-9 border-[#D9D9D9] bg-white text-sm"
+                            />
+                          ) : (
+                            <span className="lowercase">{entry.patientName}</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
 
-        {!singleSlipMode ? (
-          <div className="px-6 py-4 flex justify-center border-t border-gray-100 bg-gray-50/50">
+          {!singleSlipMode ? (
+            <div className="mt-4 flex justify-center">
+              <Button
+                variant="outline"
+                className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
+                onClick={handleAddCase}
+                type="button"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Case
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="relative mt-5 min-h-[120px] shrink-0 border border-[#D9D9D9] bg-white sm:mt-6 sm:min-h-[150px]">
+            {!signature.trim() ? (
+              <span
+                className="pointer-events-none absolute inset-0 flex items-center justify-center select-none text-[28px] text-[#C4C4C4] sm:text-[32px]"
+                style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
+                aria-hidden
+              >
+                Signature
+              </span>
+            ) : null}
+            <Textarea
+              id="signature"
+              rows={4}
+              className="min-h-[120px] w-full resize-none border-0 bg-transparent px-4 py-4 text-[22px] leading-relaxed text-[#1F2937] shadow-none focus-visible:ring-0 sm:min-h-[150px] sm:text-[26px]"
+              style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
+              value={signature}
+              onChange={(e) => setSignature(e.target.value)}
+              aria-label="Signature"
+            />
+          </div>
+
+          <div className="mt-4 flex shrink-0 flex-col-reverse justify-end gap-2 sm:flex-row sm:gap-3">
             <Button
               variant="outline"
-              className="border border-blue-500 text-blue-600 font-medium rounded-lg flex items-center gap-2 px-6 py-2 hover:bg-blue-50/80 transition-colors"
-              onClick={handleAddCase}
+              className="h-10 border-[#D9D9D9] sm:w-auto"
+              onClick={onClose}
               type="button"
             >
-              <Plus className="w-5 h-5" />
-              Add Case
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!signature.trim()}
+              className="h-10 bg-[#1162A8] px-8 text-white hover:bg-[#0d4f8a] sm:w-auto"
+              type="submit"
+            >
+              Submit
             </Button>
           </div>
-        ) : null}
-
-        {/* Signature */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-white">
-          <Label htmlFor="signature" className="block text-gray-800 text-sm font-semibold mb-1">
-            Signature *
-          </Label>
-          <Textarea
-            id="signature"
-            placeholder={modalCopy.signaturePlaceholder}
-            rows={2}
-            className="resize-none rounded-lg border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
-            value={signature}
-            onChange={(e) => setSignature(e.target.value)}
-          />
-        </div>
-
-        {/* Footer Buttons */}
-        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
-          <Button
-            variant="outline"
-            className="rounded-lg border-gray-300 w-full sm:w-auto h-10"
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!signature.trim()}
-            className="rounded-lg bg-blue-600 text-white px-7 hover:bg-blue-700 w-full sm:w-auto h-10 font-semibold transition-colors"
-            type="submit"
-          >
-            Submit
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

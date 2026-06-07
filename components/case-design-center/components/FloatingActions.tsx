@@ -100,6 +100,8 @@ export interface FloatingActionsProps {
   pickupDropoffAction?: SlipPickupDropoffAction | null;
   /** When false, hide pick up / drop off FAB (e.g. slip in lab — use Ready to send). Default true. */
   showPickupDropoff?: boolean;
+  /** When false, hide Edit Slip FAB (only available when slip is in lab). Default false. */
+  showEditSlip?: boolean;
   /** When false, hide Driver History view FAB (timeline). Default true. */
   showDriverHistoryFab?: boolean;
   /** When false, On hold is disabled with {@link SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE} on hover. Default true. */
@@ -134,6 +136,7 @@ export function FloatingActions({
   pickupDropoffLabel,
   pickupDropoffAction = null,
   showPickupDropoff = true,
+  showEditSlip = false,
   showDriverHistoryFab = true,
   canPutOnHold = true,
 }: FloatingActionsProps = {}) {
@@ -204,7 +207,7 @@ export function FloatingActions({
         hover: "hover:bg-[#2DA44E]",
         label: pickupActionLabel,
       };
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -213,12 +216,16 @@ export function FloatingActions({
   }, []);
 
   const labActions: ActionButton[] = [
-    {
-      icon: "edit-slip",
-      bg: "bg-[#6366F1]",
-      hover: "hover:bg-[#4F46E5]",
-      label: "Edit Slip",
-    },
+    ...(showEditSlip
+      ? [
+          {
+            icon: "edit-slip" as const,
+            bg: "bg-[#6366F1]",
+            hover: "hover:bg-[#4F46E5]",
+            label: "Edit Slip",
+          },
+        ]
+      : []),
     {
       icon: "printer",
       bg: "bg-[#F59E0B]",
@@ -251,12 +258,16 @@ export function FloatingActions({
   ];
 
   const officeActions: ActionButton[] = [
-    {
-      icon: "edit-slip",
-      bg: "bg-[#6366F1]",
-      hover: "hover:bg-[#4F46E5]",
-      label: "Edit Slip",
-    },
+    ...(showEditSlip
+      ? [
+          {
+            icon: "edit-slip" as const,
+            bg: "bg-[#6366F1]",
+            hover: "hover:bg-[#4F46E5]",
+            label: "Edit Slip",
+          },
+        ]
+      : []),
     {
       icon: "printer",
       bg: "bg-[#F59E0B]",

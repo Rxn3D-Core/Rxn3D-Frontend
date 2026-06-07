@@ -13,6 +13,7 @@ import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   slipCanHold,
   slipCanReadyToSend,
+  slipIsInLab,
   slipIsInOffice,
   slipPickupDropoffAction,
   slipPickupDropoffLabel,
@@ -245,6 +246,8 @@ export default function VirtualSlipV2Page() {
 
   const canPutOnHold = slipCanHold(slipLocationRef);
   const showAddStageFab = slipIsInOffice(slipLocationRef) && addStageEligible;
+  const slipInOffice = slipIsInOffice(slipLocationRef);
+  const slipInLab = slipIsInLab(slipLocationRef);
 
   const handleAddStage = useCallback(() => {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
@@ -411,7 +414,10 @@ export default function VirtualSlipV2Page() {
       />
 
       <FloatingActions
-        onEditSlip={() => setFabNotesOpen(true)}
+        showEditSlip={slipInLab}
+        onEditSlip={
+          slipInLab ? () => router.push(`/edit-slip?slipId=${slipId}`) : undefined
+        }
         onPrint={() => window.print()}
         onBackToCaseList={goToCaseList}
         onPickupDropoff={() => setPickupDropoffOpen(true)}
@@ -430,13 +436,15 @@ export default function VirtualSlipV2Page() {
           caseOnHold ? () => setCaseStatusModal("resume") : undefined
         }
         onHold={
-          caseOnHold ? undefined : () => setCaseStatusModal("hold")
+          caseOnHold || slipInOffice ? undefined : () => setCaseStatusModal("hold")
         }
         canPutOnHold={canPutOnHold}
         onCancel={
-          caseOnHold ? undefined : () => setCaseStatusModal("cancel")
+          caseOnHold || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
         }
-        onChangeDueDate={() => setChangeDueDateOpen(true)}
+        onChangeDueDate={
+          slipInOffice ? undefined : () => setChangeDueDateOpen(true)
+        }
         hasNextStage={showAddStageFab}
         onAddStage={showAddStageFab ? handleAddStage : undefined}
       />

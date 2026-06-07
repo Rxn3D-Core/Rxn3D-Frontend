@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 
 // Types based on the API response structure
 export interface OfficeSlipProduct {
@@ -222,7 +223,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const fetchOfficeSlips = useCallback(async (customerId: number, page: number = 1, perPage: number = 20) => {
+  const fetchOfficeSlips = useCallback(async (customerId: number, page: number = 1, perPage: number = SLIP_LISTING_DEFAULT_PER_PAGE) => {
     setLoading(true);
     setError(null);
     setCurrentCustomerId(customerId);

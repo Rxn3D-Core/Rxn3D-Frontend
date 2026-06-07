@@ -623,7 +623,7 @@ export default function ChooseDoctorPage() {
                   <div className="relative w-40 h-40 rounded-full overflow-hidden border-2 border-gray-200 group-hover:border-[#1162a8] transition-colors flex items-center justify-center">
                     <Avatar className="w-full h-full">
                       <AvatarImage
-                        src={doctor.image || "/images/doctor-image.png"}
+                        src={doctor.image || undefined}
                         alt={`${doctor.first_name} ${doctor.last_name}`}
                         className="object-cover"
                       />
