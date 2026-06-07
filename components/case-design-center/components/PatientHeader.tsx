@@ -51,7 +51,6 @@ function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: 
   );
 }
 
-const DEFAULT_DOCTOR_IMAGE = "/images/doctor-image.png";
 const DEFAULT_DOCTOR_NAME = "Cody Mugglestone, DDS";
 const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
@@ -69,8 +68,16 @@ const COMPACT_DOCTOR_AVATAR = "w-[48px] h-[48px] sm:w-[50px] sm:h-[50px]";
 const COMPACT_CREATED_BY_AVATAR = "w-[45px] h-[45px] sm:w-[48px] sm:h-[48px]";
 
 export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender, age, caseSubmitted = false, slipHeaderLoading = false, slipResponseData, onEditDoctorClick, canEditDoctor = false, onPatientNameChange, onGenderChange, onAgeChange, compactLayout = false, createdByName: createdByNameProp, createdByImageUrl: createdByImageUrlProp }: PatientHeaderProps = {}) {
-  const imgSrc = doctorImageUrl && doctorImageUrl.trim() !== "" ? doctorImageUrl : DEFAULT_DOCTOR_IMAGE;
+  const hasDoctorImage = Boolean(doctorImageUrl && doctorImageUrl.trim() !== "");
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
+  const doctorInitials = displayName
+    .replace(/,?\s*DDS$/i, "")
+    .split(/\s+/)
+    .map((n) => n[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
   const displayGender = gender && gender.trim() !== "" ? gender : (isEditable ? "" : DEFAULT_GENDER);
@@ -264,15 +271,19 @@ export function PatientHeader({ doctorImageUrl, doctorName, patientName, gender,
           }`}
         >
           <div className={`${avatarSizeClass} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative`}>
-            <img
-              src={imgSrc}
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = DEFAULT_DOCTOR_IMAGE;
-              }}
-              alt="Doctor"
-              className="w-full h-full object-cover"
-            />
+            <span className={`font-semibold text-[#1162a8] ${compact ? "text-sm" : "text-xl"}`}>
+              {doctorInitials || "?"}
+            </span>
+            {hasDoctorImage && (
+              <img
+                src={doctorImageUrl!}
+                onError={(e) => {
+                  e.currentTarget.remove();
+                }}
+                alt="Doctor"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            )}
             {!caseSubmitted && canEditDoctor && onEditDoctorClick && (
               <button
                 type="button"

@@ -142,7 +142,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         name: user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         email: user.email,
         title: user.title || "DDS",
-        image: user.profile_image || "/images/doctor-image.png",
+        image: user.profile_image || undefined,
         status: user.status === "Invited" ? "Invited" : "available", // Show invited status
         userStatus: user.status // Store the actual user status
       })) || []

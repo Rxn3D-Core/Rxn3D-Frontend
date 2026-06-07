@@ -128,7 +128,7 @@ export function UserProfileModal({
 
   const displayAvatar =
     avatarPreview ??
-    getUserAvatar(getUserProfileImageUrl(userData) || null, userData?.email || userData?.id)
+    getUserAvatar(getUserProfileImageUrl(userData) || null)
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>

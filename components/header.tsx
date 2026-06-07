@@ -934,10 +934,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage
-                        src={getUserAvatar(
-                          getUserProfileImageUrl(user) || null,
-                          user?.email || user?.id || user?.first_name,
-                        )}
+                        src={getUserAvatar(getUserProfileImageUrl(user) || null)}
                         alt={user?.first_name || t("header.user")}
                       />
                       <AvatarFallback className="bg-[#1162a8] text-white font-medium text-xs sm:text-sm">

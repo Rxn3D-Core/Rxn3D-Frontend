@@ -260,7 +260,7 @@ export function InlineAddProductPicker({
             }}
             className="text-[12px] font-semibold text-[#1162A8] hover:underline mb-2"
           >
-            ← Back to categories
+            <svg width="40" height="40" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 " aria-hidden="true"><path d="M11.95 15.8L6.05 10L11.95 4.2M16.85 15.8L10.95 10L16.85 4.2" stroke="url(#backToProductsIconGradient)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"></path><defs><linearGradient id="backToProductsIconGradient" x1="16.85" y1="4.2" x2="6.05" y2="15.8" gradientUnits="userSpaceOnUse"><stop stop-color="#6E58CF"></stop><stop offset="0.55" stop-color="#8B3FB1"></stop><stop offset="1" stop-color="#C9539F"></stop></linearGradient></defs></svg>
           </button>
         )}
         {step === "material" && (
@@ -269,7 +269,7 @@ export function InlineAddProductPicker({
             onClick={() => setStep("subcategory")}
             className="text-[12px] font-semibold text-[#1162A8] hover:underline mb-2"
           >
-            ← Back to subcategories
+            <svg width="40" height="40" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 " aria-hidden="true"><path d="M11.95 15.8L6.05 10L11.95 4.2M16.85 15.8L10.95 10L16.85 4.2" stroke="url(#backToProductsIconGradient)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"></path><defs><linearGradient id="backToProductsIconGradient" x1="16.85" y1="4.2" x2="6.05" y2="15.8" gradientUnits="userSpaceOnUse"><stop stop-color="#6E58CF"></stop><stop offset="0.55" stop-color="#8B3FB1"></stop><stop offset="1" stop-color="#C9539F"></stop></linearGradient></defs></svg>
           </button>
         )}
 

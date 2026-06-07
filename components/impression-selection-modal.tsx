@@ -69,6 +69,7 @@ function ImpressionGrid({
   onSaveArchSelection,
   isValidationComplete,
   onConfirmAllAndClose,
+  suppressDoneButton = false,
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: SlipImpressionSelections
@@ -91,6 +92,8 @@ function ImpressionGrid({
   /** When true, green check saves all arches and closes the modal */
   isValidationComplete: boolean
   onConfirmAllAndClose: () => void
+  /** When true, hides the section-level Done button row. */
+  suppressDoneButton?: boolean
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
@@ -301,7 +304,8 @@ function ImpressionGrid({
   const lastTouchedIndex = impressions.findIndex(
     (imp) => getKey(imp) === lastTouchedKey
   )
-  const showDoneInThisSection = isValidationComplete && lastTouchedIndex >= 0
+  const showDoneInThisSection =
+    !suppressDoneButton && isValidationComplete && lastTouchedIndex >= 0
 
   return (
     <>
@@ -414,6 +418,8 @@ export function ImpressionSelectionModal({
   // the top arch has at least one impression selected. When re-opening with
   // existing top-arch selections, both sections are immediately visible.
   const showBottomSection = !!bottomArch && (isDualArch ? hasTopSelection : true)
+  const shouldShowSkipOpposing =
+    showBottomSection && !hideSkipOpposing && !hasBottomSelection
 
   // Primary arch selections are required; opposing arch is always optional.
   const isValidationComplete = hasTopSelection
@@ -484,6 +490,7 @@ export function ImpressionSelectionModal({
     onSaveArchSelection,
     isValidationComplete,
     onConfirmAllAndClose: onClose,
+    suppressDoneButton: shouldShowSkipOpposing,
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -493,10 +500,9 @@ export function ImpressionSelectionModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        showCloseButton
-        className="w-[97vw] max-w-[1360px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
+        className="w-[92vw] max-w-[1080px] max-h-[92dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
       >
-        <div className="flex flex-col px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-5 md:py-6 gap-3 sm:gap-4 bg-white w-full min-h-0 overflow-y-auto max-h-[94dvh]">
+        <div className="flex flex-col px-3 sm:px-5 md:px-8 lg:px-10 py-2 sm:py-3 md:py-4 gap-2 sm:gap-3 bg-white w-full min-h-0">
 
           {modalHeading ? (
             <h2 className="font-['Verdana'] font-bold text-lg sm:text-xl text-center text-[#1d1d1b] tracking-wide -mt-1 mb-1">
@@ -507,7 +513,7 @@ export function ImpressionSelectionModal({
           {/* Top arch section */}
           <div
             className={cn(
-              "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
+              "relative rounded-[12px] px-4 sm:px-6 pt-5 pb-3 border-2 transition-colors",
               hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]"
             )}
           >
@@ -531,7 +537,7 @@ export function ImpressionSelectionModal({
           {showBottomSection && bottomArch && (
             <div
               className={cn(
-                "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
+                "relative rounded-[12px] px-4 sm:px-6 pt-5 pb-3 border-2 transition-colors",
                 hasBottomSelection ? "border-[#22c55e]" : "border-[#CF0202]"
               )}
             >
@@ -549,7 +555,7 @@ export function ImpressionSelectionModal({
                 productId={productId}
                 arch={bottomArch}
               />
-              {!hideSkipOpposing && !hasBottomSelection && (
+              {shouldShowSkipOpposing && (
               <div className="flex justify-center mt-4">
                 <button
                   onClick={() => onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()}

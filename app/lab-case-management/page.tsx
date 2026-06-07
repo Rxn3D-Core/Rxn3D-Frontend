@@ -35,6 +35,7 @@ import { buildPaperSlipPrintRoute } from "./paper-slip-print-route.mjs"
 import {
   SLIP_LOCATION_FILTER_OPTIONS,
   LAB_SLIP_STATUS_OPTIONS,
+  SLIP_LISTING_DEFAULT_PER_PAGE,
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 
@@ -151,7 +152,7 @@ export default function LabSlipPage() {
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [showColumnsDialog, setShowColumnsDialog] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState({
     timestamp: true,

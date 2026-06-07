@@ -7,29 +7,20 @@ import { useToast } from "@/hooks/use-toast";
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage";
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { postAddStageToSlip } from "@/lib/api/slip-add-stage";
-import {
-  extractVirtualSlipProducts,
-  findSlipProductForEligibility,
-} from "@/lib/virtual-slip-products";
-import { findApiProductForArch } from "@/lib/add-stage/preload-state";
+import { extractVirtualSlipProducts } from "@/lib/virtual-slip-products";
 import {
   buildAddStagePreload,
   buildAddedProducts,
   buildWizardSeedFromSlipDetails,
   resolveLabIdFromSlipDetails,
 } from "@/lib/add-stage/preload-state";
-import { selectionsFromPickerRows } from "@/lib/add-stage/default-selections";
+import { buildAddStageInitFromProductApi } from "@/lib/add-stage/build-stage-selections";
 import {
   clearAddStageSession,
   readAddStageSession,
   saveAddStageSession,
   type AddStageDesignContext,
-  type AddStageHistoryByArch,
 } from "@/lib/add-stage/session";
-import { buildStagePickerOptions } from "@/lib/add-stage/stage-options";
-import type { NewStageEligibilityProduct } from "@/lib/api/slip-new-stage-eligibility";
-import { slipTypeToArch } from "@/lib/add-stage/session";
-import type { ArchPickerRow } from "./AddNewStageStagePicker";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
@@ -127,42 +118,6 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     [virtualSlipDetails]
   );
 
-  const buildPickerRows = useCallback(
-    async (
-      eligibilityProducts: NewStageEligibilityProduct[]
-    ): Promise<ArchPickerRow[]> => {
-      const rows: ArchPickerRow[] = [];
-      for (const ep of eligibilityProducts) {
-        const arch = slipTypeToArch(ep.type);
-        if (!arch) continue;
-        const apiRow =
-          findSlipProductForEligibility(ep, apiProducts) ??
-          findApiProductForArch(apiProducts, arch);
-        if (!apiRow) continue;
-        const nested = (apiRow.product ?? {}) as { stages?: unknown[] };
-        let stages = nested.stages as Parameters<typeof buildStagePickerOptions>[1];
-        if (!stages?.length && ep.product_id) {
-          const details = await fetchProductDetails(
-            ep.product_id,
-            labIdForProductFetch ?? undefined
-          );
-          stages = details?.stages;
-        }
-        const options = buildStagePickerOptions(ep, stages);
-        if (options.length === 0) continue;
-        rows.push({
-          arch,
-          label: arch === "maxillary" ? "Maxillary (Upper)" : "Mandibular (Lower)",
-          eligibilityProduct: ep,
-          apiProduct: apiRow,
-          options,
-        });
-      }
-      return rows;
-    },
-    [apiProducts, fetchProductDetails, labIdForProductFetch]
-  );
-
   useEffect(() => {
     setStep("loading");
     setDetailsReady(false);
@@ -204,13 +159,18 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           return;
         }
 
-        const rows = await buildPickerRows(eligibleLines);
+        const init = await buildAddStageInitFromProductApi({
+          eligibleProducts: eligibleLines,
+          apiProducts,
+          fetchProductDetails,
+          labId: labIdForProductFetch,
+        });
         if (cancelled) return;
-        if (rows.length === 0) {
+        if (init.matchedCount === 0) {
           setIneligibleMessage(
             apiProducts.length === 0
               ? "Slip product details did not load. Go back and try again."
-              : "Could not match eligible products to this slip or build stage choices. Check that slip details and eligibility use the same product lines."
+              : "Could not match eligible products to this slip or load product details. Check that slip details and eligibility use the same product lines."
           );
           setStep("ineligible");
           return;
@@ -222,12 +182,9 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           session.selections &&
           (session.selections.maxillary || session.selections.mandibular)
             ? session.selections
-            : selectionsFromPickerRows(rows);
+            : init.selections;
 
-        const historyByArch: AddStageHistoryByArch = {};
-        for (const row of rows) {
-          historyByArch[row.arch] = row.eligibilityProduct.stage_history ?? [];
-        }
+        const historyByArch = init.historyByArch;
         saveAddStageSession(sourceSlipId, selections, historyByArch);
 
         const preload = buildAddStagePreload(apiProducts, selections);
@@ -265,7 +222,14 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [apiProducts, buildPickerRows, detailsReady, sourceSlipId, virtualSlipDetails]);
+  }, [
+    apiProducts,
+    detailsReady,
+    fetchProductDetails,
+    labIdForProductFetch,
+    sourceSlipId,
+    virtualSlipDetails,
+  ]);
 
   useEffect(() => {
     if (step !== "design" || !labCustomerId) return;

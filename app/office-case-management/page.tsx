@@ -24,6 +24,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
+import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
 
 function buildApiUrl(pathOrUrl: string): string {
   if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
@@ -51,7 +52,7 @@ export default function SlipPage() {
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [showColumnsDialog, setShowColumnsDialog] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState({
     timestamp: true,
@@ -924,9 +925,9 @@ export default function SlipPage() {
       {/* Pagination */}
       <div className="flex items-center justify-between mt-4">
         <div className="text-sm text-gray-600">
-          Showing {(currentPage - 1) * (pagination?.per_page || 20) + 1}
+          Showing {(currentPage - 1) * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE) + 1}
           -
-          {Math.min(currentPage * (pagination?.per_page || 20), pagination?.total || 0)}
+          {Math.min(currentPage * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE), pagination?.total || 0)}
           {" "}of {pagination?.total || 0} entries
         </div>
         <div className="flex gap-2 items-center">

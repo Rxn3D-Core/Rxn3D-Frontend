@@ -1,5 +1,7 @@
 "use client";
 
+import { addProductButtonLabel } from "../utils/archAddProductReadiness";
+
 export interface BackToProductsControlProps {
   onBackToProducts: () => void;
   hasIncompleteAccordion: boolean;
@@ -34,6 +36,8 @@ interface CaseDesignHeaderActionsProps {
   onAddMandibularProduct?: () => void;
   showMaxillaryProductButton?: boolean;
   showMandibularProductButton?: boolean;
+  maxillaryHasExistingProducts?: boolean;
+  mandibularHasExistingProducts?: boolean;
   showSelectTeethToReplaceMaxillary?: boolean;
   showSelectTeethToReplaceMandibular?: boolean;
 }
@@ -52,7 +56,7 @@ function BackToProductsIcon({ muted = false }: { muted?: boolean }) {
       <path
         d="M12.3958 22.6042L2.1875 12.3958L12.3958 2.1875M24.0625 22.6042L13.8542 12.3958L24.0625 2.1875"
         stroke="url(#backToProductsIconGradient)"
-        strokeWidth="4.375"
+        strokeWidth="4.5"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -80,6 +84,8 @@ export function CaseDesignHeaderActions({
   onAddMandibularProduct,
   showMaxillaryProductButton = false,
   showMandibularProductButton = false,
+  maxillaryHasExistingProducts = false,
+  mandibularHasExistingProducts = false,
   showSelectTeethToReplaceMaxillary = false,
   showSelectTeethToReplaceMandibular = false,
 }: CaseDesignHeaderActionsProps) {
@@ -93,10 +99,12 @@ export function CaseDesignHeaderActions({
           <button
             type="button"
             onClick={onAddMaxillaryProduct}
-            className="flex flex-row items-center justify-center gap-1 px-[10px] py-0 max-w-[230px] w-full h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+            className="flex flex-row items-center justify-center gap-1 px-[10px] py-0 max-w-[280px] w-full h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-[Verdana] font-normal text-[12px] sm:text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white whitespace-nowrap">MAXILLARY PRODUCT</span>
+            <span className="font-[Verdana] font-normal text-[12px] sm:text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white whitespace-nowrap">
+              {addProductButtonLabel("maxillary", maxillaryHasExistingProducts)}
+            </span>
           </button>
         ) : showSelectTeethToReplaceMaxillary ? (
           <span className="text-[13px] sm:text-[16px] text-orange-500 font-bold tracking-wide animate-pulse text-center">SELECT TEETH TO REPLACE</span>
@@ -116,10 +124,12 @@ export function CaseDesignHeaderActions({
           <button
             type="button"
             onClick={onAddMandibularProduct}
-            className="flex flex-row items-center justify-center gap-1 px-[10px] py-0 max-w-[230px] w-full h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
+            className="flex flex-row items-center justify-center gap-1 px-[10px] py-0 max-w-[280px] w-full h-[28px] shadow-[0.99px_0.99px_3.48px_rgba(0,0,0,0.25)] rounded-[5.96px] bg-[#1162A8] hover:bg-[#0d4a85] cursor-pointer"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0"><path d="M5 12H19M12 5V19" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-[Verdana] font-normal text-[12px] sm:text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white whitespace-nowrap">MANDIBULAR PRODUCT</span>
+            <span className="font-[Verdana] font-normal text-[12px] sm:text-[14px] leading-[22px] text-center tracking-[-0.02em] text-white whitespace-nowrap">
+              {addProductButtonLabel("mandibular", mandibularHasExistingProducts)}
+            </span>
           </button>
         ) : showSelectTeethToReplaceMandibular ? (
           <span className="text-[13px] sm:text-[16px] text-orange-500 font-bold tracking-wide animate-pulse text-center">SELECT TEETH TO REPLACE</span>

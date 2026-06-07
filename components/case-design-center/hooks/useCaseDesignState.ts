@@ -927,6 +927,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const autoSelectedArchKeysRef = useRef<Set<string>>(new Set());
   /** One-time setup per added card (default extractions + tooth binding). */
   const addedProductSetupDoneRef = useRef<Set<string>>(new Set());
+  const preloadCardHydrationDoneRef = useRef<Set<string>>(new Set());
   const {
     setMaxillaryToothExtractionMap,
     setMandibularToothExtractionMap,
@@ -1120,9 +1121,35 @@ export function useCaseDesignState(props: CaseDesignProps) {
           }
         }
         const virtualTooth = -ap.id;
-        const existing = toothFieldProgress.getToothProduct(arch, virtualTooth);
-        if (!existing || existing.id !== product.id) {
+        const existingVirtual = toothFieldProgress.getToothProduct(arch, virtualTooth);
+        if (
+          !existingVirtual ||
+          existingVirtual.id !== product.id ||
+          !isHydratedProductApiData(existingVirtual)
+        ) {
           toothFieldProgress.setToothProduct(arch, virtualTooth, product);
+        }
+        if (props.preloadInitialSlipState) {
+          const hydrationKey = `${arch}_${ap.id}`;
+          if (!preloadCardHydrationDoneRef.current.has(hydrationKey)) {
+            const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+            const cardTeeth = allTeeth.filter(
+              (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
+            );
+            if (cardTeeth.length > 0) {
+              for (const tn of cardTeeth) {
+                const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
+                if (
+                  existingOnTooth?.id === product.id &&
+                  isHydratedProductApiData(existingOnTooth)
+                ) {
+                  continue;
+                }
+                toothFieldProgress.setToothProduct(arch, tn, product);
+              }
+              preloadCardHydrationDoneRef.current.add(hydrationKey);
+            }
+          }
         }
       };
 
@@ -1135,7 +1162,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
       const cached = cachedProductRef.current.get(ap.productId);
       if (cached && isHydratedProductApiData(cached)) {
-        applyIfReady(enrichProductWithGrades(arch, cached));
+        applyIfReady(cached);
         continue;
       }
 
@@ -1163,10 +1190,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, [
     props.addedProducts,
     props.caseSubmitted,
+    props.preloadInitialSlipState,
     enrichProductWithGrades,
     modals.setSelectedImpressions,
     applyAddedProductDefaultExtractions,
     toothFieldProgress.getToothProduct,
+    toothFieldProgress.getToothProductCard,
     toothFieldProgress.setToothProduct,
   ]);
 

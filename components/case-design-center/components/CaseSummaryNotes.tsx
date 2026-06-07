@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import {
-  ClipboardList,
-  ChevronDown,
-  ChevronUp,
-  Maximize2,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Maximize2 } from "lucide-react";
 import type { NotesProps } from "../types";
 import { buildCaseSummaryText, buildNoteGroups } from "../utils/caseNoteBuilder";
 
@@ -86,7 +81,6 @@ export function CaseSummaryNotes(props: NotesProps) {
             className="flex w-full items-center justify-center gap-2 px-4 py-3 hover:bg-[#F9FAFB] transition-colors"
             aria-label="Expand notes"
           >
-            <ClipboardList className="w-4 h-4 text-[#6B7280]" />
             <span className="text-sm font-semibold text-[#111827]">Case Summary Notes</span>
             <ChevronDown className="w-4 h-4 text-[#6B7280]" />
           </button>
@@ -115,7 +109,6 @@ export function CaseSummaryNotes(props: NotesProps) {
                 className="pointer-events-none absolute left-1/2 top-0 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 bg-white px-2"
                 aria-hidden
               >
-                <ClipboardList className="w-4 h-4 text-[#6B7280]" />
                 <span className="text-sm font-semibold text-[#111827] whitespace-nowrap">
                   Case Summary Notes
                 </span>
