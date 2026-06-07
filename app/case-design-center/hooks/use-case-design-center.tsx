@@ -34,7 +34,7 @@ export function useCaseDesignCenter() {
     fetchSubcategoriesByCategory
   } = useProductCategory()
 
-  const { fetchLabProducts, labProducts, fetchProductDetails } = useSlipCreation()
+  const { fetchLabProducts, labProducts, fetchProductDetails, uploadSlipAttachment } = useSlipCreation()
 
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
@@ -7180,6 +7180,23 @@ export function useCaseDesignCenter() {
             ? `Case ${response.data.case_number} has been created successfully`
             : "Your case has been submitted successfully",
         })
+
+        // Upload attachments cached during slip creation to the new slip.
+        const newSlipId = response.data?.slips?.[0]?.id ?? response.data?.id ?? null
+        if (newSlipId && typeof window !== "undefined") {
+          const cached = (window as any).__caseDesignAttachments as Array<any> | undefined
+          const pending = Array.isArray(cached)
+            ? cached.filter((item) => item?.file instanceof File && !item.remoteId && !item.generatedPath)
+            : []
+          for (const item of pending) {
+            try {
+              await uploadSlipAttachment(Number(newSlipId), item.file as File, item.description)
+            } catch (err) {
+              console.error("Failed to upload cached attachment:", err)
+            }
+          }
+          ;(window as any).__caseDesignAttachments = []
+        }
 
         // Clear slip creation storage
         clearSlipCreationStorage()

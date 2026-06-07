@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useCallback, use
 import { useRouter } from "next/navigation";
 import { buildApiUrl } from "@/lib/api/client";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
+import { applySlipAttachmentState } from "./attachment-state.mjs";
 
 type Slip = {
   id: number;
@@ -121,6 +122,7 @@ type SlipContextType = {
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
   readyToSend: (slipId: number) => Promise<ReadyToSendResponse | null>;
+  updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
 };
 
 const SlipContext = createContext<SlipContextType | undefined>(undefined);
@@ -276,6 +278,10 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, [API_BASE_URL]);
+
+  const updateSlipAttachmentState = useCallback((slipId: number, hasAttachment: boolean) => {
+    setSlips((currentSlips) => applySlipAttachmentState(currentSlips, slipId, hasAttachment));
+  }, []);
 
   const fetchOfficeSlips = useCallback(async (customerId: number) => {
     setLoading(true);
@@ -668,6 +674,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       fetchCustomDeliveryDates,
       fetchPickupDeliverySlips,
       readyToSend,
+      updateSlipAttachmentState,
     }}>
       {children}
     </SlipContext.Provider>

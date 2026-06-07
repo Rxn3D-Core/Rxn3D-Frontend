@@ -14,6 +14,9 @@ import { useQueryClient } from "@tanstack/react-query"
 interface InvitationFormProps {
   type: "Office" | "Lab" | "User" | "Practice" | "Doctor"
   onSuccess?: () => void
+  onCancel?: () => void
+  cancelLabel?: string
+  actionsAlign?: "start" | "end"
 }
 
 // Role options based on customer type
@@ -35,7 +38,13 @@ const getRoleOptions = (customerType: "office" | "lab" | null) => {
   return []
 }
 
-export function InvitationForm({ type, onSuccess }: InvitationFormProps) {
+export function InvitationForm({
+  type,
+  onSuccess,
+  onCancel,
+  cancelLabel = "Cancel",
+  actionsAlign = "start",
+}: InvitationFormProps) {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [role, setRole] = useState("")
@@ -173,13 +182,13 @@ export function InvitationForm({ type, onSuccess }: InvitationFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <Input
           placeholder={`${type} Name *`}
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className={showRoleField ? "flex-1" : "flex-1"}
+          className="flex-1 min-w-0"
         />
         <Input
           placeholder="Email address *"
@@ -187,11 +196,11 @@ export function InvitationForm({ type, onSuccess }: InvitationFormProps) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className={showRoleField ? "flex-1" : "flex-1"}
+          className="flex-1 min-w-0"
         />
         {showRoleField && (
           <Select value={role} onValueChange={setRole} required>
-            <SelectTrigger className="flex-1">
+            <SelectTrigger className="flex-1 min-w-0">
               <SelectValue placeholder="Select Role *" />
             </SelectTrigger>
             <SelectContent>
@@ -204,10 +213,15 @@ export function InvitationForm({ type, onSuccess }: InvitationFormProps) {
           </Select>
         )}
       </div>
-      <div className="flex justify-start">
+      <div className={`flex gap-3 ${actionsAlign === "end" ? "justify-end" : "justify-start"}`}>
         <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
           {isSubmitting ? "Sending..." : "Send"}
         </Button>
+        {onCancel && (
+          <Button type="button" variant="outline" onClick={onCancel} className="min-w-[120px] bg-transparent">
+            {cancelLabel}
+          </Button>
+        )}
       </div>
     </form>
   )

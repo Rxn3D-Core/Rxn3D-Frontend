@@ -230,8 +230,8 @@ export default function SimpleSTLViewer({
     // --- Enhanced Material ---
     const material = new THREE.MeshStandardMaterial({
       color: modelColor || meshColor,
-      roughness: 0.5, // Adjust for surface realism
-      metalness: 0.2, // Slight metallic effect
+      roughness: 0.18, // Glossy ceramic/enamel look — non-metallic, shiny
+      metalness: 0,
       wireframe: wireframe,
       transparent: true, // Enable transparency for fade-in
       opacity: 0,        // Start fully transparent
