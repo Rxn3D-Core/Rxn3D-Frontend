@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { buildPaperSlipSectionModels } from "@/app/paper-slip/print/page-helpers";
 import { PaperSlipPrintDocument } from "@/components/paper-slip-print/paper-slip-print-document";
+import { waitForImageLikes } from "@/lib/paper-slip-image-readiness";
 import { buildPaperSlipPrintSlipVM, type PaperSlipPrintableSlipVM } from "@/lib/paper-slip-print-view-model";
 
 function PaperSlipStateCard({
@@ -50,6 +51,7 @@ export function PaperSlipPrintPageShell({
   const [fetchError, setFetchError] = useState<string | null>(error);
   const [printed, setPrinted] = useState(false);
   const hasRequestedFetch = useRef(false);
+  const printRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (fetchError || slips.length > 0 || hasRequestedFetch.current) return;
@@ -104,11 +106,26 @@ export function PaperSlipPrintPageShell({
 
   useEffect(() => {
     if (printed || loading || slips.length === 0) return;
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+
+    const schedulePrint = async () => {
+      const timer = window.setTimeout(() => undefined, 150);
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+      window.clearTimeout(timer);
+
+      const root = printRootRef.current;
+      const images = root ? Array.from(root.querySelectorAll("img")) : [];
+      await waitForImageLikes(images, 5000);
+
+      if (cancelled) return;
       window.print();
       setPrinted(true);
-    }, 150);
-    return () => window.clearTimeout(timer);
+    };
+
+    void schedulePrint();
+    return () => {
+      cancelled = true;
+    };
   }, [loading, printed, slips.length]);
 
   if (fetchError) {
@@ -134,5 +151,9 @@ export function PaperSlipPrintPageShell({
     );
   }
 
-  return <PaperSlipPrintDocument sections={buildPaperSlipSectionModels(slips)} />;
+  return (
+    <div ref={printRootRef}>
+      <PaperSlipPrintDocument sections={buildPaperSlipSectionModels(slips)} />
+    </div>
+  );
 }

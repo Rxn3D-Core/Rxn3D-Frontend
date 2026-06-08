@@ -43,6 +43,7 @@ import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entr
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
 import CaseActionModal from "@/components/CaseActionModal";
 import ChangeDateModal from "@/components/change-date-modal";
+import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -253,6 +254,12 @@ export default function VirtualSlipV2Page() {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
   }, [router, slipId]);
 
+  const handlePrint = useCallback(() => {
+    const printRoute = buildVirtualSlipPrintRoute(slipId);
+    if (!printRoute) return;
+    router.push(printRoute);
+  }, [router, slipId]);
+
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
     reason: string
@@ -414,11 +421,8 @@ export default function VirtualSlipV2Page() {
       />
 
       <FloatingActions
-        showEditSlip={slipInLab}
-        onEditSlip={
-          slipInLab ? () => router.push(`/edit-slip?slipId=${slipId}`) : undefined
-        }
-        onPrint={() => window.print()}
+        onEditSlip={() => setFabNotesOpen(true)}
+        onPrint={handlePrint}
         onBackToCaseList={goToCaseList}
         onPickupDropoff={() => setPickupDropoffOpen(true)}
         onDriverHistory={() => setDriverHistoryViewOpen(true)}
