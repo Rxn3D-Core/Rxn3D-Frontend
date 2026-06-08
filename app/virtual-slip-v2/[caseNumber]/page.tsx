@@ -43,6 +43,7 @@ import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-vie
 import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entry";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
 import CaseActionModal from "@/components/CaseActionModal";
+<<<<<<< HEAD
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal";
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print";
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi";
@@ -51,6 +52,10 @@ import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-info";
 import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
+=======
+import ChangeDateModal from "@/components/change-date-modal";
+import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
+>>>>>>> 861578e45000efefabd4d223a5c61daf55e2ed01
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -342,6 +347,12 @@ export default function VirtualSlipV2Page() {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
   }, [router, slipId]);
 
+  const handlePrint = useCallback(() => {
+    const printRoute = buildVirtualSlipPrintRoute(slipId);
+    if (!printRoute) return;
+    router.push(printRoute);
+  }, [router, slipId]);
+
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
     reason: string
@@ -589,6 +600,7 @@ export default function VirtualSlipV2Page() {
         />
       </div>
 
+<<<<<<< HEAD
       <VirtualSlipNotes
         caseId={caseId}
         slipId={slipId}
@@ -598,6 +610,16 @@ export default function VirtualSlipV2Page() {
         slipNumber={vm.header.slipNumber}
         onOpenNotesModal={() => setFabNotesOpen(true)}
         pickupDropoffAction={showPickupDropoffFab ? pickupDropoffAction : null}
+=======
+      <FloatingActions
+        onEditSlip={() => setFabNotesOpen(true)}
+        onPrint={handlePrint}
+        onBackToCaseList={goToCaseList}
+        onPickupDropoff={() => setPickupDropoffOpen(true)}
+        onDriverHistory={() => setDriverHistoryViewOpen(true)}
+        showPickupDropoff={showPickupDropoffFab}
+        showDriverHistoryFab
+>>>>>>> 861578e45000efefabd4d223a5c61daf55e2ed01
         pickupDropoffLabel={slipPickupDropoffLabel(pickupDropoffAction)}
         onPickupDropoff={() => setPickupDropoffOpen(true)}
         showReadyToSend={showReadyToSendFab}

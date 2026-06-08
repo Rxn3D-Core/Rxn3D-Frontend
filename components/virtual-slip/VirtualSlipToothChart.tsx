@@ -17,7 +17,14 @@ interface VirtualSlipToothChartProps {
   selectedTeeth: number[];
   toothChartSelectionsByTooth?: Record<
     number,
-    { chartType: "Implant" | "Prep" | "Pontic" | null; imageUrl: string | null }
+    {
+      chartType: "Implant" | "Prep" | "Pontic" | null;
+      imageUrl: string | null;
+      /** When the image is a real extraction/retention visual (not the default
+       *  tooth), it fully represents the tooth state — used to avoid drawing a
+       *  duplicate missing/will-extract overlay on top. */
+      source?: "extraction" | "retention" | "default";
+    }
   >;
   extractionDisplay?: ExtractionDisplayVM;
 }
@@ -47,6 +54,13 @@ export function VirtualSlipToothChart({
 
     if (!useExtractionOverlay) {
       for (const t of teeth) {
+        // When a tooth already carries a real extraction/retention chart image,
+        // that image fully represents the state. Skip the flat missing/
+        // will-extract lists so the SVG doesn't draw a SECOND overlay (the
+        // duplicate red-X bug) on top of the image. Default tooth images don't
+        // count — those still need the fallback overlay.
+        const sel = toothChartSelectionsByTooth[t.number];
+        if (sel?.imageUrl && sel.source && sel.source !== "default") continue;
         if (t.status === "missing") missing.push(t.number);
         else if (t.status === "will_extract") willExtract.push(t.number);
       }
