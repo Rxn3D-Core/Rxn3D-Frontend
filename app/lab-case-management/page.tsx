@@ -38,6 +38,7 @@ import {
   SLIP_LISTING_DEFAULT_PER_PAGE,
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
+import { slipCanSendBackToOffice } from "@/lib/slip-location"
 
 function formatYmd(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -63,7 +64,7 @@ function rowAtSlipLocation(row: { locationId?: number; location: string }, id: n
 }
 
 function canSendBackToOffice(row: { locationId?: number; location: string }): boolean {
-  return rowAtSlipLocation(row, 3)
+  return slipCanSendBackToOffice(row)
 }
 
 function canPrintStatement(row: { billingId?: number | null }): boolean {

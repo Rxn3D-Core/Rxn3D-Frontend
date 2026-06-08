@@ -18,39 +18,36 @@ export type VirtualSlipActionIconName =
   | "on-hold"
   | "cancel"
   | "ellipsis"
-  | "add-stage";
+  | "add-stage"
+  | "attachments"
+  | "resume";
 
 interface VirtualSlipActionIconProps {
   name: VirtualSlipActionIconName;
   className?: string;
-  /** When false, icon keeps source color (e.g. ellipsis on gray). */
-  invert?: boolean;
 }
 
-const PNG_ICONS: Partial<
-  Record<VirtualSlipActionIconName, { invert: boolean; size: number }>
-> = {
-  "drop-off": { invert: false, size: 47 },
+/** Full-size pickup/dropoff artwork (replaces the FAB circle). */
+const FULL_BLEED_ICONS: Partial<Record<VirtualSlipActionIconName, number>> = {
+  "pick-up": 47,
+  "drop-off": 47,
+  resume: 47,
 };
 
 export function VirtualSlipActionIcon({
   name,
   className = "h-[22px] w-auto max-w-[26px]",
-  invert = true,
 }: VirtualSlipActionIconProps) {
-  const png = PNG_ICONS[name];
-  const ext = png ? "png" : "svg";
-  const shouldInvert = png ? png.invert : invert;
-  const size = png?.size ?? 26;
+  const size = FULL_BLEED_ICONS[name] ?? 26;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs; Next/Image blocks local SVG without extra config
     <img
-      src={`${ICON_BASE}/${name}.${ext}`}
+      src={`${ICON_BASE}/${name}.svg`}
       alt=""
       width={size}
       height={size}
-      className={`${className} object-contain ${shouldInvert ? "brightness-0 invert" : ""}`}
+      className={`${className} object-contain`}
       aria-hidden
     />
   );
