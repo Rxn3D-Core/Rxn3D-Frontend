@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Printer, Download, Plus, X } from "lucide-react"
+import { Filter, Columns, MoreVertical, ChevronDown, Check, Trash2, Eye, Copy, Phone, Printer, Download, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 import { useOfficeSlipContext } from "@/contexts/office-slip-context"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
@@ -27,9 +27,17 @@ import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } 
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
 import { slipIsInOffice } from "@/lib/slip-location"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
 import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
+import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
+import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
+import {
+  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/slip-listing-filter-select"
 import Link from "next/link"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 
@@ -47,7 +55,6 @@ function buildApiUrl(pathOrUrl: string): string {
 
 /** Virtual-slip icon asset folders — same glyphs used on the virtual slip page. */
 const VS_CENTER_ICONS = "/icons/virtual-slip-center"
-const VS_ACTION_ICONS = "/icons/virtual-slip-actions"
 
 /**
  * Small virtual-slip icon glyph for listing rows. Renders the shared SVG asset
@@ -94,6 +101,8 @@ export default function SlipPage() {
   const [patientSearch, setPatientSearch] = useState("")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
+  const [stageFilter, setStageFilter] = useState("All")
+  const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
@@ -417,7 +426,7 @@ export default function SlipPage() {
           onChange={e => setSearch(e.target.value)}
         />
         <Select value={office} onValueChange={setOffice}>
-          <SelectTrigger className="w-40 bg-white border-gray-300">
+          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="All offices" />
           </SelectTrigger>
           <SelectContent>
@@ -426,7 +435,7 @@ export default function SlipPage() {
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-40 bg-white border-gray-300">
+          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="All status" />
           </SelectTrigger>
           <SelectContent>
@@ -435,7 +444,7 @@ export default function SlipPage() {
           </SelectContent>
         </Select>
         <Select value={location} onValueChange={setLocation}>
-          <SelectTrigger className="w-40 bg-white border-gray-300">
+          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="All location" />
           </SelectTrigger>
           <SelectContent>
@@ -532,6 +541,8 @@ export default function SlipPage() {
                 setPatientSearch("")
                 setProductType("All")
                 setDoctorFilter("All")
+                setStageFilter("All")
+                setOfficeLabFilter("All")
                 setUserFilter("All")
               }}
             >
@@ -548,7 +559,7 @@ export default function SlipPage() {
                     variant="outline"
                     className="w-full justify-start text-left font-normal text-xs"
                   >
-                    <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                    <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
                     {dateRange.start ? (
                       format(dateRange.start, "PPP")
                     ) : (
@@ -574,7 +585,7 @@ export default function SlipPage() {
                     variant="outline"
                     className="w-full justify-start text-left font-normal text-xs"
                   >
-                    <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                    <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
                     {dateRange.end ? (
                       format(dateRange.end, "PPP")
                     ) : (
@@ -605,7 +616,7 @@ export default function SlipPage() {
               className="text-xs"
             />
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -614,7 +625,7 @@ export default function SlipPage() {
               </SelectContent>
             </Select>
             <Select value={office} onValueChange={setOffice}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Offices/Lab" />
               </SelectTrigger>
               <SelectContent>
@@ -623,7 +634,7 @@ export default function SlipPage() {
               </SelectContent>
             </Select>
             <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All users" />
               </SelectTrigger>
               <SelectContent>
@@ -636,7 +647,7 @@ export default function SlipPage() {
           {/* Second Row */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <Select value={productType} onValueChange={setProductType}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All product type" />
               </SelectTrigger>
               <SelectContent>
@@ -644,16 +655,16 @@ export default function SlipPage() {
                 {allProductTypes.filter(p => p).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value="All Stages" onValueChange={() => { }}>
-              <SelectTrigger className="text-xs">
+            <Select value={stageFilter} onValueChange={setStageFilter}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Stages" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All Stages</SelectItem>
               </SelectContent>
             </Select>
-            <Select value="All Doctors" onValueChange={setDoctorFilter}>
-              <SelectTrigger className="text-xs">
+            <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Doctors" />
               </SelectTrigger>
               <SelectContent>
@@ -661,8 +672,8 @@ export default function SlipPage() {
                 {allDoctors.filter(d => d).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value="All Office & Lab" onValueChange={() => { }}>
-              <SelectTrigger className="text-xs">
+            <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Office & Lab" />
               </SelectTrigger>
               <SelectContent>
@@ -673,8 +684,8 @@ export default function SlipPage() {
 
           {/* Third Row - Toggles */}
           <div className="flex items-center gap-6 mt-3">
-            <Select value="All Location" onValueChange={setLocation}>
-              <SelectTrigger className="w-40 text-xs">
+            <Select value={location} onValueChange={setLocation}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Location" />
               </SelectTrigger>
               <SelectContent>
@@ -696,7 +707,7 @@ export default function SlipPage() {
               </div>
               Show only cases with attachments
             </label>
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex items-center gap-2 text-xs hidden">
               <div className="relative">
                 <input
                   type="checkbox"
@@ -733,7 +744,7 @@ export default function SlipPage() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-4 py-3 w-12">
+              <th className="px-4 py-1.5 w-12">
                 <Checkbox
                   checked={!!allOnPageSelected}
                   onCheckedChange={(checked) => handleSelectAllPage()}
@@ -741,16 +752,20 @@ export default function SlipPage() {
                   className="border-gray-400"
                 />
               </th>
-              {visibleColumns.timestamp && <th className="px-4 py-3 text-left font-medium text-gray-700">Timestamp</th>}
-              {visibleColumns.office && <th className="px-4 py-3 text-left font-medium text-gray-700">Office Code</th>}
-              {visibleColumns.patient && <th className="px-4 py-3 text-left font-medium text-gray-700">Patient</th>}
-              {visibleColumns.pan && <th className="px-4 py-3 text-left font-medium text-gray-700">Pan</th>}
-              {visibleColumns.product && <th className="px-4 py-3 text-left font-medium text-gray-700">Product</th>}
-              {visibleColumns.status && <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>}
-              {visibleColumns.location && <th className="px-4 py-3 text-left font-medium text-gray-700">Location</th>}
-              {visibleColumns.attachment && <th className="px-4 py-3 text-left font-medium text-gray-700">Attachment</th>}
-              {visibleColumns.due && <th className="px-4 py-3 text-left font-medium text-gray-700">Due date</th>}
-              {visibleColumns.actions && <th className="px-4 py-3 text-left font-medium text-gray-700">Actions</th>}
+              {visibleColumns.timestamp && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Timestamp</th>}
+              {visibleColumns.office && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Office Code</th>}
+              {visibleColumns.patient && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Patient</th>}
+              {visibleColumns.pan && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Pan</th>}
+              {visibleColumns.product && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Product</th>}
+              {visibleColumns.status && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Status</th>}
+              {visibleColumns.location && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Location</th>}
+              {visibleColumns.attachment && (
+                <th className="px-4 py-1.5 text-center font-medium text-gray-700" scope="col" aria-label="Attachment">
+                  <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto inline-block" />
+                </th>
+              )}
+              {visibleColumns.due && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Due date</th>}
+              {visibleColumns.actions && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -764,11 +779,12 @@ export default function SlipPage() {
               slipsPage.map((row, idx) => (
                 <tr
                   key={row.id}
-                  className={`transition-all duration-150 ${selected.includes(row.id)
-                    ? "bg-blue-50 border-l-4 border-blue-500"
-                    : "hover:bg-gray-50"}`}
+                  className={slipListingRowClassName({
+                    selected: selected.includes(row.id),
+                    rush: row.rush,
+                  })}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-1.5">
                     <Checkbox
                       checked={selected.includes(row.id)}
                       onCheckedChange={() =>
@@ -779,43 +795,38 @@ export default function SlipPage() {
                       className="border-gray-400"
                     />
                   </td>
-                  {visibleColumns.timestamp && <td className="px-4 py-3 whitespace-nowrap text-gray-600">   <span className="inline-flex items-center gap-2 text-black">
-                    <svg width="22" height="23" viewBox="0 0 22 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M8.21875 3.70044H4.71875C3.75225 3.70044 2.96875 4.52125 2.96875 5.53377V9.20044C2.96875 10.213 3.75225 11.0338 4.71875 11.0338H8.21875C9.18525 11.0338 9.96875 10.213 9.96875 9.20044V5.53377C9.96875 4.52125 9.18525 3.70044 8.21875 3.70044Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M6.46875 11.0337V14.7004C6.46875 15.1866 6.65312 15.6529 6.98131 15.9967C7.3095 16.3405 7.75462 16.5337 8.21875 16.5337H11.7188" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M16.9688 12.8672H13.4688C12.5023 12.8672 11.7188 13.688 11.7188 14.7005V18.3672C11.7188 19.3797 12.5023 20.2005 13.4688 20.2005H16.9688C17.9352 20.2005 18.7188 19.3797 18.7188 18.3672V14.7005C18.7188 13.688 17.9352 12.8672 16.9688 12.8672Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-
-                    <span className="text-sm">{row.createdAt}</span>
-                  </span>
-                  </td>}
+                  {visibleColumns.timestamp && (
+                    <td className="px-4 py-1.5 whitespace-nowrap text-sm text-black">
+                      {row.createdAt}
+                    </td>
+                  )}
                   {visibleColumns.office && (
-                    <td className="px-4 py-3 font-medium text-gray-900">
+                    <td className="px-4 py-1.5 font-medium text-gray-900">
                       <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
                         {row.officeCode}
                       </SlipListingVirtualSlipLink>
                     </td>
                   )}
                   {visibleColumns.patient && (
-                    <td className="px-4 py-3 text-gray-900">
+                    <td className="px-4 py-1.5 text-gray-900">
                       <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
-                        {row.patient}
+                        {formatSlipListingPatientName(row.patient)}
                       </SlipListingVirtualSlipLink>
                     </td>
                   )}
                   {visibleColumns.pan &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <span className={`inline-block w-12 text-center py-1 rounded text-white font-mono text-xs ${row.panColor}`}>{row.pan}</span>
                     </td>}
                   {visibleColumns.product && (
-                    <td className="px-4 py-3 text-gray-900">
+                    <td className="px-4 py-1.5 text-gray-900">
                       <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
                         {row.product}
                       </SlipListingVirtualSlipLink>
                     </td>
                   )}
                   {visibleColumns.status &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <div className="flex gap-2 items-center">
                         {row.rush && (
                           <SlipListingStatusBadge tone="rush" size="comfortable" className="border-0">
@@ -840,7 +851,7 @@ export default function SlipPage() {
                       </div>
                     </td>}
                   {visibleColumns.location &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       {row.location && slipIsInOffice(row) && (
                         <span className="inline-flex items-center gap-1.5 text-gray-700">
                           <SlipListingLocationIconSlot>
@@ -888,22 +899,23 @@ export default function SlipPage() {
                       )}
                     </td>}
                   {visibleColumns.attachment &&
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleAttachmentClick(row)
-                        }}
-                        className="hover:bg-gray-100 p-1 rounded transition-colors"
-                        title={row.attachment ? "View attachments" : "Add attachments"}
-                      >
-                      {row.attachment
-                        ? <Paperclip className="h-4 w-4 text-blue-600 inline-block" />
-                        : <Paperclip className="h-4 w-4 text-gray-300 inline-block" />}
-                      </button>
+                    <td className="px-4 py-1.5 text-center">
+                      {row.attachment ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAttachmentClick(row)
+                          }}
+                          className="hover:bg-gray-100 p-1 rounded transition-colors"
+                          title="View attachments"
+                        >
+                          <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto" />
+                        </button>
+                      ) : null}
                     </td>}
                   {visibleColumns.due &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <div className="inline-flex items-center gap-2">
                         <button
                           onClick={(e) => {
@@ -913,7 +925,7 @@ export default function SlipPage() {
                           className="hover:bg-gray-100 p-1 rounded transition-colors"
                           title="Change due date"
                         >
-                          <VsIcon src={`${VS_ACTION_ICONS}/calendar.svg`} className="h-[18px] w-[18px]" />
+                          <SlipListingCalendarIcon className="h-[18px] w-[18px]" />
                         </button>
 
                         <span className="text-gray-900">{row.dueDate}</span>
@@ -926,7 +938,7 @@ export default function SlipPage() {
                       </div>
                     </td>}
                   {visibleColumns.actions &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <Popover open={menuRow === row.id} onOpenChange={open => setMenuRow(open ? row.id : null)}>
                         <PopoverTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100">
@@ -969,7 +981,7 @@ export default function SlipPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex items-center justify-between mt-2">
         <div className="text-sm text-gray-600">
           Showing {(currentPage - 1) * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE) + 1}
           -
@@ -979,7 +991,7 @@ export default function SlipPage() {
         <div className="flex gap-2 items-center">
           <span className="text-sm text-gray-600 mr-2">Show</span>
           <Select value={String(itemsPerPage)} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-            <SelectTrigger className="w-20 bg-white border-gray-300">
+            <SelectTrigger className="h-8 w-20 bg-white border-gray-300">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

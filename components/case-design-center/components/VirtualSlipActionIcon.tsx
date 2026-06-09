@@ -32,6 +32,11 @@ const FULL_BLEED_ICONS: Partial<Record<VirtualSlipActionIconName, number>> = {
   "pick-up": 47,
   "drop-off": 47,
   resume: 47,
+  "on-hold": 47,
+};
+
+const ICON_FILE: Partial<Record<VirtualSlipActionIconName, string>> = {
+  "on-hold": "on-hold.png",
 };
 
 export function VirtualSlipActionIcon({
@@ -39,11 +44,12 @@ export function VirtualSlipActionIcon({
   className = "h-[22px] w-auto max-w-[26px]",
 }: VirtualSlipActionIconProps) {
   const size = FULL_BLEED_ICONS[name] ?? 26;
+  const file = ICON_FILE[name] ?? `${name}.svg`;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs; Next/Image blocks local SVG without extra config
     <img
-      src={`${ICON_BASE}/${name}.svg`}
+      src={`${ICON_BASE}/${file}`}
       alt=""
       width={size}
       height={size}

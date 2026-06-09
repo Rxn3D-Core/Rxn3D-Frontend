@@ -351,6 +351,8 @@ export function ToothStatusBoxes({
           return (
             <div
               key={extraction.id}
+              title={extraction.name}
+              aria-label={extraction.name}
               className="flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center w-[50px] h-[70px]"
               onClick={toggleBox}
             >

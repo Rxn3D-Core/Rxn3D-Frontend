@@ -167,6 +167,7 @@ export function FloatingActions({
           ? [
               {
                 icon: "on-hold" as const,
+                iconClassName: "h-[46.67px] w-[46.67px] max-w-none",
                 bg: canPutOnHold ? "bg-[#FF9500]" : "bg-[#9CA3AF]",
                 hover: canPutOnHold ? "hover:bg-[#E08600]" : "",
                 label: "On hold",

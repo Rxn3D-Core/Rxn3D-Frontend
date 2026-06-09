@@ -144,7 +144,7 @@ export function CenterActionIcons({
     }),
     rowIcon("call-log", "Call log", "call-log.svg", onCallLog),
     rowIcon("send-back-to-office", "Send back to office", "send-back-to-office.svg", onSendBackToOffice),
-    rowIcon("on-hold", "On hold", "on-hold.svg", onHold, {
+    rowIcon("on-hold", "On hold", "on-hold.png", onHold, {
       disabled: onHold ? !canPutOnHold : true,
       disabledMessage: canPutOnHold ? undefined : SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
     }),

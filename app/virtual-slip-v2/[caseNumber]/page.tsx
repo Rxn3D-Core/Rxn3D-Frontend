@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Pause, Play, X } from "lucide-react";
+import { Play, X } from "lucide-react";
+import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { isSlipCaseCancelled, isSlipCaseOnHold } from "@/lib/slip-case-status";
 import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalog";
@@ -571,6 +572,7 @@ export default function VirtualSlipV2Page() {
           hasMandibular={hasMandibular}
           visibleArches={visibleArches}
           showEditSlip={slipInLab && !caseCancelled}
+          caseOnHold={caseOnHold}
           onAttachments={() => setShowAttachModal(true)}
           onDriverHistory={() => setDriverHistoryViewOpen(true)}
           onHold={
@@ -578,7 +580,7 @@ export default function VirtualSlipV2Page() {
           }
           canPutOnHold={canPutOnHold}
           onCancel={
-            caseCancelled || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
+            caseBlocked || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
           }
           onSendBackToOffice={
             canSendBackToOffice && !caseCancelled
@@ -653,7 +655,7 @@ export default function VirtualSlipV2Page() {
         actionType="hold"
         title="Put Case On Hold"
         description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
-        icon={<Pause />}
+        icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
         iconBgColor="#FFF3DF"
         iconColor="#FFB400"
         buttonText={caseStatusSubmitting ? "Saving…" : "Put case on hold"}
