@@ -1,15 +1,47 @@
 "use client"
 
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useMemo, useState } from "react"
 import { useParams } from "next/navigation"
-import { Download } from "lucide-react"
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
+import { Download, ExternalLink, Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import { BreadcrumbBar } from "@/components/billing-subscription/breadcrumb-bar"
-import { PlanChangeDialog, type PlanChangeSummary } from "@/components/billing-subscription/plan-change-dialog"
-import { ReactivateSubscriptionDialog } from "@/components/billing-subscription/reactivate-subscription-dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { listSlipUsageFallbackRecords } from "@/lib/api/billing-subscription"
+import { listStorageTiers, type StorageTier } from "@/lib/api/billing-config-storage"
+import { getPlanMonthlyFee } from "@/lib/billing-subscription/plan-helpers"
+import {
+  applySuperadminPlanChange,
+  cancelSuperadminCustomerAddOn,
+  cancelSuperadminStorageTier,
+  enableSuperadminCustomerAddOn,
+  loadSuperadminBillingTenantDetail,
+  startSuperadminStorageTierCheckout,
+} from "@/lib/superadmin-billing/tenant-loaders"
+import type { SuperadminBillingTenantDetail } from "@/lib/superadmin-billing/tenant-data"
 import { cn } from "@/lib/utils"
 
 type DetailTab = "overview" | "usage-analytics" | "billing-history" | "add-ons" | "settings"
@@ -22,107 +54,253 @@ const TABS: Array<{ id: DetailTab; label: string }> = [
   { id: "settings", label: "Settings" },
 ]
 
-const QUICK_ACTIONS = ["Add Bonus Slips", "Upgrade Storage Tier", "Apply Discount", "Send Usage Alert", "Generate Invoice"]
-
-const ACTIVITY = [
-  "Slip limit warning sent — 2 hours ago",
-  "Payment received — $149.00 — Mar 1, 2026",
-  "Storage upgraded to 15 GB — Feb 20, 2026",
-  "Plan changed from Starter to Professional",
-]
-const CUMULATIVE_SERIES = [22, 45, 66, 98, 122, 156, 210]
-const DAILY_DISTRIBUTION = [15, 24, 38, 30, 44, 60, 52]
-const INVOICES = [
-  { invoice: "INV-1042", date: "Mar 1, 2026", amount: "$149.00", status: "Paid" },
-  { invoice: "INV-1029", date: "Feb 1, 2026", amount: "$149.00", status: "Paid" },
-  { invoice: "INV-1016", date: "Jan 1, 2026", amount: "$149.00", status: "Paid" },
-  { invoice: "INV-1003", date: "Dec 1, 2025", amount: "$172.50", status: "Paid" },
-  { invoice: "INV-0988", date: "Nov 1, 2025", amount: "$149.00", status: "Paid" },
-]
-
-function formatTenantTitle(raw: string): string {
-  const normalized = raw.replace(/-/g, " ").trim()
-  return normalized
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
+function formatDateLabel(value: string) {
+  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
-const PLAN_ORDER: Record<string, number> = { Freemium: 0, Starter: 1, Professional: 2, Enterprise: 3 }
+function buildUsageCharts(records: Array<{ timestamp?: string | null; created_at?: string | null }>, detail: SuperadminBillingTenantDetail | null) {
+  const periodStart = detail?.usage.billingPeriodStart ? new Date(detail.usage.billingPeriodStart) : null
+  const periodEnd = detail?.usage.billingPeriodEnd ? new Date(detail.usage.billingPeriodEnd) : null
 
-const PLAN_PRICES: Record<string, number> = {
-  Freemium: 0,
-  Starter: 29,
-  Business: 99,
-  Professional: 199,
-  Enterprise: 0,
+  if (!periodStart || !periodEnd || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime())) {
+    return { cumulative: [], daily: [] }
+  }
+
+  const dailyMap = new Map<string, number>()
+  const cursor = new Date(periodStart)
+  while (cursor <= periodEnd) {
+    const key = cursor.toISOString().slice(0, 10)
+    dailyMap.set(key, 0)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  for (const record of records) {
+    const raw = record.timestamp || record.created_at
+    if (!raw) continue
+    const date = new Date(raw)
+    if (Number.isNaN(date.getTime())) continue
+    if (date < periodStart || date > periodEnd) continue
+    const key = date.toISOString().slice(0, 10)
+    dailyMap.set(key, (dailyMap.get(key) ?? 0) + 1)
+  }
+
+  let runningTotal = 0
+  const daily = Array.from(dailyMap.entries()).map(([key, value]) => ({
+    label: formatDateLabel(key),
+    fullDate: key,
+    slips: value,
+  }))
+  const cumulative = daily.map((item) => {
+    runningTotal += item.slips
+    return {
+      label: item.label,
+      fullDate: item.fullDate,
+      slips: runningTotal,
+    }
+  })
+
+  return { cumulative, daily }
 }
 
 export default function TenantManagementDetailPage() {
   const params = useParams<{ tenantId: string }>()
-  const tenantId = (params?.tenantId || "lab-0042").toUpperCase()
-  const tenantName = useMemo(() => formatTenantTitle(params?.tenantId || "Precision Dental Arts"), [params?.tenantId])
+  const customerId = Number.parseInt(params?.tenantId || "", 10)
+  const { toast } = useToast()
+
   const [activeTab, setActiveTab] = useState<DetailTab>("overview")
+  const [detail, setDetail] = useState<SuperadminBillingTenantDetail | null>(null)
+  const [billingProfileId, setBillingProfileId] = useState<number | null>(null)
+  const [currentPlanId, setCurrentPlanId] = useState<number | null>(null)
+  const [catalogPlans, setCatalogPlans] = useState<any[]>([])
+  const [storageTiers, setStorageTiers] = useState<StorageTier[]>([])
+  const [customerStorageTierId, setCustomerStorageTierId] = useState<number | null>(null)
+  const [supports, setSupports] = useState({
+    suspendAccount: false,
+    bonusSlips: false,
+    settingsPersistence: false,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMutating, setIsMutating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [planDialogOpen, setPlanDialogOpen] = useState(false)
-  const [targetPlan, setTargetPlan] = useState<string | null>(null)
-  const [isSuspended, setIsSuspended] = useState(false)
-  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false)
+  const [storageDialogOpen, setStorageDialogOpen] = useState(false)
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null)
+  const [selectedStorageTierId, setSelectedStorageTierId] = useState<number | null>(null)
+  const [usageCharts, setUsageCharts] = useState<{ cumulative: Array<{ label: string; fullDate: string; slips: number }>; daily: Array<{ label: string; fullDate: string; slips: number }> }>({
+    cumulative: [],
+    daily: [],
+  })
 
-  const currentPlan = "Business"
-  const currentPrice = PLAN_PRICES[currentPlan] ?? 99
+  const loadDetail = useCallback(async () => {
+    if (!customerId) {
+      setError("Invalid tenant id.")
+      setIsLoading(false)
+      return
+    }
 
-  const openPlanChange = (plan: string) => {
-    setTargetPlan(plan)
-    setPlanDialogOpen(true)
+    try {
+      setIsLoading(true)
+      setError(null)
+      const [result, storageTierCatalog, slipRecords] = await Promise.all([
+        loadSuperadminBillingTenantDetail(customerId),
+        listStorageTiers().catch(() => []),
+        listSlipUsageFallbackRecords(customerId, { perPage: 200 }).catch(() => []),
+      ])
+
+      setDetail(result.detail)
+      setBillingProfileId(result.billingProfile?.id ?? null)
+      setCurrentPlanId(result.billingProfile?.billing_plan_id ?? null)
+      setCatalogPlans(result.catalogPlans)
+      setStorageTiers(storageTierCatalog.filter((tier) => tier.active))
+      setCustomerStorageTierId(result.storageTier?.id ?? null)
+      setSupports(result.supports)
+      setUsageCharts(buildUsageCharts(slipRecords, result.detail))
+    } catch (loadError: any) {
+      setError(loadError?.message || "Failed to load tenant billing details.")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [customerId])
+
+  useEffect(() => {
+    void loadDetail()
+  }, [loadDetail])
+
+  const selectedPlan = useMemo(
+    () => catalogPlans.find((plan) => plan.id === selectedPlanId) ?? null,
+    [catalogPlans, selectedPlanId],
+  )
+
+  const currentPlan = useMemo(
+    () => catalogPlans.find((plan) => plan.id === currentPlanId) ?? null,
+    [catalogPlans, currentPlanId],
+  )
+
+  const availablePlans = useMemo(() => {
+    return catalogPlans.filter((plan) => plan.id !== currentPlanId)
+  }, [catalogPlans, currentPlanId])
+
+  const selectedStorageTier = useMemo(
+    () => storageTiers.find((tier) => tier.id === selectedStorageTierId) ?? null,
+    [selectedStorageTierId, storageTiers],
+  )
+
+  const handlePlanChange = async () => {
+    if (!billingProfileId || !selectedPlan) return
+    try {
+      setIsMutating(true)
+      await applySuperadminPlanChange({
+        profileId: billingProfileId,
+        targetPlanId: selectedPlan.id,
+        currentMonthlyFee: getPlanMonthlyFee(currentPlan),
+        targetMonthlyFee: getPlanMonthlyFee(selectedPlan),
+      })
+      setPlanDialogOpen(false)
+      setSelectedPlanId(null)
+      toast({ title: "Plan updated", description: "The tenant subscription plan was updated successfully." })
+      await loadDetail()
+    } catch (mutationError: any) {
+      toast({
+        title: "Plan update failed",
+        description: mutationError?.message || "Unable to change the tenant plan right now.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMutating(false)
+    }
   }
 
-  const planChangeSummary: PlanChangeSummary | null = targetPlan
-    ? {
-        direction:
-          (PLAN_ORDER[targetPlan] ?? 0) > (PLAN_ORDER[currentPlan] ?? 0) ? "upgrade" : "downgrade",
-        currentPlanName: currentPlan,
-        currentPlanPrice: currentPrice,
-        targetPlanName: targetPlan,
-        targetPlanPrice: PLAN_PRICES[targetPlan] ?? 0,
-        ...(
-          (PLAN_ORDER[targetPlan] ?? 0) > (PLAN_ORDER[currentPlan] ?? 0)
-            ? {
-                proratedCredit: -38.77,
-                nextBillingDate: "Sep 1, 2025",
-              }
-            : {
-                effectiveDate: "Aug 25, 2025",
-              }
-        ),
+  const handleStorageUpgrade = async () => {
+    if (!selectedStorageTier || !detail) return
+    try {
+      setIsMutating(true)
+      const response = await startSuperadminStorageTierCheckout({
+        customerId: detail.header.customerId,
+        billingStorageTierId: selectedStorageTier.id,
+        successUrl: `${window.location.origin}/billing-subscription/tenant-management/${detail.header.customerId}`,
+        cancelUrl: `${window.location.origin}/billing-subscription/tenant-management/${detail.header.customerId}`,
+      })
+      if (response.url) {
+        window.location.href = response.url
+        return
       }
-    : null
+      throw new Error(response.message || "Storage checkout URL was not returned.")
+    } catch (mutationError: any) {
+      toast({
+        title: "Storage upgrade failed",
+        description: mutationError?.message || "Unable to start the storage upgrade flow.",
+        variant: "destructive",
+      })
+      setIsMutating(false)
+    }
+  }
 
-  return (
-    <div className="w-full space-y-3 px-2 py-3 md:px-3 md:py-3">
-      {planChangeSummary && (
-        <PlanChangeDialog
-          open={planDialogOpen}
-          onOpenChange={setPlanDialogOpen}
-          summary={planChangeSummary}
-          onConfirm={async () => {
-            // TODO: call plan change API
-          }}
-        />
-      )}
-      <ReactivateSubscriptionDialog
-        open={reactivateDialogOpen}
-        onOpenChange={setReactivateDialogOpen}
-        planName={currentPlan}
-        monthlyPrice={currentPrice}
-        cardBrand="Visa"
-        cardLast4="4242"
-        onConfirm={async () => {
-          setIsSuspended(false)
-          // TODO: call reactivate API
-        }}
-      />
-      <div className="space-y-1">
+  const handleCancelStorageTier = async () => {
+    if (!customerStorageTierId) return
+    try {
+      setIsMutating(true)
+      await cancelSuperadminStorageTier(customerStorageTierId)
+      toast({ title: "Storage tier cancelled", description: "The storage-tier subscription was cancelled." })
+      await loadDetail()
+    } catch (mutationError: any) {
+      toast({
+        title: "Storage tier cancellation failed",
+        description: mutationError?.message || "Unable to cancel the storage-tier subscription.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMutating(false)
+    }
+  }
+
+  const handleToggleAddOn = async (addOn: SuperadminBillingTenantDetail["addOns"][number]) => {
+    try {
+      setIsMutating(true)
+      if (addOn.active && addOn.customerAddOnId) {
+        await cancelSuperadminCustomerAddOn(addOn.customerAddOnId)
+      } else {
+        await enableSuperadminCustomerAddOn({
+          customerId,
+          billingAddOnId: addOn.id,
+        })
+      }
+      toast({
+        title: addOn.active ? "Add-on disabled" : "Add-on enabled",
+        description: `${addOn.name} was ${addOn.active ? "cancelled" : "activated"} successfully.`,
+      })
+      await loadDetail()
+    } catch (mutationError: any) {
+      toast({
+        title: "Add-on update failed",
+        description: mutationError?.message || "Unable to update the add-on right now.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMutating(false)
+    }
+  }
+
+  const announceGap = (title: string, description: string) => {
+    toast({
+      title,
+      description,
+      variant: "destructive",
+    })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 bg-[#f6f7fb] px-4 py-4 md:px-6">
+        <div className="h-8 w-64 animate-pulse rounded bg-slate-200" />
+        <div className="h-40 animate-pulse rounded-2xl bg-white" />
+        <div className="h-80 animate-pulse rounded-2xl bg-white" />
+      </div>
+    )
+  }
+
+  if (error || !detail) {
+    return (
+      <div className="space-y-4 bg-[#f6f7fb] px-4 py-4 md:px-6">
         <BreadcrumbBar
           items={[
             { label: "Billing & Subscription", href: "/billing-subscription" },
@@ -130,83 +308,80 @@ export default function TenantManagementDetailPage() {
             { label: "Tenant Overview" },
           ]}
         />
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Tenant Overview</h1>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-3 text-xs">
-              Drafts
-            </Button>
-            <Button size="sm" className="h-8 px-3 text-xs">
-              + Create New Plan
-            </Button>
+        <Card className="border-rose-200">
+          <CardContent className="p-6 text-sm text-rose-600">{error || "Tenant billing data was not found."}</CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4 bg-[#f6f7fb] px-4 py-4 md:px-6">
+      <div className="space-y-1">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-1">
+            <BreadcrumbBar
+              items={[
+                { label: "Billing & Subscription", href: "/billing-subscription" },
+                { label: "Tenant Management", href: "/billing-subscription/tenant-management" },
+                { label: "Tenant Overview" },
+              ]}
+            />
+            <h1 className="text-2xl font-semibold text-slate-900">Billing and Subscription Control</h1>
           </div>
+
+          <Link
+            href="/billing-subscription/tenant-management"
+            className="text-sm font-medium text-[#1567b8] hover:text-[#0f579c] md:pt-1"
+          >
+            ← Back to tenant list
+          </Link>
         </div>
       </div>
 
-      <Card className="border-[#1162A8]/40">
-        <CardHeader className="space-y-3 px-3 pb-2 pt-3 md:px-4 md:pt-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Lab Tenants</p>
-              <p className="text-base font-semibold">{tenantName}</p>
-              <div className="flex items-center gap-3 text-sm">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#0B132B] text-xs font-semibold text-white">
-                  {tenantId.slice(0, 1)}
-                </span>
-                <div>
-                  <p className="font-medium">{tenantId}</p>
-                  <p className="text-xs text-muted-foreground">dr.smith@precisiondental.com</p>
-                </div>
+      <Card className="border-[#dbe4f0] shadow-sm">
+        <CardContent className="space-y-6 p-5 md:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-slate-500">Lab Tenants</p>
+              <div>
+                <h2 className="text-3xl font-semibold text-slate-900">{detail.header.labName}</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {detail.header.labCode} · {detail.header.ownerName} · {detail.header.ownerEmail}
+                </p>
               </div>
             </div>
+
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="h-10 rounded-xl border-[#d4dcea]" onClick={() => setPlanDialogOpen(true)} disabled={!billingProfileId || isMutating}>
+                Change Plan
+              </Button>
               <Button
                 variant="outline"
-                size="sm"
-                className="h-8 px-3 text-xs"
-                onClick={() => openPlanChange("Starter")}
+                className="h-10 rounded-xl border-[#d4dcea]"
+                onClick={() =>
+                  announceGap(
+                    "Suspend Account requires backend support",
+                    "The backend currently exposes plan cancellation but not a true suspend/resume contract, so this superadmin control remains blocked.",
+                  )
+                }
               >
-                Downgrade
+                Suspend Account
               </Button>
-              <Button
-                size="sm"
-                className="h-8 bg-[#1162A8] px-3 text-xs hover:bg-[#0d5290]"
-                onClick={() => openPlanChange("Professional")}
-              >
-                Upgrade
-              </Button>
-              {isSuspended ? (
-                <Button
-                  size="sm"
-                  className="h-8 bg-emerald-600 px-3 text-xs text-white hover:bg-emerald-700"
-                  onClick={() => setReactivateDialogOpen(true)}
-                >
-                  Reactivate
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs text-destructive hover:bg-destructive/10"
-                  onClick={() => setIsSuspended(true)}
-                >
-                  Suspend Account
-                </Button>
-              )}
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 border-b pt-1">
+          <div className="flex flex-wrap gap-2 border-b border-[#e7edf6] pb-3">
             {TABS.map((tab) => {
-              const active = tab.id === activeTab
+              const active = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "h-8 rounded-t-md px-3 text-xs font-medium transition-colors",
-                    active ? "bg-[#1162A8] text-white" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                    "rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
+                    active ? "bg-[#1567b8] text-white" : "text-slate-700 hover:bg-[#edf3fb]",
                   )}
                 >
                   {tab.label}
@@ -215,315 +390,454 @@ export default function TenantManagementDetailPage() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-sm">
-            <p>
-              <span className="font-medium">Plan:</span> Professional
-            </p>
-            <p>
-              <span className="font-medium">Status:</span> Active
-            </p>
-            <p>
-              <span className="font-medium">Member Since:</span> Jan 2024
-            </p>
+          <div className="grid gap-3 rounded-2xl border border-[#e3eaf4] bg-[#f8fbff] px-4 py-3 text-sm font-semibold text-slate-800 md:grid-cols-3">
+            <p>Plan: {detail.subscription.planName}</p>
+            <p>Status: {detail.header.status}</p>
+            <p>Member Since: {detail.header.memberSinceLabel}</p>
           </div>
-        </CardHeader>
 
-        <CardContent className="space-y-3 px-3 pb-3 md:px-4 md:pb-4">
           {activeTab === "overview" ? (
-            <>
-              <div className="grid gap-3 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
-                  <CardHeader className="px-3 pb-2 pt-3">
-                    <CardTitle className="text-sm font-semibold">Current Subscription</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-1 px-3 pb-3 text-sm">
-                    <InfoRow label="Plan" value="Professional" />
-                    <InfoRow label="Monthly Fee" value="$149.00/mo" />
-                    <InfoRow label="Billing Cycle" value="Monthly — Renews Apr 15, 2026" />
-                    <InfoRow label="User Seats" value="4 of 5 used" />
-                    <InfoRow label="Auto-Renew" value="On" />
-                    <InfoRow label="Next Invoice Estimate" value="$172.50 (includes overages)" />
-                  </CardContent>
-                </Card>
+            <div className="grid gap-4 xl:grid-cols-5">
+              <Card className="xl:col-span-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl text-slate-900">Current Subscription</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <InfoRow label="Plan" value={detail.subscription.planName} />
+                  <InfoRow label="Monthly Fee" value={detail.subscription.monthlyFeeLabel} />
+                  <InfoRow label="Billing Cycle" value={`Monthly — Renews ${detail.subscription.nextRenewalLabel}`} />
+                  <InfoRow label="User Seats" value={detail.subscription.seatUsageLabel} />
+                  <InfoRow label="Auto-Renew" value={detail.subscription.autoRenewLabel} />
+                  <InfoRow label="Next Invoice Estimate" value={detail.subscription.nextInvoiceEstimate} />
+                </CardContent>
+              </Card>
 
-                <Card className="lg:col-span-2">
-                  <CardHeader className="px-3 pb-2 pt-3">
-                    <CardTitle className="text-sm font-semibold">Quick Actions</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-1 px-3 pb-3">
-                    {QUICK_ACTIONS.map((action) => (
-                      <button
-                        key={action}
-                        type="button"
-                        className="block w-full rounded-md border bg-muted/20 px-2 py-1.5 text-left text-sm font-medium hover:bg-muted/40"
-                      >
-                        {action}
-                      </button>
-                    ))}
-                  </CardContent>
-                </Card>
+              <Card className="xl:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl text-slate-900">Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <ActionButton
+                    label="Add Bonus Slips"
+                    onClick={() =>
+                      announceGap(
+                        "Bonus slips require a backend grant API",
+                        "No verified superadmin bonus-slip or manual credit grant endpoint is currently available, so this action remains blocked.",
+                      )
+                    }
+                  />
+                  <ActionButton label="Upgrade Storage Tier" onClick={() => setStorageDialogOpen(true)} />
+                  <ActionButton
+                    label="Generate Invoice"
+                    onClick={() => {
+                      const latestInvoice = detail.invoices[0]
+                      if (latestInvoice?.downloadUrl) {
+                        window.open(latestInvoice.downloadUrl, "_blank", "noopener,noreferrer")
+                        return
+                      }
+                      announceGap("Invoice unavailable", "No downloadable invoice URL was returned for this tenant.")
+                    }}
+                  />
+                  <ActionButton
+                    label="Send Usage Alert"
+                    onClick={() =>
+                      announceGap(
+                        "Usage alert automation is not wired",
+                        "This control is visible for the superadmin workflow, but there is no verified backend alert endpoint yet.",
+                      )
+                    }
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="xl:col-span-3">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl text-slate-900">Usage This Cycle</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <UsageSummaryBlock
+                    title="Slip Usage"
+                    label={detail.usage.slipUsageLabel}
+                    percent={detail.usage.slipUsagePercent}
+                    subtitle={detail.usage.billingPeriodEnd ? `Resets ${formatDateLabel(detail.usage.billingPeriodEnd)}` : "Billing period reset unavailable"}
+                  />
+                  <UsageSummaryBlock
+                    title="Storage Usage"
+                    label={detail.usage.storageUsageLabel}
+                    percent={detail.usage.storageUsagePercent}
+                    subtitle={customerStorageTierId ? "Includes active storage-tier subscription" : "Using plan-included storage"}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="xl:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl text-slate-900">Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {detail.activity.length === 0 ? (
+                    <p className="text-sm text-slate-500">No recent billing activity is available yet.</p>
+                  ) : (
+                    detail.activity.map((item, index) => (
+                      <div key={`${item.kind}-${index}`} className="rounded-xl border border-[#e7edf6] bg-white px-3 py-2 text-sm">
+                        <p className="font-medium text-slate-900">{item.label}</p>
+                        <p className="text-slate-500">{item.timestamp ? formatDateLabel(item.timestamp) : "Live update"}</p>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+
+          {activeTab === "usage-analytics" ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <KpiCard title="Slip Usage" value={detail.usage.slipUsageLabel} subtitle={`${Math.round(detail.usage.slipUsagePercent ?? 0)}% of limit`} />
+                <KpiCard title="Storage Usage" value={detail.usage.storageUsageLabel} subtitle={`${Math.round(detail.usage.storageUsagePercent ?? 0)}% of limit`} />
+                <KpiCard title="Current Plan" value={detail.subscription.planName} subtitle={detail.subscription.monthlyFeeLabel} />
+                <KpiCard title="Renewal" value={detail.subscription.nextRenewalLabel} subtitle="Next billing checkpoint" />
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-5">
-                <Card className="lg:col-span-3">
-                  <CardHeader className="px-3 pb-2 pt-3">
-                    <CardTitle className="text-sm font-semibold">Usage This Cycle</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 px-3 pb-3 text-sm">
-                    <div>
-                      <p className="font-medium">Slip Usage</p>
-                      <p className="text-muted-foreground">93%</p>
-                      <p className="text-xs text-muted-foreground">280 of 300 slips used (20 remaining)</p>
-                      <p className="text-xs text-muted-foreground">Resets: Apr 1, 2026</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Storage Usage</p>
-                      <p className="text-muted-foreground">83%</p>
-                      <p className="text-xs text-muted-foreground">12.4 of 15 GB used (2.6 GB remaining)</p>
-                    </div>
-                  </CardContent>
-                </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Cumulative Slip Usage — This Cycle</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={usageCharts.cumulative}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7edf6" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                      <YAxis tickLine={false} axisLine={false} />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="slips" stroke="#1567b8" fill="#d9ecff" strokeWidth={3} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-                <Card className="lg:col-span-2">
-                  <CardHeader className="px-3 pb-2 pt-3">
-                    <CardTitle className="text-sm font-semibold">Recent Activity</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-1 px-3 pb-3 text-sm">
-                    {ACTIVITY.map((item) => (
-                      <p key={item} className="rounded-md border bg-muted/20 px-2 py-1.5 text-xs text-muted-foreground">
-                        {item}
-                      </p>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          ) : activeTab === "usage-analytics" ? (
-            <UsageAnalyticsPanel />
-          ) : activeTab === "billing-history" ? (
-            <BillingHistoryPanel />
-          ) : activeTab === "settings" ? (
-            <SettingsPanel tenantId={tenantId} tenantName={tenantName} />
-          ) : (
-            <Card className="border-dashed">
-              <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                {TABS.find((t) => t.id === activeTab)?.label} content is next in queue.
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Daily Slip Distribution</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={usageCharts.daily}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7edf6" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                      <YAxis tickLine={false} axisLine={false} />
+                      <Tooltip />
+                      <Bar dataKey="slips" fill="#1567b8" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+
+          {activeTab === "billing-history" ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">Billing History</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {detail.invoices.length === 0 ? (
+                  <p className="text-sm text-slate-500">No billing invoices are available for this tenant yet.</p>
+                ) : (
+                  detail.invoices.map((invoice) => (
+                    <div key={invoice.id} className="flex flex-col gap-3 rounded-xl border border-[#e7edf6] p-4 md:flex-row md:items-center md:justify-between">
+                      <div className="grid gap-1">
+                        <p className="font-semibold text-slate-900">{invoice.invoiceNumber}</p>
+                        <p className="text-sm text-slate-500">{invoice.dateLabel}</p>
+                      </div>
+                      <div className="grid gap-1 text-sm md:text-right">
+                        <p className="font-semibold text-slate-900">{invoice.amountLabel}</p>
+                        <p className="text-slate-500">{invoice.statusLabel}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="rounded-xl border-[#d4dcea]"
+                          onClick={() => {
+                            if (invoice.downloadUrl) {
+                              window.open(invoice.downloadUrl, "_blank", "noopener,noreferrer")
+                              return
+                            }
+                            announceGap("Invoice unavailable", "This invoice does not include a hosted or PDF URL.")
+                          }}
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="rounded-xl border-[#d4dcea]"
+                          onClick={() => {
+                            if (invoice.downloadUrl) {
+                              window.open(invoice.downloadUrl, "_blank", "noopener,noreferrer")
+                              return
+                            }
+                            announceGap("Invoice unavailable", "This invoice does not include a downloadable URL.")
+                          }}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
-          )}
+          ) : null}
 
-          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs">
-            <Link href="/billing-subscription/tenant-management">← Back to tenant list</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function SettingsPanel({ tenantId, tenantName }: { tenantId: string; tenantName: string }) {
-  const [autoRenew, setAutoRenew] = useState(true)
-  const [emailNotifications, setEmailNotifications] = useState(true)
-  const [slipAlerts, setSlipAlerts] = useState(true)
-
-  return (
-    <div className="space-y-3">
-      <Card>
-        <CardHeader className="px-3 pb-2 pt-3">
-          <CardTitle className="text-sm font-semibold">Account Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 px-3 pb-3">
-          <SettingsToggleRow
-            label="Auto-Renew Subscription"
-            description="Automatically renew at the end of each billing cycle."
-            checked={autoRenew}
-            onCheckedChange={setAutoRenew}
-          />
-          <SettingsToggleRow
-            label="Email Notifications"
-            description="Receive billing and account update emails."
-            checked={emailNotifications}
-            onCheckedChange={setEmailNotifications}
-          />
-          <SettingsToggleRow
-            label="Slip Usage Alerts"
-            description="Notify when usage reaches 80% and 95% of limit."
-            checked={slipAlerts}
-            onCheckedChange={setSlipAlerts}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="px-3 pb-2 pt-3">
-          <CardTitle className="text-sm font-semibold">Account Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 px-3 pb-3">
-          <InfoField label="Lab Name" value={tenantName} />
-          <InfoField label="Lab ID" value={tenantId} />
-          <InfoField label="Owner Name" value="Dr. Sarah Mitchell" />
-          <InfoField label="Contact Email" value="dr.smith@precisiondental.com" />
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-function SettingsToggleRow({
-  label,
-  description,
-  checked,
-  onCheckedChange,
-}: {
-  label: string
-  description: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
-    </div>
-  )
-}
-
-function InfoField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="rounded-md border bg-muted/20 px-3 py-1.5 text-sm font-medium">{value}</div>
-    </div>
-  )
-}
-
-function BillingHistoryPanel() {
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiCard label="Invoices (12 months)" value="12" />
-        <KpiCard label="Paid total" value="$1,811.50" />
-        <KpiCard label="Outstanding" value="$0.00" />
-        <KpiCard label="Avg monthly bill" value="$150.95" />
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between px-3 pb-2 pt-3">
-          <CardTitle className="text-sm font-semibold">Billing History</CardTitle>
-          <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs">
-            Export
-          </Button>
-        </CardHeader>
-        <CardContent className="px-3 pb-3">
-          <div className="overflow-hidden rounded-md border">
-            <div className="grid grid-cols-[1.1fr_1fr_1fr_0.8fr_0.9fr] border-b bg-muted/30 px-3 py-2 text-xs font-semibold text-muted-foreground">
-              <p>Invoice</p>
-              <p>Date</p>
-              <p>Amount</p>
-              <p>Status</p>
-              <p className="text-right">Action</p>
+          {activeTab === "add-ons" ? (
+            <div className="space-y-3">
+              {detail.addOns.length === 0 ? (
+                <Card>
+                  <CardContent className="p-6 text-sm text-slate-500">No add-ons are available for this tenant yet.</CardContent>
+                </Card>
+              ) : (
+                detail.addOns.map((addOn) => (
+                  <Card key={addOn.id}>
+                    <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xl font-semibold text-slate-900">{addOn.name}</p>
+                        <p className="mt-1 text-sm text-slate-500">{addOn.description}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-xl font-semibold text-slate-900">{addOn.monthlyFeeLabel}/mo</p>
+                          <p className="text-sm text-slate-500">{addOn.status}</p>
+                        </div>
+                        <Switch checked={addOn.active} onCheckedChange={() => void handleToggleAddOn(addOn)} disabled={isMutating} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
-            {INVOICES.map((row) => (
-              <div
-                key={row.invoice}
-                className="grid grid-cols-[1.1fr_1fr_1fr_0.8fr_0.9fr] items-center border-b px-3 py-2 text-sm last:border-b-0"
-              >
-                <p className="font-medium">{row.invoice}</p>
-                <p>{row.date}</p>
-                <p className="font-medium">{row.amount}</p>
-                <p>
-                  <span className="inline-flex rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                    {row.status}
-                  </span>
-                </p>
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2.5 text-xs">
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">All amounts include subscription plus any approved overages.</p>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
+          ) : null}
 
-function UsageAnalyticsPanel() {
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiCard label="Usage growth" value="+12%" />
-        <KpiCard label="Storage growth" value="+0.3 GB" />
-        <KpiCard label="Active users" value="4" />
-        <KpiCard label="Forecast" value="+1.2 slips/day" />
-      </div>
-
-      <Card>
-        <CardHeader className="px-3 pb-2 pt-3">
-          <CardTitle className="text-sm font-semibold">Cumulative Slip Usage — This Cycle</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 px-3 pb-3">
-          <div className="grid grid-cols-7 gap-2">
-            {CUMULATIVE_SERIES.map((value, idx) => (
-              <div key={idx} className="space-y-1 text-center">
-                <div className="flex h-24 items-end rounded-md bg-muted/30 p-1">
-                  <div
-                    className="w-full rounded-sm bg-[#1162A8]"
-                    style={{ height: `${Math.max(8, Math.round((value / 210) * 100))}%` }}
+          {activeTab === "settings" ? (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Account Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <DisabledSetting
+                    label="Auto-Renew Subscription"
+                    description="Visible in the superadmin workspace, but persistence is blocked until a dedicated backend setting is exposed."
                   />
+                  <DisabledSetting
+                    label="Email Notifications"
+                    description="Visible in the superadmin workspace, but no verified billing-notification setting endpoint exists yet."
+                  />
+                  <DisabledSetting
+                    label="Slip Usage Alerts"
+                    description="Visible in the superadmin workspace, but no verified alert-preference endpoint exists yet."
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">Account Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <ReadOnlyField label="Lab Name" value={detail.header.labName} />
+                  <ReadOnlyField label="Lab ID" value={detail.header.labCode} />
+                  <ReadOnlyField label="Owner Name" value={detail.header.ownerName} />
+                  <ReadOnlyField label="Contact Email" value={detail.header.ownerEmail} />
+                  <ReadOnlyField label="Current Plan" value={detail.subscription.planName} />
+                  <ReadOnlyField label="Next Renewal" value={detail.subscription.nextRenewalLabel} />
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium text-slate-700">Internal Notes</label>
+                    <Textarea readOnly value="Superadmin billing settings are currently read-only until persistence endpoints are verified." className="min-h-[120px] bg-slate-50" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
+        <DialogContent className="max-w-3xl rounded-3xl border-[#dbe4f0]">
+          <DialogHeader>
+            <DialogTitle>Change Subscription Plan</DialogTitle>
+            <DialogDescription>
+              Select a new plan for {detail.header.labName}. This action uses the live billing-profile upgrade/downgrade endpoints.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-[#e7edf6] bg-[#f8fbff] p-4">
+              <p className="text-sm text-slate-500">Current Plan</p>
+              <p className="text-xl font-semibold text-slate-900">{detail.subscription.planName}</p>
+              <p className="text-sm text-slate-500">{detail.subscription.monthlyFeeLabel}/month</p>
+            </div>
+            <div className="grid gap-3">
+              {availablePlans.map((plan) => (
+                <button
+                  key={plan.id}
+                  type="button"
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  className={cn(
+                    "rounded-2xl border p-4 text-left transition-colors",
+                    selectedPlanId === plan.id ? "border-[#1567b8] bg-[#f8fbff]" : "border-[#e7edf6] bg-white hover:bg-[#f8fbff]",
+                  )}
+                >
+                  <p className="text-lg font-semibold text-slate-900">{plan.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: "USD",
+                      minimumFractionDigits: 2,
+                    }).format(getPlanMonthlyFee(plan))}
+                    /month
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-xl border-[#d4dcea]" onClick={() => setPlanDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button className="rounded-xl bg-[#1567b8] hover:bg-[#0f579c]" onClick={() => void handlePlanChange()} disabled={!selectedPlanId || isMutating}>
+              {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirm Plan Change
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={storageDialogOpen} onOpenChange={setStorageDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-3xl border-[#dbe4f0]">
+          <DialogHeader>
+            <DialogTitle>Upgrade Storage Tier</DialogTitle>
+            <DialogDescription>Select a live storage-tier plan for this tenant.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {storageTiers.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() => setSelectedStorageTierId(tier.id)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-2xl border p-4 text-left transition-colors",
+                  selectedStorageTierId === tier.id ? "border-[#1567b8] bg-[#f8fbff]" : "border-[#e7edf6] bg-white hover:bg-[#f8fbff]",
+                )}
+              >
+                <div>
+                  <p className="text-lg font-semibold text-slate-900">{tier.name}</p>
+                  <p className="text-sm text-slate-500">{tier.storage_gb} GB storage</p>
                 </div>
-                <p className="text-[10px] text-muted-foreground">Mar {idx * 4 + 1}</p>
-                <p className="text-[10px] font-medium">{value}</p>
-              </div>
+                <p className="text-sm font-semibold text-slate-900">${Number(tier.monthly_fee).toFixed(2)}/mo</p>
+              </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">Current utilization: 93% of monthly limit (280 / 300)</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="px-3 pb-2 pt-3">
-          <CardTitle className="text-sm font-semibold">Daily Slip Distribution — Last 7 Days</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 px-3 pb-3">
-          {DAILY_DISTRIBUTION.map((value, idx) => (
-            <div key={idx} className="grid grid-cols-[42px_1fr_42px] items-center gap-2 text-xs">
-              <span className="text-muted-foreground">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][idx]}</span>
-              <div className="h-2 overflow-hidden rounded bg-muted">
-                <div className="h-full rounded bg-emerald-500" style={{ width: `${Math.max(8, (value / 60) * 100)}%` }} />
-              </div>
-              <span className="text-right font-medium">{value}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+          <DialogFooter className="gap-2">
+            {customerStorageTierId ? (
+              <Button variant="outline" className="rounded-xl border-[#d4dcea]" onClick={() => void handleCancelStorageTier()} disabled={isMutating}>
+                Cancel Current Storage Tier
+              </Button>
+            ) : null}
+            <Button variant="outline" className="rounded-xl border-[#d4dcea]" onClick={() => setStorageDialogOpen(false)}>
+              Close
+            </Button>
+            <Button className="rounded-xl bg-[#1567b8] hover:bg-[#0f579c]" onClick={() => void handleStorageUpgrade()} disabled={!selectedStorageTierId || isMutating}>
+              {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Continue to Checkout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
-}
-
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="px-3 py-2">
-        <p className="text-[11px] text-muted-foreground">{label}</p>
-        <p className="text-base font-semibold">{value}</p>
-      </CardContent>
-    </Card>
   )
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-2 text-xs sm:text-sm">
-      <p className="font-medium text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
+    <div className="grid gap-1 md:grid-cols-[180px_1fr]">
+      <p className="font-medium text-slate-500">{label}</p>
+      <p className="font-semibold text-slate-900">{value}</p>
+    </div>
+  )
+}
+
+function ActionButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-xl border border-[#e7edf6] bg-[#f8fbff] px-4 py-3 text-left text-base font-semibold text-slate-900 transition-colors hover:bg-[#edf3fb]"
+    >
+      {label}
+    </button>
+  )
+}
+
+function UsageSummaryBlock({
+  title,
+  label,
+  percent,
+  subtitle,
+}: {
+  title: string
+  label: string
+  percent: number | null
+  subtitle: string
+}) {
+  const safePercent = Math.max(0, Math.min(percent ?? 0, 100))
+  return (
+    <div className="space-y-2">
+      <p className="text-lg font-semibold text-slate-900">{title}</p>
+      <p className="text-base font-semibold text-slate-800">{label}</p>
+      <div className="h-2.5 overflow-hidden rounded-full bg-[#e7edf6]">
+        <div
+          className={cn(
+            "h-full rounded-full",
+            safePercent >= 95 ? "bg-[#ff5d5d]" : safePercent >= 80 ? "bg-[#f4bf00]" : "bg-[#1ed760]",
+          )}
+          style={{ width: `${safePercent}%` }}
+        />
+      </div>
+      <p className="text-sm text-slate-500">{subtitle}</p>
+    </div>
+  )
+}
+
+function KpiCard({ title, value, subtitle }: { title: string; value: string; subtitle: string }) {
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-4">
+        <p className="text-sm font-medium text-slate-500">{title}</p>
+        <p className="text-2xl font-semibold text-slate-900">{value}</p>
+        <p className="text-sm text-slate-500">{subtitle}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DisabledSetting({ label, description }: { label: string; description: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-2xl border border-[#e7edf6] p-4">
+      <div className="max-w-2xl">
+        <p className="font-semibold text-slate-900">{label}</p>
+        <p className="text-sm text-slate-500">{description}</p>
+      </div>
+      <Switch checked={false} disabled />
+    </div>
+  )
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-2">
+      <label className="text-sm font-medium text-slate-700">{label}</label>
+      <Input readOnly value={value} className="bg-slate-50" />
     </div>
   )
 }
