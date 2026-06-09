@@ -21,7 +21,14 @@ function OpposingDetailRow({ label, value }: { label: string; value: string }) {
  * Opposing extractions + impression below the arch chart (CDC opposing accordion layout).
  * Chart is rendered once by VirtualSlipArch; this block is status boxes + impression summary.
  */
-export function VirtualSlipOpposingSection({ opposing }: { opposing: OpposingArchVM }) {
+export function VirtualSlipOpposingSection({
+  opposing,
+  placement = "below",
+}: {
+  opposing: OpposingArchVM;
+  /** When the arch column has no products (opposing-only), render above the chart. */
+  placement?: "above" | "below";
+}) {
   const statusBoxProps =
     opposing.showExtractions
       ? buildVirtualSlipStatusBoxProps(opposing.extractionDisplay, opposing.arch, {
@@ -35,7 +42,9 @@ export function VirtualSlipOpposingSection({ opposing }: { opposing: OpposingArc
   if (!showBlock) return null;
 
   return (
-    <div className="mt-4 w-full">
+    <div
+      className={`w-full ${placement === "above" ? "mb-4" : "mt-4"}`}
+    >
       <h3 className="mb-3 text-center font-sans text-[20px] font-medium leading-[21px] tracking-[-0.02em] text-[#7f7f7f]">
         Opposing
       </h3>

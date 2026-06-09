@@ -12,3 +12,14 @@ export function isSlipCaseOnHold(status: string | undefined | null): boolean {
   const normalized = normalizeSlipCaseStatus(status);
   return normalized === "on hold" || normalized === "hold";
 }
+
+/** True when slip/case is cancelled — read-only, no actions are available. */
+export function isSlipCaseCancelled(status: string | undefined | null): boolean {
+  const normalized = normalizeSlipCaseStatus(status);
+  return (
+    normalized === "cancelled" ||
+    normalized === "canceled" ||
+    normalized === "cancel" ||
+    normalized === "trash"
+  );
+}

@@ -109,10 +109,6 @@ export function CaseDesignSummarySection({
               }
             }}
             onAttach={() => state.setShowAttachModal(true)}
-            onPhoto={() => state.setShowAttachModal(true)}
-            onStlFile={() => state.setShowAttachModal(true)}
-            hasPhotos={state.attachedPhotoCount > 0}
-            hasStlFiles={state.attachedStlCount > 0}
           />
         </div>
       )}

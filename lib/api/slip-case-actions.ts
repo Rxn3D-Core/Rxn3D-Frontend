@@ -61,3 +61,38 @@ export function postSlipResume(slipId: number, reason: string) {
 export function postSlipCancel(slipId: number, reason: string) {
   return postSlipCaseAction(slipId, "cancel", reason);
 }
+
+/**
+ * POST /slip/action/{slipId}/send-back-to-office — lab returns slip to office workflow.
+ */
+export async function postSlipSendBackToOffice(
+  slipId: number,
+  reason: string
+): Promise<SlipCaseActionResponse> {
+  const res = await fetch(
+    buildApiUrl(`/slip/action/${slipId}/send-back-to-office`),
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ reason }),
+    }
+  );
+
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw new Error("Unauthorized");
+  }
+
+  const json: SlipCaseActionResponse = await res.json().catch(() => ({
+    success: false,
+    message: "Invalid response",
+  }));
+
+  if (!res.ok || !json.success) {
+    throw new Error(json.message || `Request failed (${res.status})`);
+  }
+
+  return json;
+}

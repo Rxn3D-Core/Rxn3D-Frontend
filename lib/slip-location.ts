@@ -47,6 +47,11 @@ export function slipCanHold(ref: SlipLocationRef): boolean {
   return slipCanReadyToSend(ref);
 }
 
+/** Lab returns slip to office — only when slip is at "In lab" (location id 3). */
+export function slipCanSendBackToOffice(ref: SlipLocationRef): boolean {
+  return slipIsInLab(ref);
+}
+
 /** Lab listing: green truck = pick up (1, 4); red truck = drop off (2, 5). Location 6 (In office) has no driver action. */
 export type SlipPickupDropoffAction = "pickup" | "dropoff";
 

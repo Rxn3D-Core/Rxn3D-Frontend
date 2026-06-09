@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, type ReactElement } from "react";
-import { Play, Paperclip } from "lucide-react";
 import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   type SlipPickupDropoffAction,
@@ -142,15 +141,24 @@ export function FloatingActions({
 }: FloatingActionsProps = {}) {
   const pickupActionLabel = pickupDropoffLabel ?? "Pick up/Drop off";
   const isDropoffFab = pickupDropoffAction === "dropoff";
+  const isFooterDriverAction =
+    showPickupDropoff &&
+    (pickupDropoffAction === "pickup" || pickupDropoffAction === "dropoff") &&
+    Boolean(onPickupDropoff);
+  const isFooterReadyToSendAction = showReadyToSend && Boolean(onReadyToSend);
+  const isFooterAddStageAction = hasNextStage && Boolean(onAddStage);
+  const isFooterPrimaryAction =
+    isFooterDriverAction || isFooterReadyToSendAction || isFooterAddStageAction;
   const showCaseStatusActions = Boolean(onResume || onHold || onCancel);
   const caseStatusFabActions: ActionButton[] = showCaseStatusActions
     ? [
         ...(onResume
           ? [
               {
-                icon: "pick-up" as const,
-                bg: "bg-[#34C759]",
-                hover: "hover:bg-[#2DA44E]",
+                icon: "resume" as const,
+                iconClassName: "h-[46.67px] w-[46.67px] max-w-none",
+                bg: "bg-transparent",
+                hover: "hover:opacity-90",
                 label: "Resume case",
               },
             ]
@@ -203,8 +211,9 @@ export function FloatingActions({
       }
     : {
         icon: "pick-up",
-        bg: "bg-[#34C759]",
-        hover: "hover:bg-[#2DA44E]",
+        iconClassName: "h-[46.67px] w-[46.67px] max-w-none",
+        bg: "bg-transparent",
+        hover: "hover:opacity-90",
         label: pickupActionLabel,
       };
   const [expanded, setExpanded] = useState(true);
@@ -385,14 +394,13 @@ export function FloatingActions({
 
   if (!isLabAdmin && !isOfficeAdmin) return null;
 
-  const renderActionIcon = (action: ActionButton) => {
-    if (action.label === "Resume case") {
-      return <Play size={17} className="text-white" strokeWidth={1.5} fill="white" />;
-    }
-    return (
-      <VirtualSlipActionIcon name={action.icon} className={action.iconClassName} />
-    );
-  };
+  if (isFooterPrimaryAction) {
+    return null;
+  }
+
+  const renderActionIcon = (action: ActionButton) => (
+    <VirtualSlipActionIcon name={action.icon} className={action.iconClassName} />
+  );
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -475,7 +483,7 @@ export function FloatingActions({
               onClick={onAttachments}
               className={`${ACTION_BTN} bg-[#1162A8] hover:bg-[#0E5290] ml-[10px] cursor-pointer transition-colors duration-200`}
             >
-              <Paperclip size={17} className="text-white" strokeWidth={2} />
+              <VirtualSlipActionIcon name="attachments" className="h-[22px] w-auto max-w-[26px]" />
             </button>
           </FabTooltip>
         )}

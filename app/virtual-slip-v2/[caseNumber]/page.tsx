@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Pause, Play, X } from "lucide-react";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
-import { isSlipCaseOnHold } from "@/lib/slip-case-status";
+import { isSlipCaseCancelled, isSlipCaseOnHold } from "@/lib/slip-case-status";
 import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalog";
 import { virtualSlipSlotsToAddonArchSlots } from "@/lib/virtual-slip-addon-slots";
 import { buildVirtualSlipRushArchSlots } from "@/lib/virtual-slip-rush-slots";
@@ -13,6 +13,7 @@ import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   slipCanHold,
   slipCanReadyToSend,
+  slipCanSendBackToOffice,
   slipIsInLab,
   slipIsInOffice,
   slipPickupDropoffAction,
@@ -36,14 +37,20 @@ import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
 import { VirtualSlipNotes } from "@/components/virtual-slip/VirtualSlipNotes";
-import { FloatingActions } from "@/components/case-design-center/components/FloatingActions";
+import { VirtualSlipCenterActions } from "@/components/virtual-slip/VirtualSlipCenterActions";
 import DriverHistoryModal from "@/components/driver-history-modal";
 import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal";
 import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entry";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
 import CaseActionModal from "@/components/CaseActionModal";
-import ChangeDateModal from "@/components/change-date-modal";
-import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
+import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal";
+import { resolveCaseStatementBillingId } from "@/lib/case-statement-print";
+import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi";
+import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
+import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
+import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
+import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-info";
+import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -58,19 +65,18 @@ export default function VirtualSlipV2Page() {
   const slipId = Number(params.caseNumber);
 
   const { toast } = useToast();
+  const [generateVirtualStatement] = useGenerateVirtualStatementMutation();
   const {
     fetchVirtualSlipDetails,
     virtualSlipDetails,
-    fetchSlipAttachments,
     holdSlip,
     resumeSlip,
     cancelSlip,
+    sendBackToOfficeSlip,
   } = useSlipCreation();
   const [loading, setLoading] = useState(true);
   const [showAttachModal, setShowAttachModal] = useState(false);
   const [attachViewerOpen, setAttachViewerOpen] = useState(false);
-  const [attachedPhotoCount, setAttachedPhotoCount] = useState(0);
-  const [attachedStlCount, setAttachedStlCount] = useState(0);
   const [pickupDropoffOpen, setPickupDropoffOpen] = useState(false);
   const [driverHistoryViewOpen, setDriverHistoryViewOpen] = useState(false);
   const [fabNotesOpen, setFabNotesOpen] = useState(false);
@@ -79,8 +85,11 @@ export default function VirtualSlipV2Page() {
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false);
   const [caseStatusModal, setCaseStatusModal] = useState<CaseStatusModal>(null);
   const [caseStatusSubmitting, setCaseStatusSubmitting] = useState(false);
-  const [changeDueDateOpen, setChangeDueDateOpen] = useState(false);
+  const [sendBackToOfficeOpen, setSendBackToOfficeOpen] = useState(false);
+  const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] =
+    useState(false);
   const [addStageEligible, setAddStageEligible] = useState(false);
+  const [notesRefreshKey, setNotesRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!slipId || isNaN(slipId)) {
@@ -122,6 +131,16 @@ export default function VirtualSlipV2Page() {
   }, [slipId, slipLocationRefForEligibility]);
 
   const vm = useMemo(() => buildVirtualSlipVM(virtualSlipDetails), [virtualSlipDetails]);
+
+  const caseId = useMemo(
+    () => resolveVirtualSlipCaseId(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
+  const stageSeeds = useMemo(
+    () => collectStageSeedsFromVirtualSlip(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
 
   const slipDeliveryDates = useMemo(
     () =>
@@ -170,23 +189,11 @@ export default function VirtualSlipV2Page() {
     return out;
   }, [addonArchSlots, vm.arches]);
 
-  const refreshAttachmentIndicators = useCallback(async () => {
-    if (!slipId || isNaN(slipId)) return;
-    const data = await fetchSlipAttachments(slipId, { archived: false, per_page: 100 });
-    const photoCount = data.filter((a) => a.is_image).length;
-    const stlCount = data.filter((a) => a.is_stl).length;
-    setAttachedPhotoCount(photoCount);
-    setAttachedStlCount(stlCount);
-  }, [slipId, fetchSlipAttachments]);
-
-  useEffect(() => {
-    void refreshAttachmentIndicators();
-  }, [refreshAttachmentIndicators]);
-
   const handleNotesChanged = (_summaryText?: string) => {
     if (slipId && !isNaN(slipId)) {
       void fetchVirtualSlipDetails(slipId);
     }
+    setNotesRefreshKey((key) => key + 1);
   };
 
   const goToCaseList = () => {
@@ -194,6 +201,67 @@ export default function VirtualSlipV2Page() {
     const route = role === "lab_admin" ? "/lab-case-management" : "/office-case-management";
     router.push(route);
   };
+
+  const handlePrintInvoice = useCallback(() => {
+    void (async () => {
+      const billingId = resolveCaseStatementBillingId(virtualSlipDetails);
+      if (billingId == null) {
+        toast({
+          title: "Statement not available",
+          description: "No billing invoice was found for this case yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      try {
+        const result = await generateVirtualStatement(billingId).unwrap();
+        const html = result?.data?.html;
+        const printUrl = result?.data?.print_url;
+
+        if (printUrl) {
+          window.open(printUrl, "_blank", "width=1200,height=900");
+          return;
+        }
+
+        if (!html) {
+          toast({
+            title: "Statement unavailable",
+            description: "The server did not return a statement for this case.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const win = window.open("about:blank", "_blank", "width=1200,height=900");
+        if (!win) {
+          toast({
+            title: "Pop-up blocked",
+            description: "Please allow pop-ups for this site and try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const printHtml = html.includes("</body>")
+          ? html.replace(
+              "</body>",
+              "<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()};}<\/script></body>"
+            )
+          : `${html}<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()};}<\/script>`;
+        win.document.open();
+        win.document.write(printHtml);
+        win.document.close();
+        win.focus();
+      } catch {
+        toast({
+          title: "Failed to load statement",
+          description: "Could not retrieve the statement from the server. Please try again.",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [generateVirtualStatement, toast, virtualSlipDetails]);
 
   const handleConfirmReadyToSend = async () => {
     if (!slipId || isNaN(slipId)) return;
@@ -236,6 +304,25 @@ export default function VirtualSlipV2Page() {
   };
 
   const caseOnHold = isSlipCaseOnHold(vm.header.status);
+  const caseCancelled = isSlipCaseCancelled(vm.header.status);
+
+  const { notes: caseNotes } = useCaseSlipNotes(caseId, {
+    refreshKey: notesRefreshKey,
+    enabled: (caseOnHold || caseCancelled) && caseId != null,
+  });
+
+  const holdDetail = useMemo(() => {
+    if (!caseOnHold) return null;
+    return resolveSlipHoldDetail(caseNotes, slipId, virtualSlipDetails);
+  }, [caseOnHold, caseNotes, slipId, virtualSlipDetails]);
+
+  const cancelDetail = useMemo(() => {
+    if (!caseCancelled) return null;
+    return resolveSlipCancelDetail(caseNotes, slipId);
+  }, [caseCancelled, caseNotes, slipId]);
+
+  /** Either blocked state (hold or cancelled) overlays + disables the slip body. */
+  const caseBlocked = caseOnHold || caseCancelled;
 
   const slipLocationRef = useMemo(
     () => ({
@@ -246,6 +333,7 @@ export default function VirtualSlipV2Page() {
   );
 
   const canPutOnHold = slipCanHold(slipLocationRef);
+  const canSendBackToOffice = slipCanSendBackToOffice(slipLocationRef);
   const showAddStageFab = slipIsInOffice(slipLocationRef) && addStageEligible;
   const slipInOffice = slipIsInOffice(slipLocationRef);
   const slipInLab = slipIsInLab(slipLocationRef);
@@ -305,6 +393,7 @@ export default function VirtualSlipV2Page() {
       });
       setCaseStatusModal(null);
       await fetchVirtualSlipDetails(slipId);
+      setNotesRefreshKey((key) => key + 1);
       if (action === "cancel") {
         goToCaseList();
       }
@@ -327,6 +416,33 @@ export default function VirtualSlipV2Page() {
     }
   };
 
+  const handleConfirmSendBackToOffice = async (reason: string) => {
+    if (!slipId || isNaN(slipId) || !reason.trim()) return;
+
+    setSendBackToOfficeSubmitting(true);
+    try {
+      const res = await sendBackToOfficeSlip(slipId, reason.trim());
+      toast({
+        title: "Case sent back to office",
+        description:
+          res?.message ?? "The case was returned to the office successfully.",
+        duration: 3000,
+      });
+      setSendBackToOfficeOpen(false);
+      await fetchVirtualSlipDetails(slipId);
+    } catch (err) {
+      toast({
+        title: "Unable to send case back",
+        description:
+          err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setSendBackToOfficeSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-full animate-pulse space-y-4 p-6">
@@ -345,128 +461,158 @@ export default function VirtualSlipV2Page() {
 
   const primaryRushSlot = rushArchSlots[0];
 
-  const changeDueDateDeliveryIso = slipDeliveryDates.isRush
-    ? slipDeliveryDates.rushDateIso || slipDeliveryDates.standardDateIso
-    : slipDeliveryDates.standardDateIso;
-
-  const changeDueDateTimeRaw =
-    (virtualSlipDetails as { delivery?: { delivery_time?: string } } | null)
-      ?.delivery?.delivery_time ?? "";
-
   const pickupDropoffAction = slipPickupDropoffAction(slipLocationRef);
   const showReadyToSendFab = slipCanReadyToSend(slipLocationRef);
   const showPickupDropoffFab = slipShowsPickupDropoff(slipLocationRef);
 
   return (
     <div className="flex min-h-full flex-col bg-white">
-      <VirtualSlipHeader header={vm.header} />
+      <VirtualSlipHeader
+        header={vm.header}
+        onPrint={() => window.print()}
+        onPrintInvoice={handlePrintInvoice}
+        onBackToCaseList={goToCaseList}
+      />
 
-      {/* Arches — three columns: MAXILLARY | CASE DESIGN CENTER (gap) | MANDIBULAR.
-          The header row and the content row share the exact same 3-column grid, so
-          every column header stays aligned with its column at any screen width. */}
-      <div className="flex-1">
+      {/* Content region below the header. */}
+      <div className="flex flex-1 flex-col">
+
+      {/* Arches — two columns: MAXILLARY | MANDIBULAR. CASE DESIGN CENTER title is
+          absolutely centered over the arch row. When the case is on hold this
+          section gets a yellow overlay + floating hold banner; the overlay is
+          scoped to just this section so it stops above the action icons/notes. */}
+      <div className="relative flex-1">
+        {caseBlocked ? (
+          <>
+            {/* Status overlay over the stage-information area — disables and
+                tints it (yellow on hold, red on cancelled; faded, not blurred). */}
+            <div
+              className={`absolute inset-0 z-20 ${
+                caseCancelled ? "bg-[#FEE2E2]/70" : "bg-[#FBEFC9]/70"
+              }`}
+              aria-hidden
+            />
+            {/* Full-width floating status banner sits above the overlay.
+                Cancelled is read-only — no resume/cancel actions. */}
+            <div className="absolute inset-x-0 top-0 z-30">
+              <VirtualSlipHoldBanner
+                variant={caseCancelled ? "cancelled" : "hold"}
+                holdDetail={
+                  (caseCancelled ? cancelDetail : holdDetail) ?? {
+                    authorName: "Unknown",
+                    heldAt: "",
+                    reason: "No reason provided",
+                  }
+                }
+                onResume={
+                  caseCancelled ? undefined : () => setCaseStatusModal("resume")
+                }
+                onCancel={
+                  caseCancelled || slipInOffice
+                    ? undefined
+                    : () => setCaseStatusModal("cancel")
+                }
+              />
+            </div>
+          </>
+        ) : null}
         {/* Column headers */}
-        <div className="flex gap-8 px-6 pt-4">
+        <div className="relative flex gap-[120px] px-6 pt-4">
           <div className="min-w-0 flex-1 text-center font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
             {hasMaxillary ? "MAXILLARY" : null}
-          </div>
-          <div className="w-[240px] shrink-0 whitespace-nowrap text-center font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
-            CASE DESIGN CENTER
           </div>
           <div className="min-w-0 flex-1 text-center font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
             {hasMandibular ? "MANDIBULAR" : null}
           </div>
+          <div
+            className="pointer-events-none absolute inset-x-0 top-4 flex justify-center"
+            aria-hidden
+          >
+            <span className="whitespace-nowrap font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
+              CASE DESIGN CENTER
+            </span>
+          </div>
         </div>
         {/* Column content */}
-        <div className="flex px-6 pb-4 pt-3">
+        <div className="flex gap-[120px] px-6 pb-4 pt-3">
           <div className="min-w-0 flex-1">
             {maxillary ? <VirtualSlipArch data={maxillary} /> : null}
           </div>
-          {/* Case Design Center column — gap between the two arches */}
-          <div className="w-[240px] shrink-0" aria-hidden />
           <div className="min-w-0 flex-1">
             {mandibular ? <VirtualSlipArch data={mandibular} /> : null}
           </div>
         </div>
       </div>
 
-      <VirtualSlipNotes
-        notes={vm.notes}
-        relatedSlips={vm.relatedSlips}
-        slipId={slipId}
-        slipNumber={vm.header.slipNumber}
-        caseNumber={vm.header.caseNumber}
-        patientName={vm.header.patientName}
-        onNotesChanged={handleNotesChanged}
-        rushArchSlots={rushArchSlots}
-        addonArchSlots={addonArchSlots}
-        addonProducts={addonProducts}
-        deliveryDateIso={slipDeliveryDates.standardDateIso}
-        slipIsRush={slipDeliveryDates.isRush}
-        productName={primaryRushSlot?.productName ?? "Case"}
-        productStage={primaryRushSlot?.stageName ?? "Unknown Stage"}
-        onAddonsChanged={() => {
-          if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
-        }}
-        onRushChanged={() => {
-          if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
-        }}
-        hasMaxillary={hasMaxillary}
-        hasMandibular={hasMandibular}
-        visibleArches={visibleArches}
-        openNotesModal={fabNotesOpen}
-        onOpenNotesModalChange={setFabNotesOpen}
-        openRushModal={fabRushOpen}
-        onOpenRushModalChange={setFabRushOpen}
-      />
+      <div className="flex justify-center px-6 py-2">
+        <VirtualSlipCenterActions
+          slipId={slipId}
+          caseId={caseId}
+          slipNumber={vm.header.slipNumber}
+          caseNumber={vm.header.caseNumber}
+          patientName={vm.header.patientName}
+          stageLabel={stageSeeds[0]?.label}
+          deliveryDateDisplay={slipDeliveryDates.dueDate}
+          deliveryTimeDisplay={vm.header.deliveryTime}
+          notesRefreshKey={notesRefreshKey}
+          stageSeeds={stageSeeds}
+          onNotesChanged={handleNotesChanged}
+          rushArchSlots={rushArchSlots}
+          addonArchSlots={addonArchSlots}
+          addonProducts={addonProducts}
+          deliveryDateIso={slipDeliveryDates.standardDateIso}
+          slipIsRush={slipDeliveryDates.isRush}
+          productName={primaryRushSlot?.productName ?? "Case"}
+          productStage={primaryRushSlot?.stageName ?? "Unknown Stage"}
+          onAddonsChanged={() => {
+            if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
+          }}
+          onRushChanged={() => {
+            if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
+          }}
+          hasMaxillary={hasMaxillary}
+          hasMandibular={hasMandibular}
+          visibleArches={visibleArches}
+          showEditSlip={slipInLab && !caseCancelled}
+          onAttachments={() => setShowAttachModal(true)}
+          onDriverHistory={() => setDriverHistoryViewOpen(true)}
+          onHold={
+            caseBlocked || slipInOffice ? undefined : () => setCaseStatusModal("hold")
+          }
+          canPutOnHold={canPutOnHold}
+          onCancel={
+            caseCancelled || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
+          }
+          onSendBackToOffice={
+            canSendBackToOffice && !caseCancelled
+              ? () => setSendBackToOfficeOpen(true)
+              : undefined
+          }
+          openNotesModal={fabNotesOpen}
+          onOpenNotesModalChange={setFabNotesOpen}
+          openRushModal={fabRushOpen}
+          onOpenRushModalChange={setFabRushOpen}
+        />
+      </div>
 
-      <FloatingActions
-        onEditSlip={() => setFabNotesOpen(true)}
-        onPrint={handlePrint}
-        onBackToCaseList={goToCaseList}
-        onPickupDropoff={() => setPickupDropoffOpen(true)}
-        onDriverHistory={() => setDriverHistoryViewOpen(true)}
-        showPickupDropoff={showPickupDropoffFab}
-        showDriverHistoryFab
+      <VirtualSlipNotes
+        caseId={caseId}
+        slipId={slipId}
+        stageSeeds={stageSeeds}
+        notesRefreshKey={notesRefreshKey}
+        relatedSlips={vm.relatedSlips}
+        slipNumber={vm.header.slipNumber}
+        onOpenNotesModal={() => setFabNotesOpen(true)}
+        pickupDropoffAction={showPickupDropoffFab ? pickupDropoffAction : null}
         pickupDropoffLabel={slipPickupDropoffLabel(pickupDropoffAction)}
-        pickupDropoffAction={pickupDropoffAction}
+        onPickupDropoff={() => setPickupDropoffOpen(true)}
         showReadyToSend={showReadyToSendFab}
         onReadyToSend={() => setReadyToSendOpen(true)}
-        onRush={() => setFabRushOpen(true)}
-        onAttachments={() => setShowAttachModal(true)}
-        hasImageAttachment={attachedPhotoCount > 0}
-        hasStlAttachment={attachedStlCount > 0}
-        onResume={
-          caseOnHold ? () => setCaseStatusModal("resume") : undefined
-        }
-        onHold={
-          caseOnHold || slipInOffice ? undefined : () => setCaseStatusModal("hold")
-        }
-        canPutOnHold={canPutOnHold}
-        onCancel={
-          caseOnHold || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
-        }
-        onChangeDueDate={
-          slipInOffice ? undefined : () => setChangeDueDateOpen(true)
-        }
-        hasNextStage={showAddStageFab}
-        onAddStage={showAddStageFab ? handleAddStage : undefined}
+        showAddStage={showAddStageFab}
+        onAddStage={handleAddStage}
+        disableFooterAction={caseBlocked}
       />
-
-      <ChangeDateModal
-        open={changeDueDateOpen}
-        onClose={() => setChangeDueDateOpen(false)}
-        patient={vm.header.patientName}
-        stage={primaryRushSlot?.stageName ?? vm.header.location}
-        currentDate={new Date().toLocaleDateString()}
-        deliveryDate={changeDueDateDeliveryIso}
-        deliveryTime={vm.header.deliveryTime}
-        deliveryTimeRaw={changeDueDateTimeRaw}
-        slipId={slipId}
-        onSaved={() => {
-          if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
-        }}
-      />
+      </div>
 
       <DriverHistoryModal
         isOpen={pickupDropoffOpen}
@@ -490,6 +636,15 @@ export default function VirtualSlipV2Page() {
         stage={primaryRushSlot?.stageName ?? vm.header.location}
         deliveryDate={vm.header.dueDate}
         isRush={vm.header.isRush}
+      />
+
+      <SendCaseBackToOfficeModal
+        open={sendBackToOfficeOpen}
+        onClose={() => {
+          if (!sendBackToOfficeSubmitting) setSendBackToOfficeOpen(false);
+        }}
+        onConfirm={handleConfirmSendBackToOffice}
+        loading={sendBackToOfficeSubmitting}
       />
 
       <CaseActionModal
@@ -592,13 +747,6 @@ export default function VirtualSlipV2Page() {
             doctorName={vm.header.doctorName}
             patientName={vm.header.patientName}
             onViewerToggle={setAttachViewerOpen}
-            onFileCountsChange={(photoCount, stlCount) => {
-              setAttachedPhotoCount(photoCount);
-              setAttachedStlCount(stlCount);
-            }}
-            onAttachmentsUploaded={() => {
-              void refreshAttachmentIndicators();
-            }}
           />
         </DialogContent>
       </Dialog>

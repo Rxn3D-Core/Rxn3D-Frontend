@@ -21,6 +21,7 @@ import {
   postSlipCancel,
   postSlipHold,
   postSlipResume,
+  postSlipSendBackToOffice,
 } from "@/lib/api/slip-case-actions"
 
 // --- Types based on sample payload ---
@@ -935,23 +936,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const sendBackToOfficeSlip = useCallback(async (slipId: number, reason: string) => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/slip/action/${slipId}/send-back-to-office`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ reason }),
-    });
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    const json = await res.json();
-    if (!json.success) throw new Error(json.message || "Failed to send slip back to office");
-    return json;
-  }, [token]);
+  const sendBackToOfficeSlip = useCallback(
+    async (slipId: number, reason: string) =>
+      postSlipSendBackToOffice(slipId, reason),
+    []
+  );
 
 
   // --- Generate Paper Slips API ---
