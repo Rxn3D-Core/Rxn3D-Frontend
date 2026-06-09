@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
@@ -43,6 +42,8 @@ import {
 import { slipCanSendBackToOffice } from "@/lib/slip-location"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
+import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
+import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 
 function formatYmd(d: Date): string {
@@ -104,42 +105,6 @@ function InLabPaperPlaneIcon() {
       <g fill={READY_TO_SEND_BLUE}>
         <path d="M11.9,32a13.51,13.51,0,0,1-.69-1.18c-1.08-2.52-2.16-5-3.2-7.56A2,2,0,0,0,6.77,22c-1.74-.7-3.47-1.43-5.2-2.16A2.11,2.11,0,0,1,0,17.52a2.47,2.47,0,0,1,1.37-1.67Q4.85,13.92,8.26,12q10-5.72,20-11.4A3.87,3.87,0,0,1,29.91,0a2,2,0,0,1,1.91,2.45c-.4,2.7-.83,5.4-1.25,8.1q-1.21,8-2.44,15.89c-.07.49-.14,1-.23,1.47a2.11,2.11,0,0,1-3.2,1.7c-2.06-.87-4.13-1.71-6.18-2.63a1.27,1.27,0,0,0-1.67.29c-1.39,1.42-2.84,2.79-4.27,4.17C12.42,31.59,12.25,31.72,11.9,32ZM30.79,1.74l-.25-.09L13,23.47c.26.13.37.21.49.26L25.08,28.6c1.18.5,1.66.2,1.86-1.09q1-6.6,2-13.19.93-6,1.85-12A3.26,3.26,0,0,0,30.79,1.74Zm-1.94,0-.11-.16L27.9,2,8.82,12.89l-7.06,4a1.13,1.13,0,0,0-.71,1,1,1,0,0,0,.71.93c2,.83,4,1.65,6,2.49ZM24.69,7.24l-.12-.11L8.62,22l2.6,6.21.17,0c0-.21,0-.42,0-.63,0-.91.05-1.82,0-2.73a2.71,2.71,0,0,1,.73-2c2-2.46,4-4.95,6-7.43ZM12.54,29.83l.15.08,3.89-3.7-4-1.68Z" />
       </g>
-    </svg>
-  )
-}
-
-function InOfficeCheckIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      className="h-[18px] w-[18px] flex-shrink-0"
-      aria-hidden
-    >
-      <path
-        d="M7.5 2.5H4.5C3.94772 2.5 3.5 2.94772 3.5 3.5V16.5C3.5 17.0523 3.94772 17.5 4.5 17.5H15.5C16.0523 17.5 16.5 17.0523 16.5 16.5V7.5L11.5 2.5H7.5Z"
-        stroke="#119933"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <path
-        d="M11.5 2.5V7.5H16.5"
-        stroke="#119933"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <path
-        d="M7.25 11L9.25 13L13.25 9"
-        stroke="#119933"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
     </svg>
   )
 }
@@ -285,8 +250,6 @@ export default function LabSlipPage() {
       delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
       page: pageToFetch,
       per_page: itemsPerPage,
-      order_by: "created_at",
-      sort_by: "desc",
     })
   }, [filterSig, currentPage, itemsPerPage, fetchLabSlips])
 
@@ -1641,27 +1604,27 @@ export default function LabSlipPage() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex gap-1.5 items-center">
                           {row.rush && (
-                            <Badge className="!rounded-md bg-red-600 text-white font-medium px-1.5 py-0.5 text-xs flex items-center gap-0.5 border-0">
+                            <SlipListingStatusBadge tone="rush" className="flex items-center gap-0.5 border-0">
                               <svg width="8" height="10" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                 <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                               Rush
-                            </Badge>
+                            </SlipListingStatusBadge>
                           )}
                           {row.status === "In Progress" && (
-                            <Badge className="!rounded-md bg-green-100 text-green-800 border border-green-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">In Progress</Badge>
+                            <SlipListingStatusBadge tone="in-progress">In Progress</SlipListingStatusBadge>
                           )}
                           {row.status === "On Hold" && (
-                            <Badge className="!rounded-md bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">On Hold</Badge>
+                            <SlipListingStatusBadge tone="on-hold">On Hold</SlipListingStatusBadge>
                           )}
                           {isSlipCaseCancelled(row.status) && (
-                            <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Cancelled</Badge>
+                            <SlipListingStatusBadge tone="cancelled">Cancelled</SlipListingStatusBadge>
                           )}
                           {row.status === "Draft" && (
-                            <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Draft</Badge>
+                            <SlipListingStatusBadge tone="draft">Draft</SlipListingStatusBadge>
                           )}
                           {isSlipCaseFinished(row.status) && (
-                            <Badge className="!rounded-md bg-blue-100 text-blue-800 border border-blue-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Finished</Badge>
+                            <SlipListingStatusBadge tone="finished">Finished</SlipListingStatusBadge>
                           )}
                         </div>
                       </td>}
@@ -1669,97 +1632,98 @@ export default function LabSlipPage() {
                       <td className="px-3 py-2 whitespace-nowrap">
                         {rowAtSlipLocation(row, 1) && (
                           <span className="inline-flex items-center gap-1.5 text-green-700">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLocationIconClick(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
-                              title="View driver history"
-                            >
-                              <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
-
-                            </button>
+                            <SlipListingLocationIconSlot>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleLocationIconClick(row)
+                                }}
+                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                title="View driver history"
+                              >
+                                <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
+                              </button>
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
                         {rowAtSlipLocation(row, 2) && (
                           <span className="inline-flex items-center gap-1.5 text-red-600">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLocationIconClick(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
-                              title="View driver history"
-                            >
-                              <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
-                            </button>
+                            <SlipListingLocationIconSlot>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleLocationIconClick(row)
+                                }}
+                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                title="View driver history"
+                              >
+                                <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
+                              </button>
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
                         {rowAtSlipLocation(row, 3) && (
                           <span className="inline-flex items-center gap-1.5 text-[#0E66B2]">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenReadyToSend(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
-                              title="Mark ready to send"
-                            >
-                              <VsIcon src={`${VS_CENTER_ICONS}/ready-to-send.svg`} className="h-[19px] w-auto" />
-                            </button>
+                            <SlipListingLocationIconSlot>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenReadyToSend(row)
+                                }}
+                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                title="Mark ready to send"
+                              >
+                                <VsIcon src={`${VS_CENTER_ICONS}/ready-to-send.svg`} className="h-[19px] w-auto" />
+                              </button>
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
 
                         {rowAtSlipLocation(row, 4) && (
                           <span className="inline-flex items-center gap-1.5 text-green-700">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLocationIconClick(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
-                              title="View driver history"
-                            >
-                              <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
-
-                            </button>
+                            <SlipListingLocationIconSlot>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleLocationIconClick(row)
+                                }}
+                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                title="View driver history"
+                              >
+                                <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
+                              </button>
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
 
                         {rowAtSlipLocation(row, 5) && (
                           <span className="inline-flex items-center gap-1.5 text-red-600">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLocationIconClick(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
-                              title="View driver history"
-                            >
-                              <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
-                            </button>
+                            <SlipListingLocationIconSlot>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleLocationIconClick(row)
+                                }}
+                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                title="View driver history"
+                              >
+                                <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
+                              </button>
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
 
                         {rowAtSlipLocation(row, 6) && (
-                          <span className="inline-flex items-center gap-1.5 text-green-700">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLocationIconClick(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
-                              title="View driver history"
-                            >
-                              <InOfficeCheckIcon />
-                            </button>
+                          <span className="inline-flex items-center gap-1.5 text-gray-700">
+                            <SlipListingLocationIconSlot>
+                              <VsIcon src={`${VS_CENTER_ICONS}/in-office.png`} className="h-5 w-auto" />
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
@@ -1768,7 +1732,9 @@ export default function LabSlipPage() {
                           1, 2, 3, 4, 5, 6,
                         ].some((locationId) => rowAtSlipLocation(row, locationId)) && (
                           <span className="inline-flex items-center gap-1.5 text-gray-500">
-                            <UnknownLocationDotIcon />
+                            <SlipListingLocationIconSlot>
+                              <UnknownLocationDotIcon />
+                            </SlipListingLocationIconSlot>
                             <span className="text-xs">{row.location}</span>
                           </span>
                         )}
@@ -1809,7 +1775,7 @@ export default function LabSlipPage() {
                               <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 7.91504L8.71094 7.91504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           </span>}
-                          {row.overdue && <Badge className="bg-red-100 text-red-700 text-xs px-1.5 py-0.5 whitespace-nowrap">Overdue</Badge>}
+                          {row.overdue && <SlipListingStatusBadge tone="overdue">Overdue</SlipListingStatusBadge>}
                         </div>
                       </td>}
                     {visibleColumns.actions &&

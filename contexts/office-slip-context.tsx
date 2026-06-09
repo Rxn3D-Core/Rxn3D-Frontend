@@ -130,6 +130,7 @@ export interface UISlip {
   status: string;
   rush: boolean;
   location: string;
+  locationId?: number;
   attachment: boolean;
   dueDate: string;
   overdue: boolean;
@@ -215,6 +216,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       status: slip.status || "",
       rush: slip.is_rush || false,
       location: slip.location?.name || "",
+      locationId: typeof slip.location?.id === "number" ? slip.location.id : undefined,
       attachment: slip.attachments?.has_attachments || false,
       dueDate: slip.delivery?.delivery_date ? new Date(slip.delivery.delivery_date).toLocaleDateString() : "",
       overdue: false, // You can implement overdue logic based on delivery date
