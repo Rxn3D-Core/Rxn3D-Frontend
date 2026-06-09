@@ -774,7 +774,7 @@ const PatientInfoSection = ({
       {/* Gender + Age - shown per slip settings once the name is far enough along */}
       {showSecondRow && (
         <div
-          className="absolute left-[10px] right-[10px] sm:right-auto flex gap-2"
+          className="absolute left-[10px] right-[10px] sm:right-auto flex gap-4"
           style={{
             top: `${10 + fieldHeight + fieldGap}px`,
             height: `${fieldHeight}px`,

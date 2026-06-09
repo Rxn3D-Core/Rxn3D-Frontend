@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Download, Plus, X } from "lucide-react"
+import { Filter, Columns, MoreVertical, ChevronDown, Check, Trash2, Eye, Copy, Phone, Download, Plus, X } from "lucide-react"
 import { format } from "date-fns"
 import { useSlipContext } from "./SlipContext";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
@@ -40,9 +40,18 @@ import {
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { slipCanSendBackToOffice } from "@/lib/slip-location"
+import {
+  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/slip-listing-filter-select"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
 import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
+import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
+import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
+import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 
@@ -161,6 +170,8 @@ export default function LabSlipPage() {
   const [patientSearch, setPatientSearch] = useState("")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
+  const [stageFilter, setStageFilter] = useState("All")
+  const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
@@ -1042,7 +1053,7 @@ export default function LabSlipPage() {
 
       <div className="w-full px-4 pb-8">
         {/* Filter Bar */}
-        <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
+        <div className="flex flex-wrap gap-3 items-center rounded-lg bg-white shadow-sm px-4 py-3">
           <Input
             className="w-72 bg-white border-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500"
             placeholder="Search by patient, office, doctor, case..."
@@ -1050,7 +1061,7 @@ export default function LabSlipPage() {
             onChange={e => setSearch(e.target.value)}
           />
           <Select value={office} onValueChange={setOffice}>
-            <SelectTrigger className="w-40 bg-white border-gray-300">
+            <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="All offices" />
             </SelectTrigger>
             <SelectContent>
@@ -1059,7 +1070,7 @@ export default function LabSlipPage() {
             </SelectContent>
           </Select>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-40 bg-white border-gray-300">
+            <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="All status" />
             </SelectTrigger>
             <SelectContent>
@@ -1068,7 +1079,7 @@ export default function LabSlipPage() {
             </SelectContent>
           </Select>
           <Select value={location} onValueChange={setLocation}>
-            <SelectTrigger className="w-40 bg-white border-gray-300">
+            <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="All location" />
             </SelectTrigger>
             <SelectContent>
@@ -1087,63 +1098,67 @@ export default function LabSlipPage() {
           >
             <Filter className="h-4 w-4" /> Advance Filter
           </Button>
-          <Button variant="outline" className="flex items-center gap-2 text-gray-700 border-gray-300">
-            <Columns className="h-4 w-4" />
-            <Popover open={showColumnsDialog} onOpenChange={setShowColumnsDialog}>
-              <PopoverTrigger asChild>
-                <span>Columns</span>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-0 border border-gray-200 rounded-lg shadow-lg">
-                <div className="p-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-200 mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900">Show/Hide Columns</h3>
-                  </div>
-                  <div className="space-y-3">
-                    {Object.entries(visibleColumns).map(([key, val]) => {
-                      const labels = {
-                        timestamp: "Time Stamp",
-                        office: "Office Code",
-                        patient: "Patient",
-                        slipNumber: "Slip Number",
-                        pan: "Pan",
-                        product: "Product",
-                        status: "Status",
-                        location: "Location",
-                        attachment: "Attachment",
-                        due: "Due Date",
-                        actions: "Actions"
-                      }
-                      const isRequired = key === 'actions' || key === 'office' || key === 'patient' || key === 'pan'
-                      return (
-                        <label key={key} className="flex items-center justify-between cursor-pointer">
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={val}
-                              onCheckedChange={() => handleColumnChange(key as keyof typeof visibleColumns)}
-                              disabled={isRequired}
-                              className="border-gray-400"
-                              style={{
-                                accentColor: val ? "#1162A8" : "#fff",
-                                borderColor: "#1162A8",
-                                backgroundColor: val ? "#1162A8" : "transparent"
-                              }}
-                            />
-                            <span className="text-sm text-gray-700">{labels[key as keyof typeof labels]}</span>
-                          </div>
-                          {isRequired && (
-                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Required</span>
-                          )}
-                        </label>
-                      )
-                    })}
-                    <div className="text-xs text-gray-500 mt-4 pt-3 border-t border-gray-200">
-                      Settings saved automatically
-                    </div>
+          <Popover open={showColumnsDialog} onOpenChange={setShowColumnsDialog}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center gap-2 text-gray-700 border-gray-300"
+              >
+                <Columns className="h-4 w-4" />
+                Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-0 border border-gray-200 rounded-lg shadow-lg" align="start">
+              <div className="p-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-200 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900">Show/Hide Columns</h3>
+                </div>
+                <div className="space-y-3">
+                  {Object.entries(visibleColumns).map(([key, val]) => {
+                    const labels = {
+                      timestamp: "Time Stamp",
+                      office: "Office Code",
+                      patient: "Patient",
+                      slipNumber: "Slip #",
+                      pan: "Pan",
+                      product: "Product",
+                      status: "Status",
+                      location: "Location",
+                      attachment: "Attachment",
+                      due: "Due Date",
+                      actions: "Actions"
+                    }
+                    const isRequired = key === 'actions' || key === 'office' || key === 'patient' || key === 'pan'
+                    return (
+                      <label key={key} className="flex items-center justify-between cursor-pointer">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={val}
+                            onCheckedChange={() => handleColumnChange(key as keyof typeof visibleColumns)}
+                            disabled={isRequired}
+                            className="border-gray-400"
+                            style={{
+                              accentColor: val ? "#1162A8" : "#fff",
+                              borderColor: "#1162A8",
+                              backgroundColor: val ? "#1162A8" : "transparent"
+                            }}
+                          />
+                          <span className="text-sm text-gray-700">{labels[key as keyof typeof labels]}</span>
+                        </div>
+                        {isRequired && (
+                          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Required</span>
+                        )}
+                      </label>
+                    )
+                  })}
+                  <div className="text-xs text-gray-500 mt-4 pt-3 border-t border-gray-200">
+                    Settings saved automatically
                   </div>
                 </div>
-              </PopoverContent>
-            </Popover>
-          </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Advanced Filter Section */}
@@ -1160,6 +1175,8 @@ export default function LabSlipPage() {
                   setPatientSearch("")
                   setProductType("All")
                   setDoctorFilter("All")
+                  setStageFilter("All")
+                  setOfficeLabFilter("All")
                   setUserFilter("All")
                 }}
               >
@@ -1176,7 +1193,7 @@ export default function LabSlipPage() {
                       variant="outline"
                       className="w-full justify-start text-left font-normal text-xs"
                     >
-                      <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                      <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
                       {dateRange.start ? (
                         format(dateRange.start, "PPP")
                       ) : (
@@ -1202,7 +1219,7 @@ export default function LabSlipPage() {
                       variant="outline"
                       className="w-full justify-start text-left font-normal text-xs"
                     >
-                      <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                      <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
                       {dateRange.end ? (
                         format(dateRange.end, "PPP")
                       ) : (
@@ -1232,7 +1249,7 @@ export default function LabSlipPage() {
                 className="text-xs"
               />
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1241,7 +1258,7 @@ export default function LabSlipPage() {
                 </SelectContent>
               </Select>
               <Select value={office} onValueChange={setOffice}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All Offices/Lab" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1250,7 +1267,7 @@ export default function LabSlipPage() {
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All users" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1263,7 +1280,7 @@ export default function LabSlipPage() {
             {/* Second Row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <Select value={productType} onValueChange={setProductType}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All product type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1271,16 +1288,16 @@ export default function LabSlipPage() {
                   {allProductTypes.filter(p => p).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value="All Stages" onValueChange={() => { }}>
-                <SelectTrigger className="text-xs">
+              <Select value={stageFilter} onValueChange={setStageFilter}>
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All Stages" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Stages</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value="All Doctors" onValueChange={setDoctorFilter}>
-                <SelectTrigger className="text-xs">
+              <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All Doctors" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1288,8 +1305,8 @@ export default function LabSlipPage() {
                   {allDoctors.filter(d => d).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value="All Office & Lab" onValueChange={() => { }}>
-                <SelectTrigger className="text-xs">
+              <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All Office & Lab" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1301,7 +1318,7 @@ export default function LabSlipPage() {
             {/* Third Row - Toggles */}
             <div className="flex items-center gap-6 mt-3">
               <Select value={location} onValueChange={setLocation}>
-                <SelectTrigger className="w-40 text-xs">
+                <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
                   <SelectValue placeholder="All Location" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1313,7 +1330,7 @@ export default function LabSlipPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <label className="flex items-center gap-2 text-xs">
+              <label className="flex items-center gap-2 text-base">
                 <div className="relative">
                   <input
                     type="checkbox"
@@ -1327,7 +1344,7 @@ export default function LabSlipPage() {
                 </div>
                 Show only cases with attachments
               </label>
-              <label className="flex items-center gap-2 text-xs">
+              <label className="flex items-center gap-2 text-base hidden">
                 <div className="relative">
                   <input
                     type="checkbox"
@@ -1346,7 +1363,7 @@ export default function LabSlipPage() {
         )}
 
         {/* Move Pagination to Top */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <div className="text-sm text-gray-600">
             Showing {totalListingCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
             -
@@ -1356,7 +1373,7 @@ export default function LabSlipPage() {
           <div className="flex gap-2 items-center">
             <span className="text-sm text-gray-600 mr-2">Show</span>
             <Select value={String(itemsPerPage)} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-              <SelectTrigger className="w-20 bg-white border-gray-300">
+              <SelectTrigger className="h-8 w-20 bg-white border-gray-300">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1406,10 +1423,10 @@ export default function LabSlipPage() {
 
         {/* Table */}
         <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-base">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-2 w-12 whitespace-nowrap">
+                <th className="px-3 py-1 w-12 whitespace-nowrap">
                   <Checkbox
                     checked={selectAllHeaderChecked}
                     onCheckedChange={handleSelectAllPage}
@@ -1422,17 +1439,21 @@ export default function LabSlipPage() {
                     }}
                   />
                 </th>
-                {visibleColumns.timestamp && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
-                {visibleColumns.office && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Office Code</th>}
-                {visibleColumns.patient && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Patient</th>}
-                {visibleColumns.slipNumber && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Slip Number</th>}
-                {visibleColumns.pan && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Pan</th>}
-                {visibleColumns.product && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Product</th>}
-                {visibleColumns.status && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
-                {visibleColumns.location && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
-                {visibleColumns.attachment && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Attachment</th>}
-                {visibleColumns.due && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
-                {visibleColumns.actions && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Actions</th>}
+                {visibleColumns.timestamp && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
+                {visibleColumns.office && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Office Code</th>}
+                {visibleColumns.patient && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Patient</th>}
+                {visibleColumns.slipNumber && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Slip #</th>}
+                {visibleColumns.pan && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Pan</th>}
+                {visibleColumns.product && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Product</th>}
+                {visibleColumns.status && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
+                {visibleColumns.location && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
+                {visibleColumns.attachment && (
+                  <th className="px-3 py-1 text-center font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="Attachment">
+                    <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto inline-block" />
+                  </th>
+                )}
+                {visibleColumns.due && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
+                {visibleColumns.actions && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -1440,67 +1461,67 @@ export default function LabSlipPage() {
                 // Skeleton loading rows
                 Array.from({ length: itemsPerPage }).map((_, idx) => (
                   <tr key={`skeleton-${idx}`} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-3 py-1 whitespace-nowrap">
                       <Skeleton className="h-4 w-4" />
                     </td>
                     {visibleColumns.timestamp && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-32" />
                       </td>
                     )}
                     {visibleColumns.office && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-24" />
                       </td>
                     )}
                     {visibleColumns.patient && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-32" />
                       </td>
                     )}
                     {visibleColumns.slipNumber && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-24" />
                       </td>
                     )}
                     {visibleColumns.pan && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-5 w-12 rounded" />
                       </td>
                     )}
                     {visibleColumns.product && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-40" />
                       </td>
                     )}
                     {visibleColumns.status && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-5 w-20 rounded-full" />
                       </td>
                     )}
                     {visibleColumns.location && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-48" />
                       </td>
                     )}
                     {visibleColumns.attachment && (
-                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                      <td className="px-3 py-1 text-center whitespace-nowrap">
                         <Skeleton className="h-4 w-4 mx-auto" />
                       </td>
                     )}
                     {visibleColumns.due && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-28" />
                       </td>
                     )}
                     {visibleColumns.actions && (
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <Skeleton className="h-7 w-7 rounded" />
-                          <Skeleton className="h-7 w-7 rounded" />
-                          <Skeleton className="h-7 w-7 rounded" />
-                          <Skeleton className="h-7 w-7 rounded" />
-                          <Skeleton className="h-7 w-7 rounded" />
+                          <Skeleton className="h-6 w-6 rounded" />
+                          <Skeleton className="h-6 w-6 rounded" />
+                          <Skeleton className="h-6 w-6 rounded" />
+                          <Skeleton className="h-6 w-6 rounded" />
+                          <Skeleton className="h-6 w-6 rounded" />
                         </div>
                       </td>
                     )}
@@ -1532,11 +1553,12 @@ export default function LabSlipPage() {
                 slipsPage.map((row, idx) => (
                   <tr
                     key={row.id}
-                    className={`transition-all duration-150 ${selected.includes(row.id)
-                      ? "bg-blue-50 border-l-4 border-blue-500"
-                      : "hover:bg-gray-50"}`}
+                    className={slipListingRowClassName({
+                      selected: selected.includes(row.id),
+                      rush: row.rush,
+                    })}
                   >
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-3 py-1 whitespace-nowrap">
                       <Checkbox
                         checked={selected.includes(row.id)}
                         onCheckedChange={() =>
@@ -1553,58 +1575,53 @@ export default function LabSlipPage() {
                         }}
                       />
                     </td>
-                    {visibleColumns.timestamp && <td className="px-3 py-2 whitespace-nowrap text-gray-600">
-                      <span className="inline-flex items-center gap-1.5 text-black">
-                        <svg width="18" height="19" viewBox="0 0 22 23" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                          <path d="M8.21875 3.70044H4.71875C3.75225 3.70044 2.96875 4.52125 2.96875 5.53377V9.20044C2.96875 10.213 3.75225 11.0338 4.71875 11.0338H8.21875C9.18525 11.0338 9.96875 10.213 9.96875 9.20044V5.53377C9.96875 4.52125 9.18525 3.70044 8.21875 3.70044Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M6.46875 11.0337V14.7004C6.46875 15.1866 6.65312 15.6529 6.98131 15.9967C7.3095 16.3405 7.75462 16.5337 8.21875 16.5337H11.7188" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M16.9688 12.8672H13.4688C12.5023 12.8672 11.7188 13.688 11.7188 14.7005V18.3672C11.7188 19.3797 12.5023 20.2005 13.4688 20.2005H16.9688C17.9352 20.2005 18.7188 19.3797 18.7188 18.3672V14.7005C18.7188 13.688 17.9352 12.8672 16.9688 12.8672Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span className="text-xs">{row.createdAt}</span>
-                      </span>
-                    </td>}
+                    {visibleColumns.timestamp && (
+                      <td className="px-3 py-1 whitespace-nowrap text-base text-black">
+                        {row.createdAt}
+                      </td>
+                    )}
                     {visibleColumns.office && (
-                      <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 text-xs">
+                      <td className="px-3 py-1 whitespace-nowrap font-medium text-gray-900 text-base">
                         <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
                           {row.officeCode}
                         </SlipListingVirtualSlipLink>
                       </td>
                     )}
                     {visibleColumns.patient && (
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">
+                      <td className="px-3 py-1 whitespace-nowrap text-gray-900 text-base">
                         <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
-                          {row.patient}
+                          {formatSlipListingPatientName(row.patient)}
                         </SlipListingVirtualSlipLink>
                       </td>
                     )}
                     {visibleColumns.slipNumber && (
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-mono text-xs">
+                      <td className="px-3 py-1 whitespace-nowrap text-gray-900 font-mono text-base">
                         <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
                           {row.slipNumber || "-"}
                         </SlipListingVirtualSlipLink>
                       </td>
                     )}
                     {visibleColumns.pan &&
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <span
-                          className={`inline-block w-12 text-center py-0.5 rounded text-white font-mono text-xs`}
+                          className={`inline-block w-12 text-center py-0.5 rounded text-white font-mono text-base`}
                           style={row.panColorStyle}
                         >
                           {row.pan}
                         </span>
                       </td>}
                     {visibleColumns.product && (
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">
+                      <td className="px-3 py-1 whitespace-nowrap text-gray-900 text-base">
                         <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
                           {row.product}
                         </SlipListingVirtualSlipLink>
                       </td>
                     )}
                     {visibleColumns.status &&
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <div className="flex gap-1.5 items-center">
                           {row.rush && (
-                            <SlipListingStatusBadge tone="rush" className="flex items-center gap-0.5 border-0">
+                            <SlipListingStatusBadge tone="rush" className="flex items-center gap-0.5 border-0 text-base">
                               <svg width="8" height="10" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                 <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
@@ -1612,24 +1629,24 @@ export default function LabSlipPage() {
                             </SlipListingStatusBadge>
                           )}
                           {row.status === "In Progress" && (
-                            <SlipListingStatusBadge tone="in-progress">In Progress</SlipListingStatusBadge>
+                            <SlipListingStatusBadge tone="in-progress" className="text-base">In Progress</SlipListingStatusBadge>
                           )}
                           {row.status === "On Hold" && (
-                            <SlipListingStatusBadge tone="on-hold">On Hold</SlipListingStatusBadge>
+                            <SlipListingStatusBadge tone="on-hold" className="text-base">On Hold</SlipListingStatusBadge>
                           )}
                           {isSlipCaseCancelled(row.status) && (
-                            <SlipListingStatusBadge tone="cancelled">Cancelled</SlipListingStatusBadge>
+                            <SlipListingStatusBadge tone="cancelled" className="text-base">Cancelled</SlipListingStatusBadge>
                           )}
                           {row.status === "Draft" && (
-                            <SlipListingStatusBadge tone="draft">Draft</SlipListingStatusBadge>
+                            <SlipListingStatusBadge tone="draft" className="text-base">Draft</SlipListingStatusBadge>
                           )}
                           {isSlipCaseFinished(row.status) && (
-                            <SlipListingStatusBadge tone="finished">Finished</SlipListingStatusBadge>
+                            <SlipListingStatusBadge tone="finished" className="text-base">Finished</SlipListingStatusBadge>
                           )}
                         </div>
                       </td>}
                     {visibleColumns.location &&
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         {rowAtSlipLocation(row, 1) && (
                           <span className="inline-flex items-center gap-1.5 text-green-700">
                             <SlipListingLocationIconSlot>
@@ -1644,7 +1661,7 @@ export default function LabSlipPage() {
                                 <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
                               </button>
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
                         {rowAtSlipLocation(row, 2) && (
@@ -1661,7 +1678,7 @@ export default function LabSlipPage() {
                                 <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
                               </button>
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
                         {rowAtSlipLocation(row, 3) && (
@@ -1679,7 +1696,7 @@ export default function LabSlipPage() {
                                 <VsIcon src={`${VS_CENTER_ICONS}/ready-to-send.svg`} className="h-[19px] w-auto" />
                               </button>
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
 
@@ -1697,7 +1714,7 @@ export default function LabSlipPage() {
                                 <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
                               </button>
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
 
@@ -1715,7 +1732,7 @@ export default function LabSlipPage() {
                                 <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
                               </button>
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
 
@@ -1724,7 +1741,7 @@ export default function LabSlipPage() {
                             <SlipListingLocationIconSlot>
                               <VsIcon src={`${VS_CENTER_ICONS}/in-office.png`} className="h-5 w-auto" />
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
 
@@ -1735,29 +1752,30 @@ export default function LabSlipPage() {
                             <SlipListingLocationIconSlot>
                               <UnknownLocationDotIcon />
                             </SlipListingLocationIconSlot>
-                            <span className="text-xs">{row.location}</span>
+                            <span className="text-base">{row.location}</span>
                           </span>
                         )}
 
 
                       </td>}
                     {visibleColumns.attachment &&
-                      <td className="px-3 py-2 text-center whitespace-nowrap">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAttachmentClick(row)
-                          }}
-                          className="hover:bg-gray-100 p-0.5 rounded transition-colors"
-                          title={row.attachment ? "View attachments" : "Add attachments"}
-                        >
-                          {row.attachment
-                            ? <Paperclip className="h-3.5 w-3.5 text-blue-600 inline-block" />
-                            : <Paperclip className="h-3.5 w-3.5 text-gray-300 inline-block" />}
-                        </button>
+                      <td className="px-3 py-1 text-center whitespace-nowrap">
+                        {row.attachment ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleAttachmentClick(row)
+                            }}
+                            className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                            title="View attachments"
+                          >
+                            <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto" />
+                          </button>
+                        ) : null}
                       </td>}
                     {visibleColumns.due &&
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
                           <button
                             onClick={(e) => {
@@ -1767,26 +1785,25 @@ export default function LabSlipPage() {
                             className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                             title="Change due date"
                           >
-                            <VsIcon src={`${VS_ACTION_ICONS}/calendar.svg`} className="h-4 w-4" />
+                            <SlipListingCalendarIcon className="h-4 w-4" />
                           </button>
-                          <span className="text-gray-900 text-xs">{row.dueDate}</span>
+                          <SlipListingDueDateLabel dueDate={row.dueDate} />
                           {row.rush && <span className="text-red-500 flex-shrink-0">
                             <svg width="10" height="12" viewBox="0 0 16 19" fill="none">
                               <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 7.91504L8.71094 7.91504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                           </span>}
-                          {row.overdue && <SlipListingStatusBadge tone="overdue">Overdue</SlipListingStatusBadge>}
                         </div>
                       </td>}
                     {visibleColumns.actions &&
-                      <td className="px-3 py-2 whitespace-nowrap">
+                      <td className="px-3 py-1 whitespace-nowrap">
                         <div className="flex items-center gap-0.5">
                           <Popover open={printDropdownOpen === row.id} onOpenChange={open => setPrintDropdownOpen(open ? row.id : null)}>
                             <PopoverTrigger asChild>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-7 w-7 p-0 hover:bg-gray-100"
+                                className="h-6 w-6 p-0 hover:bg-gray-100"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <VsIcon src={`${VS_ACTION_ICONS}/printer.svg`} className="h-4 w-4" />
@@ -1822,7 +1839,7 @@ export default function LabSlipPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 hover:bg-gray-100"
+                            className="h-6 w-6 p-0 hover:bg-gray-100"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleAddOnsClick(row)
@@ -1833,7 +1850,7 @@ export default function LabSlipPage() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 w-7 p-0 hover:bg-gray-100"  
+                            className="h-6 w-6 p-0 hover:bg-gray-100"  
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCallLogClick(row)
@@ -1844,7 +1861,7 @@ export default function LabSlipPage() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 w-7 p-0 hover:bg-gray-100"
+                            className="h-6 w-6 p-0 hover:bg-gray-100"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <svg width="14" height="14" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1857,7 +1874,7 @@ export default function LabSlipPage() {
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-7 w-7 p-0 hover:bg-gray-100"
+                                className="h-6 w-6 p-0 hover:bg-gray-100"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <MoreVertical className="h-3.5 w-3.5 text-gray-500" />
@@ -1910,7 +1927,7 @@ export default function LabSlipPage() {
         </div>
 
         {/* Pagination at Bottom */}
-        <div className="flex items-center justify-between mt-4 border-t border-gray-200 pt-4">
+        <div className="flex items-center justify-between mt-2 border-t border-gray-200 pt-2">
           <div className="text-sm text-gray-600">
             Showing {totalListingCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}
             -
@@ -1919,7 +1936,7 @@ export default function LabSlipPage() {
           </div>
           <div className="flex items-center space-x-1">
             <button
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
+              className="h-7 w-7 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
               onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
             >
@@ -1939,7 +1956,7 @@ export default function LabSlipPage() {
               return (
                 <button
                   key={pageNum}
-                  className={`h-8 w-8 rounded-full flex items-center justify-center text-xs transition-colors ${
+                  className={`h-7 w-7 rounded-full flex items-center justify-center text-xs transition-colors ${
                     pageNum === currentPage ? "bg-[#1162a8] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                   onClick={() => setCurrentPage(pageNum)}
@@ -1949,7 +1966,7 @@ export default function LabSlipPage() {
               );
             })}
             <button
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
+              className="h-7 w-7 rounded-full flex items-center justify-center text-xs bg-gray-100 text-gray-600 disabled:opacity-50 hover:bg-gray-200 transition-colors"
               onClick={() => setCurrentPage(Math.min(maxPage, currentPage + 1))}
               disabled={currentPage === maxPage}
             >

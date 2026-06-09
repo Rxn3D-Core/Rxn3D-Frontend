@@ -18,8 +18,8 @@ import {
   type UploadedImage,
 } from "@/lib/image-to-base64";
 
-const ISLAND_MOMENTS_FONT =
-  'var(--font-island-moments), "Segoe Script", "Brush Script MT", cursive';
+const SIGNATURE_FONT =
+  'var(--font-windsong), "Segoe Script", "Brush Script MT", cursive';
 
 export type DeliveryTimelineRow = {
   timestamp: string;
@@ -176,7 +176,7 @@ export function DeliveryTimeline({
           <span className="text-[#374151]">{row.user}</span>
           <span
             className="justify-self-end text-right text-[22px] leading-none text-[#111827]"
-            style={{ fontFamily: ISLAND_MOMENTS_FONT }}
+            style={{ fontFamily: SIGNATURE_FONT }}
           >
             {row.receiver && row.receiver !== "—" ? row.receiver : ""}
           </span>
@@ -271,7 +271,7 @@ export function SignaturePad({
         placeholder={placeholder}
         aria-label={placeholder}
         className="h-[96px] w-full rounded-lg border-0 bg-transparent px-4 text-center text-[40px] leading-none text-[#1F2937] outline-none placeholder:text-[#C4C4C4] focus-visible:ring-0"
-        style={{ fontFamily: ISLAND_MOMENTS_FONT }}
+        style={{ fontFamily: SIGNATURE_FONT }}
       />
     </div>
   );

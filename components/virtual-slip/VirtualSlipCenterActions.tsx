@@ -49,6 +49,8 @@ export interface VirtualSlipCenterActionsProps {
   onHold?: () => void;
   onCancel?: () => void;
   canPutOnHold?: boolean;
+  /** When true, edit slip, add-ons, and rush icons are hidden. */
+  caseOnHold?: boolean;
 }
 
 /** Center-column action icons + modals for virtual slip v2 (CASE DESIGN CENTER). */
@@ -88,6 +90,7 @@ export function VirtualSlipCenterActions({
   onHold,
   onCancel,
   canPutOnHold = true,
+  caseOnHold = false,
 }: VirtualSlipCenterActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -176,18 +179,18 @@ export function VirtualSlipCenterActions({
           visible
           showFullIconRow
           onEditGeneral={
-            showEditSlip && slipId > 0
+            showEditSlip && slipId > 0 && !caseOnHold
               ? () => router.push(`/edit-slip?slipId=${slipId}`)
               : undefined
           }
           onStickyNote={slipId > 0 ? () => setNotesModalOpen(true) : undefined}
           onAddProduct={
-            slipId > 0 && productArches.length > 0
+            slipId > 0 && productArches.length > 0 && !caseOnHold
               ? () => setAddonsModalOpen(true)
               : undefined
           }
           onRush={
-            slipId > 0 && rushArchSlots.length > 0 && !rushSubmitting
+            slipId > 0 && rushArchSlots.length > 0 && !rushSubmitting && !caseOnHold
               ? () => setRushModalOpen(true)
               : undefined
           }

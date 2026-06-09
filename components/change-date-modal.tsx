@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as LucideCalendar, Clock, X, MoreVertical, Info } from "lucide-react";
+import { Clock, X, MoreVertical, Info } from "lucide-react";
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon";
 import { useState, useEffect, useMemo } from "react";
 import {
   Tooltip,
@@ -165,9 +166,7 @@ export default function ChangeDateModal({
         <DialogHeader className="px-8 pt-8 pb-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <span className="bg-blue-600 rounded-lg p-2.5 flex">
-                <LucideCalendar className="w-6 h-6 text-white" />
-              </span>
+              <SlipListingCalendarIcon className="h-8 w-8" />
               <DialogTitle className="text-xl font-semibold">
                 Change dates
               </DialogTitle>
@@ -190,7 +189,7 @@ export default function ChangeDateModal({
               </div>
             </div>
             <div className="text-base text-muted-foreground flex items-center gap-2 font-medium">
-              <LucideCalendar className="w-5 h-5" />
+              <SlipListingCalendarIcon className="h-5 w-5" />
               <span className="text-lg">{currentDate}</span>
             </div>
           </div>
@@ -237,7 +236,7 @@ export default function ChangeDateModal({
                   onChange={(e) => setDate(e.target.value)}
                   className="pr-12 h-12 rounded-lg border-gray-300 text-base"
                 />
-                <LucideCalendar className="w-5 h-5 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+                <SlipListingCalendarIcon className="h-5 w-5 absolute right-3 top-3.5 pointer-events-none" />
               </div>
               <div className="relative flex-1">
                 <Input
