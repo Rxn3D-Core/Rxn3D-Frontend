@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Printer } from "lucide-react";
 import { buildPaperSlipSectionModels } from "@/app/paper-slip/print/page-helpers";
+import { Button } from "@/components/ui/button";
 import { PaperSlipPrintDocument } from "@/components/paper-slip-print/paper-slip-print-document";
 import { waitForImageLikes } from "@/lib/paper-slip-image-readiness";
 import { buildPaperSlipPrintSlipVM, type PaperSlipPrintableSlipVM } from "@/lib/paper-slip-print-view-model";
+import { buildPaperSlipPrintActionState } from "@/components/paper-slip-print/paper-slip-print-page-shell-state";
 
 function PaperSlipStateCard({
   title,
@@ -52,6 +55,16 @@ export function PaperSlipPrintPageShell({
   const [printed, setPrinted] = useState(false);
   const hasRequestedFetch = useRef(false);
   const printRootRef = useRef<HTMLDivElement | null>(null);
+  const { showPrintButton } = buildPaperSlipPrintActionState({
+    fetchError,
+    loading,
+    slipCount: slips.length,
+  });
+
+  const handlePrint = () => {
+    setPrinted(true);
+    window.print();
+  };
 
   useEffect(() => {
     if (fetchError || slips.length > 0 || hasRequestedFetch.current) return;
@@ -153,6 +166,18 @@ export function PaperSlipPrintPageShell({
 
   return (
     <div ref={printRootRef}>
+      {showPrintButton ? (
+        <div className="fixed right-6 top-6 z-50 print:hidden">
+          <Button
+            className="shadow-[0_14px_34px_rgba(15,23,42,0.16)]"
+            onClick={handlePrint}
+            type="button"
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </Button>
+        </div>
+      ) : null}
       <PaperSlipPrintDocument sections={buildPaperSlipSectionModels(slips)} />
     </div>
   );
