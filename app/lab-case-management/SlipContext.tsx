@@ -6,6 +6,7 @@ import { buildApiUrl } from "@/lib/api/client";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 import { applySlipAttachmentState } from "./attachment-state.mjs";
 import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
+import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
 
 type Slip = {
   id: number;
@@ -159,7 +160,9 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   // Helper to map API slip to UI slip
   const mapApiSlip = (apiSlip: any): Slip => ({
     id: apiSlip.id,
-    createdAt: apiSlip.timestamp,
+    createdAt: formatSlipListingTimestamp(
+      apiSlip.timestamp ?? apiSlip.created_at ?? "",
+    ),
     caseId: apiSlip.case?.id,
     caseNumber: apiSlip.case?.case_number,
     billingId:
@@ -645,8 +648,9 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /slip/action/{slipId}/ready-to-send. Signature is forwarded as { notes }
-   * (no-op until the backend reads it); without it, no body is sent.
+   * POST /slip/action/{slipId}/ready-to-send. When a signature is captured
+   * (lab's require_signature_ready_to_send setting), it is sent as
+   * { signature }; without it, no body is sent.
    */
   const readyToSend = useCallback(async (slipId: number, signature?: string): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
@@ -660,7 +664,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(hasBody ? { "Content-Type": "application/json" } : {}),
         },
-        ...(hasBody ? { body: JSON.stringify({ notes: trimmedSignature }) } : {}),
+        ...(hasBody ? { body: JSON.stringify({ signature: trimmedSignature }) } : {}),
       });
 
       if (res.status === 401) {

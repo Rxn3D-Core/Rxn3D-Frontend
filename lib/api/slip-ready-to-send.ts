@@ -24,9 +24,10 @@ function getAuthHeaders(includeJsonContentType: boolean): HeadersInit {
 /**
  * Mark a slip ready to send.
  *
- * `signature` is the receiver/sender signature captured in the UI. The backend
- * does not accept a body yet, so it is forwarded as `{ notes }` and is a no-op
- * until the endpoint reads it. Rename the key here once the backend is ready.
+ * When the lab's `require_signature_ready_to_send` setting is enabled the UI
+ * captures a `signature` and sends it in the body: `{ signature, notes? }`
+ * (signature max 1000 chars). When the setting is off the signature is omitted
+ * and the request is sent with no body.
  */
 export async function postSlipReadyToSend(
   slipId: number,
@@ -40,7 +41,7 @@ export async function postSlipReadyToSend(
     {
       method: "POST",
       headers: getAuthHeaders(hasBody),
-      ...(hasBody ? { body: JSON.stringify({ notes: trimmedSignature }) } : {}),
+      ...(hasBody ? { body: JSON.stringify({ signature: trimmedSignature }) } : {}),
     }
   );
 

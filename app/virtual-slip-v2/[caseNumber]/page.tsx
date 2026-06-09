@@ -10,6 +10,7 @@ import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalo
 import { virtualSlipSlotsToAddonArchSlots } from "@/lib/virtual-slip-addon-slots";
 import { buildVirtualSlipRushArchSlots } from "@/lib/virtual-slip-rush-slots";
 import { postSlipReadyToSend } from "@/lib/api/slip-ready-to-send";
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings";
 import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   slipCanHold,
@@ -49,6 +50,10 @@ import { collectStageSeedsFromVirtualSlip } from "@/lib/api/slip-notes";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-info";
 import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
+import {
+  getStoredSlipUserRole,
+  isLabSlipUserRole,
+} from "@/lib/slip-user-role";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -81,6 +86,7 @@ export default function VirtualSlipV2Page() {
   const [fabRushOpen, setFabRushOpen] = useState(false);
   const [readyToSendOpen, setReadyToSendOpen] = useState(false);
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false);
+  const { readyToSendRequired } = useSignatureRequirementSettings(readyToSendOpen);
   const [caseStatusModal, setCaseStatusModal] = useState<CaseStatusModal>(null);
   const [caseStatusSubmitting, setCaseStatusSubmitting] = useState(false);
   const [sendBackToOfficeOpen, setSendBackToOfficeOpen] = useState(false);
@@ -88,6 +94,13 @@ export default function VirtualSlipV2Page() {
     useState(false);
   const [addStageEligible, setAddStageEligible] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUserRole(getStoredSlipUserRole());
+  }, []);
+
+  const canRunLabDriverActions = isLabSlipUserRole(userRole);
 
   useEffect(() => {
     if (!slipId || isNaN(slipId)) {
@@ -195,8 +208,9 @@ export default function VirtualSlipV2Page() {
   };
 
   const goToCaseList = () => {
-    const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    const route = role === "lab_admin" ? "/lab-case-management" : "/office-case-management";
+    const route = isLabSlipUserRole(getStoredSlipUserRole())
+      ? "/lab-case-management"
+      : "/office-case-management";
     router.push(route);
   };
 
@@ -583,10 +597,11 @@ export default function VirtualSlipV2Page() {
             caseBlocked || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
           }
           onSendBackToOffice={
-            canSendBackToOffice && !caseCancelled
+            canRunLabDriverActions && canSendBackToOffice && !caseCancelled
               ? () => setSendBackToOfficeOpen(true)
               : undefined
           }
+          allowRush={canRunLabDriverActions}
           openNotesModal={fabNotesOpen}
           onOpenNotesModalChange={setFabNotesOpen}
           openRushModal={fabRushOpen}
@@ -602,11 +617,17 @@ export default function VirtualSlipV2Page() {
         relatedSlips={vm.relatedSlips}
         slipNumber={vm.header.slipNumber}
         onOpenNotesModal={() => setFabNotesOpen(true)}
-        pickupDropoffAction={showPickupDropoffFab ? pickupDropoffAction : null}
+        pickupDropoffAction={
+          canRunLabDriverActions && showPickupDropoffFab ? pickupDropoffAction : null
+        }
         pickupDropoffLabel={slipPickupDropoffLabel(pickupDropoffAction)}
-        onPickupDropoff={() => setPickupDropoffOpen(true)}
-        showReadyToSend={showReadyToSendFab}
-        onReadyToSend={() => setReadyToSendOpen(true)}
+        onPickupDropoff={
+          canRunLabDriverActions ? () => setPickupDropoffOpen(true) : undefined
+        }
+        showReadyToSend={canRunLabDriverActions && showReadyToSendFab}
+        onReadyToSend={
+          canRunLabDriverActions ? () => setReadyToSendOpen(true) : undefined
+        }
         showAddStage={showAddStageFab}
         onAddStage={handleAddStage}
         disableFooterAction={caseBlocked}
@@ -710,6 +731,7 @@ export default function VirtualSlipV2Page() {
         patientName={vm.header.patientName}
         slipNumber={vm.header.slipNumber}
         location={vm.header.location}
+        signatureRequired={readyToSendRequired}
       />
 
       <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { useSlipSettings } from "@/hooks/use-slip-settings"
 import type { FieldRequirement } from "@/lib/api/slip-settings"
@@ -42,6 +43,50 @@ const VISIBILITY_FIELDS: {
     key: "show_slip_number",
     label: "Slip Number",
     description: "Show slip number on the slip header",
+  },
+]
+
+type SignatureFieldKey =
+  | "require_signature_pickup_from_office"
+  | "require_signature_pickup_from_lab"
+  | "require_signature_drop_at_lab"
+  | "require_signature_drop_at_office"
+  | "require_signature_ready_to_send"
+
+const SIGNATURE_FIELDS: {
+  key: SignatureFieldKey
+  label: string
+  description: string
+}[] = [
+  {
+    key: "require_signature_pickup_from_office",
+    label: "Pickup from office",
+    description:
+      "Driver must sign when picking up a slip that is “In office ready to pickup”.",
+  },
+  {
+    key: "require_signature_pickup_from_lab",
+    label: "Pickup from lab",
+    description:
+      "Driver must sign when picking up a slip that is “In lab ready to pickup”.",
+  },
+  {
+    key: "require_signature_drop_at_lab",
+    label: "Drop off at lab",
+    description:
+      "Driver must sign when dropping a slip that is “On route to the lab”.",
+  },
+  {
+    key: "require_signature_drop_at_office",
+    label: "Drop off at office",
+    description:
+      "Driver must sign when dropping a slip that is “On route to the office”.",
+  },
+  {
+    key: "require_signature_ready_to_send",
+    label: "Ready to send",
+    description:
+      "Require a signature on the lab “Ready to Send” action. Off by default.",
   },
 ]
 
@@ -152,18 +197,18 @@ export function SlipSettingsPage() {
 
   return (
     <div className="h-full w-full bg-[#F9F9F9] overflow-auto">
-      <div className="w-full h-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="mb-6 sm:mb-8">
-          <div className="bg-[#1162a8] text-white rounded-lg p-6 sm:p-8 shadow-sm">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Slip Settings</h1>
-            <p className="text-blue-100 text-sm sm:text-base">
+      <div className="w-full h-full px-4 sm:px-6 lg:px-8 py-4">
+        <div className="mb-4">
+          <div className="bg-[#1162a8] text-white rounded-lg px-5 py-3 shadow-sm">
+            <h1 className="text-lg sm:text-xl font-bold">Slip Settings</h1>
+            <p className="text-blue-100 text-xs sm:text-sm">
               Configure slip header visibility and whether gender and age are required when creating slips
             </p>
           </div>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 flex flex-wrap items-center justify-between gap-2">
             <span>{error}</span>
             <Button variant="outline" size="sm" onClick={() => load()}>
               Retry
@@ -171,105 +216,153 @@ export function SlipSettingsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <CardTitle>Slip Header Fields</CardTitle>
-                    <CardDescription>
-                      Toggle which fields appear on the slip header. For gender and age, choose whether they are optional or required on the create-slip form (only when shown).
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSelectAll}
-                      disabled={isLoading || isSaving}
-                      className="whitespace-nowrap"
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDeselectAll}
-                      disabled={isLoading || isSaving}
-                      className="whitespace-nowrap"
-                    >
-                      Deselect All
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-16 text-gray-500 gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span>Loading slip settings…</span>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {VISIBILITY_FIELDS.map((field) => {
-                      const showRequirement =
-                        field.key === "show_gender" || field.key === "show_age"
-                      const isShown = form[field.key]
+              <CardContent className="p-4">
+                <Tabs defaultValue="header">
+                  <TabsList>
+                    <TabsTrigger value="header">Slip Header Fields</TabsTrigger>
+                    <TabsTrigger value="signature">Signature Requirements</TabsTrigger>
+                  </TabsList>
 
-                      return (
-                        <div
-                          key={field.key}
-                          className="p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                  {/* ---------------------- Slip Header Fields ---------------------- */}
+                  <TabsContent value="header" className="mt-4">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <CardDescription className="flex-1">
+                        Toggle which fields appear on the slip header. For gender and age, choose whether they are optional or required on the create-slip form (only when shown).
+                      </CardDescription>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSelectAll}
+                          disabled={isLoading || isSaving}
+                          className="whitespace-nowrap"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <span className="text-sm font-medium text-gray-900">
-                                {field.label}
-                              </span>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {field.description}
-                              </p>
+                          Select All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDeselectAll}
+                          disabled={isLoading || isSaving}
+                          className="whitespace-nowrap"
+                        >
+                          Deselect All
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-10 text-gray-500 gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Loading slip settings…</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {VISIBILITY_FIELDS.map((field) => {
+                          const showRequirement =
+                            field.key === "show_gender" || field.key === "show_age"
+                          const isShown = form[field.key]
+
+                          return (
+                            <div
+                              key={field.key}
+                              className="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {field.label}
+                                  </span>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {field.description}
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={isShown}
+                                  disabled={isSaving}
+                                  onCheckedChange={(checked) =>
+                                    handleVisibilityToggle(field.key, checked)
+                                  }
+                                />
+                              </div>
+
+                              {showRequirement && field.key === "show_gender" && (
+                                <RequirementSelector
+                                  id="gender-requirement"
+                                  label="Gender on create slip"
+                                  value={form.gender_requirement}
+                                  disabled={!isShown || isSaving}
+                                  onChange={(gender_requirement) =>
+                                    patchForm({ gender_requirement })
+                                  }
+                                />
+                              )}
+
+                              {showRequirement && field.key === "show_age" && (
+                                <RequirementSelector
+                                  id="age-requirement"
+                                  label="Age on create slip"
+                                  value={form.age_requirement}
+                                  disabled={!isShown || isSaving}
+                                  onChange={(age_requirement) =>
+                                    patchForm({ age_requirement })
+                                  }
+                                />
+                              )}
                             </div>
-                            <Switch
-                              checked={isShown}
-                              disabled={isSaving}
-                              onCheckedChange={(checked) =>
-                                handleVisibilityToggle(field.key, checked)
-                              }
-                            />
+                          )
+                        })}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* --------------------- Signature Requirements --------------------- */}
+                  <TabsContent value="signature" className="mt-4">
+                    <CardDescription className="mb-3 block">
+                      Control when a signature is required for driver pickup/drop-off actions and the lab “Ready to Send” action.
+                    </CardDescription>
+
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-10 text-gray-500 gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Loading signature settings…</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {SIGNATURE_FIELDS.map((field) => (
+                          <div
+                            key={field.key}
+                            className="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {field.label}
+                                </span>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                  {field.description}
+                                </p>
+                              </div>
+                              <Switch
+                                checked={form[field.key]}
+                                disabled={isSaving}
+                                onCheckedChange={(checked) =>
+                                  patchForm({ [field.key]: checked } as Partial<SlipSettingsFormState>)
+                                }
+                              />
+                            </div>
                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
 
-                          {showRequirement && field.key === "show_gender" && (
-                            <RequirementSelector
-                              id="gender-requirement"
-                              label="Gender on create slip"
-                              value={form.gender_requirement}
-                              disabled={!isShown || isSaving}
-                              onChange={(gender_requirement) =>
-                                patchForm({ gender_requirement })
-                              }
-                            />
-                          )}
-
-                          {showRequirement && field.key === "show_age" && (
-                            <RequirementSelector
-                              id="age-requirement"
-                              label="Age on create slip"
-                              value={form.age_requirement}
-                              disabled={!isShown || isSaving}
-                              onChange={(age_requirement) =>
-                                patchForm({ age_requirement })
-                              }
-                            />
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
+                {/* Shared footer — saves all settings across both tabs */}
+                <div className="flex justify-end gap-3 mt-4 pt-3 border-t">
                   <Button
                     variant="outline"
                     onClick={handleCancel}
@@ -299,13 +392,13 @@ export function SlipSettingsPage() {
 
           <div className="lg:col-span-1">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <HelpCircle className="h-5 w-5 text-[#1162a8]" />
                   How to Customize
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 p-4 pt-0">
                 <div className="space-y-3">
                   <div className="flex gap-3">
                     <div className="flex-shrink-0">
@@ -350,9 +443,9 @@ export function SlipSettingsPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex gap-2 mb-2">
+                <div className="pt-3 border-t">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex gap-2 mb-1">
                       <Info className="h-5 w-5 text-blue-600 flex-shrink-0" />
                       <h4 className="font-semibold text-sm text-blue-900">Note</h4>
                     </div>
@@ -362,7 +455,7 @@ export function SlipSettingsPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t">
+                <div className="pt-3 border-t">
                   <h4 className="font-semibold text-sm mb-2">Field Status</h4>
                   <ul className="space-y-2 text-sm text-gray-600">
                     {fieldStatusItems.map((field) => (

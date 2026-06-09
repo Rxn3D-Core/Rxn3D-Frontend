@@ -37,6 +37,11 @@ const FULL_BLEED_ICONS: Partial<Record<VirtualSlipActionIconName, number>> = {
 
 const ICON_FILE: Partial<Record<VirtualSlipActionIconName, string>> = {
   "on-hold": "on-hold.png",
+  "paper-airplane": "ready-to-send.png",
+};
+
+const ICON_BASE_OVERRIDE: Partial<Record<VirtualSlipActionIconName, string>> = {
+  "paper-airplane": "/icons/slip-listing",
 };
 
 export function VirtualSlipActionIcon({
@@ -45,11 +50,12 @@ export function VirtualSlipActionIcon({
 }: VirtualSlipActionIconProps) {
   const size = FULL_BLEED_ICONS[name] ?? 26;
   const file = ICON_FILE[name] ?? `${name}.svg`;
+  const base = ICON_BASE_OVERRIDE[name] ?? ICON_BASE;
 
   return (
     // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs; Next/Image blocks local SVG without extra config
     <img
-      src={`${ICON_BASE}/${file}`}
+      src={`${base}/${file}`}
       alt=""
       width={size}
       height={size}

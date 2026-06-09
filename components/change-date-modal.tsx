@@ -27,6 +27,10 @@ import {
   normalizeDeliveryTimeForInput,
   type CustomDeliveryDateEntry,
 } from "@/lib/api/slip-custom-delivery-dates";
+import {
+  canChangeSlipDueDate,
+  getStoredSlipUserRole,
+} from "@/lib/slip-user-role";
 
 interface ChangeDateModalProps {
   open: boolean;
@@ -115,7 +119,18 @@ export default function ChangeDateModal({
     }
   };
 
+  const canEditDueDate = canChangeSlipDueDate(getStoredSlipUserRole());
+
   const handleSave = async () => {
+    if (!canEditDueDate) {
+      toast({
+        title: "Not allowed",
+        description: "Only lab users can change due dates.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!slipId) {
       // Fallback to old onSave if slipId not provided
       if (onSave) {
@@ -155,7 +170,7 @@ export default function ChangeDateModal({
     }
   };
 
-  const isSaveDisabled = !reason || !date || !time || saving;
+  const isSaveDisabled = !canEditDueDate || !reason || !date || !time || saving;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -234,6 +249,7 @@ export default function ChangeDateModal({
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
+                  disabled={!canEditDueDate}
                   className="pr-12 h-12 rounded-lg border-gray-300 text-base"
                 />
                 <SlipListingCalendarIcon className="h-5 w-5 absolute right-3 top-3.5 pointer-events-none" />
@@ -243,6 +259,7 @@ export default function ChangeDateModal({
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
+                  disabled={!canEditDueDate}
                   className="pr-12 h-12 rounded-lg border-gray-300 text-base"
                   step="300"
                 />
@@ -255,6 +272,7 @@ export default function ChangeDateModal({
             placeholder="Please provide reason for change *"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
+            disabled={!canEditDueDate}
             className="mb-8 min-h-[100px] resize-none rounded-lg border-gray-300 text-base p-4"
             required
           />

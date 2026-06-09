@@ -24,6 +24,8 @@ import {
 } from "@/lib/slip-location"
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
 import { getCurrentUserName } from "@/lib/current-user"
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
+import { driverActionRequiresSignature } from "@/lib/slip-settings-utils"
 import type { UploadedImage } from "@/lib/image-to-base64"
 import {
   DeliveryInfoBar,
@@ -141,6 +143,25 @@ export default function DriverHistoryModal({
 
   const isDropoff = singleSlipMode && pickupDropoffAction === "dropoff"
   const isPickup = singleSlipMode && pickupDropoffAction === "pickup"
+
+  // Per-lab signature requirement settings (loaded while the modal is open).
+  const { driverSettings } = useSignatureRequirementSettings(isOpen)
+
+  // Whether a manual signature is required for this submit, per the lab's
+  // settings mapped from each selected slip's current location. Single-slip
+  // drop-off auto-signs with the current user's name, so it never requires one.
+  const signatureRequired = useMemo(() => {
+    if (isDropoff) return false
+    const relevant = singleSlipMode
+      ? deliveryEntries
+      : deliveryEntries.filter((entry) => entry.isChecked)
+    return relevant.some((entry) =>
+      driverActionRequiresSignature(
+        { locationId: entry.location_id, location: entry.location },
+        driverSettings
+      )
+    )
+  }, [isDropoff, singleSlipMode, deliveryEntries, driverSettings])
 
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
@@ -272,9 +293,10 @@ export default function DriverHistoryModal({
       return
     }
 
-    // Drop off captures the current user's signature automatically; pick up needs a manual signature.
+    // Drop off captures the current user's signature automatically; pick up needs a
+    // manual signature only when the lab's settings require it for the slip's location.
     const effectiveSignature = isDropoff ? currentUserName : signature.trim()
-    if (!isDropoff && !effectiveSignature) {
+    if (!isDropoff && signatureRequired && !effectiveSignature) {
       toast({ title: "Signature required", description: "Please enter your signature.", variant: "destructive" })
       return
     }
@@ -374,8 +396,8 @@ export default function DriverHistoryModal({
     : []
 
   const confirmDisabled = singleSlipMode
-    ? deliveryEntries.length === 0 || (isPickup && !signature.trim())
-    : deliveryEntries.filter((e) => e.isChecked).length === 0 || !signature.trim()
+    ? deliveryEntries.length === 0 || (isPickup && signatureRequired && !signature.trim())
+    : deliveryEntries.filter((e) => e.isChecked).length === 0 || (signatureRequired && !signature.trim())
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -442,7 +464,7 @@ export default function DriverHistoryModal({
                     </span>
                   </p>
                 </div>
-              ) : (
+              ) : signatureRequired ? (
                 <div className="pt-2">
                   <SignaturePad
                     value={signature}
@@ -453,7 +475,7 @@ export default function DriverHistoryModal({
                     placeholder="Receiver's Signature"
                   />
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             /* ----------------------- Multi slip ------------------------ */
@@ -591,16 +613,18 @@ export default function DriverHistoryModal({
                 </Button>
               </div>
 
-              <div className="mt-5">
-                <SignaturePad
-                  value={signature}
-                  onChange={setSignature}
-                  onSubmit={() => {
-                    if (!confirmDisabled && !submitting) void handleSubmit();
-                  }}
-                  placeholder="Receiver's Signature"
-                />
-              </div>
+              {signatureRequired && (
+                <div className="mt-5">
+                  <SignaturePad
+                    value={signature}
+                    onChange={setSignature}
+                    onSubmit={() => {
+                      if (!confirmDisabled && !submitting) void handleSubmit();
+                    }}
+                    placeholder="Receiver's Signature"
+                  />
+                </div>
+              )}
             </>
           )}
         </div>

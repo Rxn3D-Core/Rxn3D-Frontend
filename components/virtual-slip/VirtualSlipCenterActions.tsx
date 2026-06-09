@@ -51,6 +51,8 @@ export interface VirtualSlipCenterActionsProps {
   canPutOnHold?: boolean;
   /** When true, edit slip, add-ons, and rush icons are hidden. */
   caseOnHold?: boolean;
+  /** Lab-only: rush changes delivery date on an existing slip. */
+  allowRush?: boolean;
 }
 
 /** Center-column action icons + modals for virtual slip v2 (CASE DESIGN CENTER). */
@@ -91,6 +93,7 @@ export function VirtualSlipCenterActions({
   onCancel,
   canPutOnHold = true,
   caseOnHold = false,
+  allowRush = true,
 }: VirtualSlipCenterActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -112,8 +115,8 @@ export function VirtualSlipCenterActions({
   }, [openNotesModal]);
 
   useEffect(() => {
-    if (openRushModal) setRushModalOpen(true);
-  }, [openRushModal]);
+    if (allowRush && openRushModal) setRushModalOpen(true);
+  }, [allowRush, openRushModal]);
 
   const handleRemoveRush = async () => {
     if (!slipId || slipId <= 0) return;
@@ -190,7 +193,11 @@ export function VirtualSlipCenterActions({
               : undefined
           }
           onRush={
-            slipId > 0 && rushArchSlots.length > 0 && !rushSubmitting && !caseOnHold
+            allowRush &&
+            slipId > 0 &&
+            rushArchSlots.length > 0 &&
+            !rushSubmitting &&
+            !caseOnHold
               ? () => setRushModalOpen(true)
               : undefined
           }
@@ -223,7 +230,7 @@ export function VirtualSlipCenterActions({
         />
       )}
 
-      {slipId > 0 && rushModalOpen && rushArchSlots.length > 0 && (
+      {allowRush && slipId > 0 && rushModalOpen && rushArchSlots.length > 0 && (
         <RushRequestModal
           isOpen
           onClose={() => {

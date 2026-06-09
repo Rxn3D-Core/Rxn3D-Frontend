@@ -4,23 +4,22 @@ import {
   SLIP_LISTING_ICON_HOVER_CLASS,
 } from "@/components/slip-listing/slip-listing-icon-hover"
 
-export const SLIP_LISTING_CALENDAR_ICON_SRC = "/icons/slip-listing/calendar.png"
+export const SLIP_LISTING_READY_TO_SEND_ICON_SRC = "/icons/slip-listing/ready-to-send.png"
 
-type SlipListingCalendarIconProps = {
+type SlipListingReadyToSendIconProps = {
   className?: string
-  /** Set false for filter triggers that are not inside a `group` button. */
   hover?: boolean
 }
 
-/** Colorful calendar glyph used on slip listing filters, due-date actions, and change-date modal. */
-export function SlipListingCalendarIcon({
+/** Colorful ready-to-send glyph for slip listing, virtual slip footer, and modal. */
+export function SlipListingReadyToSendIcon({
   className,
   hover = true,
-}: SlipListingCalendarIconProps) {
+}: SlipListingReadyToSendIconProps) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- bundled PNG asset
     <img
-      src={SLIP_LISTING_CALENDAR_ICON_SRC}
+      src={SLIP_LISTING_READY_TO_SEND_ICON_SRC}
       alt=""
       aria-hidden
       className={cn(

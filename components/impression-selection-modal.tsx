@@ -307,6 +307,15 @@ function ImpressionGrid({
   const showDoneInThisSection =
     !suppressDoneButton && isValidationComplete && lastTouchedIndex >= 0
 
+  // Cap the grid to the cards' natural width and center it, so a single (or few)
+  // impression card doesn't stretch to the full modal width and balloon in size.
+  // When there are many options the columns still shrink to fit the modal.
+  const colCount = impressions.length
+  const gridStyle = {
+    gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+    maxWidth: `calc(${colCount} * 190px + ${Math.max(colCount - 1, 0)} * 1rem)`,
+  }
+
   return (
     <>
       {/* Mobile: horizontal carousel */}
@@ -319,7 +328,7 @@ function ImpressionGrid({
       </div>
 
       {/* Desktop: grid */}
-      <div className="hidden sm:grid gap-3 md:gap-4 w-full" style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}>
+      <div className="hidden sm:grid gap-3 md:gap-4 w-full mx-auto" style={gridStyle}>
         {impressions && impressions.map((impression) => renderCard(impression, false))}
       </div>
 
@@ -328,8 +337,8 @@ function ImpressionGrid({
         <>
           {/* Desktop: align under the last-touched card's column */}
           <div
-            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3"
-            style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}
+            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3 mx-auto"
+            style={gridStyle}
           >
             <div className="flex justify-center py-2 overflow-visible" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
               <DoneTransitionButton

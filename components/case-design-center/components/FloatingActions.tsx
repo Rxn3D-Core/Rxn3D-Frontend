@@ -284,7 +284,6 @@ export function FloatingActions({
       hover: "hover:bg-[#D97706]",
       label: "Print",
     },
-    ...(showPickupDropoff ? [pickupDropoffFab] : []),
     {
       icon: "truck",
       bg: "bg-[#6366F1]",
@@ -303,7 +302,6 @@ export function FloatingActions({
       hover: "hover:bg-[#475569]",
       label: "Back to case list view",
     },
-    ...changeDueDateFab,
     {
       icon: "paper-airplane",
       bg: "bg-[#1162A8]",

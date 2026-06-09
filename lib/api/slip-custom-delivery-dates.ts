@@ -3,6 +3,10 @@
  */
 
 import { buildApiUrl } from "@/lib/api/client";
+import {
+  canChangeSlipDueDate,
+  getStoredSlipUserRole,
+} from "@/lib/slip-user-role";
 
 export type CustomDeliveryDateCreatedBy = {
   id: number;
@@ -138,6 +142,10 @@ export async function createSlipCustomDeliveryDate(
   slipId: number,
   payload: CreateCustomDeliveryDatePayload
 ): Promise<CreateCustomDeliveryDateResponse> {
+  if (!canChangeSlipDueDate(getStoredSlipUserRole())) {
+    throw new Error("Only lab users can change due dates.");
+  }
+
   const res = await fetch(
     buildApiUrl(`/slip/custom-delivery-dates/${slipId}/create`),
     {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { SlipListingReadyToSendIcon } from "@/components/slip-listing/SlipListingReadyToSendIcon";
 import {
   DeliveryInfoBar,
   DeliveryModalFooter,
@@ -26,6 +26,8 @@ export interface ReadyToSendModalProps {
   slipNumber?: string;
   location?: string;
   title?: string;
+  /** When true, a signature must be captured before confirming. Default false. */
+  signatureRequired?: boolean;
 }
 
 export default function ReadyToSendModal({
@@ -39,8 +41,10 @@ export default function ReadyToSendModal({
   slipNumber,
   location,
   title = "Ready to send",
+  signatureRequired = false,
 }: ReadyToSendModalProps) {
   const [signature, setSignature] = useState("");
+  const canConfirm = !signatureRequired || Boolean(signature.trim());
   const timeline = useSlipDriverTimeline(
     Number.isFinite(slipId) ? slipId : null,
     open
@@ -66,15 +70,7 @@ export default function ReadyToSendModal({
         <DialogTitle className="sr-only">{title}</DialogTitle>
 
         <DeliveryModalHeader
-          icon={
-            <Image
-              src="/icons/virtual-slip-center/ready-to-send.svg"
-              alt=""
-              width={32}
-              height={32}
-              className="h-8 w-8"
-            />
-          }
+          icon={<SlipListingReadyToSendIcon className="h-8 w-auto" />}
           title={title}
           onClose={onClose}
         />
@@ -95,23 +91,25 @@ export default function ReadyToSendModal({
             error={timeline.error}
           />
 
-          <div className="pt-2">
-            <SignaturePad
-              value={signature}
-              onChange={setSignature}
-              onSubmit={() => {
-                if (signature.trim() && !submitting) void onConfirm(signature.trim());
-              }}
-              placeholder="Signature"
-            />
-          </div>
+          {signatureRequired && (
+            <div className="pt-2">
+              <SignaturePad
+                value={signature}
+                onChange={setSignature}
+                onSubmit={() => {
+                  if (canConfirm && !submitting) void onConfirm(signature.trim());
+                }}
+                placeholder="Signature"
+              />
+            </div>
+          )}
         </div>
 
         <DeliveryModalFooter
           onCancel={onClose}
           onConfirm={() => void onConfirm(signature.trim())}
           confirmLabel="Confirm"
-          confirmDisabled={!signature.trim()}
+          confirmDisabled={!canConfirm}
           submitting={submitting}
         />
       </DialogContent>
