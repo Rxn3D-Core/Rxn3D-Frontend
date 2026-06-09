@@ -1,26 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ChevronRight, Loader2, Truck, User, X, Zap } from "lucide-react";
+import Image from "next/image";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getSlipDriverHistory,
   normalizeSlipDriverHistoryPayload,
 } from "@/lib/api/slip-driver-history";
-
-function PersonCell({ name }: { name: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-300">
-        <User className="h-3 w-3 text-gray-600" aria-hidden />
-      </div>
-      <span className="text-gray-900">{name}</span>
-    </div>
-  );
-}
+import {
+  DeliveryInfoBar,
+  DeliveryModalFooter,
+  DeliveryModalHeader,
+  DeliveryTimeline,
+  SignaturePad,
+  type DeliveryInfoField,
+  type DeliveryTimelineRow,
+} from "@/components/driver-delivery/delivery-parts";
 
 export interface SlipDriverHistoryViewModalProps {
   open: boolean;
@@ -34,7 +31,7 @@ export interface SlipDriverHistoryViewModalProps {
   stage?: string;
   deliveryDate?: string;
   isRush?: boolean;
-  /** When provided, Submit sends the signature text to the parent. */
+  /** When provided, the modal captures a signature and submits it on Confirm. */
   onSubmitSignature?: (signature: string) => void | Promise<void>;
 }
 
@@ -65,14 +62,7 @@ export function SlipDriverHistoryViewModal({
   const [apiStage, setApiStage] = useState<string | null>(null);
   const [apiDelivery, setApiDelivery] = useState<string | null>(null);
   const [apiRush, setApiRush] = useState<boolean | null>(null);
-  const [timeline, setTimeline] = useState<
-    Array<{
-      timestamp: string;
-      location: string;
-      user: string;
-      receiver: string;
-    }>
-  >([]);
+  const [timeline, setTimeline] = useState<DeliveryTimelineRow[]>([]);
 
   const loadHistory = useCallback(async () => {
     if (!slipId || Number.isNaN(slipId)) {
@@ -136,183 +126,123 @@ export function SlipDriverHistoryViewModal({
   const displayDelivery = apiDelivery ?? deliveryDate;
   const displayRush = apiRush ?? isRush;
 
-  const slipHistories = useMemo(
-    () => [
-      {
-        slipNumber,
-        stage: displayStage,
-        deliveryDate: displayDelivery,
-        isRush: displayRush,
-      },
-    ],
-    [slipNumber, displayStage, displayDelivery, displayRush]
+  const infoFields: DeliveryInfoField[] = useMemo(
+    () =>
+      [
+        { label: "Office", value: displayOffice },
+        { label: "Code", value: displayCode },
+        { label: "Pt name", value: displayPatient },
+        { label: "Pan #", value: pan || "----" },
+        { label: "Case #", value: displayCaseNo },
+      ].filter((f) => Boolean(f.value)),
+    [displayOffice, displayCode, displayPatient, pan, displayCaseNo]
   );
 
   const handleSubmit = async () => {
-    if (onSubmitSignature) {
-      if (!signature.trim()) return;
-      setSubmitting(true);
-      try {
-        await onSubmitSignature(signature.trim());
-        setSignature("");
-        onClose();
-      } finally {
-        setSubmitting(false);
-      }
+    if (!onSubmitSignature) {
+      onClose();
       return;
     }
-    onClose();
+    if (!signature.trim()) return;
+    setSubmitting(true);
+    try {
+      await onSubmitSignature(signature.trim());
+      setSignature("");
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-5xl w-full mx-4 rounded-xl p-0 overflow-hidden bg-white shadow-2xl border-0">
-        <div className="flex items-center justify-between border-b border-gray-100 px-8 py-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
-              <Truck className="h-6 w-6 text-white" />
-            </div>
-            <h2 className="text-2xl font-semibold text-gray-900">Driver History</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5 text-gray-400" />
-          </button>
-        </div>
+      <DialogContent
+        showCloseButton={false}
+        className="flex w-[min(96vw,1080px)] max-w-none flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-0 shadow-xl max-h-[90dvh]"
+      >
+        <DialogTitle className="sr-only">Driver History</DialogTitle>
 
-        <div className="max-h-[75vh] overflow-y-auto px-8 py-6">
-          <div className="mb-8 grid grid-cols-2 gap-x-16 gap-y-4">
-            <div className="space-y-4">
-              <div className="flex">
-                <span className="w-20 font-medium text-gray-700">Office:</span>
-                <span className="font-semibold text-gray-900">{displayOffice}</span>
-              </div>
-              <div className="flex">
-                <span className="w-20 font-medium text-gray-700">Code:</span>
-                <span className="font-semibold text-gray-900">{displayCode}</span>
-              </div>
-              <div className="flex">
-                <span className="w-20 font-medium text-gray-700">Patient:</span>
-                <span className="font-semibold text-gray-900">{displayPatient}</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex">
-                <span className="w-20 font-medium text-gray-700">Pan #:</span>
-                <span className="font-semibold text-gray-900">{pan || "----"}</span>
-              </div>
-              <div className="flex">
-                <span className="w-20 font-medium text-gray-700">Case #:</span>
-                <span className="font-semibold text-gray-900">{displayCaseNo}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mb-8 space-y-3">
-            {slipHistories.map((s) => (
-              <div
-                key={s.slipNumber}
-                className="flex items-center justify-between border-b border-gray-100 py-4 last:border-b-0"
-              >
-                <div className="flex items-center gap-1">
-                  <ChevronRight className="h-5 w-5 text-gray-400" aria-hidden />
-                  <div className="ml-2 flex flex-wrap items-center gap-4">
-                    <div className="rounded-full bg-gray-100 px-4 py-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        Slip #: {s.slipNumber}
-                      </span>
-                    </div>
-                    <div className="rounded-full bg-gray-100 px-4 py-2">
-                      <span className="text-sm font-medium text-gray-700">{s.stage}</span>
-                    </div>
-                    <div
-                      className={cn(
-                        "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium",
-                        s.isRush ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-700"
-                      )}
-                    >
-                      {s.isRush && <Zap className="h-4 w-4 text-red-600" />}
-                      {s.deliveryDate}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-gray-600">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span>Loading driver history…</span>
-            </div>
-          ) : error ? (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-              {error}
-            </div>
-          ) : timeline.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-600">
-              No driver history recorded for this slip yet.
-            </p>
-          ) : (
-            <div className="mb-8">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="py-4 text-left text-base font-semibold text-gray-900">
-                      Timestamp
-                    </th>
-                    <th className="py-4 text-left text-base font-semibold text-gray-900">
-                      Location
-                    </th>
-                    <th className="py-4 text-left text-base font-semibold text-gray-900">
-                      User
-                    </th>
-                    <th className="py-4 text-left text-base font-semibold text-gray-900">
-                      Receiver
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timeline.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100 last:border-b-0">
-                      <td className="py-4 text-gray-900">{row.timestamp}</td>
-                      <td className="py-4 text-gray-900">{row.location}</td>
-                      <td className="py-4">
-                        <PersonCell name={row.user} />
-                      </td>
-                      <td className="py-4">
-                        <PersonCell name={row.receiver} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <Textarea
-              className="min-h-[120px] w-full resize-none rounded-lg border-gray-300 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              placeholder="Signature *"
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
+        <DeliveryModalHeader
+          icon={
+            <Image
+              src="/icons/virtual-slip-center/driver-history.svg"
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8"
             />
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                className="rounded-lg bg-blue-600 px-8 py-3 text-base font-medium text-white hover:bg-blue-700"
-                disabled={submitting || (Boolean(onSubmitSignature) && !signature.trim())}
-                onClick={() => void handleSubmit()}
+          }
+          title="Driver History"
+          onClose={onClose}
+        />
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 sm:px-8">
+          {infoFields.length > 0 ? <DeliveryInfoBar fields={infoFields} /> : null}
+
+          {/* Slip / stage / delivery pills */}
+          <div className="flex flex-wrap items-center justify-center gap-3 py-3">
+            <span className="rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-1.5 text-[13px] font-medium text-[#374151]">
+              Slip# {slipNumber}
+            </span>
+            {displayStage && displayStage !== "—" ? (
+              <span className="rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-1.5 text-[13px] font-medium text-[#374151]">
+                {displayStage}
+              </span>
+            ) : null}
+            {displayDelivery && displayDelivery !== "—" ? (
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-medium",
+                  displayRush
+                    ? "bg-red-50 text-red-600"
+                    : "border border-[#E5E7EB] bg-[#F9FAFB] text-[#374151]"
+                )}
               >
-                {submitting ? "Submitting…" : "Submit"}
-              </Button>
-            </div>
+                {displayRush ? <Zap className="h-3.5 w-3.5 text-red-600" /> : null}
+                {displayDelivery}
+              </span>
+            ) : null}
           </div>
+
+          <DeliveryTimeline
+            rows={timeline}
+            loading={loading}
+            error={error}
+          />
+
+          {onSubmitSignature ? (
+            <div className="pt-2">
+              <SignaturePad
+                value={signature}
+                onChange={setSignature}
+                onSubmit={() => {
+                  if (signature.trim() && !submitting) void handleSubmit();
+                }}
+                placeholder="Signature"
+              />
+            </div>
+          ) : null}
         </div>
+
+        {onSubmitSignature ? (
+          <DeliveryModalFooter
+            onCancel={onClose}
+            onConfirm={handleSubmit}
+            confirmLabel="Confirm"
+            confirmDisabled={!signature.trim()}
+            submitting={submitting}
+          />
+        ) : (
+          <div className="flex shrink-0 items-center justify-center border-t border-[#F3F4F6] px-6 py-5 sm:px-8">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 rounded-lg bg-[#0E66B2] px-8 text-sm font-medium text-white transition-colors hover:bg-[#0c5a9f]"
+            >
+              Close
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

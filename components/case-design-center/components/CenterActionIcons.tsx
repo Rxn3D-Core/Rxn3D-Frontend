@@ -126,7 +126,7 @@ export function CenterActionIcons({
 
   const primaryRowDefs: CenterRowIconDef[] = [
     rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral),
-    rowIcon("stage-notes", "Stage notes", "add-notes.svg", stickyNoteHandler),
+    rowIcon("stage-notes", "Stage notes", "slip-note.png", stickyNoteHandler),
     rowIcon("add-product", "Add add-ons", "add-general.svg", onAddProduct),
     {
       key: "rush",
@@ -138,7 +138,10 @@ export function CenterActionIcons({
   ];
 
   const moreRowDefs: CenterRowIconDef[] = [
-    rowIcon("driver-history", "Driver history", "driver-history.svg", onDriverHistory),
+    rowIcon("driver-history", "Driver history", "driver-history.svg", onDriverHistory, {
+      // Truck artwork is wide — scale width so visual height matches other row icons.
+      className: "h-[52px] w-[76px]",
+    }),
     rowIcon("call-log", "Call log", "call-log.svg", onCallLog),
     rowIcon("send-back-to-office", "Send back to office", "send-back-to-office.svg", onSendBackToOffice),
     rowIcon("on-hold", "On hold", "on-hold.svg", onHold, {
@@ -155,7 +158,7 @@ export function CenterActionIcons({
       ? rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral)
       : null,
     stickyNoteHandler
-      ? rowIcon("stage-notes", "Stage notes", "add-notes.svg", stickyNoteHandler)
+      ? rowIcon("stage-notes", "Stage notes", "slip-note.png", stickyNoteHandler)
       : null,
     onAddProduct
       ? rowIcon("add-product", "Add add-ons", "add-general.svg", onAddProduct)

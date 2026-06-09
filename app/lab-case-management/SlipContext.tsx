@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { buildApiUrl } from "@/lib/api/client";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
 import { applySlipAttachmentState } from "./attachment-state.mjs";
+import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
 
 type Slip = {
   id: number;
@@ -116,12 +117,13 @@ type SlipContextType = {
   fetchCallLogs: () => Promise<void>;
   fetchSlipNotes: () => Promise<void>;
   fetchDriverPrintData: (slipIds: number[]) => Promise<DriverPrintResponse | null>;
-  scanQrCode: (caseId: number, slipIds: number[]) => Promise<ScanQrCodeResponse | null>;
-  submitScannedSlips: (slipIds: number[], signature: string) => Promise<SubmitScannedSlipsResponse | null>;
+  scanQrCode: (caseId: number, slipIds: number[], sessionKey?: string) => Promise<ScanQrCodeResponse | null>;
+  clearDriverSession: (sessionKey: string) => Promise<{ success: boolean; message?: string } | null>;
+  submitScannedSlips: (slipIds: number[], signature: string, options?: { notes?: string; images?: Record<number, File> }) => Promise<SubmitScannedSlipsResponse | null>;
   fetchPickupDeliverySlips: (slipId: number) => Promise<any | null>;
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
-  readyToSend: (slipId: number) => Promise<ReadyToSendResponse | null>;
+  readyToSend: (slipId: number, signature?: string) => Promise<ReadyToSendResponse | null>;
   updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
 };
 
@@ -178,7 +180,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       : undefined,
     officeCode: apiSlip.office?.code || "",
     patient: apiSlip.case?.patient_name || "",
-    product: apiSlip.products?.map((p: any) => p.name).join(", ") || "",
+    product: formatSlipListingProducts(apiSlip.products),
     status: apiSlip.status || "",
     rush: !!apiSlip.is_rush,
     location: apiSlip.location?.current?.name || "",
@@ -409,8 +411,9 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     }
   }, [API_BASE_URL]);
 
-  // Scan QR Code API
-  const scanQrCode = useCallback(async (caseId: number, slipIds: number[]): Promise<ScanQrCodeResponse | null> => {
+  // Scan QR Code API. Omit sessionKey on the first scan; pass the returned
+  // session_key on every subsequent scan to stay in the same driver session.
+  const scanQrCode = useCallback(async (caseId: number, slipIds: number[], sessionKey?: string): Promise<ScanQrCodeResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
@@ -422,7 +425,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ case_id: caseId, slip_ids: slipIds }),
+          body: JSON.stringify({ case_id: caseId, slip_ids: slipIds, ...(sessionKey ? { session_key: sessionKey } : {}) }),
         }
       );
       if (res.status === 401) {
@@ -436,6 +439,32 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       return null;
     } finally {
       setLoading(false);
+    }
+  }, [API_BASE_URL]);
+
+  // Clear the driver session after a pickup batch completes (resets office lock).
+  const clearDriverSession = useCallback(async (sessionKey: string): Promise<{ success: boolean; message?: string } | null> => {
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `${API_BASE_URL}/slip/clear-driver-session`,
+        {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ session_key: sessionKey }),
+        }
+      );
+      if (res.status === 401) {
+        handleUnauthorized();
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error('Error clearing driver session:', error);
+      return null;
     }
   }, [API_BASE_URL]);
 
@@ -508,20 +537,42 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL]);
 
   // Submit Scanned Slips API
-  const submitScannedSlips = useCallback(async (slipIds: number[], signature: string): Promise<SubmitScannedSlipsResponse | null> => {
+  const submitScannedSlips = useCallback(async (slipIds: number[], signature: string, options?: { notes?: string; images?: Record<number, File> }): Promise<SubmitScannedSlipsResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
-      const res = await fetch(
-        `${API_BASE_URL}/slip/submit-scanned-slips`,
-        {
+      const imageEntries = options?.images ? Object.entries(options.images) : [];
+      const hasImages = imageEntries.length > 0;
+
+      let requestInit: RequestInit;
+      if (hasImages) {
+        // multipart/form-data — attach pickup/drop photos as images[{slip_id}].
+        const form = new FormData();
+        slipIds.forEach((id) => form.append('slip_ids[]', String(id)));
+        form.append('signature', signature);
+        if (options?.notes) form.append('notes', options.notes);
+        for (const [slipId, file] of imageEntries) {
+          form.append(`images[${slipId}]`, file);
+        }
+        requestInit = {
+          method: 'POST',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: form,
+        };
+      } else {
+        requestInit = {
           method: 'POST',
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ slip_ids: slipIds, signature }),
-        }
+          body: JSON.stringify({ slip_ids: slipIds, signature, ...(options?.notes ? { notes: options.notes } : {}) }),
+        };
+      }
+
+      const res = await fetch(
+        `${API_BASE_URL}/slip/submit-scanned-slips`,
+        requestInit
       );
 
       if (res.status === 401) {
@@ -594,17 +645,22 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /slip/action/{slipId}/ready-to-send — no body. Success: { success, message }.
+   * POST /slip/action/{slipId}/ready-to-send. Signature is forwarded as { notes }
+   * (no-op until the backend reads it); without it, no body is sent.
    */
-  const readyToSend = useCallback(async (slipId: number): Promise<ReadyToSendResponse | null> => {
+  const readyToSend = useCallback(async (slipId: number, signature?: string): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
+      const trimmedSignature = signature?.trim();
+      const hasBody = Boolean(trimmedSignature);
       const res = await fetch(buildApiUrl(`/slip/action/${slipId}/ready-to-send`), {
         method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(hasBody ? { "Content-Type": "application/json" } : {}),
         },
+        ...(hasBody ? { body: JSON.stringify({ notes: trimmedSignature }) } : {}),
       });
 
       if (res.status === 401) {
@@ -669,6 +725,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       fetchSlipNotes,
       fetchDriverPrintData,
       scanQrCode,
+      clearDriverSession,
       submitScannedSlips,
       createCustomDeliveryDate,
       fetchCustomDeliveryDates,

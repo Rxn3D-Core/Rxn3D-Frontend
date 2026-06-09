@@ -45,7 +45,7 @@ import {
 import { cn } from "@/lib/utils"
 
 const MAX_NOTE_LENGTH = 2000
-const STICKY_NOTE_ICON = "/icons/virtual-slip-center/add-notes.svg"
+const STICKY_NOTE_ICON = "/icons/virtual-slip-center/slip-note.png"
 
 function formatStageNoteTimestamp(iso: string): string {
   const d = new Date(iso)
