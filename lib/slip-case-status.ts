@@ -13,6 +13,11 @@ export function isSlipCaseOnHold(status: string | undefined | null): boolean {
   return normalized === "on hold" || normalized === "hold";
 }
 
+/** True when slip/case is finished. */
+export function isSlipCaseFinished(status: string | undefined | null): boolean {
+  return normalizeSlipCaseStatus(status) === "finished";
+}
+
 /** True when slip/case is cancelled — read-only, no actions are available. */
 export function isSlipCaseCancelled(status: string | undefined | null): boolean {
   const normalized = normalizeSlipCaseStatus(status);

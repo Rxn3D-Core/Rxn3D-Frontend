@@ -108,6 +108,12 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [isDecoding, setIsDecoding] = useState(false)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
+  // Driver pickup session key — reused across scans so the backend keeps the
+  // same single-office session; cleared when the batch is submitted/cancelled.
+  const qrSessionRef = useRef<string | null>(null)
+  // QR texts already scanned in the current session — prevents re-hitting the
+  // backend with the same (last) slip when the QR stays in front of the camera.
+  const scannedQrTextsRef = useRef<Set<string>>(new Set())
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
   const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
@@ -115,7 +121,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
-  const { scanQrCode, submitScannedSlips } = useSlipContext()
+  const { scanQrCode, submitScannedSlips, clearDriverSession } = useSlipContext()
   const { toast } = useToast();
   const pathname = usePathname() || "";
   const router = useRouter();
@@ -294,17 +300,38 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           const caseId = parseInt(urlMatch[1])
           const slipIds = urlMatch[2].split(',').map(id => parseInt(id))
 
+          // Already scanned in this session — don't hit the backend again with
+          // the same slip; just stop the scanner and surface a gentle notice.
+          if (scannedQrTextsRef.current.has(text)) {
+            closeScanner()
+            setShowDriverHistoryModal(true)
+            toast({
+              title: "Already added",
+              description: "This case has already been scanned in this session.",
+              duration: 3000,
+            })
+            return
+          }
 
           try {
-            const res: any = await scanQrCode(caseId, slipIds)
+            const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
 
             if (res && res.success) {
 
-              // Store the scan data for the modal
-              setQrScanData(res)
+              // Mark this QR as handled so it isn't re-scanned while still in view.
+              scannedQrTextsRef.current.add(text)
 
-              // Close the scanner
-              closeScanner()
+              // Remember the session so subsequent scans stay in the same batch.
+              qrSessionRef.current = res.session_key || qrSessionRef.current
+
+              // Merge this case's slips into any already-scanned slips (dedupe by slip_id).
+              setQrScanData((prev: any) => {
+                const incoming = Array.isArray(res.data) ? res.data : []
+                if (!prev || !Array.isArray(prev.data)) return res
+                const seen = new Set(prev.data.map((d: any) => d.slip_id))
+                const merged = [...prev.data, ...incoming.filter((d: any) => !seen.has(d.slip_id))]
+                return { ...res, data: merged }
+              })
 
               // Show the driver history modal with the scan data
               setShowDriverHistoryModal(true)
@@ -331,6 +358,10 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               variant: "destructive",
               duration: 5000,
             })
+          } finally {
+            // Always stop the camera after handling a case/slip QR so it does not
+            // keep re-firing /scan-qr with the same slip.
+            closeScanner()
           }
 
           return // Exit early, don't process as regular URL
@@ -1211,8 +1242,27 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           onClose={() => {
             setShowDriverHistoryModal(false);
             setQrScanData(null);
+            scannedQrTextsRef.current.clear();
+            // End the driver session (submit or cancel) so a new batch can start fresh.
+            if (qrSessionRef.current) {
+              void clearDriverSession(qrSessionRef.current);
+              qrSessionRef.current = null;
+            }
           }}
           qrScanData={qrScanData.data}
+          onRequestScan={() => {
+            // "Add Slip": keep the session + scanned slips and reopen the scanner.
+            setShowDriverHistoryModal(false);
+            openScanner();
+          }}
+          onSubmitted={() => {
+            // Scanned slips submitted — clear the driver session id.
+            if (qrSessionRef.current) {
+              void clearDriverSession(qrSessionRef.current);
+              qrSessionRef.current = null;
+            }
+            scannedQrTextsRef.current.clear();
+          }}
         />
       )}
 

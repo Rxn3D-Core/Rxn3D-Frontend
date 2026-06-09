@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
+import { formatSlipListingProducts } from "@/app/lab-case-management/slip-listing-product-label.mjs";
 
 // Types based on the API response structure
 export interface OfficeSlipProduct {
@@ -210,7 +211,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
         : undefined,
       officeCode: apiCase.lab?.name || "",
       patient: apiCase.patient_name || "",
-      product: slip.products?.map((p) => `${p.product_code}-${p.product_name}`).join(", ") || "",
+      product: formatSlipListingProducts(slip.products),
       status: slip.status || "",
       rush: slip.is_rush || false,
       location: slip.location?.name || "",

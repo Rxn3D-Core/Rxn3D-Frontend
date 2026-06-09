@@ -173,6 +173,27 @@ export function VirtualSlipNotes({
     pickupDropoffAction === "dropoff"
       ? "/icons/virtual-slip-center/drop-off.svg"
       : "/icons/virtual-slip-center/pick-up.svg";
+
+  const stickyFooterAction =
+    showFooterAddStage && onAddStage
+      ? {
+          src: "/icons/virtual-slip-center/add-stage.svg",
+          label: "Add stage",
+          onClick: onAddStage,
+        }
+      : showFooterReadyToSend && onReadyToSend
+        ? {
+            src: "/icons/virtual-slip-center/ready-to-send.svg",
+            label: "Ready to send",
+            onClick: onReadyToSend,
+          }
+        : showFooterDriverIcon && onPickupDropoff
+          ? {
+              src: footerDriverIconSrc,
+              label: pickupDropoffLabel,
+              onClick: onPickupDropoff,
+            }
+          : null;
   const router = useRouter();
   const [jumpSlip, setJumpSlip] = useState("");
   const [jumpSlipError, setJumpSlipError] = useState<string | null>(null);
@@ -412,30 +433,19 @@ export function VirtualSlipNotes({
             )}
           </div>
 
-          {showFooterAddStage && onAddStage ? (
-            <FooterActionIcon
-              src="/icons/virtual-slip-center/add-stage.svg"
-              label="Add stage"
-              onClick={onAddStage}
-              disabled={disableFooterAction}
-            />
-          ) : showFooterReadyToSend && onReadyToSend ? (
-            <FooterActionIcon
-              src="/icons/virtual-slip-center/ready-to-send.svg"
-              label="Ready to send"
-              onClick={onReadyToSend}
-              disabled={disableFooterAction}
-            />
-          ) : showFooterDriverIcon && onPickupDropoff ? (
-            <FooterActionIcon
-              src={footerDriverIconSrc}
-              label={pickupDropoffLabel}
-              onClick={onPickupDropoff}
-              disabled={disableFooterAction}
-            />
-          ) : null}
         </div>
       </div>
+
+      {stickyFooterAction ? (
+        <div className="fixed bottom-6 right-6 z-50">
+          <FooterActionIcon
+            src={stickyFooterAction.src}
+            label={stickyFooterAction.label}
+            onClick={stickyFooterAction.onClick}
+            disabled={disableFooterAction}
+          />
+        </div>
+      ) : null}
     </TooltipProvider>
   );
 }

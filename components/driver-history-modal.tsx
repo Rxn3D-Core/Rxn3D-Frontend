@@ -3,12 +3,12 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
+import Image from "next/image"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { X, Plus, Loader2, AlertCircle, Trash2 } from "lucide-react"
+import { Plus, Loader2, AlertCircle, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
@@ -23,30 +23,28 @@ import {
   type SlipPickupDropoffAction,
 } from "@/lib/slip-location"
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
+import { getCurrentUserName } from "@/lib/current-user"
+import type { UploadedImage } from "@/lib/image-to-base64"
+import {
+  DeliveryInfoBar,
+  DeliveryModalFooter,
+  DeliveryModalHeader,
+  DeliveryPills,
+  DeliveryTimeline,
+  ImageDropzone,
+  SignaturePad,
+  useSlipDriverTimeline,
+  type DeliveryInfoField,
+} from "@/components/driver-delivery/delivery-parts"
 
 function pickupDropoffModalCopy(action: SlipPickupDropoffAction | null) {
   if (action === "dropoff") {
-    return {
-      title: "Drop off",
-      subtitle: "Confirm drop off for this slip.",
-      signaturePlaceholder: "Please sign to confirm drop off...",
-      entriesLabel: "Drop off",
-    }
+    return { title: "Drop off", confirmLabel: "Drop off" }
   }
   if (action === "pickup") {
-    return {
-      title: "Pick up",
-      subtitle: "Confirm pick up for this slip.",
-      signaturePlaceholder: "Please sign to confirm pick up...",
-      entriesLabel: "Pick up",
-    }
+    return { title: "Pick up", confirmLabel: "Pick up" }
   }
-  return {
-    title: "Pick up and Drop off",
-    subtitle: "Select cases to confirm pick up or drop off.",
-    signaturePlaceholder: "Please sign to confirm pick up or drop off...",
-    entriesLabel: "Delivery Entries",
-  }
+  return { title: "Pick up / Drop off", confirmLabel: "Confirm" }
 }
 
 type DeliveryEntry = PickupDeliveryEntry
@@ -63,26 +61,6 @@ function DirectionsIcon() {
   )
 }
 
-function DeliveryActionIcon({ clipId }: { clipId: string }) {
-  return (
-    <svg width="23" height="33" viewBox="0 0 24 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <g clipPath={`url(#${clipId})`}>
-        <path d="M8.95658 6.95117H2.75481C1.69774 6.95117 0.84082 7.80677 0.84082 8.8622V16.2821C0.84082 17.3376 1.69774 18.1932 2.75481 18.1932H8.95658C10.0136 18.1932 10.8706 17.3376 10.8706 16.2821V8.8622C10.8706 7.80677 10.0136 6.95117 8.95658 6.95117Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-        <path d="M5.85561 18.7695L1.87793 23.4564H9.84399L5.85561 18.7695Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-        <path d="M5.85547 23.457V32.9161" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-        <path d="M19.0824 6.51344C20.6651 6.51344 21.9481 5.23243 21.9481 3.65223C21.9481 2.07202 20.6651 0.791016 19.0824 0.791016C17.4998 0.791016 16.2168 2.07202 16.2168 3.65223C16.2168 5.23243 17.4998 6.51344 19.0824 6.51344Z" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-        <path d="M12.9661 15.1931L18.4729 8.83008H20.0554C20.4724 8.83008 20.8573 9.03293 21.1353 9.38524L21.8838 10.3461C22.1725 10.7198 22.3329 11.1788 22.3329 11.6486V19.5916L16.4947 26.0934V30.0863C16.4947 30.9084 16.2702 31.7304 15.789 32.3603C15.7034 32.4671 15.6286 32.5525 15.5644 32.5952C15.265 32.7874 14.5059 32.7447 14.1851 32.5952C14.1209 32.5632 14.0354 32.4991 14.0354 32.4991C13.4045 31.9013 13.1265 31.1326 13.1265 30.3425V26.3283L18.3125 19.8265L18.1093 14.5525L14.9122 18.3639H5.85547" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-        <path d="M22.7717 22.0039V29.7014C22.7717 30.5235 22.5899 31.3455 22.2049 31.9754C22.1408 32.0822 22.0766 32.1676 22.0232 32.2103C21.7879 32.4025 21.1678 32.3598 20.9111 32.2103C20.8577 32.1783 20.7935 32.1142 20.7187 32.0288C20.291 31.5164 20.0664 30.7477 20.0664 29.9576V25.9434" stroke="#34C759" strokeWidth="1.5" strokeMiterlimit="10" />
-      </g>
-      <defs>
-        <clipPath id={clipId}>
-          <rect width="23" height="33" fill="white" transform="translate(0.306641 0.257812)" />
-        </clipPath>
-      </defs>
-    </svg>
-  )
-}
-
 interface DriverHistoryModalProps {
   isOpen: boolean
   onClose: () => void
@@ -90,6 +68,10 @@ interface DriverHistoryModalProps {
   qrScanData?: QRScanResponseData[] // Optional QR scan data to pre-populate
   /** Virtual slip: use loaded slip details only — do not POST /slip/pickup-delivery-slips */
   singleSlipMode?: boolean
+  /** QR flow: reopen the scanner to add another case (keeps the session). */
+  onRequestScan?: () => void
+  /** QR flow: called after scanned slips are submitted successfully (clear session). */
+  onSubmitted?: () => void
 }
 
 export default function DriverHistoryModal({
@@ -98,14 +80,18 @@ export default function DriverHistoryModal({
   slip,
   qrScanData,
   singleSlipMode = false,
+  onRequestScan,
+  onSubmitted,
 }: DriverHistoryModalProps) {
   const [deliveryEntries, setDeliveryEntries] = useState<DeliveryEntry[]>([])
   const [signature, setSignature] = useState("")
+  const [image, setImage] = useState<UploadedImage | null>(null)
   const { qrScanData: contextQrScanData, qrScanLoading, qrScanError, sessionKey } = useDriverSlip()
   const { submitScannedSlips, fetchPickupDeliverySlips } = useSlipContext()
   const { toast } = useToast()
   const [loadingPickup, setLoadingPickup] = useState(false)
   const [pickupError, setPickupError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const lastFetchedSlipIdRef = useRef<number | null>(null)
 
   // Convert QR scan data to delivery entries
@@ -153,9 +139,22 @@ export default function DriverHistoryModal({
     })
   }, [singleSlipMode, slip])
 
+  const isDropoff = singleSlipMode && pickupDropoffAction === "dropoff"
+  const isPickup = singleSlipMode && pickupDropoffAction === "pickup"
+
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
     [singleSlipMode, pickupDropoffAction]
+  )
+
+  // Logged-in user's name — used as the drop-off signature (captured automatically).
+  const currentUserName = useMemo(() => getCurrentUserName(), [isOpen])
+
+  // Embedded driver history timeline (single slip only).
+  const numericSlipId = typeof slipId === "number" ? slipId : Number(slipId)
+  const timeline = useSlipDriverTimeline(
+    singleSlipMode && Number.isFinite(numericSlipId) ? numericSlipId : null,
+    isOpen
   )
 
   // Virtual slip: one row from details already on the page (no pickup-delivery-slips API)
@@ -202,12 +201,14 @@ export default function DriverHistoryModal({
     void loadPickup()
   }, [isOpen, slipId, fetchPickupDeliverySlips, singleSlipMode])
 
-  // Reset entries when modal closes
+  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setDeliveryEntries([])
       setSignature("")
+      setImage(null)
       setPickupError(null)
+      setSubmitting(false)
       lastFetchedSlipIdRef.current = null
     }
   }, [isOpen])
@@ -254,112 +255,152 @@ export default function DriverHistoryModal({
     setDeliveryEntries((prevEntries) => prevEntries.filter((entry) => entry.id !== id))
   }
 
+  const handleRejectedImages = (names: string[]) => {
+    toast({
+      title: "Only images are allowed",
+      description: `Skipped: ${names.join(", ")}`,
+      variant: "destructive",
+    })
+  }
+
   const handleSubmit = async () => {
     const selectedCases = deliveryEntries.filter((entry) => entry.isChecked)
     const slipIds = selectedCases.map((entry) => entry.slip_id).filter((id): id is number => typeof id === 'number')
-    
+
     if (selectedCases.length === 0) {
       toast({ title: "No slips selected", description: "Please select at least one slip.", variant: "destructive" })
       return
     }
-    if (!signature.trim()) {
+
+    // Drop off captures the current user's signature automatically; pick up needs a manual signature.
+    const effectiveSignature = isDropoff ? currentUserName : signature.trim()
+    if (!isDropoff && !effectiveSignature) {
       toast({ title: "Signature required", description: "Please enter your signature.", variant: "destructive" })
       return
     }
 
-    if (slipIds.length > 0) {
-      if (singleSlipMode && slipIds.length === 1) {
-        const entry = selectedCases[0]
-        const fromLocationId = entry.location_id
-        const toLocationId =
-          typeof fromLocationId === "number"
-            ? slipNextLocationIdFromRef({
-                locationId: fromLocationId,
-                location: entry.location,
-              })
-            : slipNextLocationIdFromRef({ location: entry.location })
+    setSubmitting(true)
+    try {
+      if (slipIds.length > 0) {
+        if (singleSlipMode && slipIds.length === 1) {
+          const entry = selectedCases[0]
+          const fromLocationId = entry.location_id
+          const toLocationId =
+            typeof fromLocationId === "number"
+              ? slipNextLocationIdFromRef({
+                  locationId: fromLocationId,
+                  location: entry.location,
+                })
+              : slipNextLocationIdFromRef({ location: entry.location })
 
-        if (toLocationId == null) {
-          toast({
-            title: "Invalid location",
-            description: "This slip cannot be moved from its current location.",
-            variant: "destructive",
+          if (toLocationId == null) {
+            toast({
+              title: "Invalid location",
+              description: "This slip cannot be moved from its current location.",
+              variant: "destructive",
+            })
+            return
+          }
+
+          const result = await postSlipDriverHistoryChangeLocation({
+            slip_ids: slipIds,
+            to_location_id: toLocationId,
+            notes: effectiveSignature || undefined,
+            // Drop-off proof photo (one per slip). Optional; pick up sends none.
+            images:
+              isDropoff && image
+                ? { [slipIds[0]]: image.file }
+                : undefined,
           })
+          if (result.success) {
+            toast({
+              title: "Submission Successful",
+              description: result.message || "Location updated successfully",
+              duration: 3000,
+            })
+            onClose()
+          } else {
+            toast({
+              title: "Submission Failed",
+              description: result.message || "Failed to update location",
+              variant: "destructive",
+              duration: 5000,
+            })
+          }
           return
         }
 
-        const result = await postSlipDriverHistoryChangeLocation({
-          slip_ids: slipIds,
-          to_location_id: toLocationId,
-          notes: signature.trim(),
-        })
-        if (result.success) {
-          toast({
-            title: "Submission Successful",
-            description:
-              result.message || "Location updated successfully",
-            duration: 3000,
-          })
+        const result = await submitScannedSlips(slipIds, effectiveSignature)
+        if (result && result.success) {
+          toast({ title: "Submission Successful", description: result.message || "Scanned slips submitted successfully", duration: 3000 })
+          onSubmitted?.()
           onClose()
         } else {
-          toast({
-            title: "Submission Failed",
-            description: result.message || "Failed to update location",
-            variant: "destructive",
-            duration: 5000,
-          })
+          toast({ title: "Submission Failed", description: result?.message || "Failed to submit scanned slips", variant: "destructive", duration: 5000 })
         }
-        return
-      }
-
-      const result = await submitScannedSlips(slipIds, signature)
-      if (result && result.success) {
-        toast({ title: "Submission Successful", description: result.message || "Scanned slips submitted successfully", duration: 3000 })
-        onClose()
       } else {
-        toast({ title: "Submission Failed", description: result?.message || "Failed to submit scanned slips", variant: "destructive", duration: 5000 })
+        toast({ title: "Submission Successful", description: "Manual entries processed successfully", duration: 3000 })
+        onClose()
       }
-    } else {
-      toast({ title: "Submission Successful", description: "Manual entries processed successfully", duration: 3000 })
-      onClose()
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const tableScrollable = deliveryEntries.length > 5
+  const singleEntry = singleSlipMode ? deliveryEntries[0] : undefined
+
+  const headerIcon = (
+    <Image
+      src={
+        isDropoff
+          ? "/icons/virtual-slip-center/drop-off.svg"
+          : "/icons/virtual-slip-center/pick-up.svg"
+      }
+      alt=""
+      width={32}
+      height={32}
+      className="h-8 w-8"
+    />
+  )
+
+  const infoFields: DeliveryInfoField[] = singleEntry
+    ? [
+        { label: "Office", value: singleEntry.office },
+        { label: "Pt name", value: singleEntry.patientName },
+        { label: "Location", value: singleEntry.location },
+        { label: "Slip #", value: singleEntry.slip_number },
+      ].filter((f) => Boolean(f.value))
+    : []
+
+  const confirmDisabled = singleSlipMode
+    ? deliveryEntries.length === 0 || (isPickup && !signature.trim())
+    : deliveryEntries.filter((e) => e.isChecked).length === 0 || !signature.trim()
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         showCloseButton={false}
-        className="flex w-[min(96vw,1080px)] max-w-none flex-col overflow-hidden rounded-none border border-[#D9D9D9] bg-white p-0 shadow-xl sm:rounded-lg max-h-[90dvh]"
+        className="flex w-[min(96vw,1080px)] max-w-none flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-0 shadow-xl max-h-[90dvh]"
       >
-        <div className="flex shrink-0 items-center justify-between px-5 py-4 sm:px-8 sm:py-5">
-          <DialogTitle className="text-xl font-bold tracking-[-0.02em] text-[#1F2937] sm:text-[22px]">
-            {modalCopy.title}
-          </DialogTitle>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center text-[#9CA3AF] transition-colors hover:text-[#4B5563]"
-            aria-label="Close"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
+        <DialogTitle className="sr-only">{modalCopy.title}</DialogTitle>
 
-        <div className="flex min-h-0 flex-1 flex-col px-5 pb-5 sm:px-8 sm:pb-6">
+        <DeliveryModalHeader
+          icon={headerIcon}
+          title={
+            isPickup && singleEntry?.office
+              ? `Pick up - ${singleEntry.office}`
+              : modalCopy.title
+          }
+          onClose={onClose}
+        />
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 sm:px-8">
           {!singleSlipMode && contextQrScanData ? (
             <p className="mb-3 text-xs text-green-700">
               QR scanned ({contextQrScanData.scanned_cases_count} cases)
               {sessionKey ? ` · session ${sessionKey.substring(0, 8)}…` : ""}
             </p>
-          ) : null}
-
-          {loadingPickup ? (
-            <div className="mb-4 flex items-center justify-center gap-2 py-6 text-[#1162A8]">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Loading entries…</span>
-            </div>
           ) : null}
 
           {pickupError ? (
@@ -369,186 +410,208 @@ export default function DriverHistoryModal({
             </div>
           ) : null}
 
-          <div
-            className={cn(
-              "w-full overflow-x-auto",
-              tableScrollable && "max-h-[min(42dvh,320px)] overflow-y-auto",
-            )}
-          >
-            <table className="w-full min-w-[720px] border-collapse text-left">
-              <thead>
-                <tr className="bg-[#1162A8] text-white">
-                  <th className="px-4 py-3 text-[15px] font-semibold sm:px-5 sm:py-3.5">Location</th>
-                  <th className="w-[72px] px-2 py-3 text-center text-[15px] font-semibold sm:py-3.5">
-                    Directions
-                  </th>
-                  <th className="w-[52px] px-2 py-3 text-center sm:py-3.5">
-                    <Checkbox
-                      checked={allChecked}
-                      onCheckedChange={handleAllToggle}
-                      className="mx-auto border-white data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-[#1162A8]"
-                      aria-label="Select all"
-                    />
-                  </th>
-                  <th className="w-[88px] px-3 py-3 text-[15px] font-semibold sm:px-4 sm:py-3.5">Office</th>
-                  <th className="w-[72px] px-2 py-3 text-center text-[15px] font-semibold sm:py-3.5">Action</th>
-                  <th className="min-w-[140px] px-4 py-3 text-[15px] font-semibold sm:px-5 sm:py-3.5">
-                    Patient Name
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingPickup ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <tr key={`skeleton-${i}`} className="bg-[#F5F5F5]">
-                      <td colSpan={6} className="px-5 py-4">
-                        <div className="h-4 w-full max-w-md animate-pulse rounded bg-gray-200" />
-                      </td>
+          {singleSlipMode ? (
+            /* ----------------------- Single slip ----------------------- */
+            <div className="space-y-1">
+              {infoFields.length > 0 ? <DeliveryInfoBar fields={infoFields} /> : null}
+
+              <DeliveryPills
+                items={[
+                  singleEntry?.slip_number ? `Slip# ${singleEntry.slip_number}` : null,
+                  singleEntry?.location || null,
+                ]}
+              />
+
+              <DeliveryTimeline
+                rows={timeline.rows}
+                loading={timeline.loading}
+                error={timeline.error}
+              />
+
+              {isDropoff ? (
+                <div className="space-y-3 pt-2">
+                  <ImageDropzone
+                    image={image}
+                    onChange={setImage}
+                    onRejected={handleRejectedImages}
+                  />
+                  <p className="text-center text-sm text-[#6B7280]">
+                    Signed automatically as{" "}
+                    <span className="font-semibold text-[#111827]">
+                      {currentUserName || "current user"}
+                    </span>
+                  </p>
+                </div>
+              ) : (
+                <div className="pt-2">
+                  <SignaturePad
+                    value={signature}
+                    onChange={setSignature}
+                    onSubmit={() => {
+                      if (!confirmDisabled && !submitting) void handleSubmit();
+                    }}
+                    placeholder="Receiver's Signature"
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ----------------------- Multi slip ------------------------ */
+            <>
+              {loadingPickup ? (
+                <div className="mb-4 flex items-center justify-center gap-2 py-6 text-[#1162A8]">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Loading entries…</span>
+                </div>
+              ) : null}
+
+              <div
+                className={cn(
+                  "w-full overflow-x-auto",
+                  tableScrollable && "max-h-[min(42dvh,320px)] overflow-y-auto",
+                )}
+              >
+                <table className="w-full min-w-[640px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-[#E5E7EB]">
+                      <th className="px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Location</th>
+                      <th className="w-[72px] px-2 py-3 text-center text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">Directions</th>
+                      <th className="w-[52px] px-2 py-3 text-center">
+                        <Checkbox
+                          checked={allChecked}
+                          onCheckedChange={handleAllToggle}
+                          className="mx-auto border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
+                          aria-label="Select all"
+                        />
+                      </th>
+                      <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Office</th>
+                      <th className="min-w-[140px] px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Patient Name</th>
+                      <th className="w-[52px] px-2 py-3" />
                     </tr>
-                  ))
-                ) : deliveryEntries.length === 0 ? (
-                  <tr className="bg-[#F5F5F5]">
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-600">
-                      {singleSlipMode
-                        ? `Slip details are not available for ${modalCopy.title.toLowerCase()}.`
-                        : 'No entries available. Click "Add Case" to add one manually or scan a QR code.'}
-                    </td>
-                  </tr>
-                ) : (
-                  deliveryEntries.map((entry) => {
-                    const isManual = !entry.slip_id
-                    return (
-                      <tr key={entry.id} className="bg-[#F5F5F5] text-[15px] text-[#1F2937]">
-                        <td className="px-4 py-4 align-middle sm:px-5">
-                          {isManual ? (
-                            <Input
-                              value={entry.location}
-                              onChange={(e) => handleUpdateManualEntry(entry.id, "location", e.target.value)}
-                              placeholder="Location"
-                              className="h-9 border-[#D9D9D9] bg-white text-sm"
-                            />
-                          ) : (
-                            <span className="block max-w-[280px] leading-snug">{entry.location}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-4 text-center align-middle">
-                          {!isManual ? <DirectionsIcon /> : null}
-                        </td>
-                        <td className="px-2 py-4 text-center align-middle">
-                          <Checkbox
-                            id={`entry-${entry.id}`}
-                            checked={entry.isChecked}
-                            onCheckedChange={() => handleCheckboxToggle(entry.id)}
-                            className="mx-auto border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
-                            aria-label={`Select ${entry.patientName || "entry"}`}
-                          />
-                        </td>
-                        <td className="px-3 py-4 align-middle sm:px-4">
-                          {isManual ? (
-                            <Input
-                              value={entry.office}
-                              onChange={(e) => handleUpdateManualEntry(entry.id, "office", e.target.value)}
-                              placeholder="Office"
-                              className="h-9 w-full min-w-[72px] border-[#D9D9D9] bg-white text-sm"
-                            />
-                          ) : (
-                            <span className="font-medium">{entry.office || "—"}</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-4 text-center align-middle">
-                          {isManual ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                              onClick={() => handleDeleteManualEntry(entry.id)}
-                              title="Delete manual entry"
-                              type="button"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <div className="flex justify-center">
-                              <DeliveryActionIcon clipId={`delivery-action-${entry.id}`} />
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 align-middle sm:px-5">
-                          {isManual ? (
-                            <Input
-                              value={entry.patientName}
-                              onChange={(e) =>
-                                handleUpdateManualEntry(entry.id, "patientName", e.target.value)
-                              }
-                              placeholder="Patient Name"
-                              className="h-9 border-[#D9D9D9] bg-white text-sm"
-                            />
-                          ) : (
-                            <span className="lowercase">{entry.patientName}</span>
-                          )}
+                  </thead>
+                  <tbody>
+                    {loadingPickup ? (
+                      Array.from({ length: 3 }).map((_, i) => (
+                        <tr key={`skeleton-${i}`} className="border-b border-dashed border-[#E5E7EB]">
+                          <td colSpan={6} className="px-5 py-4">
+                            <div className="h-4 w-full max-w-md animate-pulse rounded bg-gray-200" />
+                          </td>
+                        </tr>
+                      ))
+                    ) : deliveryEntries.length === 0 ? (
+                      <tr className="border-b border-dashed border-[#E5E7EB]">
+                        <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-600">
+                          No entries available. Click &quot;Add Slip&quot; to add one manually or scan a QR code.
                         </td>
                       </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                    ) : (
+                      deliveryEntries.map((entry) => {
+                        const isManual = !entry.slip_id
+                        return (
+                          <tr key={entry.id} className="border-b border-dashed border-[#E5E7EB] text-[14px] text-[#374151] last:border-b-0">
+                            <td className="px-4 py-4 align-middle sm:px-5">
+                              {isManual ? (
+                                <Input
+                                  value={entry.location}
+                                  onChange={(e) => handleUpdateManualEntry(entry.id, "location", e.target.value)}
+                                  placeholder="Location"
+                                  className="h-9 border-[#D9D9D9] bg-white text-sm"
+                                />
+                              ) : (
+                                <span className="block max-w-[280px] leading-snug">{entry.location}</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-4 text-center align-middle">
+                              {!isManual ? <DirectionsIcon /> : null}
+                            </td>
+                            <td className="px-2 py-4 text-center align-middle">
+                              <Checkbox
+                                id={`entry-${entry.id}`}
+                                checked={entry.isChecked}
+                                onCheckedChange={() => handleCheckboxToggle(entry.id)}
+                                className="mx-auto border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
+                                aria-label={`Select ${entry.patientName || "entry"}`}
+                              />
+                            </td>
+                            <td className="px-3 py-4 align-middle sm:px-4">
+                              {isManual ? (
+                                <Input
+                                  value={entry.office}
+                                  onChange={(e) => handleUpdateManualEntry(entry.id, "office", e.target.value)}
+                                  placeholder="Office"
+                                  className="h-9 w-full min-w-[72px] border-[#D9D9D9] bg-white text-sm"
+                                />
+                              ) : (
+                                <span className="font-medium">{entry.office || "—"}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 align-middle sm:px-5">
+                              {isManual ? (
+                                <Input
+                                  value={entry.patientName}
+                                  onChange={(e) => handleUpdateManualEntry(entry.id, "patientName", e.target.value)}
+                                  placeholder="Patient Name"
+                                  className="h-9 border-[#D9D9D9] bg-white text-sm"
+                                />
+                              ) : (
+                                <span>{entry.patientName}</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-4 text-center align-middle">
+                              {isManual ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                                  onClick={() => handleDeleteManualEntry(entry.id)}
+                                  title="Delete manual entry"
+                                  type="button"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-          {!singleSlipMode ? (
-            <div className="mt-4 flex justify-center">
-              <Button
-                variant="outline"
-                className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
-                onClick={handleAddCase}
-                type="button"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Case
-              </Button>
-            </div>
-          ) : null}
+              <div className="mt-4 flex justify-center">
+                <Button
+                  variant="outline"
+                  className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
+                  onClick={onRequestScan ?? handleAddCase}
+                  type="button"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Slip
+                </Button>
+              </div>
 
-          <div className="relative mt-5 min-h-[120px] shrink-0 border border-[#D9D9D9] bg-white sm:mt-6 sm:min-h-[150px]">
-            {!signature.trim() ? (
-              <span
-                className="pointer-events-none absolute inset-0 flex items-center justify-center select-none text-[28px] text-[#C4C4C4] sm:text-[32px]"
-                style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
-                aria-hidden
-              >
-                Signature
-              </span>
-            ) : null}
-            <Textarea
-              id="signature"
-              rows={4}
-              className="min-h-[120px] w-full resize-none border-0 bg-transparent px-4 py-4 text-[22px] leading-relaxed text-[#1F2937] shadow-none focus-visible:ring-0 sm:min-h-[150px] sm:text-[26px]"
-              style={{ fontFamily: '"Segoe Script", "Brush Script MT", cursive' }}
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              aria-label="Signature"
-            />
-          </div>
-
-          <div className="mt-4 flex shrink-0 flex-col-reverse justify-end gap-2 sm:flex-row sm:gap-3">
-            <Button
-              variant="outline"
-              className="h-10 border-[#D9D9D9] sm:w-auto"
-              onClick={onClose}
-              type="button"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!signature.trim()}
-              className="h-10 bg-[#1162A8] px-8 text-white hover:bg-[#0d4f8a] sm:w-auto"
-              type="submit"
-            >
-              Submit
-            </Button>
-          </div>
+              <div className="mt-5">
+                <SignaturePad
+                  value={signature}
+                  onChange={setSignature}
+                  onSubmit={() => {
+                    if (!confirmDisabled && !submitting) void handleSubmit();
+                  }}
+                  placeholder="Receiver's Signature"
+                />
+              </div>
+            </>
+          )}
         </div>
+
+        <DeliveryModalFooter
+          onCancel={onClose}
+          onConfirm={handleSubmit}
+          confirmLabel={modalCopy.confirmLabel}
+          confirmDisabled={confirmDisabled}
+          submitting={submitting}
+        />
       </DialogContent>
     </Dialog>
   )

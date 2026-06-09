@@ -11,23 +11,36 @@ export type ReadyToSendResponse = {
   message?: string;
 };
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(includeJsonContentType: boolean): HeadersInit {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
   return {
     Accept: "application/json",
+    ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
+/**
+ * Mark a slip ready to send.
+ *
+ * `signature` is the receiver/sender signature captured in the UI. The backend
+ * does not accept a body yet, so it is forwarded as `{ notes }` and is a no-op
+ * until the endpoint reads it. Rename the key here once the backend is ready.
+ */
 export async function postSlipReadyToSend(
-  slipId: number
+  slipId: number,
+  signature?: string
 ): Promise<ReadyToSendResponse> {
+  const trimmedSignature = signature?.trim();
+  const hasBody = Boolean(trimmedSignature);
+
   const res = await fetch(
     buildApiUrl(`/slip/action/${slipId}/ready-to-send`),
     {
       method: "POST",
-      headers: getAuthHeaders(),
+      headers: getAuthHeaders(hasBody),
+      ...(hasBody ? { body: JSON.stringify({ notes: trimmedSignature }) } : {}),
     }
   );
 

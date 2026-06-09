@@ -23,13 +23,9 @@ import {
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
@@ -39,6 +35,7 @@ import type { AddOnsProduct } from "@/components/add-ons-modal";
 import { VirtualSlipNotes } from "@/components/virtual-slip/VirtualSlipNotes";
 import { VirtualSlipCenterActions } from "@/components/virtual-slip/VirtualSlipCenterActions";
 import DriverHistoryModal from "@/components/driver-history-modal";
+import ReadyToSendModal from "@/components/ready-to-send-modal";
 import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal";
 import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entry";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
@@ -263,11 +260,11 @@ export default function VirtualSlipV2Page() {
     })();
   }, [generateVirtualStatement, toast, virtualSlipDetails]);
 
-  const handleConfirmReadyToSend = async () => {
+  const handleConfirmReadyToSend = async (signature?: string) => {
     if (!slipId || isNaN(slipId)) return;
     setReadyToSendSubmitting(true);
     try {
-      const res = await postSlipReadyToSend(slipId);
+      const res = await postSlipReadyToSend(slipId, signature);
       if (res?.success) {
         toast({
           title: "Success",
@@ -699,41 +696,19 @@ export default function VirtualSlipV2Page() {
         warning="This action cannot be undone and will archive the case."
       />
 
-      <Dialog
+      <ReadyToSendModal
         open={readyToSendOpen}
-        onOpenChange={(open) => {
-          if (!open) setReadyToSendOpen(false);
+        onClose={() => {
+          if (!readyToSendSubmitting) setReadyToSendOpen(false);
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Ready to send</DialogTitle>
-            <DialogDescription>
-              {vm.header.patientName
-                ? `Confirm "${vm.header.patientName}" is ready to send?`
-                : "Confirm this slip is ready to send?"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => setReadyToSendOpen(false)}
-              disabled={readyToSendSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="bg-[#0E66B2] text-white hover:bg-[#0c5a9f]"
-              onClick={handleConfirmReadyToSend}
-              disabled={readyToSendSubmitting}
-            >
-              {readyToSendSubmitting ? "Confirming…" : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onConfirm={handleConfirmReadyToSend}
+        submitting={readyToSendSubmitting}
+        slipId={slipId}
+        office={vm.header.officeName}
+        patientName={vm.header.patientName}
+        slipNumber={vm.header.slipNumber}
+        location={vm.header.location}
+      />
 
       <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
         <DialogContent

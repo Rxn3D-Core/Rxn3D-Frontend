@@ -85,13 +85,25 @@ class SlipService {
       // Not JSON, try other formats
     }
 
-    // Try parsing URL format: /case/123/slip/456 or similar
+    // Legacy URL format: /case/123/slip/456 (checked before the ?slips= form
+    // so this path isn't swallowed by the broader /case/{id} match below).
     const urlMatch = qrText.match(/case\/(\d+)\/slip\/(\d+)/);
     if (urlMatch) {
       return {
         case_id: Number(urlMatch[1]),
         slip_ids: [Number(urlMatch[2])]
       };
+    }
+
+    // Primary QR format: {frontendUrl}/case/{caseId}?slips={slipId,slipId}
+    // Case-only QR ("/case/{caseId}") yields empty slip_ids — caller must then
+    // fetch the case's slips before calling scan-qr.
+    const caseSlipsMatch = qrText.match(/\/case\/(\d+)(?:\?slips=([0-9,]+))?/);
+    if (caseSlipsMatch) {
+      const slip_ids = caseSlipsMatch[2]
+        ? caseSlipsMatch[2].split(",").map((id) => Number(id.trim())).filter((n) => !Number.isNaN(n))
+        : [];
+      return { case_id: Number(caseSlipsMatch[1]), slip_ids };
     }
 
     // Try parsing simple format: CASE-123-SLIP-456

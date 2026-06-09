@@ -18,7 +18,9 @@ import { useSlipCreation } from "@/contexts/slip-creation-context";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
 import ChangeDateModal from "@/components/change-date-modal"
 import DriverHistoryModal from "@/components/driver-history-modal"
+import ReadyToSendModal from "@/components/ready-to-send-modal"
 import AddOnsModal from "@/components/add-ons-modal"
+import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
@@ -39,6 +41,9 @@ import {
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { slipCanSendBackToOffice } from "@/lib/slip-location"
+import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
+import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 
 function formatYmd(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -72,6 +77,21 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 }
 
 const READY_TO_SEND_BLUE = "#0E66B2"
+
+/** Virtual-slip icon asset folders — same glyphs used on the virtual slip page. */
+const VS_CENTER_ICONS = "/icons/virtual-slip-center"
+const VS_ACTION_ICONS = "/icons/virtual-slip-actions"
+
+/**
+ * Small virtual-slip icon glyph for listing rows. Renders the shared SVG asset
+ * and is height-bounded (w-auto) so swapping it in never changes a column's height.
+ */
+function VsIcon({ src, className }: { src: string; className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs
+    <img src={src} alt="" aria-hidden className={`object-contain ${className ?? ""}`} />
+  )
+}
 
 function InLabPaperPlaneIcon() {
   return (
@@ -186,6 +206,9 @@ export default function LabSlipPage() {
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedSlipForAddOns, setSelectedSlipForAddOns] = useState<any>(null)
+  // Per-product add-on catalog inputs built from the slip details — same as the
+  // virtual slip, so the popup shows the product's add-ons + previously selected.
+  const [addonInputs, setAddonInputs] = useState<VirtualSlipAddonInputs | null>(null)
   const [showCallLogModal, setShowCallLogModal] = useState(false)
   const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<any>(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
@@ -218,7 +241,7 @@ export default function LabSlipPage() {
     labListingPagination,
     updateSlipAttachmentState,
   } = useSlipContext();
-  const { fetchProductAddons, requestSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -359,11 +382,11 @@ export default function LabSlipPage() {
     setShowReadyToSendModal(true)
   }
 
-  const handleConfirmReadyToSend = async () => {
+  const handleConfirmReadyToSend = async (signature?: string) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id)
+      const res = await readyToSend(readyToSendSlip.id, signature)
       if (res?.success) {
         toast({
           title: "Success",
@@ -415,9 +438,30 @@ export default function LabSlipPage() {
     }
   };
 
+  const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
+    setAddonInputs(null)
+    if (!slipId) return
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+      const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
+      const res = await fetch(url.toString(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.status === 401) {
+        window.location.href = "/login"
+        return
+      }
+      const json = await res.json()
+      setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
+    } catch {
+      setAddonInputs(null)
+    }
+  }, [])
+
   const handleAddOnsClick = (slip: any) => {
     setSelectedSlipForAddOns(slip)
     setShowAddOnsModal(true)
+    void loadAddonInputsForSlip(slip?.id)
   }
 
   const handleCallLogClick = (slip: any) => {
@@ -432,12 +476,34 @@ export default function LabSlipPage() {
   }, [fetchLabSlips])
 
   const handleEditCase = (slip: any) => {
-    router.push(`/virtual-slip-v2/${slip.id}`)
+    router.push(buildVirtualSlipV2Path(slip.id))
   }
 
   const handleOpenRushCase = (slip: any) => {
     setSelectedSlipForRush(slip)
     setShowRushModal(true)
+    void loadAddonInputsForSlip(slip?.id)
+  }
+
+  const handleRemoveRushCase = async () => {
+    if (!selectedSlipForRush?.id) return
+    try {
+      await cancelSlipRush(selectedSlipForRush.id)
+      toast({
+        title: "Rush removed",
+        description: "The rush request was cancelled.",
+        duration: 3000,
+      })
+      setShowRushModal(false)
+      setSelectedSlipForRush(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to remove rush",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
@@ -983,16 +1049,6 @@ export default function LabSlipPage() {
 
 
 
-  const handleRowClick = (slip: any, event: React.MouseEvent) => {
-    // Don't navigate if clicked on a button, icon, or interactive element
-    const target = event.target as HTMLElement
-    const isInteractiveElement = target.closest('button, a, svg, input, [role="button"]')
-    
-    if (!isInteractiveElement) {
-      router.push(`/virtual-slip-v2/${slip.id}`)
-    }
-  }
-
   const getChangeDateHistory = (slipId: number) => {
     return [
       {
@@ -1021,7 +1077,7 @@ export default function LabSlipPage() {
         <HIPAAComplianceBanner variant="default" showDetails={false} />
       </div>
 
-      <div className="w-full px-4 py-8">
+      <div className="w-full px-4 pb-8">
         {/* Filter Bar */}
         <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
           <Input
@@ -1513,11 +1569,9 @@ export default function LabSlipPage() {
                 slipsPage.map((row, idx) => (
                   <tr
                     key={row.id}
-                    className={`transition-all duration-150 cursor-pointer ${selected.includes(row.id)
+                    className={`transition-all duration-150 ${selected.includes(row.id)
                       ? "bg-blue-50 border-l-4 border-blue-500"
                       : "hover:bg-gray-50"}`}
-                    onClick={(e) => handleRowClick(row, e)}
-                    title="Click to view virtual slip"
                   >
                     <td className="px-3 py-2 whitespace-nowrap">
                       <Checkbox
@@ -1546,9 +1600,27 @@ export default function LabSlipPage() {
                         <span className="text-xs">{row.createdAt}</span>
                       </span>
                     </td>}
-                    {visibleColumns.office && <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 text-xs">{row.officeCode}</td>}
-                    {visibleColumns.patient && <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">{row.patient}</td>}
-                    {visibleColumns.slipNumber && <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-mono text-xs">{row.slipNumber || '-'}</td>}
+                    {visibleColumns.office && (
+                      <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 text-xs">
+                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
+                          {row.officeCode}
+                        </SlipListingVirtualSlipLink>
+                      </td>
+                    )}
+                    {visibleColumns.patient && (
+                      <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">
+                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
+                          {row.patient}
+                        </SlipListingVirtualSlipLink>
+                      </td>
+                    )}
+                    {visibleColumns.slipNumber && (
+                      <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-mono text-xs">
+                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
+                          {row.slipNumber || "-"}
+                        </SlipListingVirtualSlipLink>
+                      </td>
+                    )}
                     {visibleColumns.pan &&
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span
@@ -1558,7 +1630,13 @@ export default function LabSlipPage() {
                           {row.pan}
                         </span>
                       </td>}
-                    {visibleColumns.product && <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">{row.product}</td>}
+                    {visibleColumns.product && (
+                      <td className="px-3 py-2 whitespace-nowrap text-gray-900 text-xs">
+                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
+                          {row.product}
+                        </SlipListingVirtualSlipLink>
+                      </td>
+                    )}
                     {visibleColumns.status &&
                       <td className="px-3 py-2 whitespace-nowrap">
                         <div className="flex gap-1.5 items-center">
@@ -1576,11 +1654,14 @@ export default function LabSlipPage() {
                           {row.status === "On Hold" && (
                             <Badge className="!rounded-md bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">On Hold</Badge>
                           )}
-                          {row.status === "Cancelled" && (
+                          {isSlipCaseCancelled(row.status) && (
                             <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Cancelled</Badge>
                           )}
                           {row.status === "Draft" && (
                             <Badge className="!rounded-md bg-gray-100 text-gray-600 border border-gray-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Draft</Badge>
+                          )}
+                          {isSlipCaseFinished(row.status) && (
+                            <Badge className="!rounded-md bg-blue-100 text-blue-800 border border-blue-200 font-medium px-1.5 py-0.5 text-xs whitespace-nowrap">Finished</Badge>
                           )}
                         </div>
                       </td>}
@@ -1596,21 +1677,7 @@ export default function LabSlipPage() {
                               className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="18" height="26" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <g clipPath="url(#clip0_4629_90148)">
-                                <path d="M8.30289 6.72046H2.50289C1.5143 6.72046 0.712891 7.52187 0.712891 8.51046V15.4605C0.712891 16.449 1.5143 17.2505 2.50289 17.2505H8.30289C9.29148 17.2505 10.0929 16.449 10.0929 15.4605V8.51046C10.0929 7.52187 9.29148 6.72046 8.30289 6.72046Z" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M5.40359 17.7905L1.68359 22.1805H9.13359L5.40359 17.7905Z" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M5.40234 22.1804V31.0404" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M17.7737 6.31044C19.2539 6.31044 20.4537 5.11056 20.4537 3.63044C20.4537 2.15032 19.2539 0.950439 17.7737 0.950439C16.2936 0.950439 15.0938 2.15032 15.0938 3.63044C15.0938 5.11056 16.2936 6.31044 17.7737 6.31044Z" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M12.0523 14.4405L17.2023 8.48047H18.6823C19.0723 8.48047 19.4323 8.67047 19.6923 9.00047L20.3923 9.90047C20.6623 10.2505 20.8123 10.6805 20.8123 11.1205V18.5605L15.3523 24.6505V28.3905C15.3523 29.1605 15.1423 29.9305 14.6923 30.5205C14.6123 30.6205 14.5423 30.7005 14.4823 30.7405C14.2023 30.9205 13.4923 30.8805 13.1923 30.7405C13.1323 30.7105 13.0523 30.6505 12.9623 30.5705C12.4623 30.0905 12.2023 29.3705 12.2023 28.6305V24.8705L17.0523 18.7805L16.8623 13.8405L13.8723 17.4105H5.40234" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M21.2234 20.8206V28.0306C21.2234 28.8006 21.0534 29.5706 20.6934 30.1606C20.6334 30.2606 20.5734 30.3406 20.5234 30.3806C20.3034 30.5606 19.7234 30.5206 19.4834 30.3806C19.4334 30.3506 19.3734 30.2906 19.3034 30.2106C18.9034 29.7306 18.6934 29.0106 18.6934 28.2706V24.5106" stroke="#119933" strokeMiterlimit="10"/>
-                                </g>
-                                <defs>
-                                <clipPath id="clip0_4629_90148">
-                                <rect width="21.51" height="30.91" fill="white" transform="translate(0.212891 0.450439)"/>
-                                </clipPath>
-                                </defs>
-                                </svg>
+                              <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
 
                             </button>
                             <span className="text-xs">{row.location}</span>
@@ -1626,14 +1693,7 @@ export default function LabSlipPage() {
                               className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="18" height="26" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                                <path d="M8.84977 18.0735H3.04977C2.06118 18.0735 1.25977 18.8749 1.25977 19.8635V26.8135C1.25977 27.8021 2.06118 28.6035 3.04977 28.6035H8.84977C9.83836 28.6035 10.6398 27.8021 10.6398 26.8135V19.8635C10.6398 18.8749 9.83836 18.0735 8.84977 18.0735Z" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M5.95383 17.3179L9.67383 12.9279L2.22383 12.9279L5.95383 17.3179Z" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M5.95312 12.928L5.95312 4.06798" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M18.3206 6.74794C19.8007 6.74794 21.0006 5.54806 21.0006 4.06794C21.0006 2.58782 19.8007 1.38794 18.3206 1.38794C16.8405 1.38794 15.6406 2.58782 15.6406 4.06794C15.6406 5.54806 16.8405 6.74794 18.3206 6.74794Z" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M12.5992 14.878L17.7492 8.91797H19.2292C19.6192 8.91797 19.9792 9.10797 20.2392 9.43797L20.9392 10.338C21.2092 10.688 21.3592 11.118 21.3592 11.558V18.998L15.8992 25.088V28.828C15.8992 29.598 15.6892 30.368 15.2392 30.958C15.1592 31.058 15.0892 31.138 15.0292 31.178C14.7492 31.358 14.0392 31.318 13.7392 31.178C13.6792 31.148 13.5992 31.088 13.5092 31.008C13.0092 30.528 12.7492 29.808 12.7492 29.068V25.308L17.5992 19.218L17.4092 14.278L14.4192 17.848H5.94922" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M21.7702 21.2581V28.4681C21.7702 29.2381 21.6002 30.0081 21.2402 30.5981C21.1802 30.6981 21.1202 30.7781 21.0702 30.8181C20.8502 30.9981 20.2702 30.9581 20.0302 30.8181C19.9802 30.7881 19.9202 30.7281 19.8502 30.6481C19.4502 30.1681 19.2402 29.4481 19.2402 28.7081V24.9481" stroke="#CF0202" strokeMiterlimit="10" />
-                              </svg>
+                              <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
                             </button>
                             <span className="text-xs">{row.location}</span>
                           </span>
@@ -1649,7 +1709,7 @@ export default function LabSlipPage() {
                               className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="Mark ready to send"
                             >
-                              <InLabPaperPlaneIcon />
+                              <VsIcon src={`${VS_CENTER_ICONS}/ready-to-send.svg`} className="h-[19px] w-auto" />
                             </button>
                             <span className="text-xs">{row.location}</span>
                           </span>
@@ -1665,21 +1725,7 @@ export default function LabSlipPage() {
                               className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="18" height="26" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <g clipPath="url(#clip0_4629_90148)">
-                                <path d="M8.30289 6.72046H2.50289C1.5143 6.72046 0.712891 7.52187 0.712891 8.51046V15.4605C0.712891 16.449 1.5143 17.2505 2.50289 17.2505H8.30289C9.29148 17.2505 10.0929 16.449 10.0929 15.4605V8.51046C10.0929 7.52187 9.29148 6.72046 8.30289 6.72046Z" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M5.40359 17.7905L1.68359 22.1805H9.13359L5.40359 17.7905Z" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M5.40234 22.1804V31.0404" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M17.7737 6.31044C19.2539 6.31044 20.4537 5.11056 20.4537 3.63044C20.4537 2.15032 19.2539 0.950439 17.7737 0.950439C16.2936 0.950439 15.0938 2.15032 15.0938 3.63044C15.0938 5.11056 16.2936 6.31044 17.7737 6.31044Z" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M12.0523 14.4405L17.2023 8.48047H18.6823C19.0723 8.48047 19.4323 8.67047 19.6923 9.00047L20.3923 9.90047C20.6623 10.2505 20.8123 10.6805 20.8123 11.1205V18.5605L15.3523 24.6505V28.3905C15.3523 29.1605 15.1423 29.9305 14.6923 30.5205C14.6123 30.6205 14.5423 30.7005 14.4823 30.7405C14.2023 30.9205 13.4923 30.8805 13.1923 30.7405C13.1323 30.7105 13.0523 30.6505 12.9623 30.5705C12.4623 30.0905 12.2023 29.3705 12.2023 28.6305V24.8705L17.0523 18.7805L16.8623 13.8405L13.8723 17.4105H5.40234" stroke="#119933" strokeMiterlimit="10"/>
-                                <path d="M21.2234 20.8206V28.0306C21.2234 28.8006 21.0534 29.5706 20.6934 30.1606C20.6334 30.2606 20.5734 30.3406 20.5234 30.3806C20.3034 30.5606 19.7234 30.5206 19.4834 30.3806C19.4334 30.3506 19.3734 30.2906 19.3034 30.2106C18.9034 29.7306 18.6934 29.0106 18.6934 28.2706V24.5106" stroke="#119933" strokeMiterlimit="10"/>
-                                </g>
-                                <defs>
-                                <clipPath id="clip0_4629_90148">
-                                <rect width="21.51" height="30.91" fill="white" transform="translate(0.212891 0.450439)"/>
-                                </clipPath>
-                                </defs>
-                                </svg>
+                              <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
 
                             </button>
                             <span className="text-xs">{row.location}</span>
@@ -1696,14 +1742,7 @@ export default function LabSlipPage() {
                               className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                               title="View driver history"
                             >
-                              <svg width="18" height="26" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                                <path d="M8.84977 18.0735H3.04977C2.06118 18.0735 1.25977 18.8749 1.25977 19.8635V26.8135C1.25977 27.8021 2.06118 28.6035 3.04977 28.6035H8.84977C9.83836 28.6035 10.6398 27.8021 10.6398 26.8135V19.8635C10.6398 18.8749 9.83836 18.0735 8.84977 18.0735Z" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M5.95383 17.3179L9.67383 12.9279L2.22383 12.9279L5.95383 17.3179Z" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M5.95312 12.928L5.95312 4.06798" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M18.3206 6.74794C19.8007 6.74794 21.0006 5.54806 21.0006 4.06794C21.0006 2.58782 19.8007 1.38794 18.3206 1.38794C16.8405 1.38794 15.6406 2.58782 15.6406 4.06794C15.6406 5.54806 16.8405 6.74794 18.3206 6.74794Z" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M12.5992 14.878L17.7492 8.91797H19.2292C19.6192 8.91797 19.9792 9.10797 20.2392 9.43797L20.9392 10.338C21.2092 10.688 21.3592 11.118 21.3592 11.558V18.998L15.8992 25.088V28.828C15.8992 29.598 15.6892 30.368 15.2392 30.958C15.1592 31.058 15.0892 31.138 15.0292 31.178C14.7492 31.358 14.0392 31.318 13.7392 31.178C13.6792 31.148 13.5992 31.088 13.5092 31.008C13.0092 30.528 12.7492 29.808 12.7492 29.068V25.308L17.5992 19.218L17.4092 14.278L14.4192 17.848H5.94922" stroke="#CF0202" strokeMiterlimit="10" />
-                                <path d="M21.7702 21.2581V28.4681C21.7702 29.2381 21.6002 30.0081 21.2402 30.5981C21.1802 30.6981 21.1202 30.7781 21.0702 30.8181C20.8502 30.9981 20.2702 30.9581 20.0302 30.8181C19.9802 30.7881 19.9202 30.7281 19.8502 30.6481C19.4502 30.1681 19.2402 29.4481 19.2402 28.7081V24.9481" stroke="#CF0202" strokeMiterlimit="10" />
-                              </svg>
+                              <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
                             </button>
                             <span className="text-xs">{row.location}</span>
                           </span>
@@ -1762,9 +1801,7 @@ export default function LabSlipPage() {
                             className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
                             title="Change due date"
                           >
-                            <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                              <path d="M5.12109 2.55518V4.24268M12.9961 2.55518V4.24268M2.30859 14.3677V5.93018C2.30859 5.48262 2.48638 5.0534 2.80285 4.73693C3.11932 4.42047 3.54854 4.24268 3.99609 4.24268H14.1211C14.5686 4.24268 14.9979 4.42047 15.3143 4.73693C15.6308 5.0534 15.8086 5.48262 15.8086 5.93018V14.3677M2.30859 14.3677C2.30859 14.8152 2.48638 15.2445 2.80285 15.5609C3.11932 15.8774 3.54854 16.0552 3.99609 16.0552H14.1211C14.5686 16.0552 14.9979 15.8774 15.3143 15.5609C15.6308 15.2445 15.8086 14.8152 15.8086 14.3677M2.30859 14.3677V8.74268C2.30859 8.29512 2.48638 7.8659 2.80285 7.54943C3.11932 7.23297 3.54854 7.05518 3.99609 7.05518H14.1211C14.5686 7.05518 14.9979 7.23297 15.3143 7.54943C15.6308 7.8659 15.8086 8.29512 15.8086 8.74268V14.3677M9.05859 9.86768H9.06459V9.87368H9.05859V9.86768ZM9.05859 11.5552H9.06459V11.5612H9.05859V11.5552ZM9.05859 13.2427H9.06459V13.2487H9.05859V13.2427ZM7.37109 11.5552H7.37709V11.5612H7.37109V11.5552ZM7.37109 13.2427H7.37709V13.2487H7.37109V13.2427ZM5.68359 11.5552H5.68959V11.5612H5.68359V11.5552ZM5.68359 13.2427H5.68959V13.2487H5.68359V13.2427ZM10.7461 9.86768H10.7521V9.87368H10.7461V9.86768ZM10.7461 11.5552H10.7521V11.5612H10.7461V11.5552ZM10.7461 13.2427H10.7521V13.2487H10.7461V13.2427ZM12.4336 9.86768H12.4396V9.87368H12.4336V9.86768ZM12.4336 11.5552H12.4396V11.5612H12.4336V11.5552Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
+                            <VsIcon src={`${VS_ACTION_ICONS}/calendar.svg`} className="h-4 w-4" />
                           </button>
                           <span className="text-gray-900 text-xs">{row.dueDate}</span>
                           {row.rush && <span className="text-red-500 flex-shrink-0">
@@ -1786,9 +1823,7 @@ export default function LabSlipPage() {
                                 className="h-7 w-7 p-0 hover:bg-gray-100"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M4.875 6.83887V1.58887H13.875V6.83887M4.875 13.5889H3.375C2.97718 13.5889 2.59564 13.4308 2.31434 13.1495C2.03304 12.8682 1.875 12.4867 1.875 12.0889V8.33887C1.875 7.94104 2.03304 7.55951 2.31434 7.27821C2.59564 6.9969 2.97718 6.83887 3.375 6.83887H15.375C15.7728 6.83887 16.1544 6.9969 16.4357 7.27821C16.717 7.55951 16.875 7.94104 16.875 8.33887V12.0889C16.875 12.4867 16.717 12.8682 16.4357 13.1495C16.1544 13.4308 15.7728 13.5889 15.375 13.5889H13.875M4.875 10.5889H13.875V16.5889H4.875V10.5889Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
+                                <VsIcon src={`${VS_ACTION_ICONS}/printer.svg`} className="h-4 w-4" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
@@ -1827,10 +1862,7 @@ export default function LabSlipPage() {
                               handleAddOnsClick(row)
                             }}
                           >
-                            <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M4.39844 9.08887H14.8984" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M9.64844 3.83887V14.3389" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <VsIcon src={`${VS_CENTER_ICONS}/add-general.svg`} className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -1841,9 +1873,7 @@ export default function LabSlipPage() {
                               handleCallLogClick(row)
                             }}
                           >
-                            <svg width="16" height="16" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M11.2959 12.5149C11.4508 12.586 11.6253 12.6023 11.7906 12.5609C11.956 12.5196 12.1024 12.4232 12.2056 12.2876L12.4719 11.9389C12.6116 11.7526 12.7928 11.6014 13.0011 11.4972C13.2093 11.3931 13.439 11.3389 13.6719 11.3389H15.9219C16.3197 11.3389 16.7012 11.4969 16.9825 11.7782C17.2638 12.0595 17.4219 12.441 17.4219 12.8389V15.0889C17.4219 15.4867 17.2638 15.8682 16.9825 16.1495C16.7012 16.4308 16.3197 16.5889 15.9219 16.5889C12.3415 16.5889 8.90767 15.1666 6.37593 12.6348C3.84419 10.1031 2.42188 6.66929 2.42188 3.08887C2.42187 2.69104 2.57991 2.30951 2.86121 2.02821C3.14252 1.7469 3.52405 1.58887 3.92188 1.58887H6.17188C6.5697 1.58887 6.95123 1.7469 7.23253 2.02821C7.51384 2.30951 7.67188 2.69104 7.67188 3.08887V5.33887C7.67188 5.57173 7.61766 5.8014 7.51352 6.00969C7.40937 6.21797 7.25817 6.39915 7.07187 6.53887L6.72087 6.80212C6.58319 6.90725 6.48614 7.05681 6.44622 7.22538C6.4063 7.39395 6.42596 7.57115 6.50188 7.72687C7.52689 9.80877 9.21269 11.4925 11.2959 12.5149Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <VsIcon src={`${VS_CENTER_ICONS}/call-log.svg`} className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -2014,62 +2044,61 @@ export default function LabSlipPage() {
           />
         )}
 
-        <Dialog
+        <ReadyToSendModal
           open={showReadyToSendModal}
-          onOpenChange={(open) => {
-            if (!open) {
+          onClose={() => {
+            if (!readyToSendSubmitting) {
               setShowReadyToSendModal(false)
               setReadyToSendSlip(null)
             }
           }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Ready to send</DialogTitle>
-              <DialogDescription>
-                {readyToSendSlip
-                  ? `Confirm "${readyToSendSlip.patient}" is ready to send?`
-                  : ""}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => {
-                  setShowReadyToSendModal(false)
-                  setReadyToSendSlip(null)
-                }}
-                disabled={readyToSendSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="bg-[#0E66B2] text-white hover:bg-[#0c5a9f]"
-                onClick={handleConfirmReadyToSend}
-                disabled={readyToSendSubmitting}
-              >
-                {readyToSendSubmitting ? "Confirming…" : "Confirm"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <RushRequestModal
-          isOpen={showRushModal}
-          onClose={() => {
-            setShowRushModal(false)
-            setSelectedSlipForRush(null)
-          }}
-          onConfirm={handleConfirmRushCase}
-          product={{
-            name: selectedSlipForRush?.product || "Case",
-            stage: selectedSlipForRush?.product || "Unknown Stage",
-            deliveryDate: selectedSlipForRush?.dueDate || "",
-            price: 0,
-          }}
+          onConfirm={handleConfirmReadyToSend}
+          submitting={readyToSendSubmitting}
+          slipId={readyToSendSlip?.id ?? 0}
+          office={readyToSendSlip?.officeCode}
+          patientName={readyToSendSlip?.patient}
+          slipNumber={readyToSendSlip?.slipNumber}
+          location={readyToSendSlip?.location}
+          title="Ready to send"
         />
+
+        {(() => {
+          const rushSlots = addonInputs?.rushArchSlots ?? []
+          const hasMax = rushSlots.some((s) => s.arch === "maxillary" && s.isRushed)
+          const hasMand = rushSlots.some((s) => s.arch === "mandibular" && s.isRushed)
+          return (
+            <RushRequestModal
+              isOpen={showRushModal}
+              onClose={() => {
+                setShowRushModal(false)
+                setSelectedSlipForRush(null)
+                setAddonInputs(null)
+              }}
+              onConfirm={handleConfirmRushCase}
+              isRushed={(addonInputs?.slipIsRush ?? false) || rushSlots.some((s) => s.isRushed)}
+              existingRushDate={rushSlots.find((s) => s.existingRushDate)?.existingRushDate}
+              onRemoveRush={handleRemoveRushCase}
+              onRemoveRushByKey={() => {
+                void handleRemoveRushCase()
+              }}
+              maxRushed={hasMax}
+              maxExistingRushDate={rushSlots.find((s) => s.arch === "maxillary")?.existingRushDate}
+              mandRushed={hasMand}
+              mandExistingRushDate={rushSlots.find((s) => s.arch === "mandibular")?.existingRushDate}
+              onRemoveMaxRush={hasMax ? handleRemoveRushCase : undefined}
+              onRemoveMandRush={hasMand ? handleRemoveRushCase : undefined}
+              archSlots={rushSlots}
+              hasMaxillary={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "maxillary") : undefined}
+              hasMandibular={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "mandibular") : undefined}
+              product={{
+                name: rushSlots[0]?.productName ?? selectedSlipForRush?.product ?? "Case",
+                stage: rushSlots[0]?.stageName ?? selectedSlipForRush?.product ?? "Unknown Stage",
+                deliveryDate: addonInputs?.deliveryDateIso || selectedSlipForRush?.dueDate || "",
+                price: 0,
+              }}
+            />
+          )
+        })()}
 
         <SendCaseBackToOfficeModal
           open={showSendBackToOfficeModal}
@@ -2112,11 +2141,16 @@ export default function LabSlipPage() {
         {/* Add Ons Modal */}
         <AddOnsModal
           isOpen={showAddOnsModal}
-          onClose={() => setShowAddOnsModal(false)}
+          onClose={() => {
+            setShowAddOnsModal(false)
+            setAddonInputs(null)
+          }}
           onAddAddOns={() => {}}
           labId={0}
           productId=""
           arch="maxillary"
+          products={addonInputs?.addonProducts ?? []}
+          archSlots={addonInputs?.addonArchSlots ?? []}
           slipId={selectedSlipForAddOns?.id}
           onSlipAddonsSaved={refreshCurrentListing}
         />

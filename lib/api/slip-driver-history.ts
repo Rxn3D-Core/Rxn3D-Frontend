@@ -31,6 +31,16 @@ export type SlipDriverHistoryEntry = {
   driver_id?: number;
   driver_name?: string;
   location_transition?: string;
+  /** First linked pickup/drop photo URL (or null). */
+  image_url?: string | null;
+  /** Full list of files linked to this history entry. */
+  attachments?: Array<{
+    id?: number;
+    slip_id?: number;
+    slip_driver_history_id?: number | null;
+    file_name?: string;
+    file_path?: string;
+  }>;
 };
 
 /** Flat history row returned by GET /slip/driver-history/slip/{id} in production. */
@@ -88,6 +98,7 @@ export type NormalizedSlipDriverHistory = {
     location: string;
     user: string;
     receiver: string;
+    imageUrl: string | null;
   }>;
 };
 
@@ -104,11 +115,13 @@ function formatHistoryTimestamp(iso: string): string {
 }
 
 function timelineLocation(entry: SlipDriverHistoryEntry): string {
-  if (entry.location_transition?.trim()) return entry.location_transition;
-  const from = entry.from_location?.name ?? "";
-  const to = entry.to_location?.name ?? "";
-  if (from && to) return `${from} → ${to}`;
-  return to || from || "—";
+  // Show only the originating location (the part before the arrow), not the
+  // full "A → B" transition.
+  if (entry.from_location?.name?.trim()) return entry.from_location.name.trim();
+  if (entry.location_transition?.trim()) {
+    return entry.location_transition.split(/→|->/)[0].trim();
+  }
+  return entry.to_location?.name?.trim() || "—";
 }
 
 function receiverFromNotes(notes?: string | null): string {
@@ -132,6 +145,7 @@ function mapTimelineRow(entry: SlipDriverHistoryEntry) {
     location: timelineLocation(entry),
     user: entry.driver_name ?? entry.driver?.name ?? "—",
     receiver: receiverFromNotes(entry.notes),
+    imageUrl: entry.image_url ?? entry.attachments?.[0]?.file_path ?? null,
   };
 }
 
@@ -195,6 +209,12 @@ export type ChangeLocationRequest = {
   to_location_id: number;
   action_date_time?: string;
   notes?: string;
+  /**
+   * Optional drop-off proof photos keyed by slip id. When present the request
+   * is sent as multipart/form-data with each file under `images[{slip_id}]`
+   * (one image per slip; jpeg/jpg/png/gif/webp, max 10MB).
+   */
+  images?: Record<number, File>;
 };
 
 export type ChangeLocationProcessedSlip = {
@@ -220,12 +240,13 @@ export type ChangeLocationResponse = {
   errors?: string[];
 };
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(includeJsonContentType = true): HeadersInit {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
   return {
     Accept: "application/json",
-    "Content-Type": "application/json",
+    // Omit Content-Type for multipart so the browser sets the boundary.
+    ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -265,11 +286,34 @@ export async function getSlipDriverHistory(
 export async function postSlipDriverHistoryChangeLocation(
   body: ChangeLocationRequest
 ): Promise<ChangeLocationResponse> {
-  const res = await fetch(buildApiUrl("/slip/driver-history/change-location"), {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(body),
-  });
+  const imageEntries = body.images ? Object.entries(body.images) : [];
+  const hasImages = imageEntries.length > 0;
+
+  let requestInit: RequestInit;
+  if (hasImages) {
+    // multipart/form-data — required to attach photo files (images[{slip_id}]).
+    const form = new FormData();
+    body.slip_ids.forEach((id) => form.append("slip_ids[]", String(id)));
+    form.append("to_location_id", String(body.to_location_id));
+    if (body.action_date_time) form.append("action_date_time", body.action_date_time);
+    if (body.notes) form.append("notes", body.notes);
+    for (const [slipId, file] of imageEntries) {
+      form.append(`images[${slipId}]`, file);
+    }
+    requestInit = { method: "POST", headers: getAuthHeaders(false), body: form };
+  } else {
+    const { images: _images, ...jsonBody } = body;
+    requestInit = {
+      method: "POST",
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(jsonBody),
+    };
+  }
+
+  const res = await fetch(
+    buildApiUrl("/slip/driver-history/change-location"),
+    requestInit
+  );
 
   await handleUnauthorized(res);
 
