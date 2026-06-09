@@ -11,6 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SlipPickupDropoffAction } from "@/lib/slip-location";
+import { SLIP_LISTING_READY_TO_SEND_ICON_SRC } from "@/components/slip-listing/SlipListingReadyToSendIcon";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { lookupSlipIdByNumber } from "@/lib/api/slip-lookup";
 import {
@@ -183,7 +184,7 @@ export function VirtualSlipNotes({
         }
       : showFooterReadyToSend && onReadyToSend
         ? {
-            src: "/icons/virtual-slip-center/ready-to-send.svg",
+            src: SLIP_LISTING_READY_TO_SEND_ICON_SRC,
             label: "Ready to send",
             onClick: onReadyToSend,
           }

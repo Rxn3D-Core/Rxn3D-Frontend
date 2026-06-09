@@ -10,6 +10,16 @@ export interface SlipSettings {
   gender_requirement: FieldRequirement
   age_requirement: FieldRequirement
   show_slip_number: boolean
+  /** Driver must sign when picking up from an office ("In office ready to pickup"). Default true. */
+  require_signature_pickup_from_office: boolean
+  /** Driver must sign when picking up from the lab ("In lab ready to pickup"). Default true. */
+  require_signature_pickup_from_lab: boolean
+  /** Driver must sign when dropping off at the lab ("On route to the lab"). Default true. */
+  require_signature_drop_at_lab: boolean
+  /** Driver must sign when dropping off at an office ("On route to the office"). Default true. */
+  require_signature_drop_at_office: boolean
+  /** Signature required on the lab "Ready to Send" action. Default false. */
+  require_signature_ready_to_send: boolean
 }
 
 export type SlipSettingsUpdate = Partial<

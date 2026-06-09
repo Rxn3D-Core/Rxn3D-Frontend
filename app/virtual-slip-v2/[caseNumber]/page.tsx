@@ -10,6 +10,7 @@ import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalo
 import { virtualSlipSlotsToAddonArchSlots } from "@/lib/virtual-slip-addon-slots";
 import { buildVirtualSlipRushArchSlots } from "@/lib/virtual-slip-rush-slots";
 import { postSlipReadyToSend } from "@/lib/api/slip-ready-to-send";
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings";
 import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
   slipCanHold,
@@ -85,6 +86,7 @@ export default function VirtualSlipV2Page() {
   const [fabRushOpen, setFabRushOpen] = useState(false);
   const [readyToSendOpen, setReadyToSendOpen] = useState(false);
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false);
+  const { readyToSendRequired } = useSignatureRequirementSettings(readyToSendOpen);
   const [caseStatusModal, setCaseStatusModal] = useState<CaseStatusModal>(null);
   const [caseStatusSubmitting, setCaseStatusSubmitting] = useState(false);
   const [sendBackToOfficeOpen, setSendBackToOfficeOpen] = useState(false);
@@ -729,6 +731,7 @@ export default function VirtualSlipV2Page() {
         patientName={vm.header.patientName}
         slipNumber={vm.header.slipNumber}
         location={vm.header.location}
+        signatureRequired={readyToSendRequired}
       />
 
       <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>

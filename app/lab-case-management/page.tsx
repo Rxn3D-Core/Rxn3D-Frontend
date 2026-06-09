@@ -12,12 +12,14 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Filter, Columns, MoreVertical, ChevronDown, Check, Trash2, Eye, Copy, Phone, Download, Plus, X } from "lucide-react"
 import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 import { useSlipContext } from "./SlipContext";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
 import ChangeDateModal from "@/components/change-date-modal"
 import DriverHistoryModal from "@/components/driver-history-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import CallLogModal from "@/components/call-log-modal"
@@ -47,6 +49,14 @@ import {
 } from "@/lib/slip-listing-filter-select"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SlipListingReadyToSendIcon } from "@/components/slip-listing/SlipListingReadyToSendIcon"
+import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
+import {
+  SLIP_LISTING_ICON_HOVER_CLASS,
+  SLIP_LISTING_ICON_SIZE_CLASS,
+  slipListingActionIconButtonClass,
+  slipListingIconButtonClass,
+} from "@/components/slip-listing/slip-listing-icon-hover"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
 import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
 import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
@@ -91,17 +101,6 @@ const READY_TO_SEND_BLUE = "#0E66B2"
 /** Virtual-slip icon asset folders — same glyphs used on the virtual slip page. */
 const VS_CENTER_ICONS = "/icons/virtual-slip-center"
 const VS_ACTION_ICONS = "/icons/virtual-slip-actions"
-
-/**
- * Small virtual-slip icon glyph for listing rows. Renders the shared SVG asset
- * and is height-bounded (w-auto) so swapping it in never changes a column's height.
- */
-function VsIcon({ src, className }: { src: string; className?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs
-    <img src={src} alt="" aria-hidden className={`object-contain ${className ?? ""}`} />
-  )
-}
 
 function InLabPaperPlaneIcon() {
   return (
@@ -204,6 +203,9 @@ export default function LabSlipPage() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+
+  // Lab signature requirement for the "Ready to Send" action (loaded while the modal is open).
+  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
 
   const {
     slips,
@@ -1191,9 +1193,9 @@ export default function LabSlipPage() {
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-left font-normal text-xs"
+                      className="group w-full justify-start text-left font-normal text-xs"
                     >
-                      <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
+                      <SlipListingCalendarIcon className="mr-2" />
                       {dateRange.start ? (
                         format(dateRange.start, "PPP")
                       ) : (
@@ -1217,9 +1219,9 @@ export default function LabSlipPage() {
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-left font-normal text-xs"
+                      className="group w-full justify-start text-left font-normal text-xs"
                     >
-                      <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
+                      <SlipListingCalendarIcon className="mr-2" />
                       {dateRange.end ? (
                         format(dateRange.end, "PPP")
                       ) : (
@@ -1449,7 +1451,10 @@ export default function LabSlipPage() {
                 {visibleColumns.location && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
                 {visibleColumns.attachment && (
                   <th className="px-3 py-1 text-center font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="Attachment">
-                    <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto inline-block" />
+                    <SlipListingVsIcon
+                      src={`${VS_CENTER_ICONS}/attachments.svg`}
+                      hover={false}
+                    />
                   </th>
                 )}
                 {visibleColumns.due && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
@@ -1655,10 +1660,10 @@ export default function LabSlipPage() {
                                   e.stopPropagation()
                                   handleLocationIconClick(row)
                                 }}
-                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                className={slipListingIconButtonClass()}
                                 title="View driver history"
                               >
-                                <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
+                                <SlipListingVsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} />
                               </button>
                             </SlipListingLocationIconSlot>
                             <span className="text-base">{row.location}</span>
@@ -1672,10 +1677,10 @@ export default function LabSlipPage() {
                                   e.stopPropagation()
                                   handleLocationIconClick(row)
                                 }}
-                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                className={slipListingIconButtonClass()}
                                 title="View driver history"
                               >
-                                <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
+                                <SlipListingVsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} />
                               </button>
                             </SlipListingLocationIconSlot>
                             <span className="text-base">{row.location}</span>
@@ -1690,10 +1695,10 @@ export default function LabSlipPage() {
                                   e.stopPropagation()
                                   handleOpenReadyToSend(row)
                                 }}
-                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                className={slipListingIconButtonClass()}
                                 title="Mark ready to send"
                               >
-                                <VsIcon src={`${VS_CENTER_ICONS}/ready-to-send.svg`} className="h-[19px] w-auto" />
+                                <SlipListingReadyToSendIcon />
                               </button>
                             </SlipListingLocationIconSlot>
                             <span className="text-base">{row.location}</span>
@@ -1708,10 +1713,10 @@ export default function LabSlipPage() {
                                   e.stopPropagation()
                                   handleLocationIconClick(row)
                                 }}
-                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                className={slipListingIconButtonClass()}
                                 title="View driver history"
                               >
-                                <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
+                                <SlipListingVsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} />
                               </button>
                             </SlipListingLocationIconSlot>
                             <span className="text-base">{row.location}</span>
@@ -1726,10 +1731,10 @@ export default function LabSlipPage() {
                                   e.stopPropagation()
                                   handleLocationIconClick(row)
                                 }}
-                                className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                                className={slipListingIconButtonClass()}
                                 title="View driver history"
                               >
-                                <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
+                                <SlipListingVsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} />
                               </button>
                             </SlipListingLocationIconSlot>
                             <span className="text-base">{row.location}</span>
@@ -1739,7 +1744,10 @@ export default function LabSlipPage() {
                         {rowAtSlipLocation(row, 6) && (
                           <span className="inline-flex items-center gap-1.5 text-gray-700">
                             <SlipListingLocationIconSlot>
-                              <VsIcon src={`${VS_CENTER_ICONS}/in-office.png`} className="h-5 w-auto" />
+                              <SlipListingVsIcon
+                                src={`${VS_CENTER_ICONS}/in-office.png`}
+                                hover={false}
+                              />
                             </SlipListingLocationIconSlot>
                             <span className="text-base">{row.location}</span>
                           </span>
@@ -1767,10 +1775,10 @@ export default function LabSlipPage() {
                               e.stopPropagation()
                               handleAttachmentClick(row)
                             }}
-                            className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                            className={slipListingIconButtonClass()}
                             title="View attachments"
                           >
-                            <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto" />
+                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
                           </button>
                         ) : null}
                       </td>}
@@ -1782,10 +1790,10 @@ export default function LabSlipPage() {
                               e.stopPropagation()
                               handleDateIconClick(row)
                             }}
-                            className="hover:bg-gray-100 p-0.5 rounded transition-colors flex-shrink-0"
+                            className={slipListingIconButtonClass("flex-shrink-0")}
                             title="Change due date"
                           >
-                            <SlipListingCalendarIcon className="h-4 w-4" />
+                            <SlipListingCalendarIcon />
                           </button>
                           <SlipListingDueDateLabel dueDate={row.dueDate} />
                           {row.rush && <span className="text-red-500 flex-shrink-0">
@@ -1803,10 +1811,10 @@ export default function LabSlipPage() {
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-6 w-6 p-0 hover:bg-gray-100"
+                                className={slipListingActionIconButtonClass()}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <VsIcon src={`${VS_ACTION_ICONS}/printer.svg`} className="h-4 w-4" />
+                                <SlipListingVsIcon src={`${VS_ACTION_ICONS}/printer.svg`} />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
@@ -1839,32 +1847,39 @@ export default function LabSlipPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 hover:bg-gray-100"
+                            className={slipListingActionIconButtonClass()}
                             onClick={(e) => {
                               e.stopPropagation()
                               handleAddOnsClick(row)
                             }}
                           >
-                            <VsIcon src={`${VS_CENTER_ICONS}/add-general.svg`} className="h-4 w-4" />
+                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/add-general.svg`} />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-6 w-6 p-0 hover:bg-gray-100"  
+                            className={slipListingActionIconButtonClass()}  
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCallLogClick(row)
                             }}
                           >
-                            <VsIcon src={`${VS_CENTER_ICONS}/call-log.svg`} className="h-4 w-4" />
+                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/call-log.svg`} />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-6 w-6 p-0 hover:bg-gray-100"
+                            className={slipListingActionIconButtonClass()}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <svg width="14" height="14" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <svg
+                              width="22"
+                              height="22"
+                              viewBox="0 0 17 17"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className={cn(SLIP_LISTING_ICON_SIZE_CLASS, SLIP_LISTING_ICON_HOVER_CLASS)}
+                            >
                               <path d="M14.5031 5.57471H7.10957C6.2929 5.57471 5.63086 6.23675 5.63086 7.05342V14.447C5.63086 15.2636 6.2929 15.9257 7.10957 15.9257H14.5031C15.3198 15.9257 15.9818 15.2636 15.9818 14.447V7.05342C15.9818 6.23675 15.3198 5.57471 14.5031 5.57471Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                               <path d="M2.67402 11.4896C1.86073 11.4896 1.19531 10.8242 1.19531 10.0109V2.61738C1.19531 1.80409 1.86073 1.13867 2.67402 1.13867H10.0676C10.8809 1.13867 11.5463 1.80409 11.5463 2.61738" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
@@ -1874,10 +1889,16 @@ export default function LabSlipPage() {
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-6 w-6 p-0 hover:bg-gray-100"
+                                className={slipListingActionIconButtonClass()}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <MoreVertical className="h-3.5 w-3.5 text-gray-500" />
+                                <MoreVertical
+                                  className={cn(
+                                    SLIP_LISTING_ICON_SIZE_CLASS,
+                                    "text-gray-500",
+                                    SLIP_LISTING_ICON_HOVER_CLASS
+                                  )}
+                                />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
@@ -2043,6 +2064,7 @@ export default function LabSlipPage() {
           slipNumber={readyToSendSlip?.slipNumber}
           location={readyToSendSlip?.location}
           title="Ready to send"
+          signatureRequired={readyToSendRequired}
         />
 
         {(() => {

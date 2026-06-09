@@ -24,6 +24,13 @@ import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } 
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
+import {
+  SLIP_LISTING_ICON_HOVER_CLASS,
+  SLIP_LISTING_ICON_SIZE_CLASS,
+  slipListingIconButtonClass,
+} from "@/components/slip-listing/slip-listing-icon-hover"
+import { cn } from "@/lib/utils"
 import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
@@ -51,17 +58,6 @@ function buildApiUrl(pathOrUrl: string): string {
 
 /** Virtual-slip icon asset folders — same glyphs used on the virtual slip page. */
 const VS_CENTER_ICONS = "/icons/virtual-slip-center"
-
-/**
- * Small virtual-slip icon glyph for listing rows. Renders the shared SVG asset
- * and is height-bounded (w-auto) so swapping it in never changes a column's height.
- */
-function VsIcon({ src, className }: { src: string; className?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs
-    <img src={src} alt="" aria-hidden className={`object-contain ${className ?? ""}`} />
-  )
-}
 
 export default function SlipPage() {
   const { slips, loading, error, pagination, fetchOfficeSlips } = useOfficeSlipContext()
@@ -513,9 +509,9 @@ export default function SlipPage() {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal text-xs"
+                    className="group w-full justify-start text-left font-normal text-xs"
                   >
-                    <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
+                    <SlipListingCalendarIcon className="mr-2" />
                     {dateRange.start ? (
                       format(dateRange.start, "PPP")
                     ) : (
@@ -539,9 +535,9 @@ export default function SlipPage() {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal text-xs"
+                    className="group w-full justify-start text-left font-normal text-xs"
                   >
-                    <SlipListingCalendarIcon className="h-4 w-4 mr-2" />
+                    <SlipListingCalendarIcon className="mr-2" />
                     {dateRange.end ? (
                       format(dateRange.end, "PPP")
                     ) : (
@@ -712,7 +708,10 @@ export default function SlipPage() {
               {visibleColumns.location && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Location</th>}
               {visibleColumns.attachment && (
                 <th className="px-4 py-1.5 text-center font-medium text-gray-700" scope="col" aria-label="Attachment">
-                  <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto inline-block" />
+                  <SlipListingVsIcon
+                    src={`${VS_CENTER_ICONS}/attachments.svg`}
+                    hover={false}
+                  />
                 </th>
               )}
               {visibleColumns.due && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Due date</th>}
@@ -810,10 +809,10 @@ export default function SlipPage() {
                             e.stopPropagation()
                             handleAttachmentClick(row)
                           }}
-                          className="hover:bg-gray-100 p-1 rounded transition-colors"
+                          className={slipListingIconButtonClass("p-1")}
                           title="View attachments"
                         >
-                          <VsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} className="h-5 w-auto" />
+                          <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
                         </button>
                       ) : null}
                     </td>}
@@ -833,8 +832,21 @@ export default function SlipPage() {
                     <td className="px-4 py-1.5">
                       <Popover open={menuRow === row.id} onOpenChange={open => setMenuRow(open ? row.id : null)}>
                         <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100">
-                            <MoreVertical className="h-4 w-4 text-gray-500" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              slipListingIconButtonClass("h-[30px] w-[30px] p-0"),
+                              "hover:bg-gray-100"
+                            )}
+                          >
+                            <MoreVertical
+                              className={cn(
+                                SLIP_LISTING_ICON_SIZE_CLASS,
+                                "text-gray-500",
+                                SLIP_LISTING_ICON_HOVER_CLASS
+                              )}
+                            />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">

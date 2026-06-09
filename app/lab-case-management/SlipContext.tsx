@@ -648,8 +648,9 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /slip/action/{slipId}/ready-to-send. Signature is forwarded as { notes }
-   * (no-op until the backend reads it); without it, no body is sent.
+   * POST /slip/action/{slipId}/ready-to-send. When a signature is captured
+   * (lab's require_signature_ready_to_send setting), it is sent as
+   * { signature }; without it, no body is sent.
    */
   const readyToSend = useCallback(async (slipId: number, signature?: string): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
@@ -663,7 +664,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(hasBody ? { "Content-Type": "application/json" } : {}),
         },
-        ...(hasBody ? { body: JSON.stringify({ notes: trimmedSignature }) } : {}),
+        ...(hasBody ? { body: JSON.stringify({ signature: trimmedSignature }) } : {}),
       });
 
       if (res.status === 401) {

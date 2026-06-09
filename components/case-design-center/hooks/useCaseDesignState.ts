@@ -862,30 +862,47 @@ export function useCaseDesignState(props: CaseDesignProps) {
     }
     setInitialProductDetailsPending(true);
     setInitialProductDetails(null);
+    // Prefer the same customer_id that loaded the product list (props.labCustomerId),
+    // falling back to the role-based localStorage value. Office/doctor profiles select
+    // a lab, so deriving the id from localStorage alone can resolve to NaN here and leave
+    // initialProductDetails null — which hides the retention popover and extraction boxes.
+    // props.labCustomerId is the reliable source and matches the product-list fetch.
     const role = localStorage.getItem("role");
-    const customerId = Number(
+    const fallbackCustomerId = Number(
       role === "office_admin" || role === "doctor"
         ? localStorage.getItem("selectedLabId")
         : localStorage.getItem("customerId")
     );
+    const customerId = props.labCustomerId || fallbackCustomerId;
     if (!customerId) {
       setInitialProductDetailsPending(false);
       return;
     }
     const timer = setTimeout(() => {
       fetchProductDetails(props.selectedProductId!, customerId)
-        .then((data) => {
-          if (data) {
-            setInitialProductDetails(data);
-            cachedProductRef.current.set(props.selectedProductId!, data);
+        .then(async (data) => {
+          if (!data) return;
+          // The product details endpoint may omit impressions. The impression-modal catalog
+          // for a card-0 product is built solely from initialProductDetails.impressions, so
+          // without this the catalog is empty, the modal shows mock options, and selecting one
+          // collapses the list to just that entry. Fetch impressions separately when missing,
+          // mirroring fetchAndAssignProduct.
+          let enriched = data;
+          if (!data.impressions?.length) {
+            const impressions = await ProductApi.getImpressions(props.selectedProductId!);
+            if (impressions.length > 0) {
+              enriched = { ...data, impressions: impressions as unknown as ProductApiData["impressions"] };
+            }
           }
+          setInitialProductDetails(enriched);
+          cachedProductRef.current.set(props.selectedProductId!, enriched);
         })
         .finally(() => {
           setInitialProductDetailsPending(false);
         });
     }, 300);
     return () => clearTimeout(timer);
-  }, [props.selectedProductId]);
+  }, [props.selectedProductId, props.labCustomerId]);
 
   // Teeth shade catalog — prefetched when shade picker opens; enriched after optimistic complete
   const teethShadeCatalogRef = useRef<TeethShadeEntry[]>([]);
