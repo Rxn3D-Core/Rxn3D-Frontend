@@ -30,7 +30,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [isLoading, userRole, isEnabled, initializeFromSettings])
   
   // Use Zustand store for real-time updates, fallback to hook if store not initialized
-  const shouldShowChat = user && (isLoading || !userRole ? true : chatSupportEnabled)
+  // const shouldShowChat = user && (isLoading || !userRole ? true : chatSupportEnabled)
+  const shouldShowChat = false
 
   return (
     <div className="min-h-screen relative overflow-hidden">

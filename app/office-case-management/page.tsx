@@ -8,28 +8,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Filter, Columns, MoreVertical, ChevronDown, Check, Trash2, Eye, Copy, Phone, Printer, Download, Plus, X } from "lucide-react"
+import { Filter, Columns, MoreVertical, ChevronDown, Trash2, Eye, Copy, Phone, Printer, Download, X } from "lucide-react"
 import { format } from "date-fns"
 import { useOfficeSlipContext } from "@/contexts/office-slip-context"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
-import ChangeDateModal from "@/components/change-date-modal"
-import DriverHistoryModal from "@/components/driver-history-modal"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
-import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import { useSearchParams } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
-import { slipIsInOffice } from "@/lib/slip-location"
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
-import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
 import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
@@ -85,7 +81,6 @@ export default function SlipPage() {
     timestamp: true,
     office: true,
     patient: true,
-    pan: true,
     product: true,
     status: true,
     location: true,
@@ -106,10 +101,6 @@ export default function SlipPage() {
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
-  const [showChangeDateModal, setShowChangeDateModal] = useState(false)
-  const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<any>(null)
-  const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
-  const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<any>(null)
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedSlipForAddOns, setSelectedSlipForAddOns] = useState<any>(null)
@@ -119,8 +110,6 @@ export default function SlipPage() {
   const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<any>(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [selectedSlipForPrint, setSelectedSlipForPrint] = useState<any>(null)
-  const [showPrintDriverTags, setShowPrintDriverTags] = useState(false)
-  const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<any>(null)
   const [selectedSlipForStatement, setSelectedSlipForStatement] = useState<any>(null)
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
@@ -213,16 +202,6 @@ export default function SlipPage() {
     } catch (err) {
       console.error("Error refreshing slips after attachment upload:", err)
     }
-  }
-
-  const handleDateIconClick = (slip: any) => {
-    setSelectedSlipForDateChange(slip)
-    setShowChangeDateModal(true)
-  }
-
-  const handleLocationIconClick = (slip: any) => {
-    setSelectedSlipForDriverHistory(slip)
-    setShowDriverHistoryModal(true)
   }
 
   const handleAddOnsClick = (slip: any) => {
@@ -357,28 +336,6 @@ export default function SlipPage() {
     })()
   }
 
-  const getChangeDateHistory = (slipId: number) => {
-    return [
-      {
-        id: 1,
-        slip_id: slipId,
-        user: "John Smith",
-        date: "2024-01-15 10:30 AM",
-        oldDate: "2024-01-20",
-        newDate: "2024-01-25",
-        delivery_date: "2024-01-25",
-        delivery_time: "10:00",
-        formatted_delivery_date: "January 25, 2024",
-        formatted_delivery_time: "10:00 AM",
-        reason: "Patient requested schedule change due to vacation",
-        notes: "Patient requested schedule change due to vacation",
-        created_at: "2024-01-15 10:30 AM",
-        updated_at: "2024-01-15 10:30 AM",
-        created_by: { id: 1, name: "John Smith", email: "john@example.com" }
-      }
-    ]
-  }
-
   // Show loading state
   if (loading) {
     return (
@@ -468,9 +425,8 @@ export default function SlipPage() {
                 {Object.entries(visibleColumns).map(([key, val]) => {
                   const labels = {
                     timestamp: "Time Stamp",
-                    office: "Office Code",
+                    office: "Lab",
                     patient: "Patient",
-                    pan: "Pan",
                     product: "Product",
                     status: "Status",
                     location: "Location",
@@ -478,7 +434,7 @@ export default function SlipPage() {
                     due: "Due Date",
                     actions: "Actions"
                   }
-                  const isRequired = key === 'actions' || key === 'office' || key === 'patient' || key === 'pan'
+                  const isRequired = key === 'actions' || key === 'office' || key === 'patient'
                   return (
                     <label key={key} className="flex items-center justify-between cursor-pointer">
                       <div className="flex items-center gap-3">
@@ -729,12 +685,8 @@ export default function SlipPage() {
       {selected.length > 0 && (
         <div className="sticky top-20 z-20 flex flex-wrap gap-2 items-center px-4 py-3 mb-2 rounded-lg bg-blue-50 border border-blue-200 animate-fade-in">
           <span className="font-semibold text-blue-700 mr-3">Bulk actions:</span>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Check className="h-4 w-4" />Pick up</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Driver label</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Paper slip</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100" onClick={() => selected.length === 1 ? handlePrintStatement(slipsPage.find((s) => s.id === selected[0])) : undefined}><Printer className="h-4 w-4" />Print Statement</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Plus className="h-4 w-4" />Send back to office</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><ChevronDown className="h-4 w-4" />Rush case</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-red-600 hover:bg-red-50" onClick={() => setArchiveConfirm(-1)}><Trash2 className="h-4 w-4" />Archive case</Button>
         </div>
       )}
@@ -752,10 +704,9 @@ export default function SlipPage() {
                   className="border-gray-400"
                 />
               </th>
-              {visibleColumns.timestamp && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Timestamp</th>}
-              {visibleColumns.office && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Office Code</th>}
+              {visibleColumns.timestamp && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
+              {visibleColumns.office && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Lab</th>}
               {visibleColumns.patient && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Patient</th>}
-              {visibleColumns.pan && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Pan</th>}
               {visibleColumns.product && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Product</th>}
               {visibleColumns.status && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Status</th>}
               {visibleColumns.location && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Location</th>}
@@ -796,7 +747,7 @@ export default function SlipPage() {
                     />
                   </td>
                   {visibleColumns.timestamp && (
-                    <td className="px-4 py-1.5 whitespace-nowrap text-sm text-black">
+                    <td className="px-3 py-1 whitespace-nowrap text-base text-black">
                       {row.createdAt}
                     </td>
                   )}
@@ -814,10 +765,6 @@ export default function SlipPage() {
                       </SlipListingVirtualSlipLink>
                     </td>
                   )}
-                  {visibleColumns.pan &&
-                    <td className="px-4 py-1.5">
-                      <span className={`inline-block w-12 text-center py-1 rounded text-white font-mono text-xs ${row.panColor}`}>{row.pan}</span>
-                    </td>}
                   {visibleColumns.product && (
                     <td className="px-4 py-1.5 text-gray-900">
                       <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
@@ -851,52 +798,8 @@ export default function SlipPage() {
                       </div>
                     </td>}
                   {visibleColumns.location &&
-                    <td className="px-4 py-1.5">
-                      {row.location && slipIsInOffice(row) && (
-                        <span className="inline-flex items-center gap-1.5 text-gray-700">
-                          <SlipListingLocationIconSlot>
-                            <VsIcon src={`${VS_CENTER_ICONS}/in-office.png`} className="h-5 w-auto" />
-                          </SlipListingLocationIconSlot>
-                          <span className="text-sm">{row.location}</span>
-                        </span>
-                      )}
-                      {row.location && !slipIsInOffice(row) && (
-                        <span
-                          className={`inline-flex items-center gap-1.5 ${
-                            (row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
-                            (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup")))
-                              ? "text-green-700"
-                              : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
-                                  (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery")))
-                                ? "text-red-600"
-                                : "text-blue-600"
-                          }`}
-                        >
-                          <SlipListingLocationIconSlot>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleLocationIconClick(row)
-                              }}
-                              className="hover:bg-gray-100 p-0.5 rounded transition-colors"
-                              title="View driver history"
-                            >
-                              {(row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
-                               (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup"))) ? (
-                                <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
-                              ) : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
-                                  (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery"))) ? (
-                                <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
-                              ) : (
-                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                                  <path d="M10 1.66669C5.875 1.66669 2.5 5.04169 2.5 9.16669C2.5 13.2917 5.875 16.6667 10 16.6667C14.125 16.6667 17.5 13.2917 17.5 9.16669C17.5 5.04169 14.125 1.66669 10 1.66669ZM10 12.5C8.625 12.5 7.5 11.375 7.5 10C7.5 8.625 8.625 7.5 10 7.5C11.375 7.5 12.5 8.625 12.5 10C12.5 11.375 11.375 12.5 10 12.5Z" fill="#1162A8"/>
-                                </svg>
-                              )}
-                            </button>
-                          </SlipListingLocationIconSlot>
-                          <span className="text-sm">{row.location}</span>
-                        </span>
-                      )}
+                    <td className="px-4 py-1.5 text-sm text-gray-700">
+                      {row.location}
                     </td>}
                   {visibleColumns.attachment &&
                     <td className="px-4 py-1.5 text-center">
@@ -917,18 +820,7 @@ export default function SlipPage() {
                   {visibleColumns.due &&
                     <td className="px-4 py-1.5">
                       <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDateIconClick(row)
-                          }}
-                          className="hover:bg-gray-100 p-1 rounded transition-colors"
-                          title="Change due date"
-                        >
-                          <SlipListingCalendarIcon className="h-[18px] w-[18px]" />
-                        </button>
-
-                        <span className="text-gray-900">{row.dueDate}</span>
+                        <SlipListingDueDateLabel dueDate={row.dueDate} />
                         {row.rush && <span className="text-red-500">
                           <svg width="12" height="14" viewBox="0 0 16 19" fill="none">
                             <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 8.41504L8.71094 8.41504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1041,9 +933,8 @@ export default function SlipPage() {
             {Object.entries(visibleColumns).map(([key, val]) => {
               const labels = {
                 timestamp: "Time Stamp",
-                office: "Office Code",
+                office: "Lab",
                 patient: "Patient",
-                pan: "Pan",
                 product: "Product",
                 status: "Status",
                 location: "Location",
@@ -1109,31 +1000,6 @@ export default function SlipPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Change Date Modal */}
-      {selectedSlipForDateChange && (
-        <ChangeDateModal
-          open={showChangeDateModal}
-          onClose={() => {
-            setShowChangeDateModal(false)
-            setSelectedSlipForDateChange(null)
-          }}
-          patient={selectedSlipForDateChange.patient}
-          stage={selectedSlipForDateChange.product || "Unknown Stage"}
-          currentDate={new Date().toLocaleDateString()}
-          deliveryDate={selectedSlipForDateChange.dueDate}
-          deliveryTime="10:00"
-          slipId={selectedSlipForDateChange.id}
-          history={getChangeDateHistory(selectedSlipForDateChange.id)}
-        />
-      )}
-
-      {/* Driver History Modal */}
-      <DriverHistoryModal
-        isOpen={showDriverHistoryModal}
-        onClose={() => setShowDriverHistoryModal(false)}
-        slip={selectedSlipForDriverHistory}
-      />
-
       {/* Add Ons Modal */}
       <AddOnsModal
         isOpen={showAddOnsModal}
@@ -1198,22 +1064,6 @@ export default function SlipPage() {
         }
       />
 
-      {/* Print Driver Tags Modal */}
-      <PrintDriverTagsModal
-        isOpen={showPrintDriverTags}
-        slip={selectedSlipForDriverTags}
-        onClose={() => setShowPrintDriverTags(false)}
-        onRegularPrint={async (slip, allSlots) => {
-          if (slip) {
-            // Handle regular print
-          }
-        }}
-        onGenerateLabels={async (slip, selectedSlots) => {
-          if (slip) {
-            // Handle generate labels
-          }
-        }}
-      />
     </div>
   )
 }
