@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
@@ -27,7 +26,10 @@ import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation }
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { slipIsInOffice } from "@/lib/slip-location"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
+import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
+import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import Link from "next/link"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 
@@ -816,60 +818,73 @@ export default function SlipPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2 items-center">
                         {row.rush && (
-                          <Badge className="bg-red-600 text-white font-medium px-2 py-1 text-xs">
+                          <SlipListingStatusBadge tone="rush" size="comfortable" className="border-0">
                             <svg width="12" height="14" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
                               <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             Rush
-                          </Badge>
+                          </SlipListingStatusBadge>
                         )}
                         {row.status === "In Progress" && (
-                          <Badge className="bg-green-100 text-green-800 border border-green-200 font-medium px-2 py-1 text-xs">In Progress</Badge>
+                          <SlipListingStatusBadge tone="in-progress" size="comfortable">In Progress</SlipListingStatusBadge>
                         )}
                         {row.status === "On Hold" && (
-                          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-2 py-1 text-xs">On Hold</Badge>
+                          <SlipListingStatusBadge tone="on-hold" size="comfortable">On Hold</SlipListingStatusBadge>
                         )}
                         {isSlipCaseCancelled(row.status) && (
-                          <Badge className="bg-gray-100 text-gray-600 border border-gray-200 font-medium px-2 py-1 text-xs">Cancelled</Badge>
+                          <SlipListingStatusBadge tone="cancelled" size="comfortable">Cancelled</SlipListingStatusBadge>
                         )}
                         {isSlipCaseFinished(row.status) && (
-                          <Badge className="bg-blue-100 text-blue-800 border border-blue-200 font-medium px-2 py-1 text-xs">Finished</Badge>
+                          <SlipListingStatusBadge tone="finished" size="comfortable">Finished</SlipListingStatusBadge>
                         )}
                       </div>
                     </td>}
                   {visibleColumns.location &&
                     <td className="px-4 py-3">
-                      {row.location && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleLocationIconClick(row)
-                          }}
-                          className={`inline-flex items-center gap-2 hover:bg-gray-100 p-1 rounded transition-colors ${
+                      {row.location && slipIsInOffice(row) && (
+                        <span className="inline-flex items-center gap-1.5 text-gray-700">
+                          <SlipListingLocationIconSlot>
+                            <VsIcon src={`${VS_CENTER_ICONS}/in-office.png`} className="h-5 w-auto" />
+                          </SlipListingLocationIconSlot>
+                          <span className="text-sm">{row.location}</span>
+                        </span>
+                      )}
+                      {row.location && !slipIsInOffice(row) && (
+                        <span
+                          className={`inline-flex items-center gap-1.5 ${
                             (row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
                             (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup")))
-                              ? "text-green-700" 
+                              ? "text-green-700"
                               : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
-                                (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery")))
-                              ? "text-red-600"
-                              : "text-blue-600"
+                                  (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery")))
+                                ? "text-red-600"
+                                : "text-blue-600"
                           }`}
-                          title="View driver history"
                         >
-                          {(row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
-                           (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup"))) ? (
-                            <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
-                          ) : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
-                                (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery"))) ? (
-                            <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
-                          ) : (
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                              <path d="M10 1.66669C5.875 1.66669 2.5 5.04169 2.5 9.16669C2.5 13.2917 5.875 16.6667 10 16.6667C14.125 16.6667 17.5 13.2917 17.5 9.16669C17.5 5.04169 14.125 1.66669 10 1.66669ZM10 12.5C8.625 12.5 7.5 11.375 7.5 10C7.5 8.625 8.625 7.5 10 7.5C11.375 7.5 12.5 8.625 12.5 10C12.5 11.375 11.375 12.5 10 12.5Z" fill="#1162A8"/>
-                            </svg>
-                          )}
-
+                          <SlipListingLocationIconSlot>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleLocationIconClick(row)
+                              }}
+                              className="hover:bg-gray-100 p-0.5 rounded transition-colors"
+                              title="View driver history"
+                            >
+                              {(row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
+                               (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup"))) ? (
+                                <VsIcon src={`${VS_CENTER_ICONS}/pick-up.svg`} className="h-5 w-auto" />
+                              ) : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
+                                  (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery"))) ? (
+                                <VsIcon src={`${VS_CENTER_ICONS}/drop-off.svg`} className="h-5 w-auto" />
+                              ) : (
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
+                                  <path d="M10 1.66669C5.875 1.66669 2.5 5.04169 2.5 9.16669C2.5 13.2917 5.875 16.6667 10 16.6667C14.125 16.6667 17.5 13.2917 17.5 9.16669C17.5 5.04169 14.125 1.66669 10 1.66669ZM10 12.5C8.625 12.5 7.5 11.375 7.5 10C7.5 8.625 8.625 7.5 10 7.5C11.375 7.5 12.5 8.625 12.5 10C12.5 11.375 11.375 12.5 10 12.5Z" fill="#1162A8"/>
+                                </svg>
+                              )}
+                            </button>
+                          </SlipListingLocationIconSlot>
                           <span className="text-sm">{row.location}</span>
-                        </button>
+                        </span>
                       )}
                     </td>}
                   {visibleColumns.attachment &&
@@ -907,7 +922,7 @@ export default function SlipPage() {
                             <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 8.41504L8.71094 8.41504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </span>}
-                        {row.overdue && <Badge className="bg-red-100 text-red-700 text-xs px-2 py-1">Overdue</Badge>}
+                        {row.overdue && <SlipListingStatusBadge tone="overdue" size="comfortable">Overdue</SlipListingStatusBadge>}
                       </div>
                     </td>}
                   {visibleColumns.actions &&
