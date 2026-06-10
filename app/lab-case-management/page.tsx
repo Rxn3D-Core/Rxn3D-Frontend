@@ -64,6 +64,7 @@ import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
 import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { useDebounce } from "@/lib/performance-utils"
 
 function formatYmd(d: Date): string {
   return d.toISOString().slice(0, 10)
@@ -166,7 +167,6 @@ export default function LabSlipPage() {
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{ start?: Date, end?: Date }>({})
-  const [patientSearch, setPatientSearch] = useState("")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
   const [stageFilter, setStageFilter] = useState("All")
@@ -227,9 +227,11 @@ export default function LabSlipPage() {
     [dateRange.start, dateRange.end]
   )
 
+  const debouncedSearch = useDebounce(search, 400)
+
   const filterSig = useMemo(
-    () => [search, office, status, location, showWithAttachments, dateRangeKey].join("|"),
-    [search, office, status, location, showWithAttachments, dateRangeKey]
+    () => [debouncedSearch, office, status, location, showWithAttachments, productType, dateRangeKey].join("|"),
+    [debouncedSearch, office, status, location, showWithAttachments, productType, dateRangeKey]
   )
 
   const prevFilterSigRef = useRef<string | null>(null)
@@ -254,11 +256,12 @@ export default function LabSlipPage() {
     const pageToFetch = filtersJustChanged ? 1 : currentPage
 
     void fetchLabSlips(customerId, {
-      q: search.trim() || undefined,
+      q: debouncedSearch.trim() || undefined,
       office_code: office !== "All" ? office : undefined,
       status: status !== "All" ? status : undefined,
       location_id: location !== "All" ? Number(location) : undefined,
       has_attachments: showWithAttachments ? true : undefined,
+      product_name: productType !== "All" ? productType : undefined,
       delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
       delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
       page: pageToFetch,
@@ -275,11 +278,22 @@ export default function LabSlipPage() {
   const allUsers = useMemo(() => Array.from(new Set(slips.map((s) => s.user || "Unknown"))), [slips])
   const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
 
-  const totalListingCount = labListingPagination?.total ?? slips.length
+  const clientFilteredSlips = useMemo(() => {
+    let result = slips
+    if (doctorFilter !== "All") {
+      result = result.filter((s) => s.doctor === doctorFilter)
+    }
+    if (userFilter !== "All") {
+      result = result.filter((s) => s.user === userFilter)
+    }
+    return result
+  }, [slips, doctorFilter, userFilter])
+
+  const totalListingCount = labListingPagination?.total ?? clientFilteredSlips.length
   const maxPage = Math.max(1, labListingPagination?.last_page ?? 1)
-  const slipsPage = slips
+  const slipsPage = clientFilteredSlips
   /** Alias for the current page rows (server-filtered). Fixes legacy references to `filteredSlips`. */
-  const filteredSlips = slips
+  const filteredSlips = clientFilteredSlips
   const allOnPageSelected =
     slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
   const someOnPageSelected = slipsPage.some((s) => selected.includes(s.id))
@@ -323,11 +337,12 @@ export default function LabSlipPage() {
     const customerId = getLabCustomerId()
     if (!customerId) return
     void fetchLabSlips(customerId, {
-      q: search.trim() || undefined,
+      q: debouncedSearch.trim() || undefined,
       office_code: office !== "All" ? office : undefined,
       status: status !== "All" ? status : undefined,
       location_id: location !== "All" ? Number(location) : undefined,
       has_attachments: showWithAttachments ? true : undefined,
+      product_name: productType !== "All" ? productType : undefined,
       delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
       delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
       page: currentPage,
@@ -1171,7 +1186,7 @@ export default function LabSlipPage() {
                 className="text-blue-600 hover:text-blue-700"
                 onClick={() => {
                   setDateRange({})
-                  setPatientSearch("")
+                  setSearch("")
                   setProductType("All")
                   setDoctorFilter("All")
                   setStageFilter("All")
@@ -1243,8 +1258,8 @@ export default function LabSlipPage() {
               </div>
               <Input
                 placeholder="Search patient name, slip #..."
-                value={patientSearch}
-                onChange={(e) => setPatientSearch(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                 className="text-xs"
               />
               <Select value={status} onValueChange={setStatus}>

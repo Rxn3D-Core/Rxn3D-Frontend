@@ -54,6 +54,7 @@ import {
   getStoredSlipUserRole,
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
+import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -481,7 +482,7 @@ export default function VirtualSlipV2Page() {
     <div className="flex min-h-full flex-col bg-white">
       <VirtualSlipHeader
         header={vm.header}
-        onPrint={() => window.print()}
+        onPrint={handlePrint}
         onPrintInvoice={handlePrintInvoice}
         onBackToCaseList={goToCaseList}
       />

@@ -123,6 +123,11 @@ export const superadminMenu: MenuItem[] = [
         title: "Settings",
         path: "/billing-subscription/settings",
       },
+      {
+        id: "billing-invoicing",
+        title: "Invoicing",
+        path: "/billing-subscription/invoicing",
+      },
     ],
   },
   {

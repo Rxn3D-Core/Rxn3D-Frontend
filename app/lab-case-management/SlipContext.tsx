@@ -44,6 +44,7 @@ export type LabListingQuery = {
   delivery_date_start?: string;
   delivery_date_end?: string;
   has_attachments?: boolean;
+  product_name?: string;
   page?: number;
   per_page?: number;
   order_by?: string;
@@ -229,6 +230,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (effectiveQuery.delivery_date_start) params.set("delivery_date_start", effectiveQuery.delivery_date_start);
       if (effectiveQuery.delivery_date_end) params.set("delivery_date_end", effectiveQuery.delivery_date_end);
       if (effectiveQuery.has_attachments === true) params.set("has_attachments", "1");
+      if (effectiveQuery.product_name) params.set("product_name", effectiveQuery.product_name);
       if (effectiveQuery.page != null) params.set("page", String(effectiveQuery.page));
       if (effectiveQuery.per_page != null) params.set("per_page", String(effectiveQuery.per_page));
       if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);
