@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 
 interface StatusCardProps {
   title: string
@@ -35,7 +36,7 @@ function StatusCard({ title, count, color }: StatusCardProps) {
 
 export function DoctorDashboard() {
   const { user } = useAuth()
-  const userRole = user?.roles?.[0] || "doctor"
+  const userRole = getPrimaryRole(user) || "doctor"
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)

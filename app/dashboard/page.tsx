@@ -66,33 +66,48 @@ export default function Dashboard() {
     router,
   ])
 
+  const customerSyncAttemptedRef = useRef(false)
+
   useEffect(() => {
-    if (user) {
-      const userRoles = user.roles || (user.role ? [user.role] : [])
-      const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
-  
-      if (shouldSeeMultiLocation) {
-        const selectedLocation = localStorage.getItem("selectedLocation")
-        
-        if (!selectedLocation) {
-          const customers = user.customers || []
-          
-          if (customers.length === 1) {
-            // Handle single customer case - don't redirect to multi-location
-            const singleCustomer = customers[0]
-            setCustomerId(singleCustomer.id).then(() => {
-              localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
-            }).catch((error) => {
-              console.error("Failed to set customer ID:", error)
-              localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
-            })
-          } else if (customers.length > 1) {
-            router.replace("/multiple-location")
-          }
-        }
-      }
+    if (!user) return
+
+    const userRoles = user.roles || (user.role ? [user.role] : [])
+    const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
+    if (!shouldSeeMultiLocation) return
+
+    const selectedLocation = localStorage.getItem("selectedLocation")
+    const customers = user.customers || []
+
+    if (customers.length > 1 && !selectedLocation) {
+      router.replace("/multiple-location")
+      return
     }
-  }, [user, router, setCustomerId])
+
+    if (customers.length !== 1 || selectedLocation || customerSyncAttemptedRef.current) {
+      return
+    }
+
+    const singleCustomer = customers[0]
+    const storedCustomerId = localStorage.getItem("customerId")
+    const alreadySynced =
+      storedCustomerId === String(singleCustomer.id) && user.customer_id === singleCustomer.id
+
+    if (alreadySynced) {
+      localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+      return
+    }
+
+    customerSyncAttemptedRef.current = true
+    setCustomerId(singleCustomer.id)
+      .then(() => {
+        localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+      })
+      .catch((error) => {
+        console.error("Failed to set customer ID:", error)
+        customerSyncAttemptedRef.current = false
+        localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+      })
+  }, [user?.id, user?.customer_id, user?.customers, user?.role, user?.roles, router, setCustomerId])
 
   return (
     <div className="flex h-screen bg-[#F9F9F9] overflow-hidden">

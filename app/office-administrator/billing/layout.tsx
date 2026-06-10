@@ -2,6 +2,7 @@ import type React from "react"
 import { Header } from "@/components/header"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PermissionRoute } from "@/components/permission-route"
 
 export default function OfficeAdminBillingLayout({
   children,
@@ -10,6 +11,7 @@ export default function OfficeAdminBillingLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PermissionRoute permissions={["view_billing", "manage_billing"]}>
       <div className="flex min-h-screen bg-[#f9f9f9]">
         <DashboardSidebar />
         <div className="flex-1 flex flex-col">
@@ -21,6 +23,7 @@ export default function OfficeAdminBillingLayout({
           </div>
         </div>
       </div>
+      </PermissionRoute>
     </ProtectedRoute>
   )
 }

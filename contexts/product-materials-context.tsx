@@ -6,6 +6,7 @@ import { Package, CheckCircle, AlertCircle, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "./language-context"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveCustomerId } from "@/lib/customer-scope"
 
 // Define types based on actual API response
 export interface Material {
@@ -124,11 +125,10 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const { currentLanguage } = useLanguage()
   const { token: authToken, user } = useAuth()
 
-  // Determine user role and customerId
-  
-  const userRole = localStorage.getItem("role")
-  const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const userRole = typeof window !== "undefined" ? localStorage.getItem("role") : null
+  const customerId =
+    getActiveCustomerId() ?? user?.customers?.find((customer) => customer.id)?.id
+  const scopeCustomerRequests = Boolean(customerId)
 
   // Clear animation after it completes
   useEffect(() => {
@@ -204,8 +204,8 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           params.append("sort_by", "asc")
         }
 
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        // Pass customer_id if scopeCustomerRequests and customerId is defined
+        if (scopeCustomerRequests && customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -250,7 +250,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       sortDirection,
       toast,
       currentLanguage,
-      isLabAdmin,
+      scopeCustomerRequests,
       customerId,
       filterName,
       filterStatus,
@@ -272,7 +272,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           sequence: payload.sequence || 1,
           status: payload.status || "Active",
           price: typeof payload.price === "number" ? payload.price : 0,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(scopeCustomerRequests && customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/materials`, {
           method: "POST",
@@ -354,7 +354,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsLoading(false)
       }
     },
-    [toast, fetchMaterials, isLabAdmin, customerId],
+    [toast, fetchMaterials, scopeCustomerRequests, customerId],
   )
 
   const updateMaterial = useCallback(
@@ -368,7 +368,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const token = getAuthToken()
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(scopeCustomerRequests && customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/materials/${id}`, {
           method: "PUT",
@@ -422,7 +422,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsLoading(false)
       }
     },
-    [toast, fetchMaterials, isLabAdmin, customerId],
+    [toast, fetchMaterials, scopeCustomerRequests, customerId],
   )
 
   const deleteMaterial = useCallback(
@@ -435,7 +435,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const token = getAuthToken()
         let url = `${API_BASE_URL}/library/materials/${id}`
-        if (isLabAdmin && customerId) {
+        if (scopeCustomerRequests && customerId) {
           url += `?customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -489,7 +489,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsLoading(false)
       }
     },
-    [toast, fetchMaterials, isLabAdmin, customerId],
+    [toast, fetchMaterials, scopeCustomerRequests, customerId],
   )
 
   const bulkDeleteMaterials = useCallback(
@@ -503,7 +503,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const token = getAuthToken()
         const bodyPayload = {
           ids,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(scopeCustomerRequests && customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/materials/bulk-delete`, {
           method: "DELETE",
@@ -559,7 +559,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsLoading(false)
       }
     },
-    [toast, fetchMaterials, isLabAdmin, customerId],
+    [toast, fetchMaterials, scopeCustomerRequests, customerId],
   )
 
   const getMaterialDetail = useCallback(
@@ -569,7 +569,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const token = getAuthToken()
         let url = `${API_BASE_URL}/library/materials/${id}`
-        if (isLabAdmin && customerId) {
+        if (scopeCustomerRequests && customerId) {
           url += `?customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -597,7 +597,7 @@ export const MaterialsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setIsLoading(false)
       }
     },
-    [isLabAdmin, customerId]
+    [scopeCustomerRequests, customerId]
   )
 
   const clearMessages = useCallback(() => {

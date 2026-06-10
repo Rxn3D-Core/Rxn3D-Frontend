@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Pencil } from "lucide-react";
+import { isLabCustomerContext } from "@/lib/role-utils";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -43,8 +44,7 @@ export function TopBar({ selectedLab, onEditClick, caseSubmitted = false }: TopB
   const [profileLogoUrl, setProfileLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    setLeftLabel(role === "lab_admin" ? "Creating For" : "Sending To");
+    setLeftLabel(isLabCustomerContext() ? "Creating For" : "Sending To");
   }, []);
 
   useEffect(() => {

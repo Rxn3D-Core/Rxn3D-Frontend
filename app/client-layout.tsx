@@ -9,13 +9,14 @@ import { ChatSupportBox } from "@/components/chat-support-box"
 import { useAuth } from "@/contexts/auth-context"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 import { useDashboardSettingsStore } from "@/stores/dashboard-settings-store"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [showContent, setShowContent] = useState(true)
   const { user } = useAuth()
-  const userRole = user?.roles?.[0] || ""
+  const userRole = getPrimaryRole(user)
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, isLoading } = useDashboardSettings(userRole, userId, customerId)

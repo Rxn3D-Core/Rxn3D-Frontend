@@ -40,29 +40,12 @@ export default function ProductSubCategoryPage() {
     fetchParentDropdownCategories,
   } = useProductCategory()
 
-  const { user } = useAuth()
-  const parseStoredRole = (): string[] => {
-    if (typeof window === "undefined") return []
-    const raw = localStorage.getItem("role")
-    if (!raw) return []
-    try {
-      const p = JSON.parse(raw)
-      return Array.isArray(p) ? p.map(String) : [String(p)]
-    } catch {
-      return [raw]
-    }
-  }
+  const { hasAnyPermission } = useAuth()
 
-  const showSubcategoryAdminFilters = useMemo(() => {
-    const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
-    const roles = new Set([...parseStoredRole(), ...fromUser])
-    return roles.has("superadmin") || roles.has("lab_admin") || roles.has("admin")
-  }, [user])
-
-  const isLabAdmin = useMemo(() => {
-    const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
-    return new Set([...fromUser, ...parseStoredRole()]).has("lab_admin")
-  }, [user])
+  const showSubcategoryAdminFilters = useMemo(
+    () => hasAnyPermission(["create_product", "update_product", "delete_product"]),
+    [hasAnyPermission],
+  )
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)

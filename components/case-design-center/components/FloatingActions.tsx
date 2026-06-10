@@ -16,6 +16,10 @@ import {
   VirtualSlipActionIcon,
   type VirtualSlipActionIconName,
 } from "./VirtualSlipActionIcon";
+import {
+  isLabCustomerContext,
+  isOfficeCustomerContext,
+} from "@/lib/role-utils";
 
 function FabTooltip({
   label,
@@ -218,11 +222,12 @@ export function FloatingActions({
         label: pickupActionLabel,
       };
   const [expanded, setExpanded] = useState(true);
-  const [role, setRole] = useState<string | null>(null);
+  const [isLabContext, setIsLabContext] = useState(false);
+  const [isOfficeContext, setIsOfficeContext] = useState(false);
 
   useEffect(() => {
-    const storedRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    setRole(storedRole);
+    setIsLabContext(isLabCustomerContext());
+    setIsOfficeContext(isOfficeCustomerContext());
   }, []);
 
   const labActions: ActionButton[] = [
@@ -381,17 +386,14 @@ export function FloatingActions({
     "Ready to send": onReadyToSend,
   };
 
-  const isLabAdmin = role === "lab_admin";
-  const isOfficeAdmin = role === "office_admin";
-
-  const expandableActions = isLabAdmin ? labActions : isOfficeAdmin ? officeActions : [];
-  const quickActions = isOfficeAdmin
+  const expandableActions = isLabContext ? labActions : isOfficeContext ? officeActions : [];
+  const quickActions = isOfficeContext
     ? officeQuickActions
-    : isLabAdmin
+    : isLabContext
       ? labQuickActions
       : [];
 
-  if (!isLabAdmin && !isOfficeAdmin) return null;
+  if (!isLabContext && !isOfficeContext) return null;
 
   if (isFooterPrimaryAction) {
     return null;

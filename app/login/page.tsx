@@ -18,6 +18,13 @@ export default function LoginPage() {
       return
     }
 
+    // Honor a safe internal ?redirect= target (e.g. returning to an invitation link)
+    const redirectTarget = new URLSearchParams(window.location.search).get("redirect")
+    if (redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")) {
+      router.replace(redirectTarget)
+      return
+    }
+
     // Only redirect to dashboard if onboarding is complete
     // The auth-context will handle redirecting to onboarding if not complete
     if (isOnboardingComplete) {
@@ -34,19 +41,33 @@ export default function LoginPage() {
         if (hasMultipleLocations) {
           router.replace("/multiple-location")
         } else {
-          // Single location - set it automatically via API and go to the landing page
+          // Single location — set via API only if login flow has not already synced it
           if (customers.length === 1) {
             const singleCustomer = customers[0]
-            setCustomerId(singleCustomer.id).then(() => {
-              localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+            const storedCustomerId = localStorage.getItem("customerId")
+            const alreadySynced =
+              storedCustomerId === String(singleCustomer.id) &&
+              user.customer_id === singleCustomer.id
+
+            if (alreadySynced) {
+              if (!localStorage.getItem("selectedLocation")) {
+                localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+              }
               router.replace(landingPath)
-            }).catch((error) => {
-              console.error("Failed to set customer ID:", error)
-              // Fallback: still set localStorage and redirect
-              localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
-              localStorage.setItem("customerId", singleCustomer.id.toString())
-              router.replace(landingPath)
-            })
+              return
+            }
+
+            setCustomerId(singleCustomer.id)
+              .then(() => {
+                localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+                router.replace(landingPath)
+              })
+              .catch((error) => {
+                console.error("Failed to set customer ID:", error)
+                localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+                localStorage.setItem("customerId", singleCustomer.id.toString())
+                router.replace(landingPath)
+              })
           } else {
             router.replace(landingPath)
           }

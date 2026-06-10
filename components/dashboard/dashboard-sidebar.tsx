@@ -10,10 +10,12 @@ import { useMutation } from '@tanstack/react-query'
 import { useToast } from '@/hooks/use-toast'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from "@/lib/utils"
-import { type MenuItem, getMenuByRole } from "@/config/sidebar-menu"
+import { type MenuItem, getMenuForProfile } from "@/config/sidebar-menu"
 import { useAuth } from "@/contexts/auth-context"
+import { getPrimaryRole } from "@/lib/get-primary-role"
+import { filterMenuByPermissions } from "@/lib/menu-permissions"
+import { PROFILE_SCOPED_ROLES } from "@/lib/permissions"
 import { useTranslation } from "react-i18next"
-import { CompactPreloadStatus } from "@/components/3d-model-preload-status"
 import { CustomerLogo } from "@/components/customer-logo"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { useTheme } from "@/contexts/theme-context"
@@ -40,13 +42,9 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     }
   }, [expanded, isMobileOverlay])
 
-  const { user, logout } = useAuth()
-  // Wrap the provided logout() in a TanStack mutation so we can disable UI and show errors
+  const { user, logout, profilePermissions, isSuperadmin } = useAuth()
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      // logout is async and already handles API call and client cleanup
-      return logout()
-    },
+    mutationFn: async () => logout(),
     onError(error: any) {
       console.error('Logout failed', error)
       toast({ title: 'Logout failed', description: error?.message || 'Please try again.', variant: 'destructive' })
@@ -55,8 +53,18 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
       toast({ title: 'Signed out', description: 'You have been logged out.', variant: 'default' })
     },
   })
-  const userRole = user?.roles?.[0]
-  const menuItems = useMemo(() => getMenuByRole(userRole || ""), [userRole])
+  const userRole = getPrimaryRole(user)
+  const usesProfilePermissions = PROFILE_SCOPED_ROLES.includes(
+    userRole as (typeof PROFILE_SCOPED_ROLES)[number],
+  )
+
+  const menuItems = useMemo(() => {
+    const customerType =
+      typeof window !== "undefined" ? localStorage.getItem("customerType") : null
+    const baseMenu = getMenuForProfile(userRole || "", customerType)
+    if (!usesProfilePermissions) return baseMenu
+    return filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin)
+  }, [userRole, usesProfilePermissions, profilePermissions, isSuperadmin])
   const { t } = useTranslation();
   const { theme } = useTheme();
   const expandableMenuItemIds = useMemo(() => {
@@ -95,15 +103,12 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     [userRole],
   )
   
-  // Initialize logo store from localStorage on mount
   const initializeFromStorage = useCustomerLogoStore((state) => state.initializeFromStorage)
   useEffect(() => {
     initializeFromStorage()
   }, [initializeFromStorage])
   
-  // Get customer ID for logo display
   const getCustomerId = (): number | null => {
-    // First try to get from localStorage (set during login)
     if (typeof window !== "undefined") {
       const storedCustomerId = localStorage.getItem("customerId")
       if (storedCustomerId) {
@@ -111,17 +116,14 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
       }
     }
 
-    // Then try to get from user's customers array
     if (user?.customers && user.customers.length > 0) {
       return user.customers[0].id
     }
 
-    // If user has a customer_id property
     if (user?.customer_id) {
       return user.customer_id
     }
 
-    // If user has a customer object
     if (user?.customer?.id) {
       return user.customer.id
     }
@@ -157,26 +159,8 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   }
 
   const toggleMenuItem = (itemId: string) => {
-    setExpanded(true) // Automatically expand sidebar when a tab is clicked
+    setExpanded(true)
     setExpandedItems((prev) => (prev.includes(itemId) ? [] : [itemId]))
-  }
-
-  const isChildOf = (childId: string, parentId: string, items: MenuItem[]): boolean => {
-    for (const item of items) {
-      if (item.id === parentId) {
-        return (
-          item.children?.some(
-            (child) => child.id === childId || (child.children && isChildOf(childId, child.id, [child])),
-          ) || false
-        )
-      }
-      if (item.children) {
-        if (isChildOf(childId, parentId, item.children)) {
-          return true
-        }
-      }
-    }
-    return false
   }
 
   const isActive = (path?: string) => {
@@ -188,7 +172,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     return expandedItems.includes(itemId)
   }
 
-  // Handle mouse enter/leave for hover expansion
   const handleMouseEnter = () => {
     if (!expanded) {
       // setIsHovered(true)
@@ -199,11 +182,9 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     setIsHovered(false)
   }
 
-  // Determine if sidebar should be expanded (either manually expanded or hovered)
   const shouldExpand = expanded || isHovered
 
   if (isMobile && !isMobileOverlay) {
-    // Bottom navigation for mobile
     const visibleItems = menuItems.slice(0, 4);
     
     return (
@@ -233,7 +214,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
             </span>
           </Link>
         ))}
-        {/* Sign Out Button */}
         <button
           className={cn(
             "flex flex-col items-center justify-center flex-1 py-1.5 sm:py-2 px-0.5 sm:px-1 text-[#666666] active:bg-gray-50 transition-colors rounded-lg mx-0.5 sm:mx-1 min-w-0 disabled:opacity-50"
@@ -253,13 +233,11 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
       </nav>
     );
   }
-  // Desktop/Tablet sidebar or Mobile overlay
   const isDark = theme === "dark"
   const sidebarBg = isDark ? "bg-[#1162a8]" : "bg-white"
   const sidebarBorder = isDark ? "border-[#0f5497]" : "border-[#d9d9d9]"
   const textColor = isDark ? "text-white" : "text-[#000000]"
   const hoverBg = isDark ? "hover:bg-[#0f5497]" : "hover:bg-gray-100"
-  const activeBg = isDark ? "bg-[#0f5497]" : "bg-[#e4e6ef]"
   
   return (
     <div
@@ -274,7 +252,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Mobile overlay close button */}
       {isMobileOverlay && onClose && (
         <div className={cn("flex justify-end p-3 sm:p-4 border-b", isDark ? "border-[#0f5497]" : "border-[#d9d9d9]")}>
           <button
@@ -287,7 +264,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
         </div>
       )}
 
-      {/* Logo */}
       <div className={cn(
         "flex items-center",
         isMobileOverlay ? "p-3 sm:p-4 justify-start" : "p-2 sm:p-3 md:p-4 justify-center"
@@ -327,7 +303,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
         )}
       </div>
 
-      {/* Toggle button - hide on mobile overlay */}
       {!isMobileOverlay && (
         <button 
           onClick={toggleSidebar} 
@@ -342,7 +317,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
         </button>
       )}
 
-      {/* Navigation */}
       <div className="flex-1 flex flex-col overflow-y-auto">
         <div className="flex-1">
           {menuItems.map((item) => (
@@ -359,7 +333,6 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
           ))}
         </div>
 
-        {/* Sign Out Button */}
         <button
           className={cn(
             "flex items-center px-3 sm:px-4 py-2.5 sm:py-3 transition-colors w-full text-left touch-manipulation",
@@ -416,7 +389,6 @@ function SidebarItem({ item, expanded, isActive, isExpanded, toggleExpand, level
     }
   };
 
-  // Memoize the translated title
   const translatedTitle = useMemo(
     () => t(`menu.${item.title}`, item.title),
     [t, item.title]
@@ -464,7 +436,6 @@ function SidebarItem({ item, expanded, isActive, isExpanded, toggleExpand, level
         </div>
       </Link>
 
-      {/* Render children if expanded and item is expanded */}
       {expanded && hasChildren && itemExpanded && (
         <div className={cn(
           "space-y-0.5 sm:space-y-1 py-0.5 sm:py-1",

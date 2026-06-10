@@ -1,6 +1,37 @@
 import { clearSessionStorage } from './clear-session-storage'
+import { appendCustomerIdQuery } from './customer-scope'
+import { PROFILE_SCOPED_ROLES } from './permissions'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+const CUSTOMER_SCOPE_EXCLUDED_FRAGMENTS = [
+  '/auth/',
+  '/login',
+  '/register',
+  '/logout',
+  '/forgot-password',
+  '/reset-password',
+  '/registration/',
+  '/set-customer-id',
+  '/users/permissions/available',
+]
+
+function shouldAttachCustomerId(endpoint: string): boolean {
+  if (typeof window === 'undefined') return false
+  if (endpoint.includes('customer_id=')) return false
+  if (CUSTOMER_SCOPE_EXCLUDED_FRAGMENTS.some((fragment) => endpoint.includes(fragment))) {
+    return false
+  }
+
+  const role = localStorage.getItem('role')
+  if (!role || role === 'superadmin') return false
+  return PROFILE_SCOPED_ROLES.includes(role as (typeof PROFILE_SCOPED_ROLES)[number])
+}
+
+function withCustomerScope(endpoint: string): string {
+  if (!shouldAttachCustomerId(endpoint)) return endpoint
+  return appendCustomerIdQuery(endpoint)
+}
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -29,7 +60,8 @@ export class ApiService {
     endpoint: string, 
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint}`
+    const scopedEndpoint = withCustomerScope(endpoint)
+    const url = `${API_BASE_URL}${scopedEndpoint}`
     
     const config: RequestInit = {
       ...options,

@@ -20,6 +20,9 @@ export interface UserInvitation {
   user_exists: boolean
   already_linked: boolean
   requires_doctor_documents: boolean
+  is_expired?: boolean
+  /** True when the email belongs to an existing ACTIVE account; accept requires authentication (Bearer). */
+  requires_login?: boolean
 }
 
 export interface CreateUserInvitationPayload {
@@ -75,6 +78,44 @@ const getUserInvitation = async (token: string): Promise<UserInvitation> => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.message || "Failed to fetch invitation")
+  }
+
+  return response.json()
+}
+
+export interface AcceptUserInvitationPayload {
+  first_name?: string
+  last_name?: string
+  phone?: string
+  password?: string
+  password_confirmation?: string
+  license_number?: string
+  signature?: string
+}
+
+// Accept a user invitation by token.
+// New / Invited users: no auth. Existing ACTIVE users (requires_login): pass the Bearer token.
+export const acceptUserInvitation = async (
+  token: string,
+  payload: AcceptUserInvitationPayload = {},
+  authToken?: string | null,
+): Promise<{ message: string; data: any }> => {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  }
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`
+  }
+
+  const response = await fetch(`${API_BASE_URL}/user-invitations/${token}/accept`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ token, ...payload }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.message || "Failed to accept invitation")
   }
 
   return response.json()

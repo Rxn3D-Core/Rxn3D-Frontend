@@ -1,15 +1,26 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, Filter, Search, Plus, ChevronDown } from "lucide-react"
+import { Eye, Filter, Search, Plus, ChevronDown, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { StaffUserDetail } from "@/components/lab-administrator/staff-user-detail"
 import { AddUserForm } from "@/components/lab-administrator/add-user-form"
 import { useAuth } from "@/contexts/auth-context"
+import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
@@ -25,19 +36,71 @@ interface StaffUser {
   avatarColor?: string
   uuid?: string
   work_number?: string
+  role?: string
+  department?: string
   roles?: Array<{ id: number; name: string; permissions: string[] }>
+}
+
+// Convert a snake_case role (e.g. "lab_admin") into a display label ("Lab Admin")
+const formatRoleLabel = (role?: string) =>
+  role
+    ? role
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ")
+    : "User"
+
+// A role can arrive as a plain string ("lab_admin") or an object ({ name: "lab_admin" })
+const extractRoleName = (role: any): string | undefined =>
+  typeof role === "string" ? role : role?.name
+
+// Derive the role label and department names for the currently selected customer
+const deriveRoleAndDepartments = (apiUser: any) => {
+  const selectedCustomerId = Number(localStorage.getItem("customerId") || 0)
+  const customerUsers = Array.isArray(apiUser.customer_users) ? apiUser.customer_users : []
+  const scoped = selectedCustomerId
+    ? customerUsers.filter((cu: any) => Number(cu?.customer_id || cu?.customer?.id) === selectedCustomerId)
+    : customerUsers
+  const source = scoped.length > 0 ? scoped : customerUsers
+
+  const roleName =
+    source.map((cu: any) => extractRoleName(cu?.role)).find(Boolean) ||
+    extractRoleName(apiUser.roles?.[0]) ||
+    extractRoleName(apiUser.role) ||
+    "user"
+
+  const departmentNames = Array.from(
+    new Set(
+      source
+        .flatMap((cu: any) =>
+          Array.isArray(cu?.departments)
+            ? cu.departments.map((d: any) => d?.department?.name ?? d?.name)
+            : [],
+        )
+        .filter(Boolean),
+    ),
+  )
+
+  return {
+    role: roleName,
+    userType: formatRoleLabel(roleName),
+    department: departmentNames.length > 0 ? departmentNames.join(", ") : "-",
+  }
 }
 
 export default function StaffManagementPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user } = useAuth()
   const { toast } = useToast()
-  const { fetchUsers, updateUser } = useAuth()
+  const { user, fetchUsers, updateUser, hasPermission } = useAuth()
+  const { removeCustomerRoleFromUser } = useCustomer()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
+  const [userToRemove, setUserToRemove] = useState<StaffUser | null>(null)
+  const [isRemoving, setIsRemoving] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
@@ -63,9 +126,10 @@ export default function StaffManagementPage() {
     }
   }, [showStatusDropdown])
 
-  // Check if user has lab admin permissions
+  // Profile-scoped gate — backend permission key, not role name
   useEffect(() => {
-    if (user && user.role !== "Lab Admin" && !user?.roles?.includes("lab_admin")) {
+    if (!user) return
+    if (!hasPermission("view_users")) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page.",
@@ -73,59 +137,61 @@ export default function StaffManagementPage() {
       })
       router.replace("/dashboard")
     }
-  }, [user, router, toast])
+  }, [user, hasPermission, router, toast])
 
   // Load staff users data
-  useEffect(() => {
-    const loadStaffUsers = async () => {
-      setIsLoading(true)
-      try {
-        // Fetch users with lab_admin role and Active status
-        const response = await fetchUsers({ 
-          status: "Active", 
-          role: "lab_admin" 
-        });
+  const loadStaffUsers = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      // Fetch all staff for the current customer (status is filtered client-side)
+      const response = await fetchUsers({});
 
-        // Avatar colors
-        const avatarColors = [
-          "bg-[#8bc34a]", // green
-          "bg-[#f44336]", // red
-          "bg-[#673ab7]", // purple
-          "bg-[#ff9800]", // orange
-          "bg-[#03a9f4]", // light blue
-          "bg-[#9c27b0]", // purple
-        ]
+      // Avatar colors
+      const avatarColors = [
+        "bg-[#8bc34a]", // green
+        "bg-[#f44336]", // red
+        "bg-[#673ab7]", // purple
+        "bg-[#ff9800]", // orange
+        "bg-[#03a9f4]", // light blue
+        "bg-[#9c27b0]", // purple
+      ]
 
-        // Transform API response to StaffUser format
-        const transformedUsers: StaffUser[] = response.data.map((apiUser: any, index: number) => ({
+      // Transform API response to StaffUser format
+      const transformedUsers: StaffUser[] = response.data.map((apiUser: any, index: number) => {
+        const { role, userType, department } = deriveRoleAndDepartments(apiUser)
+        return {
           id: apiUser.id,
           uuid: apiUser.uuid,
-          name: `${apiUser.first_name} ${apiUser.last_name}`,
+          name: `${apiUser.first_name || ""} ${apiUser.last_name || ""}`.trim() || apiUser.email,
           email: apiUser.email,
           phone: apiUser.phone || apiUser.work_number || "N/A",
-          userType: apiUser.roles?.[0]?.name === "lab_admin" ? "Lab Admin" : "User",
-          joinDate: new Date(apiUser.created_at).toLocaleDateString('en-US'),
+          userType,
+          role,
+          department,
+          joinDate: apiUser.created_at ? new Date(apiUser.created_at).toLocaleDateString('en-US') : "-",
           status: apiUser.status as "Active" | "Inactive" | "Suspended" | "Archived",
           avatarColor: avatarColors[index % avatarColors.length],
           work_number: apiUser.work_number,
           roles: apiUser.roles,
-        }));
+        }
+      });
 
-        setStaffUsers(transformedUsers)
-      } catch (error) {
-        console.error("Failed to load staff users:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load staff users. Please try again.",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
+      setStaffUsers(transformedUsers)
+    } catch (error) {
+      console.error("Failed to load staff users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load staff users. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
-
-    loadStaffUsers()
   }, [toast, fetchUsers])
+
+  useEffect(() => {
+    loadStaffUsers()
+  }, [loadStaffUsers])
 
   // Check URL params for user detail view
   useEffect(() => {
@@ -171,6 +237,49 @@ export default function StaffManagementPage() {
     router.replace(`/lab-administrator/staff-management?userId=${user.id}`)
   }
 
+  // Handle edit user – open the same form as create, in edit mode
+  const handleEditUser = (user: StaffUser) => {
+    setUserToUpdate(user)
+    setSelectedUser(null)
+    setShowAddUser(false)
+    router.replace(`/lab-administrator/staff-management?action=edit&userId=${user.id}`)
+  }
+
+  // Handle successful user update – refresh the list and return to it
+  const handleUpdateUserSuccess = () => {
+    handleBackToList()
+    loadStaffUsers()
+  }
+
+  // Remove the user from the current customer (does NOT delete the user account)
+  const handleRemoveUser = async () => {
+    if (!userToRemove) return
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "No customer selected. Please select a location first.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsRemoving(true)
+    try {
+      const success = await removeCustomerRoleFromUser(customerId, userToRemove.id)
+      if (success) {
+        toast({
+          title: "User Removed",
+          description: `${userToRemove.name} has been removed from this customer.`,
+        })
+        setStaffUsers((prev) => prev.filter((u) => u.id !== userToRemove.id))
+        setUserToRemove(null)
+      }
+    } finally {
+      setIsRemoving(false)
+    }
+  }
+
   // Handle add new user
   const handleAddUser = () => {
     setShowAddUser(true)
@@ -182,7 +291,14 @@ export default function StaffManagementPage() {
   const handleBackToList = () => {
     setSelectedUser(null)
     setShowAddUser(false)
+    setUserToUpdate(null)
     router.replace("/lab-administrator/staff-management")
+  }
+
+  // Handle successful user creation – refresh the list and return to it
+  const handleAddUserSuccess = () => {
+    handleBackToList()
+    loadStaffUsers()
   }
 
   // Get status badge class
@@ -248,14 +364,16 @@ export default function StaffManagementPage() {
     }
   }
 
-  // If showing user detail or add user form
-  if (selectedUser || showAddUser) {
+  // If showing user detail, add user form, or edit user form
+  if (selectedUser || showAddUser || userToUpdate) {
     return (
       <div className="h-full">
         {selectedUser ? (
           <StaffUserDetail user={selectedUser} onBack={handleBackToList} />
+        ) : userToUpdate ? (
+          <AddUserForm user={userToUpdate} onCancel={handleBackToList} onSuccess={handleUpdateUserSuccess} />
         ) : (
-          <AddUserForm onCancel={handleBackToList} onSuccess={handleBackToList} />
+          <AddUserForm onCancel={handleBackToList} onSuccess={handleAddUserSuccess} />
         )}
       </div>
     )
@@ -331,7 +449,13 @@ export default function StaffManagementPage() {
                 </th>
                 <th className="px-4 py-3 text-left font-medium">
                   <div className="flex items-center">
-                    User Type
+                    Role
+                    <ChevronDown className="h-4 w-4 ml-1" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left font-medium">
+                  <div className="flex items-center">
+                    Department
                     <ChevronDown className="h-4 w-4 ml-1" />
                   </div>
                 </th>
@@ -359,13 +483,13 @@ export default function StaffManagementPage() {
             <tbody className="divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center">
+                  <td colSpan={9} className="px-4 py-8 text-center">
                     Loading staff users...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center">
+                  <td colSpan={9} className="px-4 py-8 text-center">
                     No staff users found.
                   </td>
                 </tr>
@@ -381,14 +505,22 @@ export default function StaffManagementPage() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <Avatar className={user.avatarColor}>
-                          
+                        <Avatar className={`${user.avatarColor} h-10 w-10`}>
+                          <AvatarFallback className={`${user.avatarColor} text-white font-semibold`}>
+                            {user.name
+                              .split(" ")
+                              .map((word) => word.charAt(0))
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)}
+                          </AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{user.name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-gray-700">{user.email}</td>
-                    <td className="px-4 py-4 text-gray-700">{user.userType}</td>
+                    <td className="px-4 py-4 text-gray-700">{formatRoleLabel(user.role)}</td>
+                    <td className="px-4 py-4 text-gray-700">{user.department}</td>
                     <td className="px-4 py-4 text-gray-700">{user.phone}</td>
                     <td className="px-4 py-4 text-gray-700">{user.joinDate}</td>
                     <td className="px-4 py-4 relative">
@@ -404,14 +536,35 @@ export default function StaffManagementPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewUser(user)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewUser(user)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="View user details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditUser(user)}
+                          className="text-green-600 hover:text-green-800"
+                          title="Edit user"
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setUserToRemove(user)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Remove from this customer"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -500,6 +653,32 @@ export default function StaffManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Remove-from-customer confirmation */}
+      <AlertDialog open={!!userToRemove} onOpenChange={(open) => !open && setUserToRemove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove user from this customer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToRemove?.name} will be removed from this customer profile. Their account is not deleted
+              and any access to other customers is preserved.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleRemoveUser()
+              }}
+              disabled={isRemoving}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isRemoving ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
