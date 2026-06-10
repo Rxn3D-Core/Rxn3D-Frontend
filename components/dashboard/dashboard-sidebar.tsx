@@ -419,7 +419,7 @@ function SidebarItem({ item, expanded, isActive, isExpanded, toggleExpand, level
           {expanded && (
             <>
               <span className={cn(
-                "ml-2 sm:ml-3 text-[14px] font-['Verdana'] font-normal leading-[100%] tracking-[0%] flex-1 truncate min-w-0",
+                "ml-2 sm:ml-3 text-[14px] font-['Verdana'] font-normal leading-[100%] tracking-[0%] flex-1 min-w-0 break-words whitespace-normal",
                 isDark ? "text-white" : active ? "text-[#1162a8]" : "text-[#000000]"
               )}>
                 {translatedTitle}

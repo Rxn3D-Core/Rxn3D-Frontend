@@ -128,6 +128,16 @@ export const superadminMenu: MenuItem[] = [
         title: "Invoicing",
         path: "/billing-subscription/invoicing",
       },
+      {
+        id: "billing-dunning",
+        title: "Dunning Workflows",
+        path: "/billing-subscription/dunning-workflows",
+      },
+      {
+        id: "billing-integrations",
+        title: "Integrations & Connections",
+        path: "/billing-subscription/integrations",
+      },
     ],
   },
   {

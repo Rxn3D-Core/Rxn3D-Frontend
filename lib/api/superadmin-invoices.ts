@@ -55,6 +55,12 @@ async function apiFetch<T>(url: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
+export async function getSuperadminInvoice(id: number): Promise<SuperadminInvoice> {
+  const url = buildApiUrl(`/billing-invoices/${id}`)
+  const json = await apiFetch<{ success: boolean; data: SuperadminInvoice }>(url)
+  return json.data
+}
+
 export async function listSuperadminInvoices(options: ListSuperadminInvoicesOptions = {}): Promise<{
   data: SuperadminInvoice[]
   pagination: SuperadminInvoicePagination | null
