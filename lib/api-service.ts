@@ -1,5 +1,6 @@
 import { clearSessionStorage } from './clear-session-storage'
-import { appendCustomerIdQuery } from './customer-scope'
+import { appendCustomerIdQuery, getActiveCustomerId } from './customer-scope'
+import { getSlipLabIdForCurrentProfile } from './customer-lab-scope'
 import { PROFILE_SCOPED_ROLES } from './permissions'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
@@ -141,20 +142,19 @@ export class ApiService {
   }
 }
 
+function resolveProductLabId(): string | null {
+  const labId = getSlipLabIdForCurrentProfile()
+  if (!labId || labId === 'null' || labId === 'undefined') return null
+  return labId
+}
+
 // Product-specific API methods
 export const ProductApi = {
   // Get product teeth shades
   getTeethShades: async (productId: number) => {
     console.log('🔍 ProductApi.getTeethShades called:', { productId })
-    // Get the correct lab ID based on user role, including doctor
-    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
-    let labId: string | null = null
-    if (role === 'office_admin' || role === 'doctor') {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('selectedLabId') : null
-    } else {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('customerId') : null
-    }
-    console.log('🔍 ProductApi.getTeethShades - labId:', { role, labId })
+    const labId = resolveProductLabId()
+    console.log('🔍 ProductApi.getTeethShades - labId:', { labId })
     
     // Validate labId before making the request
     if (!labId || labId === 'null' || labId === 'undefined') {
@@ -172,15 +172,8 @@ export const ProductApi = {
   // Get product gum shades
   getGumShades: async (productId: number) => {
     console.log('🔍 ProductApi.getGumShades called:', { productId })
-    // Get the correct lab ID based on user role
-    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
-    let labId: string | null = null
-    if (role === 'office_admin' || role === 'doctor') {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('selectedLabId') : null
-    } else {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('customerId') : null
-    }
-    console.log('🔍 ProductApi.getGumShades - labId:', { role, labId })
+    const labId = resolveProductLabId()
+    console.log('🔍 ProductApi.getGumShades - labId:', { labId })
     
     // Validate labId before making the request
     if (!labId || labId === 'null' || labId === 'undefined') {
@@ -197,14 +190,7 @@ export const ProductApi = {
 
   // Get product impressions
   getImpressions: async (productId: number) => {
-    // Get the correct lab ID based on user role
-    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
-    let labId: string | null = null
-    if (role === 'office_admin' || role === 'doctor') {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('selectedLabId') : null
-    } else {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('customerId') : null
-    }
+    const labId = resolveProductLabId()
     
     // Validate labId before making the request
     if (!labId || labId === 'null' || labId === 'undefined') {
@@ -218,14 +204,7 @@ export const ProductApi = {
 
   // Calculate delivery date
   calculateDelivery: async (productId: number, stageId: number) => {
-    // Get the correct lab ID based on user role
-    const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
-    let labId: string | null = null
-    if (role === 'office_admin' || role === 'doctor') {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('selectedLabId') : null
-    } else {
-      labId = typeof window !== 'undefined' ? localStorage.getItem('customerId') : null
-    }
+    const labId = resolveProductLabId()
     
     if (!labId) {
       throw new Error('Lab ID not found. Please ensure you are logged in and have selected a lab.')
@@ -236,21 +215,11 @@ export const ProductApi = {
   },
 }
 
-// Helper function to get customer ID for lab_admin
 const getCustomerId = (): number | null => {
-  if (typeof window === 'undefined') return null
-  
-  const role = localStorage.getItem('role')
-  const isLabAdmin = role === 'lab_admin'
-  
-  if (isLabAdmin) {
-    const customerId = localStorage.getItem('customerId')
-    if (customerId) {
-      return parseInt(customerId, 10)
-    }
-  }
-  
-  return null
+  const customerId = getActiveCustomerId()
+  if (!customerId) return null
+  const parsed = parseInt(customerId, 10)
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 // Extractions API methods

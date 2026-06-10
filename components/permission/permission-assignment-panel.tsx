@@ -57,6 +57,7 @@ export function PermissionAssignmentPanel({
   const { toast } = useToast()
   const [grouped, setGrouped] = useState<Record<string, string[]>>({})
   const [labRoleBundle, setLabRoleBundle] = useState<string[]>([])
+  const [officeRoleBundle, setOfficeRoleBundle] = useState<string[]>([])
   const [rolePermissions, setRolePermissions] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -143,8 +144,13 @@ export function PermissionAssignmentPanel({
 
   const scopedGrouped = useMemo(() => {
     if (variant === "role" && isSuperadmin) return grouped
-    return filterGroupedForActiveContext(grouped, labRoleBundle, isSuperadmin)
-  }, [grouped, labRoleBundle, isSuperadmin, variant])
+    return filterGroupedForActiveContext(
+      grouped,
+      labRoleBundle,
+      isSuperadmin,
+      officeRoleBundle,
+    )
+  }, [grouped, labRoleBundle, officeRoleBundle, isSuperadmin, variant])
 
   const filteredGroups = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()

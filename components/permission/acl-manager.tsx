@@ -29,6 +29,7 @@ export function ACLManager() {
   const [searchQuery, setSearchQuery] = useState("")
   const [grouped, setGrouped] = useState<Record<string, string[]>>({})
   const [labRoleBundle, setLabRoleBundle] = useState<string[]>([])
+  const [officeRoleBundle, setOfficeRoleBundle] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -41,6 +42,7 @@ export function ACLManager() {
         if (cancelled) return
         setGrouped(data.grouped ?? {})
         setLabRoleBundle(data.lab_role_bundle ?? [])
+        setOfficeRoleBundle(data.office_role_bundle ?? [])
       } catch (error: unknown) {
         if (!cancelled) {
           toast({
@@ -63,8 +65,14 @@ export function ACLManager() {
   const scopeLabel = profileScopeLabel()
 
   const scopedGrouped = useMemo(
-    () => filterGroupedForActiveContext(grouped, labRoleBundle, isSuperadmin),
-    [grouped, labRoleBundle, isSuperadmin],
+    () =>
+      filterGroupedForActiveContext(
+        grouped,
+        labRoleBundle,
+        isSuperadmin,
+        officeRoleBundle,
+      ),
+    [grouped, labRoleBundle, officeRoleBundle, isSuperadmin],
   )
 
   const filteredGroups = useMemo(() => {

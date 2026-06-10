@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation"
 import { useTranslation } from "react-i18next"
 import { useMemo, useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { isLabCustomerContext } from "@/lib/role-utils"
 import {
   ChevronDown,
   ChevronRight,
@@ -63,12 +64,8 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   const [expandedItems, setExpandedItems] = useState<string[]>([])
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true)
 
-  // Get user role from auth context
-  const userRoles = user?.roles || (user?.role ? [user.role] : [])
-  const isLabAdmin = userRoles.includes("lab_admin")
-
-  // Set route prefix based on user role
-  const routePrefix = isLabAdmin ? "/lab-product-library" : "/global-product-library"
+  const isLabProfile = useMemo(() => isLabCustomerContext(), [])
+  const routePrefix = isLabProfile ? "/lab-product-library" : "/global-product-library"
 
   // Use Zustand store for real-time label synchronization
   const defaultCaseTrackingLabel = t("productLibrary.sideBar.CaseTracking", "Case Tracking")

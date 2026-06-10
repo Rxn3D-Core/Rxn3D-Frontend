@@ -643,5 +643,21 @@ export function getMenuForProfile(role: string, customerType?: string | null): M
   const type = (customerType ?? "").toLowerCase()
   if (type === "lab") return labMenu
   if (type === "office") return officeMenu
-  return getMenuByRole(role)
+  const normalized = role.toLowerCase()
+  if (
+    normalized === "lab_admin" ||
+    normalized === "lab_user" ||
+    normalized === "lab_driver"
+  ) {
+    return labMenu
+  }
+  if (
+    normalized === "office_admin" ||
+    normalized === "office_user" ||
+    normalized === "doctor_admin" ||
+    normalized === "doctor"
+  ) {
+    return officeMenu
+  }
+  return defaultMenu
 }

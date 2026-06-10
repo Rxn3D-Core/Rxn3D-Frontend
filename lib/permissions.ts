@@ -33,6 +33,8 @@ export type AvailablePermissionsPayload = {
   grouped?: Record<string, string[]>
   lab_role_bundle?: string[]
   lab_role_names?: string[]
+  office_role_bundle?: string[]
+  office_role_names?: string[]
   total_count?: number
 }
 
@@ -80,6 +82,12 @@ export function normalizeAvailablePermissions(payload: unknown): AvailablePermis
       : undefined,
     lab_role_names: Array.isArray(data.lab_role_names)
       ? data.lab_role_names.filter((p): p is string => typeof p === "string")
+      : undefined,
+    office_role_bundle: Array.isArray(data.office_role_bundle)
+      ? data.office_role_bundle.filter((p): p is string => typeof p === "string")
+      : undefined,
+    office_role_names: Array.isArray(data.office_role_names)
+      ? data.office_role_names.filter((p): p is string => typeof p === "string")
       : undefined,
     total_count: typeof data.total_count === "number" ? data.total_count : undefined,
   }
@@ -186,22 +194,45 @@ export function roleMatchesActiveContext(roleName: string, isSuperadmin = false)
   return allowed.includes(roleName)
 }
 
+function filterGroupedToBundle(
+  grouped: Record<string, string[]>,
+  bundle: string[],
+): Record<string, string[]> {
+  const bundleSet = new Set(bundle)
+  const result: Record<string, string[]> = {}
+  for (const [group, permissions] of Object.entries(grouped)) {
+    const kept = permissions.filter((permission) => bundleSet.has(permission))
+    if (kept.length > 0) result[group] = kept
+  }
+  return result
+}
+
 /** Limit catalog / assignment UI to permissions for the active profile. */
 export function filterGroupedForActiveContext(
   grouped: Record<string, string[]>,
   labRoleBundle: string[],
   isSuperadmin = false,
+  officeRoleBundle: string[] = [],
 ): Record<string, string[]> {
   if (isSuperadmin) return grouped
 
   if (isLabCustomerContext() && labRoleBundle.length > 0) {
-    const bundleSet = new Set(labRoleBundle)
-    const result: Record<string, string[]> = {}
-    for (const [group, permissions] of Object.entries(grouped)) {
-      const kept = permissions.filter((permission) => bundleSet.has(permission))
-      if (kept.length > 0) result[group] = kept
+    return filterGroupedToBundle(grouped, labRoleBundle)
+  }
+
+  if (isOfficeCustomerContext()) {
+    if (officeRoleBundle.length > 0) {
+      return filterGroupedToBundle(grouped, officeRoleBundle)
     }
-    return result
+    if (labRoleBundle.length > 0) {
+      const labOnly = new Set(labRoleBundle)
+      const result: Record<string, string[]> = {}
+      for (const [group, permissions] of Object.entries(grouped)) {
+        const kept = permissions.filter((permission) => !labOnly.has(permission))
+        if (kept.length > 0) result[group] = kept
+      }
+      return result
+    }
   }
 
   return grouped

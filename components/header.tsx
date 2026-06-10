@@ -83,7 +83,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission } = useAuth()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -132,8 +132,12 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const lastScannedCodeRef = useRef<string>("");
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
-  const isSuperAdmin = userRoles.includes("superadmin")
+  const isSuperAdmin = isSuperadmin || userRoles.includes("superadmin")
   const isOfficeAdmin = userRoles.includes("office_admin")
+  const canCreateSlip = isSuperAdmin || hasPermission("submit_new_case")
+  const canCreateOffice =
+    isSuperAdmin ||
+    hasAnyPermission(["manage_office", "edit_office", "view_office"])
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -832,7 +836,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-2 sm:py-2.5 md:py-3">
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
-              {!isSuperAdmin && (
+              {!isSuperAdmin && canCreateSlip && (
                 <Button
                   size="sm"
                   className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
@@ -845,7 +849,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   <span>{t("header.newSlip", "+ New Slip")}</span>
                 </Button>
               )}
-              {!isOfficeAdmin && (
+              {!isOfficeAdmin && canCreateOffice && (
                 <Button
                   size="sm"
                   className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"

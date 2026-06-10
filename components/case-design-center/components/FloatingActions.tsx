@@ -16,6 +16,7 @@ import {
   VirtualSlipActionIcon,
   type VirtualSlipActionIconName,
 } from "./VirtualSlipActionIcon";
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 import {
   isLabCustomerContext,
   isOfficeCustomerContext,
@@ -143,6 +144,9 @@ export function FloatingActions({
   showDriverHistoryFab = true,
   canPutOnHold = true,
 }: FloatingActionsProps = {}) {
+  const { canEditSlip, canDeleteCase } = usePermissionCapabilities();
+  const effectiveShowEditSlip = showEditSlip && canEditSlip;
+  const effectiveOnCancel = canDeleteCase ? onCancel : undefined;
   const pickupActionLabel = pickupDropoffLabel ?? "Pick up/Drop off";
   const isDropoffFab = pickupDropoffAction === "dropoff";
   const isFooterDriverAction =
@@ -153,7 +157,7 @@ export function FloatingActions({
   const isFooterAddStageAction = hasNextStage && Boolean(onAddStage);
   const isFooterPrimaryAction =
     isFooterDriverAction || isFooterReadyToSendAction || isFooterAddStageAction;
-  const showCaseStatusActions = Boolean(onResume || onHold || onCancel);
+  const showCaseStatusActions = Boolean(onResume || onHold || effectiveOnCancel);
   const caseStatusFabActions: ActionButton[] = showCaseStatusActions
     ? [
         ...(onResume
@@ -182,7 +186,7 @@ export function FloatingActions({
               },
             ]
           : []),
-        ...(onCancel
+        ...(effectiveOnCancel
           ? [
               {
                 icon: "cancel" as const,
@@ -231,7 +235,7 @@ export function FloatingActions({
   }, []);
 
   const labActions: ActionButton[] = [
-    ...(showEditSlip
+    ...(effectiveShowEditSlip
       ? [
           {
             icon: "edit-slip" as const,
@@ -273,7 +277,7 @@ export function FloatingActions({
   ];
 
   const officeActions: ActionButton[] = [
-    ...(showEditSlip
+    ...(effectiveShowEditSlip
       ? [
           {
             icon: "edit-slip" as const,
@@ -381,7 +385,7 @@ export function FloatingActions({
     "Rush case": onRush,
     "Resume case": onResume,
     "On hold": onHold,
-    "Cancel Case": onCancel,
+    "Cancel Case": effectiveOnCancel,
     "Add stage": onAddStage,
     "Ready to send": onReadyToSend,
   };
