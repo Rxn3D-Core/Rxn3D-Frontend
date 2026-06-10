@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
+import type { STLFile } from "@/components/stl-file-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
 import RushRequestModal from "@/components/rush-request-modal";
@@ -237,6 +238,12 @@ export function ModalOrchestrator({
 }: ModalOrchestratorProps) {
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
+
+  const [stlFilesByImpression, setStlFilesByImpression] = useState<Record<string, STLFile[]>>({})
+  const handleSTLFilesAttached = useCallback((files: STLFile[], key: string) => {
+    setStlFilesByImpression(prev => ({ ...prev, [key]: files }))
+  }, [])
+
   /** Arches the user edited in this modal session — avoids clearing an arch that was never touched on close. */
   const touchedArchesRef = useRef<Set<Arch>>(new Set());
   const impressionCloseInFlightRef = useRef(false);
@@ -337,6 +344,8 @@ export function ModalOrchestrator({
         }}
         productId={currentImpressionProductId}
         arch={currentImpressionArch}
+        stlFilesByImpression={stlFilesByImpression}
+        onSTLFilesAttached={handleSTLFilesAttached}
         onSubmitNoOpposing={() => {
           const displayText = buildImpressionDisplayText(
             selectedImpressions,
@@ -419,6 +428,7 @@ export function ModalOrchestrator({
             availableStages={attachmentStages}
             onViewerToggle={handleViewerToggle}
             onFileCountsChange={onAttachFileCountsChange}
+            impressionFiles={Object.values(stlFilesByImpression).flat()}
           />
         </DialogContent>
       </Dialog>

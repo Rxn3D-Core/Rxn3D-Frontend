@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Paperclip, Upload, X, Trash2, FileText } from "lucide-react"
 
-interface STLFile {
+export interface STLFile {
   file: File
   url: string
   description?: string
@@ -61,16 +61,17 @@ export function STLFileSelectionModal({
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
-    if (files) {
+    if (files && files.length > 0) {
       const newFiles = Array.from(files).map(file => ({
         file,
         url: URL.createObjectURL(file),
         description: "",
       }))
-      
-      setStlFiles(prev => [...prev, ...newFiles])
+      const combined = [...stlFiles, ...newFiles]
+      setStlFiles(combined)
+      onConfirm(combined)
+      onClose()
     }
-    // Reset input so same file can be selected again
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -96,10 +97,12 @@ export function STLFileSelectionModal({
         url: URL.createObjectURL(file),
         description: "",
       }))
-      
-      setStlFiles(prev => [...prev, ...newFiles])
+      const combined = [...stlFiles, ...newFiles]
+      setStlFiles(combined)
+      onConfirm(combined)
+      onClose()
     }
-  }, [])
+  }, [stlFiles, onConfirm, onClose])
 
   const handleDeleteFile = (url: string) => {
     setStlFiles(prev => {
@@ -135,9 +138,16 @@ export function STLFileSelectionModal({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Paperclip className="w-5 h-5 text-gray-700" />
-              <DialogTitle className="text-xl font-semibold">
-                Attach Files
-              </DialogTitle>
+              <div>
+                <DialogTitle className="text-xl font-semibold">
+                  {impressionName ? `${impressionName} — Attach Files` : "Attach Files"}
+                </DialogTitle>
+                {stlFiles.length > 0 && (
+                  <p className="text-sm text-blue-600 font-medium mt-0.5">
+                    {stlFiles.length} file{stlFiles.length !== 1 ? "s" : ""} attached
+                  </p>
+                )}
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -175,11 +185,11 @@ export function STLFileSelectionModal({
             onChange={(e) => setDescription(e.target.value)}
           />
 
-          {/* Selected Files List (if any) */}
+          {/* Attached Files List (if any) */}
           {stlFiles.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">
-                Selected Files ({stlFiles.length})
+                Attached Files ({stlFiles.length})
               </p>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {stlFiles.map((stlFile, idx) => (
@@ -221,13 +231,14 @@ export function STLFileSelectionModal({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleConfirm}
-              disabled={stlFiles.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-            >
-              Attach Files
-            </Button>
+            {stlFiles.length > 0 && (
+              <Button
+                onClick={handleConfirm}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+              >
+                Done
+              </Button>
+            )}
           </div>
         </div>
 

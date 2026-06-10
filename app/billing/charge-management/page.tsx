@@ -1736,7 +1736,7 @@ export default function ChargeManagementPage() {
                 }}
                 disabled={filterBarDisabled}
               >
-                <SelectTrigger className="w-[200px] shrink-0 h-10 text-sm bg-white">
+                <SelectTrigger className="w-[200px] shrink-0 h-10 text-sm bg-white focus:ring-0 focus:ring-offset-0 focus:border-input">
                   <CalendarIcon className="h-4 w-4 mr-2 text-gray-400 shrink-0" />
                   <SelectValue
                     placeholder={t("chargeManagement.selectDateRange", { defaultValue: "Select date range" })}

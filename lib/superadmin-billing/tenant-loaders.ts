@@ -1,6 +1,5 @@
 import {
   getCustomerBillingProfile,
-  listBillingProfiles,
   listBillingCatalogPlans,
   upgradeBillingProfile,
   downgradeBillingProfile,
@@ -29,6 +28,7 @@ import {
 } from "@/lib/api/superadmin-customers"
 import { getBillingUsage, listBillingCatalogAddOns, type BillingUsage, type SubscriptionInvoice, type CatalogAddOn } from "@/lib/api/billing-subscription"
 import { getStorageUsageStatus, type StorageUsageStatus } from "@/lib/api/storage-usage"
+import { getBatchTenantBillingOverview, type TenantBillingOverviewEntry } from "@/lib/api/superadmin-tenant-billing"
 import {
   buildSuperadminBillingTenantDetail,
   buildSuperadminBillingTenantRow,
@@ -42,12 +42,6 @@ type EnrichmentBundle = {
   usage: BillingUsage | null
   storageUsage: StorageUsageStatus | null
   storageTier: CustomerStorageTierRecord | null
-}
-
-type OverviewEnrichmentBundle = {
-  billingProfile: BillingProfile | null
-  usage: BillingUsage | null
-  storageUsage: StorageUsageStatus | null
 }
 
 function toStorageRecord(
@@ -69,6 +63,61 @@ function toStorageRecord(
   }
 }
 
+function batchEntryToStorageRecord(entry: TenantBillingOverviewEntry, customerId: number) {
+  const limitGb = entry.storage.limit_gb
+  if (!limitGb) return null
+  return {
+    id: customerId,
+    customer_id: customerId,
+    storage_gb: null, // actual usage not fetched in batch (would require expensive per-lab file scans)
+    storage_limit_gb: limitGb,
+    status: entry.storage.tier_status ?? "active",
+    current_period_end: entry.storage.tier_period_end ?? null,
+  }
+}
+
+function batchEntryToBillingProfile(entry: TenantBillingOverviewEntry): BillingProfile | null {
+  const bp = entry.billing_profile
+  if (!bp) return null
+  return {
+    id: bp.id,
+    customer_id: 0,
+    billing_plan_id: bp.plan?.id ?? 0,
+    status: bp.status as BillingProfile["status"],
+    current_period_start: bp.current_period_start ?? undefined,
+    current_period_end: bp.current_period_end ?? undefined,
+    plan: bp.plan
+      ? {
+          id: bp.plan.id,
+          name: bp.plan.name,
+          status: bp.plan.status,
+          monthly_fee: bp.plan.monthly_fee ?? undefined,
+          feature_limits: {
+            slip_capacity: bp.plan.slip_capacity,
+            capacity_type: "reset_each_cycle",
+            included_storage_gb: bp.plan.storage_included_gb,
+            max_admin_seats: 0,
+            max_user_seats: 0,
+          },
+        }
+      : undefined,
+  }
+}
+
+function batchEntryToUsage(entry: TenantBillingOverviewEntry): BillingUsage | null {
+  const u = entry.usage
+  if (!u) return null
+  return {
+    slip_count: u.slip_count,
+    slip_capacity: u.slip_capacity,
+    remaining_slips: u.remaining_slips ?? undefined,
+    credit_used: u.credit_used,
+    overage_count: u.overage_count,
+    period_start: u.period_start ?? undefined,
+    period_end: u.period_end ?? undefined,
+  } as BillingUsage
+}
+
 async function enrichTenant(customer: SuperadminLabCustomer): Promise<EnrichmentBundle> {
   const [customerProfile, profileResult, usage, storageUsage, storageTier] = await Promise.all([
     getSuperadminLabCustomerProfile(customer.id).catch(() => null),
@@ -87,42 +136,24 @@ async function enrichTenant(customer: SuperadminLabCustomer): Promise<Enrichment
   }
 }
 
-async function enrichTenantOverview(customer: SuperadminLabCustomer): Promise<OverviewEnrichmentBundle> {
-  const [profiles, usage, storageUsage] = await Promise.all([
-    listBillingProfiles(customer.id).catch(() => []),
-    getBillingUsage(customer.id).catch(() => null),
-    getStorageUsageStatus(customer.id).catch(() => null),
-  ])
-
-  const billingProfile =
-    profiles.find((profile) =>
-      profile.status === "active" || profile.status === "trialing" || profile.status === "past_due",
-    ) ?? profiles[0] ?? null
-
-  return {
-    billingProfile,
-    usage,
-    storageUsage,
-  }
-}
-
 export async function loadSuperadminBillingTenantOverview(options: SearchLabCustomersOptions = {}) {
   const search = await searchSuperadminLabCustomers(options)
-  const enrichments = await Promise.all(search.data.map((customer) => enrichTenantOverview(customer)))
 
-  const rows: SuperadminBillingTenantRow[] = search.data.map((customer, index) =>
-    buildSuperadminBillingTenantRow({
+  const customerIds = search.data.map((c) => c.id)
+  const batchData = customerIds.length > 0
+    ? await getBatchTenantBillingOverview(customerIds).catch(() => ({}))
+    : {}
+
+  const rows: SuperadminBillingTenantRow[] = search.data.map((customer) => {
+    const entry = batchData[customer.id]
+    return buildSuperadminBillingTenantRow({
       customer,
       customerProfile: null,
-      profile: enrichments[index]?.billingProfile,
-      usage: enrichments[index]?.usage,
-      storageRecord: toStorageRecord(
-        enrichments[index]?.storageUsage ?? null,
-        null,
-        customer.id,
-      ),
-    }),
-  )
+      profile: entry ? batchEntryToBillingProfile(entry) : null,
+      usage: entry ? batchEntryToUsage(entry) : null,
+      storageRecord: entry ? batchEntryToStorageRecord(entry, customer.id) : null,
+    })
+  })
 
   return {
     customers: search.data,
