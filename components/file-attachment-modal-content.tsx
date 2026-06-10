@@ -93,6 +93,10 @@ interface FileAttachmentModalContentProps {
   onViewerToggle?: (isOpen: boolean) => void
   /** Called whenever the attached file list changes with counts of photos and STL files */
   onFileCountsChange?: (photoCount: number, stlCount: number) => void
+  /** Pre-populated STL files from the impression selection modal */
+  impressionFiles?: { file: File; url: string; description?: string }[]
+  /** Whether the modal is currently open — triggers a fresh attachment fetch each time it opens */
+  open?: boolean
 }
 
 // Layout icon definitions for the STL viewer layout picker
@@ -127,6 +131,8 @@ export default function FileAttachmentModalContent({
   availableStages: propAvailableStages,
   onViewerToggle,
   onFileCountsChange,
+  impressionFiles = [],
+  open,
 }: FileAttachmentModalContentProps) {
   const {
     uploadSlipAttachment,
@@ -151,6 +157,20 @@ export default function FileAttachmentModalContent({
   const [simulatedUploads, setSimulatedUploads] = useState<
     Array<{ file: any, url: string, type: "stl" | "image" | "3dobject" | "other", archived?: boolean, remoteId?: any, remoteMeta?: any, stage?: string, isPublic?: boolean, generatedPath?: string }>
   >(restoreCachedUploads)
+
+  // Sync impression files into simulatedUploads whenever the prop changes
+  useEffect(() => {
+    if (!impressionFiles || impressionFiles.length === 0) return
+    setSimulatedUploads((prev) => {
+      const existingNames = new Set(prev.map((u: any) => u.file?.name))
+      const toAdd = impressionFiles
+        .filter((f) => !existingNames.has(f.file?.name))
+        .map((f) => ({ file: f.file, url: f.url, type: "stl" as const, archived: false }))
+      if (toAdd.length === 0) return prev
+      return [...prev, ...toAdd]
+    })
+  }, [impressionFiles])
+
   const [description, setDescription] = useState("")
   const [attachmentType, setAttachmentType] = useState<SlipAttachmentType>("global")
   // "Make files available to related cases" — controls the isPublic flag stamped on new uploads
@@ -182,7 +202,7 @@ export default function FileAttachmentModalContent({
       }
     })
     if (stageSet.size === 0) {
-      return ["Custom Tray", "Bite Block", "Try in with Teeth", "Finish"]
+      return []
     }
     return Array.from(stageSet).sort()
   })()
@@ -356,14 +376,23 @@ export default function FileAttachmentModalContent({
   // Guards against duplicate fetches for the same slipId (StrictMode double-invoke
   // and callback-identity churn both re-run the effect below).
   const fetchedSlipIdRef = useRef<number | null>(null)
+  const [fetchingAttachments, setFetchingAttachments] = useState(false)
 
-  // Fetch remote attachments
+  // Reset the fetch guard each time the modal opens so we re-fetch current attachments
+  useEffect(() => {
+    if (open) {
+      fetchedSlipIdRef.current = null
+    }
+  }, [open])
+
+  // Fetch remote attachments — re-runs each time the modal opens (open prop resets the guard)
   useEffect(() => {
     if (!slipId) return
     const numericSlipId = Number(slipId)
     if (fetchedSlipIdRef.current === numericSlipId) return
     fetchedSlipIdRef.current = numericSlipId
     let mounted = true
+    setFetchingAttachments(true)
     ;(async () => {
       try {
         const data = await fetchSlipAttachments(numericSlipId)
@@ -393,19 +422,23 @@ export default function FileAttachmentModalContent({
             generatedPath: a.file_path || a.download_url || undefined,
           }
         })
+        // Replace any previously-fetched remote items with the fresh list, preserve local-only items
         setSimulatedUploads((prev: any[]) => {
-          const existing = new Set(prev.map(p => p.url))
-          const toAdd = mapped.filter(m => m.url && !existing.has(m.url))
-          if (toAdd.length === 0) return prev
-          return [...prev, ...toAdd]
+          const localOnly = prev.filter((p: any) => !p.remoteId)
+          const remoteUrls = new Set(mapped.map((m: any) => m.url).filter(Boolean))
+          const freshLocal = localOnly.filter((p: any) => !remoteUrls.has(p.url))
+          return [...mapped, ...freshLocal]
         })
         onAttachmentStateChange?.(mapped.length > 0)
       } catch (err) {
         // Error handled: state remains as-is, UI shows empty attachments section
+      } finally {
+        if (mounted) setFetchingAttachments(false)
       }
     })()
     return () => { mounted = false }
-  }, [slipId, fetchSlipAttachments])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slipId, fetchSlipAttachments, open])
 
   // Pull the backend-generated storage path / URL out of an upload response
   const extractGeneratedPath = (data: any): string | undefined => {
@@ -858,11 +891,130 @@ export default function FileAttachmentModalContent({
 
         {/* File list */}
         <div className="flex-1 overflow-y-auto p-3">
-          {visibleUploads.length === 0 ? (
+          {fetchingAttachments ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
+              <div className="w-6 h-6 border-2 border-gray-300 border-t-[#1162A8] rounded-full animate-spin" />
+              <div className="text-xs">Loading attachments…</div>
+            </div>
+          ) : visibleUploads.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <Paperclip className="w-8 h-8 mb-1" />
               <div className="text-sm font-semibold mb-0.5">No files selected</div>
               <div className="text-[10px]">Files you add will appear here for preview.</div>
+            </div>
+          ) : stages.length === 0 ? (
+            <div className="grid grid-cols-3 gap-2">
+              {visibleUploads.map((item, idx) => {
+                const { file, url, archived } = item
+                const isStl = file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl")
+                const is3dObj = file.name?.toLowerCase().endsWith(".3dobject") || url.toLowerCase().endsWith(".3dobject")
+                const isImage =
+                  ("type" in file && typeof file.type === "string" && file.type.startsWith("image/")) ||
+                  !!url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+                const isInViewer = viewerStlUrls.includes(url) || viewerItems.some(v => v.url === url)
+                return (
+                  <div
+                    key={url}
+                    className={`bg-white rounded-lg border relative flex flex-col w-full group ${
+                      isInViewer ? "ring-2 ring-blue-500 border-blue-400" : "border-gray-200"
+                    } ${archived ? "opacity-60" : ""}`}
+                    style={archived ? { filter: "grayscale(60%)" } : undefined}
+                  >
+                    {archived && (
+                      <div className="absolute top-1 left-1 z-20 bg-gray-600/80 text-white text-[8px] font-semibold px-1.5 py-0.5 rounded">
+                        Archived
+                      </div>
+                    )}
+                    {(isStl || is3dObj || isImage) && !archived && (
+                      <input
+                        type="checkbox"
+                        checked={viewerItems.some(v => v.url === url)}
+                        onChange={() => handleToggleFileInViewer(url)}
+                        className="absolute top-1.5 left-1.5 w-4 h-4 accent-blue-600 z-20 cursor-pointer"
+                        title="Show in Studio"
+                      />
+                    )}
+                    <div className={`w-full bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden relative ${isViewerOpen ? "h-[90px]" : "h-[110px]"}`}>
+                      <div className={`absolute top-1 right-1 text-gray-600 font-semibold bg-white/90 rounded px-1 py-0 shadow border border-gray-200 z-10 ${isViewerOpen ? "text-[7px]" : "text-[8px]"}`}>
+                        ID: {547896 + idx}
+                      </div>
+                      {isStl ? (
+                        <SimpleSTLViewer
+                          title={file.name?.replace('.stl', '') || 'STL File'}
+                          geometryType="cube"
+                          fileSize={`${(file.size / 1024 / 1024).toFixed(1)} MB`}
+                          dimensions="Unknown"
+                          stlUrl={toProxiedFileUrl(url)}
+                          materialColor="#f5ecd0"
+                          viewerKey={url}
+                          autoOpen={false}
+                          thumbnailUrls={selectedImageThumbnailUrls.map(toProxiedFileUrl)}
+                        />
+                      ) : is3dObj ? (
+                        <div className="flex flex-col items-center justify-center">
+                          <Box className={`text-gray-400 ${isViewerOpen ? "w-8 h-8" : "w-10 h-10"}`} />
+                          <span className="text-[8px] text-gray-400 font-medium mt-0.5">3D Object</span>
+                        </div>
+                      ) : isImage ? (
+                        <img src={toProxiedFileUrl(url)} alt={file.name || 'Image'} className="object-cover w-full h-full rounded-t-lg" />
+                      ) : (
+                        <FileText className={`text-gray-300 ${isViewerOpen ? "w-8 h-8" : "w-10 h-10"}`} />
+                      )}
+                      {(isStl || is3dObj || isImage) && !archived && (
+                        <button
+                          type="button"
+                          className={`absolute bottom-1.5 right-1.5 bg-[#1162A8] text-white rounded font-medium shadow hover:bg-[#0f5490] transition z-10 opacity-0 group-hover:opacity-100 ${isViewerOpen ? "px-1.5 py-0.5 text-[8px]" : "px-2 py-0.5 text-[9px]"}`}
+                          onClick={e => { e.stopPropagation(); handleViewFile(url) }}
+                        >
+                          {isImage ? "View Image" : "View File"}
+                        </button>
+                      )}
+                      <div className={`absolute bottom-1 right-1 flex gap-0.5 z-10 ${(isStl || is3dObj) ? "opacity-0 group-hover:opacity-100" : ""}`}>
+                        {!archived && (
+                          <>
+                            {item.remoteId && (
+                              <button
+                                type="button"
+                                className="p-0.5 hover:bg-white/80 rounded bg-white/60"
+                                title="Archive / unarchive"
+                                onClick={(e) => { e.stopPropagation(); void handleToggleArchive(item) }}
+                              >
+                                <Archive className={`text-gray-500 ${isViewerOpen ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="p-0.5 hover:bg-white/80 rounded bg-white/60"
+                              title="Download"
+                              onClick={(e) => { e.stopPropagation(); handleDownloadFile(item) }}
+                            >
+                              <Download className={`text-gray-500 ${isViewerOpen ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`px-1.5 py-1 ${isViewerOpen ? "pb-1" : "pb-1.5"}`}>
+                      <div className={`truncate font-medium ${isViewerOpen ? "text-[9px]" : "text-[10px]"}`}>{file.name || 'File'}</div>
+                      <div className={`text-gray-500 ${isViewerOpen ? "text-[8px]" : "text-[9px]"}`}>{`${(file.size / 1024 / 1024).toFixed(2)} MB`}</div>
+                      <div className={`flex items-center gap-1 text-gray-400 mt-0.5 ${isViewerOpen ? "text-[7px]" : "text-[8px]"}`}>
+                        <Calendar className={`${isViewerOpen ? "w-2 h-2" : "w-2.5 h-2.5"}`} />
+                        <span>{new Date(file.lastModified || Date.now()).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })} @ {new Date(file.lastModified || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {!isCaseSubmitted && (
+                          <button
+                            type="button"
+                            className="ml-auto p-0 hover:text-red-500"
+                            title="Delete"
+                            onClick={() => void handleDeleteFile(item)}
+                          >
+                            <X className={`${isViewerOpen ? "w-2.5 h-2.5" : "w-3 h-3"}`} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           ) : visibleFileCount === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -1381,7 +1533,7 @@ export default function FileAttachmentModalContent({
                     <div key={`fs-${selectedLayout}-${idx}`} className="bg-[#e9ecef] overflow-hidden relative" style={{ gridColumn: `span ${cell.colSpan}`, gridRow: `span ${cell.rowSpan}` }}>
                       {item?.type === "stl" ? (
                         <div className="absolute inset-0">
-                          <STLCanvasOnly models={[{ src: item.url, color: modelColor }]} isWireframe={isWireframe} showGrid={showGrid} modelColor={modelColor} glossy autoRotate />
+                          <STLCanvasOnly models={[{ src: toProxiedFileUrl(item.url), color: modelColor }]} isWireframe={isWireframe} showGrid={showGrid} modelColor={modelColor} glossy autoRotate />
                         </div>
                       ) : item?.type === "image" ? (
                         <div className="absolute inset-0 bg-white overflow-hidden cursor-grab active:cursor-grabbing"

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 /**
  * Allowed S3 bucket hosts for file proxying.
  * Only these hosts are permitted to prevent SSRF attacks.
@@ -77,8 +79,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Get the content type from the remote response
-  const contentType = response.headers.get("content-type") || "application/octet-stream";
+  // Get the content type from the remote response, with STL override
+  const remoteContentType = response.headers.get("content-type") || "application/octet-stream";
+  const isStl = decodedUrl.split("?")[0].toLowerCase().endsWith(".stl");
+  const contentType = isStl ? "model/stl" : remoteContentType;
 
   // Get the content length if available
   const contentLength = response.headers.get("content-length");
@@ -97,6 +101,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     "Access-Control-Allow-Headers": "Content-Type, Range",
     // Correct content type for the file
     "Content-Type": contentType,
+    // Force inline rendering — overrides S3's Content-Disposition: attachment
+    "Content-Disposition": "inline",
     // Cache the file for reasonable duration (1 hour)
     "Cache-Control": "public, max-age=3600",
     // Security headers
