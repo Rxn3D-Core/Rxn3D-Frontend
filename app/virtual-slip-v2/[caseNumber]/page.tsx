@@ -746,6 +746,7 @@ export default function VirtualSlipV2Page() {
             doctorName={vm.header.doctorName}
             patientName={vm.header.patientName}
             onViewerToggle={setAttachViewerOpen}
+            open={showAttachModal}
           />
         </DialogContent>
       </Dialog>

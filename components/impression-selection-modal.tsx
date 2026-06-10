@@ -8,7 +8,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { STLFileSelectionModal } from "./stl-file-selection-modal"
+import { STLFileSelectionModal, type STLFile } from "./stl-file-selection-modal"
 import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
 import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
 import {
@@ -16,12 +16,6 @@ import {
   impressionTouchKey,
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage"
-
-interface STLFile {
-  file: File
-  url: string
-  description?: string
-}
 
 interface ImpressionSelectionModalProps {
   isOpen: boolean

@@ -228,7 +228,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       }
       if (effectiveQuery.delivery_date_start) params.set("delivery_date_start", effectiveQuery.delivery_date_start);
       if (effectiveQuery.delivery_date_end) params.set("delivery_date_end", effectiveQuery.delivery_date_end);
-      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "true");
+      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "1");
       if (effectiveQuery.page != null) params.set("page", String(effectiveQuery.page));
       if (effectiveQuery.per_page != null) params.set("per_page", String(effectiveQuery.per_page));
       if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);

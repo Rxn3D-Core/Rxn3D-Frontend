@@ -317,7 +317,9 @@ export default function LabSlipPage() {
     setShowAttachModal(true)
   }
 
-  const handleAttachmentsUploaded = () => {
+  const handleAttachmentsUploaded = (attachments: any[]) => {
+    if (!selectedSlipForAttachment?.id) return
+    updateSlipAttachmentState(selectedSlipForAttachment.id, attachments.length > 0)
     const customerId = getLabCustomerId()
     if (!customerId) return
     void fetchLabSlips(customerId, {
@@ -331,16 +333,11 @@ export default function LabSlipPage() {
       page: currentPage,
       per_page: itemsPerPage,
     })
+  }
 
-    const handleAttachmentsUploaded = (attachments: any[]) => {
-      if (!selectedSlipForAttachment?.id) return
-      updateSlipAttachmentState(selectedSlipForAttachment.id, attachments.length > 0)
-    }
-  
-    const handleAttachmentStateChange = (hasAttachments: boolean) => {
-      if (!selectedSlipForAttachment?.id) return
-      updateSlipAttachmentState(selectedSlipForAttachment.id, hasAttachments)
-    }
+  const handleAttachmentStateChange = (hasAttachments: boolean) => {
+    if (!selectedSlipForAttachment?.id) return
+    updateSlipAttachmentState(selectedSlipForAttachment.id, hasAttachments)
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -2024,6 +2021,7 @@ export default function LabSlipPage() {
                 patientName={selectedSlipForAttachment.patient}
                 onAttachmentsUploaded={handleAttachmentsUploaded}
                 onAttachmentStateChange={handleAttachmentStateChange}
+                open={showAttachModal}
               />
             )}
           </DialogContent>
