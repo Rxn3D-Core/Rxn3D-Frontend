@@ -26,6 +26,8 @@ import {
 } from "@/lib/patient-name-validation";
 import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
+import { getActiveCustomerId } from "@/lib/customer-scope";
+import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -46,16 +48,19 @@ const DEFAULT_WIZARD_FIELD_SETTINGS: WizardPatientFieldSettings = {
 /*  Role / auth helpers (client-only)                                  */
 /* ------------------------------------------------------------------ */
 function useWizardRole() {
-  const [role, setRole] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [isOfficeAdmin, setIsOfficeAdmin] = useState(false);
+  const [isLabAdmin, setIsLabAdmin] = useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setRole(localStorage.getItem("role"));
-    const c = localStorage.getItem("customerId");
-    setCustomerId(c ? Number(c) : null);
+    const activeId = getActiveCustomerId();
+    setCustomerId(activeId ? Number(activeId) : null);
+    setIsOfficeAdmin(isOfficeCustomerContext());
+    setIsLabAdmin(isLabCustomerContext());
   }, []);
-  const isOfficeAdmin = role === "office_admin";
-  const isLabAdmin = role === "lab_admin";
+
+  const role = isOfficeAdmin ? "office_admin" : isLabAdmin ? "lab_admin" : null;
   return { role, customerId, isOfficeAdmin, isLabAdmin };
 }
 

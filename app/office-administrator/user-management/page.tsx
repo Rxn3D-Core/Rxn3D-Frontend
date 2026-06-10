@@ -30,7 +30,7 @@ interface StaffUser {
 export default function UserOfficeManagement() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, fetchUsers, updateUser } = useAuth()
+  const { user, fetchUsers, updateUser, hasPermission } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -65,9 +65,9 @@ export default function UserOfficeManagement() {
     }
   }, [showStatusDropdown])
 
-  // Check if user has office admin permissions
   useEffect(() => {
-    if (user && user.role !== "Office Admin" && !user?.roles?.includes("office_admin")) {
+    if (!user) return
+    if (!hasPermission("view_users")) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to access this page.",
@@ -75,7 +75,7 @@ export default function UserOfficeManagement() {
       })
       router.replace("/dashboard")
     }
-  }, [user, router, toast])
+  }, [user, hasPermission, router, toast])
 
   // Avatar colors
   const avatarColors = [

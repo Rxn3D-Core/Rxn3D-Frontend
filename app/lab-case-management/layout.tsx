@@ -2,6 +2,7 @@ import type React from "react"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PermissionRoute } from "@/components/permission-route"
 import { DriverSlipProvider } from "@/contexts/DriverSlipContext"
 import { Toaster } from "@/components/ui/toaster"
 
@@ -12,6 +13,9 @@ export default function LabProfileLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PermissionRoute
+        permissions={["view_case_details_status", "submit_new_case", "edit_slip"]}
+      >
       <DriverSlipProvider>
         <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
           <DashboardSidebar />
@@ -24,6 +28,7 @@ export default function LabProfileLayout({
           </div>
         </div>
       </DriverSlipProvider>
+      </PermissionRoute>
     </ProtectedRoute>
   )
 } 

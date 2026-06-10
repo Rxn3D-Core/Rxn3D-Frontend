@@ -1,11 +1,21 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
+import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
+import {
+  hasAnyPermission as checkAnyPermission,
+  hasPermission as checkPermission,
+  normalizeAvailablePermissions,
+  normalizePermissionsResponse,
+  permissionsFromCustomer,
+  userIsSuperadmin,
+  type AvailablePermissionsPayload,
+} from "@/lib/permissions"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -42,6 +52,7 @@ type User = {
     type: 'lab' | 'office'
     role?: string
     role_permissions?: string[]
+    permissions?: string[]
     department_id?: number
     is_primary?: boolean
     onboarding_completed?: boolean
@@ -149,6 +160,14 @@ type AuthContextType = {
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
   getUserPermissions: (customerId?: string) => Promise<any>
+  getAvailablePermissions: () => Promise<AvailablePermissionsPayload>
+  fetchUserPermissionDetail: (userId: number) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  updateUserDirectPermissions: (userId: number, permissions: string[]) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  profilePermissions: string[]
+  isSuperadmin: boolean
+  refreshProfilePermissions: (customerId?: string) => Promise<string[]>
+  hasPermission: (permission: string) => boolean
+  hasAnyPermission: (permissions: string[]) => boolean
   setCustomerId: (customerId: number) => Promise<boolean>
   isAuthenticated: boolean
   checkAuthAndRedirect: () => boolean
@@ -175,8 +194,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [originalUser, setOriginalUser] = useState<User | null>(null)
   const [originalToken, setOriginalToken] = useState<string | null>(null)
   const [isImpersonating, setIsImpersonating] = useState(false)
+  const [profilePermissions, setProfilePermissions] = useState<string[]>(() => {
+    if (typeof window === "undefined") return []
+    try {
+      const stored = localStorage.getItem("profilePermissions")
+      return stored ? (JSON.parse(stored) as string[]) : []
+    } catch {
+      return []
+    }
+  })
   const router = useRouter()
   const { toast } = useToast()
+
+  /** After a successful POST /set-customer-id, skip duplicate calls for the same id. */
+  const syncedCustomerIdRef = useRef<number | null>(null)
+  const setCustomerIdInFlightRef = useRef<Promise<boolean> | null>(null)
+  const userRef = useRef(user)
+  const lastPermissionsFetchKeyRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  const isSuperadmin = userIsSuperadmin(user)
+
+  const applyProfilePermissions = useCallback((permissions: string[]) => {
+    setProfilePermissions(permissions)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("profilePermissions", JSON.stringify(permissions))
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -411,6 +458,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(userWithAvatar)
       if (identifier) updateSessionHistory(identifier, userWithAvatar)
+
+      const loginPermissions =
+        normalizePermissionsResponse(authData.permissions) ||
+        (customerIdToStore
+          ? permissionsFromCustomer(authData.user.customers, customerIdToStore)
+          : [])
+      if (loginPermissions.length > 0) {
+        applyProfilePermissions(loginPermissions)
+      }
       const userRoles = authData.user.roles || (authData.user.role ? [authData.user.role] : [])
       const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
       const isSuperAdmin = userRoles.includes("superadmin")
@@ -447,6 +503,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check if onboarding wizard is finished (office: business hours sufficient; lab: onboarding + hours)
       const isOnboardingComplete = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
 
+      // Honor a safe internal ?redirect= target (e.g. returning to an invitation accept link)
+      try {
+        if (typeof window !== "undefined") {
+          const redirectTarget = new URLSearchParams(window.location.search).get("redirect")
+          if (redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")) {
+            router.replace(redirectTarget)
+            return true
+          }
+        }
+      } catch (e) {
+        // Ignore and fall through to the default landing logic
+      }
+
       // Navigate based on onboarding status - PRIORITIZE onboarding check
       // Only redirect to dashboard/multi-location if onboarding is complete
       try {
@@ -473,7 +542,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               localStorage.setItem("customerId", singleCustomer.id.toString())
               localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
               setToken(result.token)
-              
+              syncedCustomerIdRef.current = singleCustomer.id
+              lastPermissionsFetchKeyRef.current = null
+
               // Update user object with customer_id
               const updatedUser = {
                 ...authData.user,
@@ -481,7 +552,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
               setUser(updatedUser)
               localStorage.setItem("user", JSON.stringify(updatedUser))
-              
+
               // Fetch and store logo for the customer
               fetchCustomerLogo(singleCustomer.id, result.token)
             } else {
@@ -701,6 +772,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null)
       setToken(null)
+      setProfilePermissions([])
+      syncedCustomerIdRef.current = null
+      setCustomerIdInFlightRef.current = null
+      lastPermissionsFetchKeyRef.current = null
       clearSessionStorage()
 
       router.replace("/login")
@@ -896,11 +971,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getUserPermissions = useCallback(async (customerId?: string): Promise<any> => {
     try {
-      const queryParams = new URLSearchParams()
-      if (customerId) {
-        queryParams.append("customer_id", customerId)
-      }
-      const url = `${API_BASE_URL}/users/permissions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+      const url = appendCustomerIdQuery(
+        `${API_BASE_URL}/users/permissions`,
+        customerId ?? getActiveCustomerId(),
+      )
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -925,6 +999,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error
     }
   }, [handleUnauthorized])
+
+  const refreshProfilePermissions = useCallback(
+    async (customerId?: string): Promise<string[]> => {
+      if (userIsSuperadmin(userRef.current)) {
+        applyProfilePermissions([])
+        return []
+      }
+
+      const id = customerId ?? getActiveCustomerId()
+      if (!id) {
+        applyProfilePermissions([])
+        return []
+      }
+
+      const result = await getUserPermissions(id)
+      const permissions = normalizePermissionsResponse(result)
+      applyProfilePermissions(permissions)
+      return permissions
+    },
+    [getUserPermissions, applyProfilePermissions],
+  )
+
+  const getAvailablePermissions = useCallback(async (): Promise<AvailablePermissionsPayload> => {
+    const { fetchAvailablePermissions } = await import("@/lib/api/user-permissions-api")
+    return fetchAvailablePermissions()
+  }, [])
+
+  const fetchUserPermissionDetail = useCallback(async (userId: number) => {
+    const { fetchUserPermissionDetail: fetchDetail } = await import("@/lib/api/user-permissions-api")
+    return fetchDetail(userId)
+  }, [])
+
+  const updateUserDirectPermissions = useCallback(async (userId: number, permissions: string[]) => {
+    const { updateUserDirectPermissions: updateDirect } = await import("@/lib/api/user-permissions-api")
+    return updateDirect(userId, permissions)
+  }, [])
+
+  const hasPermission = useCallback(
+    (permission: string) => checkPermission(profilePermissions, permission, isSuperadmin),
+    [profilePermissions, isSuperadmin],
+  )
+
+  const hasAnyPermission = useCallback(
+    (permissions: string[]) => checkAnyPermission(profilePermissions, permissions, isSuperadmin),
+    [profilePermissions, isSuperadmin],
+  )
 
   const createUser = useCallback(async (userData: FormData | {
     first_name: string;
@@ -1011,49 +1131,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [handleUnauthorized]);
 
-  const setCustomerId = async (customerId: number): Promise<boolean> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/set-customer-id`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ customer_id: customerId }),
-      })
-
-      if (response.status === 401) {
-        handleUnauthorized()
-        throw new Error("Unauthorized")
+  const setCustomerId = useCallback(
+    async (customerId: number): Promise<boolean> => {
+      if (syncedCustomerIdRef.current === customerId) {
+        return true
       }
 
-      if (!response.ok) {
-        throw new Error("Failed to set customer ID")
+      if (setCustomerIdInFlightRef.current) {
+        return setCustomerIdInFlightRef.current
       }
 
-      const result = await response.json()
-      localStorage.setItem("token", result.token)
-      localStorage.setItem("customerId", String(customerId))
-      setToken(result.token)
-      
-      // Update user object with customer_id to keep it in sync
-      if (user) {
-        const updatedUser = {
-          ...user,
-          customer_id: customerId,
+      const run = (async (): Promise<boolean> => {
+        try {
+          const authToken = token ?? localStorage.getItem("token")
+          if (!authToken) {
+            throw new Error("Not authenticated")
+          }
+
+          const response = await fetch(`${API_BASE_URL}/set-customer-id`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ customer_id: customerId }),
+          })
+
+          if (response.status === 401) {
+            handleUnauthorized()
+            throw new Error("Unauthorized")
+          }
+
+          if (!response.ok) {
+            throw new Error("Failed to set customer ID")
+          }
+
+          const result = await response.json()
+          localStorage.setItem("token", result.token)
+          localStorage.setItem("customerId", String(customerId))
+          setToken(result.token)
+          syncedCustomerIdRef.current = customerId
+          lastPermissionsFetchKeyRef.current = null
+
+          const currentUser = userRef.current
+          if (currentUser) {
+            const updatedUser = {
+              ...currentUser,
+              customer_id: customerId,
+            }
+            setUser(updatedUser)
+            localStorage.setItem("user", JSON.stringify(updatedUser))
+          }
+
+          fetchCustomerLogo(customerId, result.token)
+
+          try {
+            await refreshProfilePermissions(String(customerId))
+          } catch (permError) {
+            console.error("Failed to refresh permissions after profile switch:", permError)
+          }
+
+          return true
+        } finally {
+          setCustomerIdInFlightRef.current = null
         }
-        setUser(updatedUser)
-        localStorage.setItem("user", JSON.stringify(updatedUser))
-      }
-      
-      // Fetch and store logo for the newly selected customer
-      fetchCustomerLogo(customerId, result.token)
-      
-      return true
-    } catch (error) {
-      throw error
-    }
-  }
+      })()
+
+      setCustomerIdInFlightRef.current = run
+      return run
+    },
+    [token, handleUnauthorized, refreshProfilePermissions],
+  )
 
   // Impersonate a user
   const impersonateUser = async (userId: number): Promise<boolean> => {
@@ -1170,6 +1318,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Refresh profile permissions when session is restored (e.g. page reload)
+  useEffect(() => {
+    if (!user || !token || isSuperadmin) return
+    const customerId = getActiveCustomerId()
+    if (!customerId) return
+
+    const fetchKey = `${user.id}:${token}:${customerId}`
+    if (lastPermissionsFetchKeyRef.current === fetchKey) return
+    lastPermissionsFetchKeyRef.current = fetchKey
+
+    const fromCustomers = permissionsFromCustomer(user.customers, Number(customerId))
+    if (fromCustomers.length > 0) {
+      applyProfilePermissions(fromCustomers)
+    }
+
+    refreshProfilePermissions(customerId).catch(() => {})
+  }, [user?.id, token, isSuperadmin, refreshProfilePermissions, applyProfilePermissions, user?.customers])
+
   // Load impersonation state on mount
   useEffect(() => {
     const storedIsImpersonating = localStorage.getItem("isImpersonating")
@@ -1213,6 +1379,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         deleteUser,
         fetchUserById,
         getUserPermissions,
+        getAvailablePermissions,
+        fetchUserPermissionDetail,
+        updateUserDirectPermissions,
+        profilePermissions,
+        isSuperadmin,
+        refreshProfilePermissions,
+        hasPermission,
+        hasAnyPermission,
         setCustomerId,
         isAuthenticated,
         checkAuthAndRedirect,

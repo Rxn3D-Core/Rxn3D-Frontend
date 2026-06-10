@@ -12,6 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
+import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
+import { normalizeRoleSlug } from "@/lib/role-utils"
 
 // Form schema based on the API examples
 const updateUserSchema = z.object({
@@ -65,11 +68,13 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
   const isLabCustomer = customerType === "lab"
 
   // Get auth context
   const authContext = useAuth()
+  const canManagePermissions = authContext.hasAnyPermission?.(["manage_users", "edit_user"]) ?? false
 
   // Check if auth context is properly initialized
   if (!authContext?.updateUserDetails) {
@@ -117,6 +122,7 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
       })
       
       setSelectedDepartments([])
+      setSelectedPermissions([])
       
       if (isLabCustomer) {
         fetchDepartments()
@@ -171,14 +177,6 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
 
   const onSubmit = async (data: UpdateUserFormValues) => {
     if (!user) return
-    if (isLabCustomer && selectedDepartments.length === 0) {
-      form.setError("department_ids", {
-        type: "manual",
-        message: "Please select at least one department for lab users",
-      })
-      return
-    }
-
     setIsSubmitting(true)
     try {
       const payload = {
@@ -191,6 +189,10 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
       }
 
       await authContext.updateUserDetails(user.id, payload)
+
+      if (canManagePermissions) {
+        await persistUserDirectPermissions(user.id, selectedPermissions)
+      }
 
       toast({
         title: "Success",
@@ -309,7 +311,7 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
 
             {isLabCustomer && (
               <div className="space-y-3">
-                <FormLabel>Departments *</FormLabel>
+                <FormLabel>Departments</FormLabel>
                 {isLoadingDepartments ? (
                   <div className="flex items-center justify-center p-4">
                     <div className="text-sm text-gray-500">Loading departments...</div>
@@ -338,6 +340,19 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
                     {form.formState.errors.department_ids.message}
                   </p>
                 )}
+              </div>
+            )}
+
+            {canManagePermissions && (
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-semibold">Permissions</h4>
+                <PermissionAssignmentPanel
+                  key={user.id}
+                  userId={user.id}
+                  role={normalizeRoleSlug(user.role ?? user.userType)}
+                  selected={selectedPermissions}
+                  onChange={setSelectedPermissions}
+                />
               </div>
             )}
 

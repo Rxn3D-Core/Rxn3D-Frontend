@@ -19,6 +19,8 @@ import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-conte
 import { ProductsProvider } from "@/contexts/product-products-context"
 import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PermissionRoute } from "@/components/permission-route"
+import { ROUTE_PERMISSIONS } from "@/lib/route-permissions"
 
 export default function GlobalProductLibraryLayout({
   children,
@@ -27,6 +29,7 @@ export default function GlobalProductLibraryLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PermissionRoute permissions={[...ROUTE_PERMISSIONS.productLibrary]}>
       <ProductLibraryProvider>
         <ProductCategoryProvider>
           <GradesProvider>
@@ -65,6 +68,7 @@ export default function GlobalProductLibraryLayout({
           </GradesProvider>
         </ProductCategoryProvider>
       </ProductLibraryProvider>
+      </PermissionRoute>
     </ProtectedRoute>
   )
 }

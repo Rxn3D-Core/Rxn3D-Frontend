@@ -22,6 +22,7 @@ import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
 import { useQueryClient } from "@tanstack/react-query"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardLabInviteModal } from "@/components/dashboard/dashboard-lab-invite-modal"
 import { DashboardDoctorInviteModal } from "@/components/dashboard/dashboard-doctor-invite-modal"
 interface StatusCardProps {
@@ -50,7 +51,7 @@ export function OfficeAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
   const { labs, isLoading, error, fetchConnections } = useConnection()
-  const userRole = user?.roles?.[0] || "office_admin"
+  const userRole = getPrimaryRole(user) || "office_admin"
   const userId = user?.id
   const dashboardCustomerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, dashboardCustomerId)

@@ -53,7 +53,7 @@ const avatarColors = [
 ]
 
 export default function AllUsers() {
-  const { fetchUsers, updateUser, deleteUser, fetchUserById, getUserPermissions } = useAuth()
+  const { fetchUsers, updateUser, deleteUser, fetchUserById, hasPermission } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -76,10 +76,8 @@ export default function AllUsers() {
   const [departmentFilter, setDepartmentFilter] = useState("")
   const [customerFilter, setCustomerFilter] = useState("")
   const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([])
-  const [permissions, setPermissions] = useState<any>(null)
-
-  const canCreateUser = permissions?.all_permissions?.includes("create_user")
-  const canEditUser = permissions?.all_permissions?.includes("edit_user")
+  const canCreateUser = hasPermission("create_user")
+  const canEditUser = hasPermission("edit_user")
   const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!departmentFilter || !!customerFilter
 
   const customerNameById = customerOptions.reduce<Record<string, string>>((acc, option) => {
@@ -246,18 +244,6 @@ export default function AllUsers() {
   useEffect(() => {
     loadCustomerOptions()
   }, [])
-
-  useEffect(() => {
-    const loadPermissions = async () => {
-      try {
-        const result = await getUserPermissions(customerFilter.trim() || undefined)
-        setPermissions(result)
-      } catch {
-        setPermissions(null)
-      }
-    }
-    loadPermissions()
-  }, [customerFilter, getUserPermissions])
 
   const filteredUsers = users
 

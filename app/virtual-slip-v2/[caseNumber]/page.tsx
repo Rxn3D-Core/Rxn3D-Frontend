@@ -55,6 +55,7 @@ import {
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
 import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -69,6 +70,7 @@ export default function VirtualSlipV2Page() {
   const slipId = Number(params.caseNumber);
 
   const { toast } = useToast();
+  const { canEditSlip, canDeleteCase } = usePermissionCapabilities();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation();
   const {
     fetchVirtualSlipDetails,
@@ -521,7 +523,7 @@ export default function VirtualSlipV2Page() {
                   caseCancelled ? undefined : () => setCaseStatusModal("resume")
                 }
                 onCancel={
-                  caseCancelled || slipInOffice
+                  caseCancelled || slipInOffice || !canDeleteCase
                     ? undefined
                     : () => setCaseStatusModal("cancel")
                 }
@@ -586,7 +588,7 @@ export default function VirtualSlipV2Page() {
           hasMaxillary={hasMaxillary}
           hasMandibular={hasMandibular}
           visibleArches={visibleArches}
-          showEditSlip={slipInLab && !caseCancelled}
+          showEditSlip={slipInLab && !caseCancelled && canEditSlip}
           caseOnHold={caseOnHold}
           onAttachments={() => setShowAttachModal(true)}
           onDriverHistory={() => setDriverHistoryViewOpen(true)}
@@ -595,7 +597,9 @@ export default function VirtualSlipV2Page() {
           }
           canPutOnHold={canPutOnHold}
           onCancel={
-            caseBlocked || slipInOffice ? undefined : () => setCaseStatusModal("cancel")
+            caseBlocked || slipInOffice || !canDeleteCase
+              ? undefined
+              : () => setCaseStatusModal("cancel")
           }
           onSendBackToOffice={
             canRunLabDriverActions && canSendBackToOffice && !caseCancelled

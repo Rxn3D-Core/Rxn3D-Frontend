@@ -32,7 +32,8 @@ const getRoleOptions = (customerType: "office" | "lab" | null) => {
     return [
       { value: "lab_admin", label: "Lab Admin" },
       { value: "lab_user", label: "Lab User" },
-      { value: "lab_driver", label: "Lab Driver" },
+      // Driver pickup/delivery is handled by lab_user — no separate lab_driver role.
+      // { value: "lab_driver", label: "Lab Driver" },
     ]
   }
   return []

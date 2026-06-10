@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,141 +14,165 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, MoreHorizontal, Edit, Shield, UserCog } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Search, Shield, Loader2 } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/hooks/use-toast"
+import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
+import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
+import { roleMatchesActiveContext, profileScopeLabel } from "@/lib/permissions"
 
-// Define user types
-interface User {
-  id: string
+type StaffRow = {
+  id: number
   name: string
   email: string
   role: string
-  department: string
-  lastActive: string
-  avatar?: string
+  status: string
 }
 
-// Sample user data
-const initialUsers: User[] = [
-  {
-    id: "u1",
-    name: "John Smith",
-    email: "john.smith@example.com",
-    role: "Lab Admin (Superadmin)",
-    department: "Management",
-    lastActive: "2 hours ago",
-  },
-  {
-    id: "u2",
-    name: "Sarah Johnson",
-    email: "sarah.johnson@example.com",
-    role: "Office Admin",
-    department: "Administration",
-    lastActive: "1 day ago",
-  },
-  {
-    id: "u3",
-    name: "Michael Brown",
-    email: "michael.brown@example.com",
-    role: "User Technician",
-    department: "Production",
-    lastActive: "3 hours ago",
-  },
-  {
-    id: "u4",
-    name: "Emily Davis",
-    email: "emily.davis@example.com",
-    role: "Office Admin",
-    department: "Administration",
-    lastActive: "Just now",
-  },
-  {
-    id: "u5",
-    name: "David Wilson",
-    email: "david.wilson@example.com",
-    role: "Doctor",
-    department: "Clinical",
-    lastActive: "5 days ago",
-  },
-  {
-    id: "u6",
-    name: "Jennifer Martinez",
-    email: "jennifer.martinez@example.com",
-    role: "User Technician",
-    department: "Production",
-    lastActive: "1 hour ago",
-  },
-  {
-    id: "u7",
-    name: "Robert Johnson",
-    email: "robert.johnson@example.com",
-    role: "Doctor",
-    department: "Clinical",
-    lastActive: "2 days ago",
-  },
-]
+function extractRoleName(role: unknown): string | undefined {
+  if (typeof role === "string") return role
+  if (role && typeof role === "object" && "name" in role) {
+    return String((role as { name: string }).name)
+  }
+  return undefined
+}
 
-// Sample roles
-const roles = ["Lab Admin (Superadmin)", "Office Admin", "Doctor", "User Technician"]
+function deriveUserRole(apiUser: Record<string, unknown>): string {
+  const selectedCustomerId = Number(localStorage.getItem("customerId") || 0)
+  const customerUsers = Array.isArray(apiUser.customer_users) ? apiUser.customer_users : []
+  const scoped = selectedCustomerId
+    ? customerUsers.filter(
+        (cu: Record<string, unknown>) =>
+          Number(cu?.customer_id ?? (cu?.customer as Record<string, unknown>)?.id) === selectedCustomerId,
+      )
+    : customerUsers
+  const source = scoped.length > 0 ? scoped : customerUsers
 
-// Sample departments
-const departments = ["Management", "Administration", "Production", "Clinical", "Finance"]
+  const roleName =
+    source
+      .map((cu: Record<string, unknown>) => extractRoleName(cu?.role))
+      .find(Boolean) ||
+    extractRoleName((apiUser.roles as unknown[])?.[0]) ||
+    extractRoleName(apiUser.role) ||
+    "user"
+
+  return roleName
+}
+
+function formatRoleLabel(role: string): string {
+  return role
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
+}
 
 export function UserPermissions() {
-  const [users, setUsers] = useState<User[]>(initialUsers)
+  const { fetchUsers, hasAnyPermission, isSuperadmin } = useAuth()
+  const { toast } = useToast()
+  const [users, setUsers] = useState<StaffRow[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("all")
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [editedRole, setEditedRole] = useState<string>("")
+  const [selectedUser, setSelectedUser] = useState<StaffRow | null>(null)
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
+  const [isSaving, setIsSaving] = useState(false)
 
-  // Filter users based on search query and filters
+  const canEdit = hasAnyPermission(["manage_users", "edit_user"])
+
+  const loadUsers = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetchUsers({})
+      const rows: StaffRow[] = (response.data ?? []).map((apiUser: Record<string, unknown>) => {
+        const role = deriveUserRole(apiUser)
+        return {
+          id: Number(apiUser.id),
+          name:
+            `${apiUser.first_name ?? ""} ${apiUser.last_name ?? ""}`.trim() ||
+            String(apiUser.email ?? ""),
+          email: String(apiUser.email ?? ""),
+          role,
+          status: String(apiUser.status ?? ""),
+        }
+      })
+      setUsers(rows)
+    } catch (error: unknown) {
+      toast({
+        title: "Failed to load users",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [fetchUsers, toast])
+
+  useEffect(() => {
+    loadUsers()
+  }, [loadUsers])
+
+  const roleOptions = useMemo(() => {
+    const roles = new Set(users.map((u) => u.role).filter(Boolean))
+    return Array.from(roles).sort()
+  }, [users])
+
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase())
-
     const matchesRole = roleFilter === "all" || user.role === roleFilter
-    const matchesDepartment = departmentFilter === "all" || user.department === departmentFilter
-
-    return matchesSearch && matchesRole && matchesDepartment
+    return matchesSearch && matchesRole
   })
 
-  // Open edit dialog
-  const openEditDialog = (user: User) => {
+  const openPermissionsDialog = (user: StaffRow) => {
     setSelectedUser(user)
-    setEditedRole(user.role)
+    setSelectedPermissions([])
     setIsEditDialogOpen(true)
   }
 
-  // Update user role
-  const updateUserRole = () => {
+  const savePermissions = async () => {
     if (!selectedUser) return
-
-    setUsers(users.map((user) => (user.id === selectedUser.id ? { ...user, role: editedRole } : user)))
-    setIsEditDialogOpen(false)
+    setIsSaving(true)
+    try {
+      await persistUserDirectPermissions(selectedUser.id, selectedPermissions)
+      toast({
+        title: "Permissions saved",
+        description: `Updated direct permissions for ${selectedUser.name}.`,
+      })
+      setIsEditDialogOpen(false)
+    } catch (error: unknown) {
+      toast({
+        title: "Failed to save permissions",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  // Get initials from name
-  const getInitials = (name: string) => {
-    return name
+  const getInitials = (name: string) =>
+    name
       .split(" ")
       .map((part) => part[0])
       .join("")
       .toUpperCase()
-  }
+
+  const scopeLabel = profileScopeLabel()
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>User Permissions</CardTitle>
-          <CardDescription>Manage user roles and permissions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">User permissions</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Assign extra direct permissions for users on this {scopeLabel.toLowerCase()} profile. Role
+          permissions cannot be removed here.
+        </p>
+      </div>
+
+      <div className="flex flex-col space-y-4">
             <div className="flex flex-col md:flex-row gap-4 items-end">
               <div className="w-full md:w-1/3">
                 <div className="relative">
@@ -170,154 +193,104 @@ export function UserPermissions() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Roles</SelectItem>
-                    {roles.map((role) => (
+                    {roleOptions.map((role) => (
                       <SelectItem key={role} value={role}>
-                        {role}
+                        {formatRoleLabel(role)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="w-full md:w-1/4">
-                <Label className="text-sm font-medium">Department</Label>
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((department) => (
-                      <SelectItem key={department} value={department}>
-                        {department}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-full md:w-auto">
-                <Button variant="outline" className="w-full md:w-auto">
-                  Apply Filters
-                </Button>
               </div>
             </div>
 
             <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Last Active</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.length === 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Loading users...
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        No users found.
-                      </TableCell>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar>
-                              <AvatarImage src={user.avatar} />
-                              <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium">{user.name}</div>
-                              <div className="text-sm text-muted-foreground">{user.email}</div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              user.role === "Lab Admin (Superadmin)"
-                                ? "bg-purple-100 text-purple-800"
-                                : user.role === "Office Admin"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : user.role === "Doctor"
-                                    ? "bg-green-100 text-green-800"
-                                    : user.role === "User Technician"
-                                      ? "bg-orange-100 text-orange-800"
-                                      : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {user.role}
-                          </span>
-                        </TableCell>
-                        <TableCell>{user.department}</TableCell>
-                        <TableCell>{user.lastActive}</TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Change Role
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Shield className="h-4 w-4 mr-2" />
-                                Manage Permissions
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <UserCog className="h-4 w-4 mr-2" />
-                                User Details
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          No users found.
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium">{user.name}</div>
+                                <div className="text-sm text-muted-foreground">{user.email}</div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                              {formatRoleLabel(user.role)}
+                            </span>
+                          </TableCell>
+                          <TableCell>{user.status}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!canEdit}
+                              onClick={() => openPermissionsDialog(user)}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              Permissions
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Edit Role Dialog */}
       {selectedUser && (
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Change User Role</DialogTitle>
-              <DialogDescription>Update role for {selectedUser.name}</DialogDescription>
+              <DialogTitle>Manage permissions</DialogTitle>
+              <DialogDescription>
+                {selectedUser.name} — role{" "}
+                <code className="text-xs">{selectedUser.role}</code>
+              </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="role" className="text-right">
-                  Role
-                </Label>
-                <Select value={editedRole} onValueChange={setEditedRole}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <PermissionAssignmentPanel
+              key={selectedUser.id}
+              userId={selectedUser.id}
+              role={selectedUser.role}
+              selected={selectedPermissions}
+              onChange={setSelectedPermissions}
+              readOnly={!canEdit}
+            />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>
                 Cancel
               </Button>
-              <Button onClick={updateUserRole}>Save Changes</Button>
+              <Button onClick={savePermissions} disabled={!canEdit || isSaving}>
+                {isSaving ? "Saving..." : "Save permissions"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
