@@ -1059,6 +1059,14 @@ export function buildOpposingArchVM(
 ): OpposingArchVM | null {
   const targetArch: "maxillary" | "mandibular" =
     hostArch === "maxillary" ? "mandibular" : "maxillary";
+  /** Opposing work applies only when the target arch has no dedicated product. */
+  const targetArchHasProducts = allProducts.some(
+    (p) => archFromType(p?.type) === targetArch,
+  );
+  if (targetArchHasProducts) {
+    return null;
+  }
+
   const hostProducts = allProducts.filter(
     (p) => archFromType(p?.type) === hostArch,
   );

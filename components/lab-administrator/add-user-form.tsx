@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
 import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
+import { getActiveCustomerId } from "@/lib/customer-scope"
 
 const baseUserFormSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -123,6 +124,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const canManagePermissions = hasAnyPermission(["manage_users", "edit_user"])
+  const activeCustomerId = getActiveCustomerId()
 
   useEffect(() => {
     setSelectedPermissions([])
@@ -333,7 +335,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
         await updateUserDetails(user.id, payload)
 
         if (canManagePermissions) {
-          await persistUserDirectPermissions(user.id, selectedPermissions)
+          await persistUserDirectPermissions(user.id, selectedPermissions, activeCustomerId)
         }
 
         toast({
@@ -413,7 +415,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
         createResult?.id
 
       if (canManagePermissions && newUserId) {
-        await persistUserDirectPermissions(Number(newUserId), selectedPermissions)
+        await persistUserDirectPermissions(Number(newUserId), selectedPermissions, activeCustomerId)
       }
 
       toast({
@@ -746,7 +748,9 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     <div className="space-y-3 border-t pt-6">
                       <h4 className="text-sm font-semibold text-gray-900">Permissions</h4>
                       <PermissionAssignmentPanel
+                        key={`${isEditMode ? user?.id : "new"}-${selectedRole}-${activeCustomerId ?? "none"}`}
                         userId={isEditMode && user?.id ? user.id : undefined}
+                        customerId={activeCustomerId ?? undefined}
                         role={selectedRole}
                         selected={selectedPermissions}
                         onChange={setSelectedPermissions}

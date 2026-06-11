@@ -567,17 +567,6 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     archProducts.map(buildGroupedExtractionsChartDisplay),
   );
 
-  if (
-    opposing &&
-    archProducts.length > 0 &&
-    hasExtractionChartOverlay(opposing.extractionDisplay)
-  ) {
-    extractionDisplay = mergeArchExtractionDisplays([
-      extractionDisplay,
-      opposing.extractionDisplay,
-    ]);
-  }
-
   const preloadDisplay = mergePreloadExtractionDisplaysForArch(archProducts, arch);
   if (preloadDisplay) {
     extractionDisplay = overlayPreloadExtractionsOnChartDisplay(

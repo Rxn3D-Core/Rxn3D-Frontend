@@ -41,6 +41,7 @@ export interface InvitationData {
   created_at?: string;
   user_exists: boolean;
   already_linked: boolean;
+  requires_login?: boolean;
   requires_doctor_documents: boolean;
   reminder_count?: number;
   reminder_sent_at?: string;
