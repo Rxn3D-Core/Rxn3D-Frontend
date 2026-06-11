@@ -105,18 +105,11 @@ export default function Page() {
     completedPatientName,
     completedGender,
     completedAge,
-    labCustomerId:
-      typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin"
-        ? Number(localStorage.getItem("customerId")) || null
-        : completedLab?.id ?? null,
+    labCustomerId: resolveLibraryCustomerId(completedLab?.id) ?? null,
   });
 
   useEffect(() => {
-    const userRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    const labCustomerId = userRole === "lab_admin"
-      ? Number(localStorage.getItem("customerId")) || null
-      : completedLab?.id ?? null;
-
+    const labCustomerId = resolveLibraryCustomerId(completedLab?.id);
     if (!labCustomerId) return;
 
     getBusinessSettings(labCustomerId)

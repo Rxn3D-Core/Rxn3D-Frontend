@@ -1,4 +1,5 @@
 import type React from "react"
+import { CaseManagementProfileRedirect } from "@/components/case-management-profile-redirect"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
@@ -18,6 +19,7 @@ export default function LabProfileLayout({
       >
       <DriverSlipProvider>
         <OfficeSlipProvider>
+          <CaseManagementProfileRedirect requiredProfile="office" />
           <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
             <DashboardSidebar />
             <div className="flex-1 flex flex-col overflow-hidden">

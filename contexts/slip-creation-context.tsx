@@ -23,6 +23,8 @@ import {
   postSlipResume,
   postSlipSendBackToOffice,
 } from "@/lib/api/slip-case-actions"
+import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
+import { getSlipLabIdForCurrentProfile } from "@/lib/customer-lab-scope"
 
 // --- Types based on sample payload ---
 export interface SlipCreationCase {
@@ -416,38 +418,13 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   const fetchLabProducts = useCallback(async (labId: number, params?: Record<string, any>) => {
     try {
-      // If the role is office_admin or doctor, use selectedLabId from localStorage for labId
-      let effectiveLabId = labId;
-      let customerId = null;
-      
-      if (typeof window !== "undefined") {
-        const role = localStorage.getItem("role");
-        const isLabAdmin = role === "lab_admin";
-        const isSuperAdmin = role === "superadmin";
-        const isOfficeAdmin = role === "office_admin";
-        const isDoctor = role === "doctor";
-        
-        if (isOfficeAdmin || isDoctor) {
-          const storedLabId = localStorage.getItem("selectedLabId");
-          if (storedLabId) {
-            effectiveLabId = Number(storedLabId);
-            customerId = effectiveLabId; // Use the selectedLabId as customer_id
-          }
-        } else if (isLabAdmin || isSuperAdmin) {
-          // For lab_admin or superadmin, use customerId from localStorage
-          const storedCustomerId = localStorage.getItem("customerId");
-          if (storedCustomerId) {
-            customerId = parseInt(storedCustomerId, 10);
-          }
-        }
-      }
-      
-      // Use the new library/products endpoint
+      // Products belong to labs — office profiles pass selected lab id; lab profiles pass their customerId
+      const customerId = resolveLibraryCustomerId(labId);
+
       const url = new URL(`/v1/library/products`, process.env.NEXT_PUBLIC_API_BASE_URL);
-      
-      // Add customer_id if available
+
       if (customerId) {
-        url.searchParams.append('customer_id', customerId.toString());
+        url.searchParams.append("customer_id", customerId.toString());
       }
       
       // Add other params, mapping sort_by to order_by and sort_order to sort_by
@@ -487,34 +464,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   // Add function to fetch individual product details from library API
   const fetchProductDetails = useCallback(async (productId: number, labId?: number) => {
     try {
-      // Get user role information
-      const userRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-      let userRoles: string[] = [];
-
-      if (userRole) {
-        try {
-          userRoles = JSON.parse(userRole);
-        } catch {
-          userRoles = [userRole];
-        }
-      }
-
-      // Determine which customer_id to use based on user role
-      let effectiveCustomerId: number | null = null;
-
-      if (userRoles.includes("lab_admin") || userRoles.includes("superadmin")) {
-        if (typeof window !== "undefined") {
-          const storedCustomerId = localStorage.getItem("customerId");
-          if (storedCustomerId) {
-            effectiveCustomerId = Number(storedCustomerId);
-          }
-        }
-      } else {
-        const selectedLabId = localStorage.getItem("selectedLabId");
-        if (selectedLabId) {
-          effectiveCustomerId = Number(selectedLabId);
-        }
-      }
+      const effectiveCustomerId = resolveLibraryCustomerId(labId) ?? null;
 
       const cacheKey = `${productId}_${effectiveCustomerId ?? 0}`;
 
@@ -583,15 +533,10 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   const fetchProductImpressions = useCallback(async (productId: number, params?: Record<string, any>) => {
     try {
-      // Get the correct lab ID based on user role
-      const role = localStorage.getItem("role")
-      const labId = role === "office_admin" 
-        ? localStorage.getItem("selectedLabId") 
-        : localStorage.getItem('customerId')
-      
-      // Validate labId before making the request
-      if (!labId || labId === 'null' || labId === 'undefined') {
-        console.warn('fetchProductImpressions - labId is missing or invalid:', labId)
+      const labId = getSlipLabIdForCurrentProfile()
+
+      if (!labId || labId === "null" || labId === "undefined") {
+        console.warn("fetchProductImpressions - labId is missing or invalid:", labId)
         setProductImpressions(null)
         return []
       }
@@ -611,11 +556,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   const fetchProductAddons = useCallback(async (productId: number, params?: Record<string, any>, signal?: AbortSignal) => {
     try {
-      // Get the correct lab ID based on user role
-      const role = localStorage.getItem("role")
-      const labId = role === "office_admin" || role === "doctor"
-        ? localStorage.getItem("selectedLabId") 
-        : localStorage.getItem("customerId")
+      const labId = getSlipLabIdForCurrentProfile()
       const url = new URL(`/v1/slip/lab/${labId}/products/${productId}/addons`, process.env.NEXT_PUBLIC_API_BASE_URL)
       if (params) Object.entries(params).forEach(([k, v]) => v && url.searchParams.append(k, v))
       const res = await fetch(url.toString(), {
@@ -640,11 +581,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   // Add: Search for specific addons by search term
   const searchProductAddons = useCallback(async (productId: number, search: string, signal?: AbortSignal) => {
     try {
-      // Get the correct lab ID based on user role
-      const role = localStorage.getItem("role")
-      const labId = role === "office_admin" 
-        ? localStorage.getItem("selectedLabId") 
-        : localStorage.getItem("customerId")
+      const labId = getSlipLabIdForCurrentProfile()
       const url = new URL(`/v1/slip/lab/${labId}/products/${productId}/addons`, process.env.NEXT_PUBLIC_API_BASE_URL)
       if (search) url.searchParams.append("search", search)
       const res = await fetch(url.toString(), {
@@ -668,15 +605,10 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   const fetchProductTeethShades = useCallback(async (productId: number, params?: Record<string, any>) => {
     try {
-      // Get the correct lab ID based on user role
-      const role = localStorage.getItem("role")
-      const labId = role === "office_admin" 
-        ? localStorage.getItem("selectedLabId") 
-        : localStorage.getItem('customerId')
-      
-      // Validate labId before making the request
-      if (!labId || labId === 'null' || labId === 'undefined') {
-        console.warn('fetchProductTeethShades - labId is missing or invalid:', labId)
+      const labId = getSlipLabIdForCurrentProfile()
+
+      if (!labId || labId === "null" || labId === "undefined") {
+        console.warn("fetchProductTeethShades - labId is missing or invalid:", labId)
         setProductTeethShades(null)
         return []
       }
@@ -696,15 +628,10 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   const fetchProductGumShades = useCallback(async (productId: number, params?: Record<string, any>) => {
     try {
-      // Get the correct lab ID based on user role
-      const role = localStorage.getItem("role")
-      const labId = role === "office_admin" 
-        ? localStorage.getItem("selectedLabId") 
-        : localStorage.getItem('customerId')
-      
-      // Validate labId before making the request
-      if (!labId || labId === 'null' || labId === 'undefined') {
-        console.warn('fetchProductGumShades - labId is missing or invalid:', labId)
+      const labId = getSlipLabIdForCurrentProfile()
+
+      if (!labId || labId === "null" || labId === "undefined") {
+        console.warn("fetchProductGumShades - labId is missing or invalid:", labId)
         setProductGumShades(null)
         return []
       }
@@ -760,11 +687,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   const calculateDeliveryDate = useCallback(async (product_id: number, stage_id?: number) => {
     try {
-      // Get the correct lab ID based on user role
-      const role = localStorage.getItem("role")
-      const labId = role === "office_admin" || role === "doctor"
-        ? localStorage.getItem("selectedLabId") 
-        : localStorage.getItem("customerId")
+      const labId = getSlipLabIdForCurrentProfile()
       const url = new URL(`/v1/slip/lab/${labId}/delivery-date`, process.env.NEXT_PUBLIC_API_BASE_URL)
       url.searchParams.append("product_id", String(product_id))
       if (stage_id) url.searchParams.append("stage_id", String(stage_id))

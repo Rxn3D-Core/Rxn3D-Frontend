@@ -7,6 +7,7 @@ import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-sli
 import { applySlipAttachmentState } from "./attachment-state.mjs";
 import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
 import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
+import { resolveListingCustomerId } from "@/lib/customer-scope";
 
 type Slip = {
   id: number;
@@ -591,9 +592,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         try {
           if (typeof window !== 'undefined') {
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            const customerId = user?.customers?.[0]?.id;
+            const customerId = resolveListingCustomerId();
             const customerType = localStorage.getItem('customerType'); // expected 'lab' or 'office'
             if (customerId) {
               if (customerType === 'lab') {
@@ -689,9 +688,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (response?.success) {
         try {
           if (typeof window !== "undefined") {
-            const userStr = localStorage.getItem("user");
-            const user = userStr ? JSON.parse(userStr) : null;
-            const customerId = user?.customers?.[0]?.id;
+            const customerId = resolveListingCustomerId();
             const customerType = localStorage.getItem("customerType");
             if (customerId) {
               if (customerType === "lab") {

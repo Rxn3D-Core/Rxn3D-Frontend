@@ -33,6 +33,10 @@ import {
 import { cn } from "@/lib/utils"
 import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
+import {
+  SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON,
+  SlipListingViewSlipLink,
+} from "@/components/slip-listing/SlipListingViewSlipLink"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
 import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
@@ -43,6 +47,7 @@ import {
 } from "@/lib/slip-listing-filter-select"
 import Link from "next/link"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { resolveListingCustomerId } from "@/lib/customer-scope"
 
 function buildApiUrl(pathOrUrl: string): string {
   if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
@@ -65,7 +70,6 @@ export default function SlipPage() {
   const searchParams = useSearchParams()
 
   const [search, setSearch] = useState("")
-  const [office, setOffice] = useState("All")
   const [status, setStatus] = useState("All")
   const [location, setLocation] = useState(() => searchParams.get("location") || "All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
@@ -75,12 +79,12 @@ export default function SlipPage() {
   const [showColumnsDialog, setShowColumnsDialog] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState({
     timestamp: true,
-    office: true,
     patient: true,
     product: true,
     status: true,
     location: true,
     attachment: true,
+    viewSlip: true,
     due: true,
     actions: true,
   })
@@ -93,7 +97,6 @@ export default function SlipPage() {
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
   const [stageFilter, setStageFilter] = useState("All")
-  const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
@@ -114,11 +117,7 @@ export default function SlipPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Get customer ID from localStorage
-        const userStr = localStorage.getItem('user')
-        const user = userStr ? JSON.parse(userStr) : null
-        const customerId = user?.customers?.[0]?.id
-        
+        const customerId = resolveListingCustomerId()
         if (customerId) {
           await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
         }
@@ -131,7 +130,6 @@ export default function SlipPage() {
   }, [fetchOfficeSlips, currentPage, itemsPerPage])
 
   // Get unique values for filter dropdowns
-  const allOffices = Array.from(new Set(slips.map((s) => s.officeCode)))
   const allStatuses = Array.from(new Set(slips.map((s) => s.status)))
   const allLocations = Array.from(new Set(slips.map((s) => s.location)))
   const allDoctors = Array.from(new Set(slips.map((s) => s.doctorName || "Unknown")))
@@ -141,17 +139,21 @@ export default function SlipPage() {
   // Filtering
   const filteredSlips = useMemo(() => {
     let result = slips
-    if (search) result = result.filter((s) =>
-      s.patient.toLowerCase().includes(search.toLowerCase())
-      || s.officeCode.toLowerCase().includes(search.toLowerCase())
-      || s.product.toLowerCase().includes(search.toLowerCase())
-    )
-    if (office !== "All") result = result.filter((s) => s.officeCode === office)
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter((s) =>
+        s.patient.toLowerCase().includes(q)
+        || s.product.toLowerCase().includes(q)
+        || (s.doctorName?.toLowerCase().includes(q) ?? false)
+        || (s.caseNumber?.toLowerCase().includes(q) ?? false)
+        || (s.slipNumber?.toLowerCase().includes(q) ?? false)
+      )
+    }
     if (status !== "All") result = result.filter((s) => s.status === status)
     if (location !== "All") result = result.filter((s) => s.location === location)
     if (showWithAttachments) result = result.filter((s) => s.attachment)
     return result
-  }, [slips, search, office, status, location, showWithAttachments])
+  }, [slips, search, status, location, showWithAttachments])
 
   // Paging - use filtered slips for display, but API handles pagination
   const slipsPage = filteredSlips
@@ -189,9 +191,7 @@ export default function SlipPage() {
 
   const handleAttachmentsUploaded = async () => {
     try {
-      const userStr = localStorage.getItem("user")
-      const user = userStr ? JSON.parse(userStr) : null
-      const customerId = user?.customers?.[0]?.id
+      const customerId = resolveListingCustomerId()
       if (customerId) {
         await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
       }
@@ -374,19 +374,10 @@ export default function SlipPage() {
       <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
         <Input
           className="w-72 bg-white border-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500"
-          placeholder="Search by patient, office, doctor, case..."
+          placeholder="Search by patient, doctor, case..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <Select value={office} onValueChange={setOffice}>
-          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All offices" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All offices</SelectItem>
-            {allOffices.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="All status" />
@@ -421,16 +412,16 @@ export default function SlipPage() {
                 {Object.entries(visibleColumns).map(([key, val]) => {
                   const labels = {
                     timestamp: "Time Stamp",
-                    office: "Lab",
                     patient: "Patient",
                     product: "Product",
                     status: "Status",
                     location: "Location",
                     attachment: "Attachment",
+                    viewSlip: "View Slip",
                     due: "Due Date",
                     actions: "Actions"
                   }
-                  const isRequired = key === 'actions' || key === 'office' || key === 'patient'
+                  const isRequired = key === 'actions' || key === 'patient'
                   return (
                     <label key={key} className="flex items-center justify-between cursor-pointer">
                       <div className="flex items-center gap-3">
@@ -494,7 +485,6 @@ export default function SlipPage() {
                 setProductType("All")
                 setDoctorFilter("All")
                 setStageFilter("All")
-                setOfficeLabFilter("All")
                 setUserFilter("All")
               }}
             >
@@ -503,7 +493,7 @@ export default function SlipPage() {
           </div>
 
           {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
             <div className="flex items-center gap-2">
               <Popover>
                 <PopoverTrigger asChild>
@@ -576,15 +566,6 @@ export default function SlipPage() {
                 {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={office} onValueChange={setOffice}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All Offices/Lab" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Offices/Lab</SelectItem>
-                {allOffices.filter(o => o).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </SelectContent>
-            </Select>
             <Select value={userFilter} onValueChange={setUserFilter}>
               <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All users" />
@@ -597,7 +578,7 @@ export default function SlipPage() {
           </div>
 
           {/* Second Row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Select value={productType} onValueChange={setProductType}>
               <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All product type" />
@@ -622,14 +603,6 @@ export default function SlipPage() {
               <SelectContent>
                 <SelectItem value="All">All Doctors</SelectItem>
                 {allDoctors.filter(d => d).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All Office & Lab" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Office & Lab</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -701,17 +674,28 @@ export default function SlipPage() {
                 />
               </th>
               {visibleColumns.timestamp && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
-              {visibleColumns.office && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Lab</th>}
               {visibleColumns.patient && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Patient</th>}
               {visibleColumns.product && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Product</th>}
               {visibleColumns.status && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Status</th>}
               {visibleColumns.location && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Location</th>}
               {visibleColumns.attachment && (
-                <th className="px-4 py-1.5 text-center font-medium text-gray-700" scope="col" aria-label="Attachment">
-                  <SlipListingVsIcon
-                    src={`${VS_CENTER_ICONS}/attachments.svg`}
-                    hover={false}
-                  />
+                <th className="px-4 py-1.5 text-center align-middle font-medium text-gray-700" scope="col" aria-label="Attachment">
+                  <div className="flex h-[30px] items-center justify-center">
+                    <SlipListingVsIcon
+                      src={`${VS_CENTER_ICONS}/attachments.svg`}
+                      hover={false}
+                    />
+                  </div>
+                </th>
+              )}
+              {visibleColumns.viewSlip && (
+                <th className="px-4 py-1.5 text-center align-middle font-medium text-gray-700" scope="col" aria-label="View virtual slip">
+                  <div className="flex h-[30px] items-center justify-center">
+                    <SlipListingVsIcon
+                      src={SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON}
+                      hover={false}
+                    />
+                  </div>
                 </th>
               )}
               {visibleColumns.due && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Due date</th>}
@@ -721,7 +705,21 @@ export default function SlipPage() {
           <tbody className="divide-y divide-gray-200">
             {slipsPage.length === 0 ? (
               <tr>
-                <td colSpan={12} className="py-8 text-center text-gray-500">
+                <td
+                  colSpan={
+                    1 +
+                    (visibleColumns.timestamp ? 1 : 0) +
+                    (visibleColumns.patient ? 1 : 0) +
+                    (visibleColumns.product ? 1 : 0) +
+                    (visibleColumns.status ? 1 : 0) +
+                    (visibleColumns.location ? 1 : 0) +
+                    (visibleColumns.attachment ? 1 : 0) +
+                    (visibleColumns.viewSlip ? 1 : 0) +
+                    (visibleColumns.due ? 1 : 0) +
+                    (visibleColumns.actions ? 1 : 0)
+                  }
+                  className="py-8 text-center text-gray-500"
+                >
                   No slips found for selected filters.
                 </td>
               </tr>
@@ -748,13 +746,6 @@ export default function SlipPage() {
                   {visibleColumns.timestamp && (
                     <td className="px-3 py-1 whitespace-nowrap text-base text-black">
                       {row.createdAt}
-                    </td>
-                  )}
-                  {visibleColumns.office && (
-                    <td className="px-4 py-1.5 font-medium text-gray-900">
-                      <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
-                        {row.officeCode}
-                      </SlipListingVirtualSlipLink>
                     </td>
                   )}
                   {visibleColumns.patient && (
@@ -801,20 +792,30 @@ export default function SlipPage() {
                       {row.location}
                     </td>}
                   {visibleColumns.attachment &&
-                    <td className="px-4 py-1.5 text-center">
-                      {row.attachment ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAttachmentClick(row)
-                          }}
-                          className={slipListingIconButtonClass("p-1")}
-                          title="View attachments"
-                        >
-                          <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
-                        </button>
-                      ) : null}
+                    <td className="px-4 py-1.5 text-center align-middle">
+                      <div className="flex h-[30px] items-center justify-center">
+                        {row.attachment ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleAttachmentClick(row)
+                            }}
+                            className={slipListingIconButtonClass(
+                              "h-[30px] w-[30px] items-center justify-center p-0"
+                            )}
+                            title="View attachments"
+                          >
+                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>}
+                  {visibleColumns.viewSlip &&
+                    <td className="px-4 py-1.5 text-center align-middle">
+                      <div className="flex h-[30px] items-center justify-center">
+                        <SlipListingViewSlipLink slipId={row.id} />
+                      </div>
                     </td>}
                   {visibleColumns.due &&
                     <td className="px-4 py-1.5">
@@ -945,12 +946,12 @@ export default function SlipPage() {
             {Object.entries(visibleColumns).map(([key, val]) => {
               const labels = {
                 timestamp: "Time Stamp",
-                office: "Lab",
                 patient: "Patient",
                 product: "Product",
                 status: "Status",
                 location: "Location",
                 attachment: "Attachment",
+                viewSlip: "View Slip",
                 due: "Due Date",
                 actions: "Actions"
               }
@@ -1027,8 +1028,8 @@ export default function SlipPage() {
         archSlots={addonInputs?.addonArchSlots ?? []}
         slipId={selectedSlipForAddOns?.id}
         onSlipAddonsSaved={() => {
-          const customerId = localStorage.getItem("customerId")
-          if (customerId) void fetchOfficeSlips(Number(customerId), currentPage, itemsPerPage)
+          const customerId = resolveListingCustomerId()
+          if (customerId) void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
         }}
       />
 

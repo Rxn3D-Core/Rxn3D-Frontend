@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Doctor, Lab, PatientData, Product, SavedProduct } from "../sections/types"
+import { isOfficeCustomerContext } from "@/lib/role-utils"
+import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 
 export function useCaseDesignCenter() {
   const router = useRouter()
@@ -332,32 +334,25 @@ export function useCaseDesignCenter() {
     return ["product_material", "retention", "stage"]
   }
 
-  // Helper function to get the correct customer_id based on role
-  // For office_admin, use selectedLab.id; for others, use the user's customerId
+  // Products belong to labs — office profiles pass selected lab id; lab profiles pass customerId
   const getCustomerIdForApi = (): number | undefined => {
     if (typeof window === "undefined") return undefined
-    const role = localStorage.getItem("role")
-    if (role === "office_admin") {
-      // For office_admin, use the selected lab's ID as customer_id
-      // Check state first, then localStorage as fallback
-      const lab = selectedLab || (() => {
-        const storedLab = localStorage.getItem("selectedLab")
-        if (storedLab) {
-          try {
-            return JSON.parse(storedLab)
-          } catch {
-            return null
-          }
+    const lab = selectedLab || (() => {
+      const storedLab = localStorage.getItem("selectedLab")
+      if (storedLab) {
+        try {
+          return JSON.parse(storedLab)
+        } catch {
+          return null
         }
-        return null
-      })()
-      if (lab) {
-        return lab.id || lab.customer_id || undefined
       }
+      return null
+    })()
+    const selectedLabId = lab?.id || lab?.customer_id
+    if (isOfficeCustomerContext()) {
+      return resolveLibraryCustomerId(selectedLabId)
     }
-    // For other roles, use the user's customerId
-    const customerId = localStorage.getItem("customerId")
-    return customerId ? Number(customerId) : undefined
+    return resolveLibraryCustomerId()
   }
 
   // Helper to check if any tooth in the saved product has a retention type selected from popover

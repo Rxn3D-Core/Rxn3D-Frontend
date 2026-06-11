@@ -8,6 +8,7 @@ import {
   parseProductTeeth,
 } from "@/lib/virtual-slip-transformer";
 import type { AddStageSelections } from "./session";
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 
 function archFromType(type: string | null | undefined): "maxillary" | "mandibular" {
   return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
@@ -166,7 +167,7 @@ export function buildWizardSeedFromSlipDetails(details: unknown): AddStageWizard
         ? {
             id: doctor.id,
             name: doctor.name,
-            img: doctor.image ?? doctor.signature_url,
+            img: resolveDoctorImageUrl(doctor) || undefined,
           }
         : null,
     lab:

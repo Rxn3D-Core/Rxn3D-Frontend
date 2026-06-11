@@ -1,3 +1,5 @@
+import { resolveLibraryCustomerId } from "./libraryCustomerId";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 const productCache = new Map<string, any>();
@@ -18,13 +20,12 @@ export interface CaseDesignProductDetails {
 }
 
 /** Fetch basic product info for the accordion (name/image/category). */
-export async function fetchCaseDesignProductDetails(productId: number): Promise<CaseDesignProductDetails | null> {
-  const role = localStorage.getItem("role");
-  const customerId = Number(
-    role === "office_admin" || role === "doctor"
-      ? localStorage.getItem("selectedLabId")
-      : localStorage.getItem("customerId")
-  ) || 1;
+export async function fetchCaseDesignProductDetails(
+  productId: number,
+  selectedLabId?: number | null
+): Promise<CaseDesignProductDetails | null> {
+  const customerId = resolveLibraryCustomerId(selectedLabId);
+  if (!customerId) return null;
   const cacheKey = `${productId}_${customerId}`;
 
   if (productCache.has(cacheKey)) {
