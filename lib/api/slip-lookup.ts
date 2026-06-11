@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/client"
+import { resolveListingCustomerId } from "@/lib/customer-scope"
 
 type LabSlipListingRow = {
   id?: number
@@ -12,29 +13,6 @@ type OfficeCaseListingRow = {
 
 function normalizeSlipNumber(value: string): string {
   return value.trim().toLowerCase()
-}
-
-function resolveListingCustomerId(): number | null {
-  if (typeof window === "undefined") return null
-
-  try {
-    const fromStorage = localStorage.getItem("customerId")
-    if (fromStorage) {
-      const parsed = Number(fromStorage)
-      if (Number.isFinite(parsed) && parsed > 0) return parsed
-    }
-
-    const userStr = localStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    const id =
-      user?.customer_id ??
-      user?.customer?.id ??
-      user?.customers?.[0]?.id
-
-    return typeof id === "number" && id > 0 ? id : null
-  } catch {
-    return null
-  }
 }
 
 function resolveUserRole(): string | null {

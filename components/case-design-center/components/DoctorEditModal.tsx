@@ -9,6 +9,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { WizardDoctorShape } from "@/components/new-case-wizard";
+import { resolveDoctorImageUrl, type DoctorImageSource } from "@/utils/avatar-utils";
 
 const DOCTOR_AVATAR_FALLBACKS = [
   "/doctors/doctor-1.jpg",
@@ -23,12 +24,12 @@ function doctorFallbackImg(doctorId: number, index?: number): string {
 }
 
 export function mapOfficeDoctorsToWizardShape(
-  raw: { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string }[]
+  raw: (DoctorImageSource & { id: number; first_name?: string; last_name?: string })[]
 ): WizardDoctorShape[] {
   return raw.map((d, i) => ({
     id: d.id,
     name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
-    img: d.image || d.profile_image || doctorFallbackImg(d.id, i),
+    img: resolveDoctorImageUrl(d) || doctorFallbackImg(d.id, i),
   }));
 }
 

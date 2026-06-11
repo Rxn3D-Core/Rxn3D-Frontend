@@ -28,6 +28,7 @@ import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -1831,11 +1832,11 @@ export default function NewCaseWizard({
 
   const doctorsForWizard: WizardDoctorShape[] = useMemo(
     () =>
-      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string }[]).map(
+      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; signature_url?: string }[]).map(
         (d, i) => ({
           id: d.id,
           name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
-          img: d.image || d.profile_image || getDoctorFallbackImg(d.id, i),
+          img: resolveDoctorImageUrl(d) || getDoctorFallbackImg(d.id, i),
         })
       ),
     [officeDoctorsRaw]

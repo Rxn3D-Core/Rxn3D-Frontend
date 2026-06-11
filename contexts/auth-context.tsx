@@ -7,6 +7,7 @@ import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
+import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
 import {
   hasAnyPermission as checkAnyPermission,
   hasPermission as checkPermission,
@@ -186,7 +187,10 @@ type AuthContextType = {
   refreshProfilePermissions: (customerId?: string) => Promise<string[]>
   hasPermission: (permission: string) => boolean
   hasAnyPermission: (permissions: string[]) => boolean
-  setCustomerId: (customerId: number) => Promise<boolean>
+  setCustomerId: (
+    customerId: number,
+    options?: { reload?: boolean; redirectTo?: string },
+  ) => Promise<boolean>
   isAuthenticated: boolean
   checkAuthAndRedirect: () => boolean
   impersonateUser: (userId: number) => Promise<boolean>
@@ -1258,8 +1262,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [handleUnauthorized]);
 
   const setCustomerId = useCallback(
-    async (customerId: number): Promise<boolean> => {
-      if (syncedCustomerIdRef.current === customerId) {
+    async (
+      customerId: number,
+      options?: { reload?: boolean; redirectTo?: string },
+    ): Promise<boolean> => {
+      const shouldReload = options?.reload === true
+
+      if (!shouldReload && syncedCustomerIdRef.current === customerId) {
         return true
       }
 
@@ -1311,6 +1320,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (selectedCustomer?.type) {
               localStorage.setItem("customerType", selectedCustomer.type)
             }
+            if (selectedCustomer) {
+              localStorage.setItem("selectedLocation", JSON.stringify(selectedCustomer))
+            }
             const updatedUser = {
               ...currentUser,
               customer_id: customerId,
@@ -1325,6 +1337,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await refreshProfilePermissions(String(customerId))
           } catch (permError) {
             console.error("Failed to refresh permissions after profile switch:", permError)
+          }
+
+          if (shouldReload) {
+            reloadAppAfterProfileSwitch(options?.redirectTo ?? "/dashboard")
           }
 
           return true

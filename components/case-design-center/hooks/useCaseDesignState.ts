@@ -91,6 +91,7 @@ import {
   shouldUseAccordionOnlyFixedShades,
 } from "../utils/shadeGuideAdvanceFields";
 import { ProductApi } from "../../../lib/api-service";
+import { resolveLibraryCustomerId } from "../utils/libraryCustomerId";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -867,13 +868,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // a lab, so deriving the id from localStorage alone can resolve to NaN here and leave
     // initialProductDetails null — which hides the retention popover and extraction boxes.
     // props.labCustomerId is the reliable source and matches the product-list fetch.
-    const role = localStorage.getItem("role");
-    const fallbackCustomerId = Number(
-      role === "office_admin" || role === "doctor"
-        ? localStorage.getItem("selectedLabId")
-        : localStorage.getItem("customerId")
-    );
-    const customerId = props.labCustomerId || fallbackCustomerId;
+    const customerId = props.labCustomerId ?? resolveLibraryCustomerId();
     if (!customerId) {
       setInitialProductDetailsPending(false);
       return;
@@ -1183,12 +1178,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
         continue;
       }
 
-      const role = localStorage.getItem("role");
-      const customerId = Number(
-        role === "office_admin" || role === "doctor"
-          ? localStorage.getItem("selectedLabId")
-          : localStorage.getItem("customerId")
-      ) || 1;
+      const customerId = props.labCustomerId ?? resolveLibraryCustomerId();
+      if (!customerId) return;
 
       fetchProductDetails(ap.productId, customerId).then((product) => {
         if (!product || !ap.productId) return;
@@ -1441,12 +1432,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
         return;
       }
 
-      const role = localStorage.getItem("role");
-      const customerId = Number(
-        role === "office_admin" || role === "doctor"
-          ? localStorage.getItem("selectedLabId")
-          : localStorage.getItem("customerId")
-      ) || 1;
+      const customerId = props.labCustomerId ?? resolveLibraryCustomerId();
+      if (!customerId) return;
 
       toothFieldProgress.setProductLoading(arch, toothNumber, true);
       const product = await fetchProductDetails(productId, customerId);

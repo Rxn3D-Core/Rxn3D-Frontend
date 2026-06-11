@@ -117,6 +117,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
+  const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
@@ -816,23 +817,17 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const handleLocationChange = async (value: string) => {
     const locationId = Number(value)
+    if (!Number.isFinite(locationId) || locationId === selectedLocation) return
+
     const location = safeLocations.find((loc) => loc.id === locationId)
     if (!location) return
 
-    const fullCustomer = user?.customers?.find((c) => c.id === locationId) ?? location
-
-    setSelectedLocation(locationId)
-    localStorage.setItem("selectedLocation", JSON.stringify(fullCustomer))
-    localStorage.setItem("customerId", String(locationId))
-
+    setIsSwitchingProfile(true)
     try {
-      await setCustomerId(locationId)
-      toast({
-        title: "Location Selected",
-        description: `You've selected ${location.name}`,
-      })
+      await setCustomerId(locationId, { reload: true })
     } catch (error) {
       console.error("Failed to switch location:", error)
+      setIsSwitchingProfile(false)
       toast({
         title: "Error",
         description: "Failed to switch location. Please try again.",
@@ -843,6 +838,12 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   return (
     <>
+      <LoadingOverlay
+        isLoading={isSwitchingProfile}
+        title="Switching location..."
+        message="Loading your profile"
+        zIndex={99999}
+      />
       <header className="sticky top-0 z-40 w-full border-b bg-white/95 backdrop-blur-sm shadow-sm dark:bg-gray-900/95 dark:border-gray-800">
         <div className=" mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           {/* Main Header Row */}

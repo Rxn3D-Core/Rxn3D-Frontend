@@ -48,6 +48,7 @@ import {
   SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { SlipListingReadyToSendIcon } from "@/components/slip-listing/SlipListingReadyToSendIcon"
 import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
@@ -58,6 +59,10 @@ import {
   slipListingIconButtonClass,
 } from "@/components/slip-listing/slip-listing-icon-hover"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
+import {
+  SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON,
+  SlipListingViewSlipLink,
+} from "@/components/slip-listing/SlipListingViewSlipLink"
 import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
 import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
 import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
@@ -71,15 +76,7 @@ function formatYmd(d: Date): string {
 }
 
 function getLabCustomerId(): number | null {
-  if (typeof window === "undefined") return null
-  try {
-    const userStr = localStorage.getItem("user")
-    const user = userStr ? JSON.parse(userStr) : null
-    const id = user?.customers?.[0]?.id
-    return typeof id === "number" && !Number.isNaN(id) ? id : null
-  } catch {
-    return null
-  }
+  return resolveListingCustomerId()
 }
 
 /** Prefer `locationId` from API; fall back to label match for older payloads */
@@ -159,6 +156,7 @@ export default function LabSlipPage() {
     status: true,
     location: true,
     attachment: true,
+    viewSlip: true,
     due: true,
     actions: true,
   })
@@ -406,9 +404,7 @@ export default function LabSlipPage() {
   const refreshSlipsAfterCustomDeliveryDate = () => {
     try {
       if (typeof window !== "undefined") {
-        const userStr = localStorage.getItem("user");
-        const user = userStr ? JSON.parse(userStr) : null;
-        const customerId = user?.customers?.[0]?.id;
+        const customerId = resolveListingCustomerId();
         const customerType = localStorage.getItem("customerType");
         if (customerId) {
           if (customerType === "lab") {
@@ -1140,6 +1136,7 @@ export default function LabSlipPage() {
                       status: "Status",
                       location: "Location",
                       attachment: "Attachment",
+                      viewSlip: "View Slip",
                       due: "Due Date",
                       actions: "Actions"
                     }
@@ -1462,11 +1459,23 @@ export default function LabSlipPage() {
                 {visibleColumns.status && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
                 {visibleColumns.location && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
                 {visibleColumns.attachment && (
-                  <th className="px-3 py-1 text-center font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="Attachment">
-                    <SlipListingVsIcon
-                      src={`${VS_CENTER_ICONS}/attachments.svg`}
-                      hover={false}
-                    />
+                  <th className="px-3 py-1 text-center align-middle font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="Attachment">
+                    <div className="flex h-[30px] items-center justify-center">
+                      <SlipListingVsIcon
+                        src={`${VS_CENTER_ICONS}/attachments.svg`}
+                        hover={false}
+                      />
+                    </div>
+                  </th>
+                )}
+                {visibleColumns.viewSlip && (
+                  <th className="px-3 py-1 text-center align-middle font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="View virtual slip">
+                    <div className="flex h-[30px] items-center justify-center">
+                      <SlipListingVsIcon
+                        src={SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON}
+                        hover={false}
+                      />
+                    </div>
                   </th>
                 )}
                 {visibleColumns.due && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
@@ -1526,6 +1535,11 @@ export default function LabSlipPage() {
                         <Skeleton className="h-4 w-4 mx-auto" />
                       </td>
                     )}
+                    {visibleColumns.viewSlip && (
+                      <td className="px-3 py-1 text-center whitespace-nowrap">
+                        <Skeleton className="h-4 w-4 mx-auto" />
+                      </td>
+                    )}
                     {visibleColumns.due && (
                       <td className="px-3 py-1 whitespace-nowrap">
                         <Skeleton className="h-4 w-28" />
@@ -1558,6 +1572,7 @@ export default function LabSlipPage() {
                       (visibleColumns.status ? 1 : 0) +
                       (visibleColumns.location ? 1 : 0) +
                       (visibleColumns.attachment ? 1 : 0) +
+                      (visibleColumns.viewSlip ? 1 : 0) +
                       (visibleColumns.due ? 1 : 0) +
                       (visibleColumns.actions ? 1 : 0)
                     } 
@@ -1779,20 +1794,30 @@ export default function LabSlipPage() {
 
                       </td>}
                     {visibleColumns.attachment &&
-                      <td className="px-3 py-1 text-center whitespace-nowrap">
-                        {row.attachment ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleAttachmentClick(row)
-                            }}
-                            className={slipListingIconButtonClass()}
-                            title="View attachments"
-                          >
-                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
-                          </button>
-                        ) : null}
+                      <td className="px-3 py-1 text-center align-middle whitespace-nowrap">
+                        <div className="flex h-[30px] items-center justify-center">
+                          {row.attachment ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleAttachmentClick(row)
+                              }}
+                              className={slipListingIconButtonClass(
+                                "h-[30px] w-[30px] items-center justify-center p-0"
+                              )}
+                              title="View attachments"
+                            >
+                              <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>}
+                    {visibleColumns.viewSlip &&
+                      <td className="px-3 py-1 text-center align-middle whitespace-nowrap">
+                        <div className="flex h-[30px] items-center justify-center">
+                          <SlipListingViewSlipLink slipId={row.id} />
+                        </div>
                       </td>}
                     {visibleColumns.due &&
                       <td className="px-3 py-1 whitespace-nowrap">

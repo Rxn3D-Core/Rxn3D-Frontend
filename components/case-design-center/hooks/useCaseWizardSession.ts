@@ -19,7 +19,10 @@ export type CaseDesignBootstrap = {
 };
 
 interface UseCaseWizardSessionParams {
-  fetchProductDetails: (productId: number) => Promise<CaseDesignProductDetails | null>;
+  fetchProductDetails: (
+    productId: number,
+    selectedLabId?: number | null
+  ) => Promise<CaseDesignProductDetails | null>;
   /** Open CDC immediately with seeded header/products (add-new-stage). */
   bootstrap?: CaseDesignBootstrap | null;
 }
@@ -134,7 +137,9 @@ export function useCaseWizardSession({
 
       if (wizardMode === "addProduct") {
         const addedProductId = Number(result.material) || undefined;
-        const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
+        const details = addedProductId
+          ? await fetchProductDetails(addedProductId, completedLab?.id)
+          : null;
         const categoryName = details?.category_name || result.categoryName || "";
         const newProduct: AddedProduct = {
           id: Date.now(),

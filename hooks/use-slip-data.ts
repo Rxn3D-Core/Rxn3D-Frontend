@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { resolveLibraryCustomerId } from '@/components/case-design-center/utils/libraryCustomerId'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
 
@@ -79,23 +80,7 @@ async function fetchOfficeDoctors(officeId: number) {
  */
 async function fetchLabProducts(labId: number, params?: Record<string, any>) {
   const token = localStorage.getItem('token')
-  const role = localStorage.getItem('role')
-
-  let customerId = null
-  let effectiveLabId = labId
-
-  if (role === 'office_admin' || role === 'doctor') {
-    const storedLabId = localStorage.getItem('selectedLabId')
-    if (storedLabId) {
-      effectiveLabId = Number(storedLabId)
-      customerId = effectiveLabId
-    }
-  } else if (role === 'lab_admin' || role === 'superadmin') {
-    const storedCustomerId = localStorage.getItem('customerId')
-    if (storedCustomerId) {
-      customerId = parseInt(storedCustomerId, 10)
-    }
-  }
+  const customerId = resolveLibraryCustomerId(labId)
 
   const url = new URL('/v1/library/products', API_BASE_URL)
 
