@@ -228,10 +228,9 @@ export function EditBillingInvoiceDialog({
 
     try {
       await updateInvoicePricing({ invoiceId: billingInvoiceId, body }).unwrap()
-      toast({ title: "Invoice pricing updated" })
-      await refetch()
-      onSaved?.()
       onOpenChange(false)
+      onSaved?.()
+      toast({ title: "Invoice pricing updated", duration: 4000 })
     } catch (e: unknown) {
       toast({
         title: "Update failed",

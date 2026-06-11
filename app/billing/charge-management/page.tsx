@@ -1394,7 +1394,7 @@ export default function ChargeManagementPage() {
     setSendBccValue(joinEmails(preview.bcc_emails))
     setSendSubjectValue(
       normalizeStatementSubject(
-        preview.subject || statement.subject || `Your statement from ${statement.lab?.name || statement.office?.name || "HMC Innovs"} is ready`,
+        preview.subject || statement.subject || `Your statement from ${statement.lab?.name || statement.office?.name || ""} is ready`,
       ),
     )
     const nextMessage = normalizeStatementEmailMessageHtml(preview.message || statement.message || "")
