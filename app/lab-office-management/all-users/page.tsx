@@ -52,6 +52,8 @@ const avatarColors = [
   "bg-[#9c27b0]", // purple
 ]
 
+const SORTABLE_COLUMNS = new Set(["first_name", "email", "created_at", "status"])
+
 export default function AllUsers() {
   const { fetchUsers, updateUser, deleteUser, fetchUserById, hasPermission } = useAuth()
   const { toast } = useToast()
@@ -365,6 +367,7 @@ export default function AllUsers() {
   }
 
   const handleSort = (column: string) => {
+    if (!SORTABLE_COLUMNS.has(column)) return
     if (sortColumn === column) setSortDirection(sortDirection === "asc" ? "desc" : "asc")
     else {
       setSortColumn(column)

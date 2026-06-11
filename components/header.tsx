@@ -16,7 +16,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw } from "lucide-react"
-import { NotificationDropdown } from "@/components/notification-dropdown"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
   Select,
@@ -126,7 +125,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const pathname = usePathname() || "";
   const router = useRouter();
   const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+const videoRef = useRef<HTMLVideoElement | null>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedCodeRef = useRef<string>("");
@@ -949,10 +948,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <LanguageSwitcher />
               </div>
 
-              {/* Notifications */}
-              <NotificationDropdown />
-
-              {/* Settings Icon */}
+{/* Settings Icon */}
               <Button
                 variant="ghost"
                 size="sm"

@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell } from "lucide-react"
+import { Bell, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -10,57 +10,30 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
+import { formatDistanceToNow } from "date-fns"
+import { useAppSelector } from "@/lib/redux/hooks"
+import {
+  useNotifications,
+  useMarkAsRead,
+  useMarkAllRead,
+  useDeleteNotification,
+} from "@/hooks/use-notifications"
 
 export function NotificationDropdown() {
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "New case received",
-      description: "Case #12345 has been assigned to you",
-      time: "2 minutes ago",
-      read: false,
-    },
-    {
-      id: 2,
-      title: "Reminder: Case due today",
-      description: "Case #10982 is due by 5:00 PM",
-      time: "1 hour ago",
-      read: false,
-    },
-    {
-      id: 3,
-      title: "New message from Dr. Smith",
-      description: "Please call me regarding case #11234",
-      time: "3 hours ago",
-      read: false,
-    },
-    {
-      id: 4,
-      title: "System update scheduled",
-      description: "System maintenance at 11:00 PM tonight",
-      time: "Yesterday",
-      read: false,
-    },
-    {
-      id: 5,
-      title: "Payment received",
-      description: "Payment for invoice #INV-2023-004 received",
-      time: "2 days ago",
-      read: false,
-    },
-  ])
+  const { isLoading } = useNotifications()
+  const markAsReadMutation = useMarkAsRead()
+  const markAllReadMutation = useMarkAllRead()
+  const deleteNotificationMutation = useDeleteNotification()
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const notifications = useAppSelector((s) => s.notifications.notifications)
+  const unreadCount = useAppSelector((s) => s.notifications.unreadCount)
 
-  const markAsRead = (id: number) => {
-    setNotifications(
-      notifications.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
-    )
-  }
-
-  const markAllAsRead = () => {
-    setNotifications(notifications.map((notification) => ({ ...notification, read: true })))
+  function formatTime(timestamp: string): string {
+    try {
+      return formatDistanceToNow(new Date(timestamp), { addSuffix: true })
+    } catch {
+      return ""
+    }
   }
 
   return (
@@ -70,7 +43,7 @@ export function NotificationDropdown() {
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-              {unreadCount}
+              {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </Button>
@@ -79,27 +52,67 @@ export function NotificationDropdown() {
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Notifications</span>
           {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead} className="text-xs h-auto py-1">
-              Mark all as read
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-auto py-1"
+              disabled={markAllReadMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault()
+                markAllReadMutation.mutate()
+              }}
+            >
+              {markAllReadMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                "Mark all as read"
+              )}
             </Button>
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {notifications.length === 0 ? (
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="py-4 text-center text-sm text-muted-foreground">No notifications</div>
         ) : (
           notifications.map((notification) => (
             <DropdownMenuItem
               key={notification.id}
-              className="flex flex-col items-start p-3 cursor-pointer"
-              onClick={() => markAsRead(notification.id)}
+              className="flex flex-col items-start p-3 cursor-pointer focus:bg-accent group"
+              onClick={() => {
+                if (!notification.read) {
+                  markAsReadMutation.mutate(notification.id)
+                }
+              }}
             >
-              <div className="flex w-full justify-between">
-                <span className={`font-medium ${notification.read ? "" : "text-primary"}`}>{notification.title}</span>
-                <span className="text-xs text-muted-foreground ml-2">{notification.time}</span>
+              <div className="flex w-full justify-between items-start gap-2">
+                <span className={`font-medium text-sm leading-tight ${notification.read ? "" : "text-primary"}`}>
+                  {notification.title}
+                </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatTime(notification.timestamp)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteNotificationMutation.mutate(notification.id)
+                    }}
+                    aria-label="Delete notification"
+                  >
+                    <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </div>
               </div>
-              <span className="text-sm text-muted-foreground mt-1">{notification.description}</span>
-              {!notification.read && <span className="mt-1 h-2 w-2 rounded-full bg-blue-600"></span>}
+              <span className="text-xs text-muted-foreground mt-1 line-clamp-2">{notification.message}</span>
+              {!notification.read && <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-600 flex-shrink-0" />}
             </DropdownMenuItem>
           ))
         )}

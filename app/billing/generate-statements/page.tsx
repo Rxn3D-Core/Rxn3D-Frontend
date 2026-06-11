@@ -229,7 +229,6 @@ export default function GenerateStatementsPage() {
   const [dateRangeInput, setDateRangeInput] = useState("")
   const [directionFilter, setDirectionFilter] = useState("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("")
-  const [previewingId, setPreviewingId] = useState<number | null>(null)
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
@@ -345,27 +344,24 @@ export default function GenerateStatementsPage() {
     )
   }
 
-  const handlePreview = async (statement: StatementRecord) => {
-    setPreviewingId(statement.id)
-    try {
-      const previewRoute = buildStatementPreviewRoute(statement.id)
-      if (!previewRoute) {
-        throw new Error("This statement does not have a valid preview route.")
-      }
-
-      const previewWindow = window.open(previewRoute, "_blank", "noopener,noreferrer")
-      if (!previewWindow) {
-        throw new Error("Please allow pop-ups for this site and try again.")
-      }
-    } catch (previewError) {
+  const handlePreview = (statement: StatementRecord) => {
+    const previewRoute = buildStatementPreviewRoute(statement.id)
+    if (!previewRoute) {
       toast({
         title: "Unable to open statement preview",
-        description: previewError instanceof Error ? previewError.message : "Please try again.",
+        description: "This statement does not have a valid preview route.",
         variant: "destructive",
       })
-    } finally {
-      setPreviewingId(null)
+      return
     }
+
+    const anchor = document.createElement("a")
+    anchor.href = previewRoute
+    anchor.target = "_blank"
+    anchor.rel = "noopener noreferrer"
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
   }
 
   useEffect(() => {
@@ -1209,36 +1205,23 @@ export default function GenerateStatementsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
                           <button
-                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                            className="text-blue-600 hover:text-blue-800"
                             title="View"
                             onClick={() => handlePreview(statement)}
-                            disabled={previewingId === statement.id}
                           >
-                            {previewingId === statement.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
+                            <Eye className="h-4 w-4" />
                           </button>
                           <button
                             className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                            title="Send"
+                            title="Send email"
                             onClick={() => handleSend(statement)}
                             disabled={sendingId === statement.id}
                           >
                             {sendingId === statement.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <Send className="h-4 w-4" />
+                              <Mail className="h-4 w-4" />
                             )}
-                          </button>
-                          <button
-                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                            title="Email"
-                            onClick={() => handleSend(statement)}
-                            disabled={sendingId === statement.id}
-                          >
-                            <Mail className="h-4 w-4" />
                           </button>
                           <button
                             className="text-blue-600 hover:text-blue-800 disabled:opacity-50"

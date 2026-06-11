@@ -135,6 +135,7 @@ type AuthContextType = {
     work_number?: string
     status?: string
     department_ids?: number[]
+    customer_id?: number
   }) => Promise<any>
   createUser: (userData: FormData | {
     first_name: string;
@@ -159,6 +160,7 @@ type AuthContextType = {
   }) => Promise<any>
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
+  fetchUserActivity: (userId: number, params?: { per_page?: number; page?: number }) => Promise<any>
   getUserPermissions: (customerId?: string) => Promise<any>
   getAvailablePermissions: () => Promise<AvailablePermissionsPayload>
   fetchUserPermissionDetail: (userId: number) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
@@ -837,13 +839,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Always include customer_id if it exists (required for office_admin role)
       if (customerId) {
         queryParams.append("customer_id", String(customerId));
-      } else {
-        console.warn("fetchUsers: customerId not found in localStorage or params");
       }
       
       const url = `${API_BASE_URL}/users${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      console.log("fetchUsers URL:", url);
-      
+
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -882,16 +881,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     work_number?: string
     status?: string
     department_ids?: number[]
+    customer_id?: number
   }): Promise<any> => {
     try {
+      const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
+      const payload = {
+        ...data,
+        ...(customerId !== undefined ? { customer_id: customerId } : {}),
+      }
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(data),
-      });
+        body: JSON.stringify(payload),
+      })
 
       if (response.status === 401) {
         handleUnauthorized()
@@ -899,20 +904,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to update user");
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to update user")
       }
 
-      const result = await response.json();
-      return result;
+      return await response.json()
     } catch (error) {
-      console.error("Update user error:", error);
-      throw error;
+      throw error
     }
   }, [handleUnauthorized]);
 
   const deleteUser = useCallback(async (userId: number): Promise<any> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      const customerId = localStorage.getItem("customerId")
+      const queryParams = new URLSearchParams()
+      if (customerId) {
+        queryParams.append("customer_id", customerId)
+      }
+      const url = `${API_BASE_URL}/users/${userId}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+      const response = await fetch(url, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -932,16 +942,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return await response.json()
     } catch (error) {
-      console.error("Delete user error:", error)
       throw error
     }
   }, [handleUnauthorized])
 
   const fetchUserById = useCallback(async (userId: number, customerId?: string): Promise<any> => {
     try {
+      const resolvedCustomerId = customerId || localStorage.getItem("customerId") || undefined
       const queryParams = new URLSearchParams()
-      if (customerId) {
-        queryParams.append("customer_id", customerId)
+      if (resolvedCustomerId) {
+        queryParams.append("customer_id", resolvedCustomerId)
       }
       const url = `${API_BASE_URL}/users/${userId}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
       const response = await fetch(url, {
@@ -965,6 +975,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await response.json()
     } catch (error) {
       console.error("Fetch user by id error:", error)
+      throw error
+    }
+  }, [handleUnauthorized])
+
+  const fetchUserActivity = useCallback(async (userId: number, params?: { per_page?: number; page?: number }): Promise<any> => {
+    try {
+      const queryParams = new URLSearchParams()
+      queryParams.append("user_id", String(userId))
+      if (params?.per_page) queryParams.append("per_page", String(params.per_page))
+      if (params?.page) queryParams.append("page", String(params.page))
+      const url = `${API_BASE_URL}/audits?${queryParams.toString()}`
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to fetch user activity")
+      }
+
+      return await response.json()
+    } catch (error) {
       throw error
     }
   }, [handleUnauthorized])
@@ -1378,6 +1419,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUserDetails,
         deleteUser,
         fetchUserById,
+        fetchUserActivity,
         getUserPermissions,
         getAvailablePermissions,
         fetchUserPermissionDetail,
