@@ -14,15 +14,15 @@ export function VirtualSlipArch({ data }: { data: ArchVM }) {
   if (isOpposingOnly) {
     return (
       <section className="min-w-0 flex-1">
-        {data.opposing && (
-          <VirtualSlipOpposingSection opposing={data.opposing} placement="above" />
-        )}
         <VirtualSlipToothChart
           arch={data.arch}
           teeth={data.teeth}
           selectedTeeth={[]}
           extractionDisplay={data.extractionDisplay}
         />
+        {data.opposing && (
+          <VirtualSlipOpposingSection opposing={data.opposing} />
+        )}
       </section>
     );
   }
@@ -32,7 +32,7 @@ export function VirtualSlipArch({ data }: { data: ArchVM }) {
       <VirtualSlipToothChart
         arch={data.arch}
         teeth={data.teeth}
-        selectedTeeth={data.selectedTeeth}
+        selectedTeeth={[]}
         toothChartSelectionsByTooth={data.toothChartSelectionsByTooth}
         extractionDisplay={data.extractionDisplay}
       />

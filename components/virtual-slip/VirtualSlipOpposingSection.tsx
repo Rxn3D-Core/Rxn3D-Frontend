@@ -23,11 +23,8 @@ function OpposingDetailRow({ label, value }: { label: string; value: string }) {
  */
 export function VirtualSlipOpposingSection({
   opposing,
-  placement = "below",
 }: {
   opposing: OpposingArchVM;
-  /** When the arch column has no products (opposing-only), render above the chart. */
-  placement?: "above" | "below";
 }) {
   const statusBoxProps =
     opposing.showExtractions
@@ -42,9 +39,7 @@ export function VirtualSlipOpposingSection({
   if (!showBlock) return null;
 
   return (
-    <div
-      className={`w-full ${placement === "above" ? "mb-4" : "mt-4"}`}
-    >
+    <div className="w-full mt-4">
       <h3 className="mb-3 text-center font-sans text-[20px] font-medium leading-[21px] tracking-[-0.02em] text-[#7f7f7f]">
         Opposing
       </h3>

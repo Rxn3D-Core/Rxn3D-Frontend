@@ -5,16 +5,9 @@ import type {
 import {
   buildVirtualSlipInitialState,
   determineInitialArch,
+  parseProductTeeth,
 } from "@/lib/virtual-slip-transformer";
 import type { AddStageSelections } from "./session";
-
-function parseTeethSelection(teethSelection: string | null | undefined): number[] {
-  if (!teethSelection) return [];
-  return teethSelection
-    .split(",")
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !isNaN(n));
-}
 
 function archFromType(type: string | null | undefined): "maxillary" | "mandibular" {
   return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
@@ -58,7 +51,7 @@ export function buildAddStagePreload(
       arch === "maxillary" ? selections.maxillary : selections.mandibular;
     if (!pick?.stageName) continue;
 
-    const teeth = parseTeethSelection(apiProduct.teeth_selection as string);
+    const teeth = parseProductTeeth(apiProduct);
     const repTooth = teeth[0];
     if (repTooth == null) continue;
 

@@ -2309,6 +2309,32 @@ export function useCaseDesignState(props: CaseDesignProps) {
     teeth.setMaxillaryRetentionTypes(s.maxillaryRetentionTypes);
     teeth.setMandibularRetentionTypes(s.mandibularRetentionTypes);
 
+    // Tooth-status extraction selections (Missing, Will-extract, clasps, etc.).
+    // Only for editable preload flows (add-new-stage / edit-slip): the read-only
+    // virtual slip renders extractions through its own display path, so leave it
+    // untouched there to avoid double-applying state.
+    if (props.preloadInitialSlipState) {
+      if (Object.keys(s.maxillaryToothExtractionMap ?? {}).length > 0) {
+        teeth.setMaxillaryToothExtractionMap(s.maxillaryToothExtractionMap);
+      }
+      if (Object.keys(s.mandibularToothExtractionMap ?? {}).length > 0) {
+        teeth.setMandibularToothExtractionMap(s.mandibularToothExtractionMap);
+      }
+      if ((s.maxillaryClaspTeeth ?? []).length > 0) {
+        teeth.setMaxillaryClaspTeeth(s.maxillaryClaspTeeth);
+      }
+      if ((s.mandibularClaspTeeth ?? []).length > 0) {
+        teeth.setMandibularClaspTeeth(s.mandibularClaspTeeth);
+      }
+      // Removable product teeth that carry a status code — keep them in the orange header.
+      if ((s.maxillaryNoActiveBoxTeeth ?? []).length > 0) {
+        teeth.setMaxillaryNoActiveBoxTeeth(s.maxillaryNoActiveBoxTeeth);
+      }
+      if ((s.mandibularNoActiveBoxTeeth ?? []).length > 0) {
+        teeth.setMandibularNoActiveBoxTeeth(s.mandibularNoActiveBoxTeeth);
+      }
+    }
+
     // Tooth→product mapping and card ownership
     if (Object.keys(s.toothProducts).length > 0) {
       toothFieldProgress.setToothProducts(s.toothProducts);

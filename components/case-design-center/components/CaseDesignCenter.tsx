@@ -1338,6 +1338,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             setShowMaxillary={state.setShowMaxillary}
             showDetails={showProductDetails}
           caseSubmitted={props.caseSubmitted}
+          preloadInitialSlipState={props.preloadInitialSlipState}
           disabled={!props.caseSubmitted && isAddingMandibularProduct}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
@@ -1473,6 +1474,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           setShowMandibular={handleSetShowMandibular}
           showDetails={showProductDetails}
+          preloadInitialSlipState={props.preloadInitialSlipState}
           caseSubmitted={props.caseSubmitted}
           disabled={
             props.caseSubmitted

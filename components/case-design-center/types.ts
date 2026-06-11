@@ -209,6 +209,24 @@ export interface VirtualSlipInitialState {
    * Each value is a Record<stepName, value>.
    */
   fieldValues: Record<string, Record<string, string>>;
+  /**
+   * Per-tooth tooth-status extraction code assignments (Missing, Will-extract, etc.)
+   * for exclusive, non-default extractions. Teeth absent from the map are assumed
+   * to be in the default status (Teeth in mouth). Keyed by tooth number.
+   */
+  maxillaryToothExtractionMap: Record<number, string>;
+  mandibularToothExtractionMap: Record<number, string>;
+  /** Teeth carrying an overlay (clasp) extraction, per arch. */
+  maxillaryClaspTeeth: number[];
+  mandibularClaspTeeth: number[];
+  /**
+   * Removable product teeth (teeth_selection) that also carry a tooth-status code.
+   * These were assigned via the "no active box" path and must appear in BOTH the
+   * orange product header and their status box, so they need to be tracked
+   * separately for `getRemovableOrangeHeaderTeeth` to keep them in the header.
+   */
+  maxillaryNoActiveBoxTeeth: number[];
+  mandibularNoActiveBoxTeeth: number[];
 }
 
 export interface NotesProps {
