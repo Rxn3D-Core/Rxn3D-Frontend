@@ -17,6 +17,7 @@ import {
   slipIsInLab,
   type SlipLocationRef,
 } from "@/lib/slip-location";
+import { resolveCreatedByFromVirtualSlip } from "@/lib/slip-header-response-data";
 import {
   buildVirtualSlipInitialState,
   determineInitialArch,
@@ -25,6 +26,7 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
 import { TopBar } from "@/components/case-design-center/components/TopBar";
+import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
 import { buildEditSlipSubmissionPayloadAsync } from "@/components/case-design-center/utils/editSlipSubmissionPayload";
@@ -132,6 +134,11 @@ export function EditSlipFlow({ slipId }: Props) {
       number: d?.casepan?.number ?? d?.casepan_number ?? null,
     };
   }, [virtualSlipDetails]);
+
+  const createdByMeta = useMemo(
+    () => resolveCreatedByFromVirtualSlip(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
 
   const labCustomerId = useMemo(
     () => resolveLibraryCustomerId(resolveLabIdFromSlipDetails(virtualSlipDetails)),
@@ -271,7 +278,7 @@ export function EditSlipFlow({ slipId }: Props) {
               : null
           }
           onEditClick={wizard.handleTopBarEditLab}
-          caseSubmitted
+          caseSubmitted={false}
         />
 
         {!wizard.wizardComplete && (
@@ -334,7 +341,14 @@ export function EditSlipFlow({ slipId }: Props) {
               patientName={wizard.completedPatientName}
               gender={wizard.completedGender}
               age={wizard.completedAge}
-              caseSubmitted
+              caseSubmitted={false}
+              onEditDoctorClick={wizard.handleEditDoctor}
+              canEditDoctor={wizard.canEditDoctor}
+              onPatientNameChange={wizard.setCompletedPatientName}
+              onGenderChange={wizard.setCompletedGender}
+              onAgeChange={wizard.setCompletedAge}
+              createdByName={createdByMeta.name}
+              createdByImageUrl={createdByMeta.imageUrl}
               compactLayout
             />
 
@@ -380,7 +394,7 @@ export function EditSlipFlow({ slipId }: Props) {
         )}
       </main>
 
-      {wizard.wizardComplete && !isAnyModalOpen && (
+      {wizard.wizardComplete && !isAnyModalOpen && !wizard.doctorEditModalOpen && (
         <SlipCreationStepFooter
           mode="submit"
           isSubmitting={submissionState === "submitting"}
@@ -401,6 +415,16 @@ export function EditSlipFlow({ slipId }: Props) {
       ) : null}
 
       <CaseSubmissionOverlays submissionState={submissionState} />
+
+      <DoctorEditModal
+        open={wizard.doctorEditModalOpen}
+        onClose={wizard.handleDoctorEditClose}
+        doctors={wizard.doctorsForPicker}
+        selectedDoctorId={wizard.completedDoctor?.id ?? null}
+        isLoading={wizard.doctorsLoading}
+        error={wizard.doctorsError}
+        onSelect={wizard.handleDoctorEditSelect}
+      />
     </div>
   );
 }

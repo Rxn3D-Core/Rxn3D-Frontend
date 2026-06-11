@@ -10,7 +10,13 @@ import {
   type ExtractionLike,
 } from "../utils/extractionHelpers";
 
-export function useExtractionsAcknowledged(arch: Arch) {
+/**
+ * @param arch which arch this acknowledgement state belongs to
+ * @param preloaded when true (add-new-stage / edit-slip preload), cards the user
+ *   hasn't touched default to "acknowledged" so all fields show open on first load
+ *   without requiring a Done click. Explicitly toggling a card off still hides it.
+ */
+export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
   const [acknowledgedByCard, setAcknowledgedByCard] = useState<Record<string, boolean>>({});
 
   const isExtractionsSetupComplete = useCallback(
@@ -21,9 +27,10 @@ export function useExtractionsAcknowledged(arch: Arch) {
     ) => {
       if (caseSubmitted) return true;
       if (!requiresExtractionsAcknowledgement(extractions)) return true;
-      return acknowledgedByCard[removableCardAckKey(arch, cardId)] === true;
+      const ack = acknowledgedByCard[removableCardAckKey(arch, cardId)];
+      return ack === undefined ? preloaded : ack === true;
     },
-    [arch, acknowledgedByCard]
+    [arch, acknowledgedByCard, preloaded]
   );
 
   const setExtractionsSetupComplete = useCallback(
@@ -43,9 +50,10 @@ export function useExtractionsAcknowledged(arch: Arch) {
     ) => {
       if (caseSubmitted) return true;
       if (!product || !hasRetentionOptions(product)) return true;
-      return acknowledgedByCard[fixedRetentionAckKey(arch)] === true;
+      const ack = acknowledgedByCard[fixedRetentionAckKey(arch)];
+      return ack === undefined ? preloaded : ack === true;
     },
-    [arch, acknowledgedByCard]
+    [arch, acknowledgedByCard, preloaded]
   );
 
   const setFixedRetentionSetupComplete = useCallback(

@@ -118,7 +118,11 @@ import {
 } from "../case-design-inter-font";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { shouldAddToProductSelectionOnRemovableClick } from "../utils/removableToothClickMode";
-import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
+import {
+  getRemovableOrangeHeaderTeeth,
+  getToothStatusBoxDisplayMap,
+  resolveRemovableStatusBoxSelectedTeeth,
+} from "../utils/removableToothDisplay";
 import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
@@ -674,6 +678,8 @@ interface MandibularPanelProps {
   setShowMandibular: (v: boolean) => void;
   showDetails: boolean;
   caseSubmitted?: boolean;
+  /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
+  preloadInitialSlipState?: boolean;
   /** When true, overlays the panel to prevent interaction until maxillary is complete */
   disabled?: boolean;
   /** When true, the other arch is in the add-product flow (distinct message from maxillary-incomplete). */
@@ -858,6 +864,7 @@ export function MandibularPanel({
   setShowMandibular,
   showDetails,
   caseSubmitted = false,
+  preloadInitialSlipState = false,
   disabled = false,
   blockedByOppositeAddProduct = false,
   mandibularTeeth,
@@ -1017,7 +1024,7 @@ export function MandibularPanel({
     setExtractionsSetupComplete,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
-  } = useExtractionsAcknowledged("mandibular");
+  } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState);
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
   const [toothStatusPopoverExtractions, setToothStatusPopoverExtractions] = useState<ProductExtraction[]>([]);
   const [mandibularCheckedTeeth, setMandibularCheckedTeeth] = useState<number[]>([]);
@@ -2063,6 +2070,15 @@ export function MandibularPanel({
                   isSingleDefaultOnly: apIsSingleDefaultOnly,
                 });
                 const cardToothDisplay = apDisplayTeeth.length > 0 ? `#${apDisplayTeeth.join(",")}` : "";
+                const statusBoxSelectedTeeth =
+                  apIsSingleDefaultOnly || useMandibularArchSharedRemovable
+                    ? mandibularTeeth
+                    : resolveRemovableStatusBoxSelectedTeeth({
+                        cardTeeth: assignedTeeth,
+                        toothExtractionMap: mandibularToothExtractionMap,
+                        claspTeeth: mandibularClaspTeeth,
+                        archTeeth: MANDIBULAR_ALL_TEETH,
+                      });
                 const apImpressionDone = apRepTn !== 0 && (
                   isFieldCompleted("mandibular", apRepTn, "impression") ||
                   isFieldCompleted("mandibular", apRepTn, "fixed_impression")
@@ -2222,13 +2238,7 @@ export function MandibularPanel({
                                     ? mandibularMergedExtractions
                                     : apExtractions
                                 }
-                                selectedTeeth={
-                                  apIsSingleDefaultOnly
-                                    ? mandibularTeeth
-                                    : useMandibularArchSharedRemovable
-                                      ? mandibularTeeth
-                                      : assignedTeeth
-                                }
+                                selectedTeeth={statusBoxSelectedTeeth}
                                 allArchTeeth={MANDIBULAR_ALL_TEETH}
                                 toothExtractionMap={mandibularToothExtractionMap}
                                 claspTeeth={mandibularClaspTeeth}
@@ -2236,11 +2246,7 @@ export function MandibularPanel({
                                   extractions: useMandibularArchSharedRemovable
                                     ? mandibularMergedExtractions
                                     : apExtractions,
-                                  selectedTeeth: apIsSingleDefaultOnly
-                                    ? mandibularTeeth
-                                    : useMandibularArchSharedRemovable
-                                      ? mandibularTeeth
-                                      : assignedTeeth,
+                                  selectedTeeth: statusBoxSelectedTeeth,
                                   toothExtractionMap: mandibularToothExtractionMap,
                                   claspTeeth: mandibularClaspTeeth,
                                   excludeTeeth: apDisplayTeeth,
@@ -3337,6 +3343,17 @@ export function MandibularPanel({
               const cardProductImage = variationDisplay.imageUrl;
               const hasVariationMatch = variationDisplay.matched;
               const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
+              const statusBoxSelectedTeeth =
+                useMandibularArchSharedRemovable || cardIsSingleDefaultOnly
+                  ? mandibularTeeth
+                  : cardIsFullDenture
+                    ? MANDIBULAR_ALL_TEETH
+                    : resolveRemovableStatusBoxSelectedTeeth({
+                        cardTeeth: rawDisplayTeeth,
+                        toothExtractionMap: mandibularToothExtractionMap,
+                        claspTeeth: mandibularClaspTeeth,
+                        archTeeth: MANDIBULAR_ALL_TEETH,
+                      });
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
               const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`mandibular_prep_${repTnStage}`] || getFieldValue("mandibular", repTnStage, "stage");
@@ -3509,7 +3526,7 @@ export function MandibularPanel({
                                 ? mandibularMergedExtractions
                                 : cardExtractions
                             }
-                            selectedTeeth={rawDisplayTeeth}
+                            selectedTeeth={statusBoxSelectedTeeth}
                             allArchTeeth={MANDIBULAR_ALL_TEETH}
                             toothExtractionMap={mandibularToothExtractionMap}
                             claspTeeth={mandibularClaspTeeth}
@@ -3517,7 +3534,7 @@ export function MandibularPanel({
                               extractions: useMandibularArchSharedRemovable
                                 ? mandibularMergedExtractions
                                 : cardExtractions,
-                              selectedTeeth: rawDisplayTeeth,
+                              selectedTeeth: statusBoxSelectedTeeth,
                               toothExtractionMap: mandibularToothExtractionMap,
                               claspTeeth: mandibularClaspTeeth,
                               excludeTeeth: displayTeeth,

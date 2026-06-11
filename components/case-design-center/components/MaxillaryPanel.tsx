@@ -115,7 +115,11 @@ import {
   removableHeaderToothClass,
 } from "../case-design-inter-font";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
-import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
+import {
+  getRemovableOrangeHeaderTeeth,
+  getToothStatusBoxDisplayMap,
+  resolveRemovableStatusBoxSelectedTeeth,
+} from "../utils/removableToothDisplay";
 import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
@@ -576,6 +580,8 @@ interface MaxillaryPanelProps {
   setShowMaxillary: (v: boolean) => void;
   showDetails: boolean;
   caseSubmitted?: boolean;
+  /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
+  preloadInitialSlipState?: boolean;
   /** True once the removables impression field has been completed — reveals tooth chart and ToothStatusBoxes */
   removablesImpressionDone?: boolean;
 
@@ -875,6 +881,7 @@ export function MaxillaryPanel({
   setShowMaxillary,
   showDetails,
   caseSubmitted = false,
+  preloadInitialSlipState = false,
   maxillaryTeeth,
   handleMaxillaryToothClick,
   maxillaryRetentionTypes,
@@ -1038,7 +1045,7 @@ export function MaxillaryPanel({
     setExtractionsSetupComplete,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
-  } = useExtractionsAcknowledged("maxillary");
+  } = useExtractionsAcknowledged("maxillary", preloadInitialSlipState);
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
   const [toothStatusPopoverExtractions, setToothStatusPopoverExtractions] = useState<ProductExtraction[]>([]);
   const [maxillaryCheckedTeeth, setMaxillaryCheckedTeeth] = useState<number[]>([]);
@@ -2058,6 +2065,15 @@ export function MaxillaryPanel({
                   isSingleDefaultOnly: apIsSingleDefaultOnly,
                 });
                 const cardToothDisplay = apDisplayTeeth.length > 0 ? `#${apDisplayTeeth.join(",")}` : "";
+                const statusBoxSelectedTeeth =
+                  apIsSingleDefaultOnly || useMaxillaryArchSharedRemovable
+                    ? maxillaryTeeth
+                    : resolveRemovableStatusBoxSelectedTeeth({
+                        cardTeeth: assignedTeeth,
+                        toothExtractionMap: maxillaryToothExtractionMap,
+                        claspTeeth: maxillaryClaspTeeth,
+                        archTeeth: MAXILLARY_ALL_TEETH,
+                      });
                 const removableHasVariationMatch =
                   isApRemovables &&
                   !!apProduct &&
@@ -2237,13 +2253,7 @@ export function MaxillaryPanel({
                                     ? maxillaryMergedExtractions
                                     : removableCardExtractions
                                 }
-                                selectedTeeth={
-                                  apIsSingleDefaultOnly
-                                    ? maxillaryTeeth
-                                    : useMaxillaryArchSharedRemovable
-                                      ? maxillaryTeeth
-                                      : assignedTeeth
-                                }
+                                selectedTeeth={statusBoxSelectedTeeth}
                                 allArchTeeth={MAXILLARY_ALL_TEETH}
                                 toothExtractionMap={maxillaryToothExtractionMap}
                                 claspTeeth={maxillaryClaspTeeth}
@@ -2251,11 +2261,7 @@ export function MaxillaryPanel({
                                   extractions: useMaxillaryArchSharedRemovable
                                     ? maxillaryMergedExtractions
                                     : removableCardExtractions,
-                                  selectedTeeth: apIsSingleDefaultOnly
-                                    ? maxillaryTeeth
-                                    : useMaxillaryArchSharedRemovable
-                                      ? maxillaryTeeth
-                                      : assignedTeeth,
+                                  selectedTeeth: statusBoxSelectedTeeth,
                                   toothExtractionMap: maxillaryToothExtractionMap,
                                   claspTeeth: maxillaryClaspTeeth,
                                   excludeTeeth: apDisplayTeeth,
@@ -3363,6 +3369,17 @@ export function MaxillaryPanel({
               const cardProductImage = variationDisplay.imageUrl;
               const hasVariationMatch = variationDisplay.matched;
               const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
+              const statusBoxSelectedTeeth =
+                useMaxillaryArchSharedRemovable || cardIsSingleDefaultOnly
+                  ? maxillaryTeeth
+                  : cardIsFullDenture
+                    ? MAXILLARY_ALL_TEETH
+                    : resolveRemovableStatusBoxSelectedTeeth({
+                        cardTeeth: rawDisplayTeeth,
+                        toothExtractionMap: maxillaryToothExtractionMap,
+                        claspTeeth: maxillaryClaspTeeth,
+                        archTeeth: MAXILLARY_ALL_TEETH,
+                      });
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
               const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
@@ -3532,7 +3549,7 @@ export function MaxillaryPanel({
                                 ? maxillaryMergedExtractions
                                 : cardExtractions
                             }
-                            selectedTeeth={rawDisplayTeeth}
+                            selectedTeeth={statusBoxSelectedTeeth}
                             allArchTeeth={MAXILLARY_ALL_TEETH}
                             toothExtractionMap={maxillaryToothExtractionMap}
                             claspTeeth={maxillaryClaspTeeth}
@@ -3540,7 +3557,7 @@ export function MaxillaryPanel({
                               extractions: useMaxillaryArchSharedRemovable
                                 ? maxillaryMergedExtractions
                                 : cardExtractions,
-                              selectedTeeth: rawDisplayTeeth,
+                              selectedTeeth: statusBoxSelectedTeeth,
                               toothExtractionMap: maxillaryToothExtractionMap,
                               claspTeeth: maxillaryClaspTeeth,
                               excludeTeeth: displayTeeth,

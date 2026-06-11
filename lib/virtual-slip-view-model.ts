@@ -64,12 +64,15 @@ import { formatFieldValueForNote } from "@/components/case-design-center/utils/c
 import type { ExtractionDisplayVM } from "./virtual-slip-extraction-display";
 import {
   buildExtractionDisplayFromSlipProduct,
+  buildGroupedExtractionsChartDisplay,
   buildOpposingArchVM,
   extractionChipTeethFromSlipProduct,
   formatOpposingImpressions,
   hasExtractionChartOverlay,
   isGroupedSlipExtractions,
   mergeArchExtractionDisplays,
+  mergePreloadExtractionDisplaysForArch,
+  overlayPreloadExtractionsOnChartDisplay,
   productHasOpposingImpression,
 } from "./virtual-slip-extraction-display";
 import { hasDisplayValue } from "./virtual-slip-display";
@@ -559,9 +562,11 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
   const productVMs = archProducts.map(buildProduct);
 
+  // Top arch chart: grouped extractions only (MT / WEOD / clasps), not product teeth_selection.
   let extractionDisplay = mergeArchExtractionDisplays(
-    archProducts.map(buildExtractionDisplayFromSlipProduct),
+    archProducts.map(buildGroupedExtractionsChartDisplay),
   );
+
   if (
     opposing &&
     archProducts.length > 0 &&
@@ -571,6 +576,15 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
       extractionDisplay,
       opposing.extractionDisplay,
     ]);
+  }
+
+  const preloadDisplay = mergePreloadExtractionDisplaysForArch(archProducts, arch);
+  if (preloadDisplay) {
+    extractionDisplay = overlayPreloadExtractionsOnChartDisplay(
+      extractionDisplay,
+      preloadDisplay,
+      archProducts,
+    );
   }
   const useExtractionOverlay = hasExtractionChartOverlay(extractionDisplay);
 
@@ -604,6 +618,8 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     return !categoryName.toLowerCase().includes("removable");
   };
 
+  const isRemovableSlipProduct = (product: any): boolean => !isFixedSlipProduct(product);
+
   const applyRetentionOptionsToChart = (product: any) => {
     if (!isFixedSlipProduct(product) || !Array.isArray(product?.retention_options)) return;
 
@@ -635,6 +651,7 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
   const getToothChartRows = (product: any): any[] => {
     const candidates = [
+      product?.slip_product_teeth_selections,
       product?.selected_teeth,
       product?.selected_teeth_map,
       product?.tooth_chart,
@@ -666,43 +683,47 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
       }
     }
 
-    for (const row of getToothChartRows(p)) {
-      const toothNumber = Number(row?.tooth_number ?? row?.tooth_chart_entry?.tooth_number);
-      if (!Number.isFinite(toothNumber)) continue;
-      const entry = row?.tooth_chart_entry ?? {};
-      const chartType = normalizeChartType(
-        entry?.chart_type ??
-          row?.chart_type ??
-          entry?.retention_option?.name ??
-          row?.retention_option?.name
-      );
-      const imageUrl =
-        firstStr(
-          entry?.selected_image_url,
-          row?.image_url,
-          entry?.retention_option_image_url,
-          row?.selected_image_url
-        ) || null;
+    // Fixed products only: retention / prep images on the arch chart.
+    // Removable arch chart is extractions-only; product teeth live in the summary below.
+    if (!isRemovableSlipProduct(p)) {
+      for (const row of getToothChartRows(p)) {
+        const toothNumber = Number(row?.tooth_number ?? row?.tooth_chart_entry?.tooth_number);
+        if (!Number.isFinite(toothNumber)) continue;
+        const entry = row?.tooth_chart_entry ?? {};
+        const chartType = normalizeChartType(
+          entry?.chart_type ??
+            row?.chart_type ??
+            entry?.retention_option?.name ??
+            row?.retention_option?.name
+        );
+        const imageUrl =
+          firstStr(
+            row?.selected_tooth_image_url,
+            entry?.selected_tooth_image_url,
+            entry?.selected_image_url,
+            row?.image_url,
+            entry?.retention_option_image_url,
+            row?.selected_image_url
+          ) || null;
 
-      toothChartSelectionsByTooth[toothNumber] = { chartType, imageUrl };
-    }
+        toothChartSelectionsByTooth[toothNumber] = { chartType, imageUrl };
+      }
 
-    applyRetentionOptionsToChart(p);
+      applyRetentionOptionsToChart(p);
 
-    // Product teeth: fall back to TIM / tooth-chart extraction images when the API
-    // omits selected_image_url on tooth_chart rows.
-    const productDisplay = buildExtractionDisplayFromSlipProduct(p);
-    for (const toothNumber of parseTeeth(p?.teeth_selection ?? p?.teeth)) {
-      const code = productDisplay.toothExtractionMap[toothNumber];
-      const extractionImageUrl = code
-        ? productDisplay.extractionImagesByCode[code]?.[toothNumber] ?? null
-        : null;
-      if (!extractionImageUrl) continue;
-      const existing = toothChartSelectionsByTooth[toothNumber];
-      toothChartSelectionsByTooth[toothNumber] = {
-        chartType: existing?.chartType ?? "Prep",
-        imageUrl: existing?.imageUrl ?? extractionImageUrl,
-      };
+      const productDisplay = buildExtractionDisplayFromSlipProduct(p);
+      for (const toothNumber of parseTeeth(p?.teeth_selection ?? p?.teeth)) {
+        const code = productDisplay.toothExtractionMap[toothNumber];
+        const extractionImageUrl = code
+          ? productDisplay.extractionImagesByCode[code]?.[toothNumber] ?? null
+          : null;
+        if (!extractionImageUrl) continue;
+        const existing = toothChartSelectionsByTooth[toothNumber];
+        toothChartSelectionsByTooth[toothNumber] = {
+          chartType: existing?.chartType ?? "Prep",
+          imageUrl: existing?.imageUrl ?? extractionImageUrl,
+        };
+      }
     }
   }
 

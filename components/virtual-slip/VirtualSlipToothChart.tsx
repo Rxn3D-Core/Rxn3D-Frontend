@@ -8,6 +8,7 @@ import type { ExtractionDisplayVM } from "@/lib/virtual-slip-extraction-display"
 import {
   chartStatusTeethFromExtractionDisplay,
   hasExtractionChartOverlay,
+  scopeChartExtractionDisplayForProductTeeth,
 } from "@/lib/virtual-slip-extraction-display";
 import type { ToothVM } from "@/lib/virtual-slip-view-model";
 
@@ -33,8 +34,9 @@ interface VirtualSlipToothChartProps {
  * Read-only dental chart. Reuses the exact same anatomical teeth SVG components
  * used in the slip-creation Case Design Center, driven from the view model's
  * per-tooth statuses. Rendered non-interactive (no click handlers) and wrapped
- * in `pointer-events-none`. Removable product teeth use extraction catalog images
- * (TIM / tooth-chart), not orange gear selection indicators.
+ * in `pointer-events-none`. The arch chart is driven by grouped extractions (MT /
+ * WEOD / clasps). Product `teeth_selection` and catalog images appear in the
+ * product summary below, not on this chart.
  */
 export function VirtualSlipToothChart({
   arch,
@@ -44,6 +46,11 @@ export function VirtualSlipToothChart({
   extractionDisplay,
 }: VirtualSlipToothChartProps) {
   const useExtractionOverlay = hasExtractionChartOverlay(extractionDisplay);
+
+  const chartExtractionDisplay = useMemo(() => {
+    if (!useExtractionOverlay || !extractionDisplay) return extractionDisplay;
+    return scopeChartExtractionDisplayForProductTeeth(extractionDisplay, selectedTeeth);
+  }, [useExtractionOverlay, extractionDisplay, selectedTeeth]);
 
   const { missingTeeth, willExtractTeeth, retentionTypesByTooth, retentionOptionsByTooth } =
     useMemo(() => {
@@ -64,8 +71,8 @@ export function VirtualSlipToothChart({
         if (t.status === "missing") missing.push(t.number);
         else if (t.status === "will_extract") willExtract.push(t.number);
       }
-    } else if (extractionDisplay) {
-      const chartStatus = chartStatusTeethFromExtractionDisplay(extractionDisplay);
+    } else if (chartExtractionDisplay) {
+      const chartStatus = chartStatusTeethFromExtractionDisplay(chartExtractionDisplay);
       missing.push(...chartStatus.missingTeeth);
       willExtract.push(...chartStatus.willExtractTeeth);
     }
@@ -73,6 +80,13 @@ export function VirtualSlipToothChart({
     for (const t of teeth) {
       const chartSelection = toothChartSelectionsByTooth[t.number];
       if (chartSelection?.imageUrl) {
+        // Extraction overlay already renders this tooth — avoid stacking a second chart image.
+        if (useExtractionOverlay && chartExtractionDisplay) {
+          const code = chartExtractionDisplay.toothExtractionMap[t.number];
+          if (code && chartExtractionDisplay.extractionImagesByCode[code]?.[t.number]) {
+            continue;
+          }
+        }
         const chartType: "Implant" | "Prep" | "Pontic" = chartSelection.chartType ?? "Prep";
         retention[t.number] = [chartType];
         optionsByTooth[t.number] = [
@@ -97,7 +111,7 @@ export function VirtualSlipToothChart({
       retentionTypesByTooth: retention,
       retentionOptionsByTooth: optionsByTooth,
     };
-  }, [teeth, toothChartSelectionsByTooth, useExtractionOverlay, extractionDisplay]);
+  }, [teeth, toothChartSelectionsByTooth, useExtractionOverlay, chartExtractionDisplay, selectedTeeth]);
 
   const chartSelectedTeeth = useExtractionOverlay ? [] : selectedTeeth;
 
@@ -108,12 +122,12 @@ export function VirtualSlipToothChart({
     retentionTypesByTooth,
     getRetentionOptionsForTooth: (toothNumber: number) => retentionOptionsByTooth[toothNumber],
     hideSelectionIndicators: true,
-    ...(useExtractionOverlay && extractionDisplay
+    ...(useExtractionOverlay && chartExtractionDisplay
       ? {
-          toothExtractionMap: extractionDisplay.toothExtractionMap,
-          claspTeeth: extractionDisplay.claspTeeth,
-          extractionsByCode: extractionDisplay.extractionsByCode,
-          extractionImagesByCode: extractionDisplay.extractionImagesByCode,
+          toothExtractionMap: chartExtractionDisplay.toothExtractionMap,
+          claspTeeth: chartExtractionDisplay.claspTeeth,
+          extractionsByCode: chartExtractionDisplay.extractionsByCode,
+          extractionImagesByCode: chartExtractionDisplay.extractionImagesByCode,
         }
       : {}),
   };

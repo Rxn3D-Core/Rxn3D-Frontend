@@ -198,8 +198,9 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
     )
 
   const isToothMissing = (toothNumber: number): boolean => {
+    if (getS3UrlForTooth(toothNumber)) return false
     const ext = resolveExtraction(toothNumber)
-    if (ext) return ext.visibility_type === 'Image' && !getS3UrlForTooth(toothNumber)
+    if (ext) return ext.visibility_type === 'Image'
     return missingTeeth.includes(toothNumber)
   }
 
@@ -238,11 +239,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
 
-    // Image overlay=No: hide the base rect
-    if (ext?.visibility_type === 'Image' && ext.overlay === 'No' && s3Url) {
+    // Catalog/S3 extraction image replaces the default tooth graphic.
+    if (s3Url) {
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
-
 
     // Color type without image: apply filter directly on rect
     if (ext?.visibility_type === 'Color' && !s3Url && ext.color) {
@@ -484,7 +484,7 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   }
 
   const renderMissingToothImage = (toothNumber: number, x: number, width: number, toothHeight: number = 135) => {
-    if (!isToothMissing(toothNumber)) return null
+    if (isToothShowingS3Image(toothNumber) || !isToothMissing(toothNumber)) return null
     return (
       <image
         key={`missing-tooth-${toothNumber}`}

@@ -210,8 +210,10 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     )
 
   const isToothMissing = (toothNumber: number): boolean => {
+    // Catalog/S3 image already represents this tooth — skip fallback missing overlay.
+    if (getS3UrlForTooth(toothNumber)) return false
     const ext = resolveExtraction(toothNumber)
-    if (ext) return ext.visibility_type === 'Image' && !getS3UrlForTooth(toothNumber)
+    if (ext) return ext.visibility_type === 'Image'
     return missingTeeth.includes(toothNumber)
   }
 
@@ -235,8 +237,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
 
-    // Image overlay=No: hide the base rect
-    if (ext?.visibility_type === 'Image' && ext.overlay === 'No' && s3Url) {
+    // Catalog/S3 extraction image replaces the default tooth graphic.
+    if (s3Url) {
       return { cursor: 'pointer', opacity: 0, transition: 'all 0.2s ease' }
     }
     // Color type without image: apply filter directly on rect
@@ -365,7 +367,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   }
 
   const renderMissingToothImage = (toothNumber: number, x: number, width: number, toothHeight: number = 141) => {
-    if (!isToothMissing(toothNumber)) return null
+    if (isToothShowingS3Image(toothNumber) || !isToothMissing(toothNumber)) return null
     const code = toothExtractionMap[toothNumber]
     const dynamicUrl = code ? extractionImagesByCode[code]?.[toothNumber] : undefined
     const href = dynamicUrl ?? `/images/teeth/maxillary/missing-teeth/tooth-${toothNumber}.png`
@@ -766,7 +768,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                 {renderClaspOverlay(tooth, x, width, 80)}
                 {!showS3Image && renderWillExtractOverlay(tooth, x, width)}
                 {renderCheckbox(tooth, x, width)}
-                {renderMissingToothImage(tooth, x, width)}
+                {!showS3Image && renderMissingToothImage(tooth, x, width)}
                 {isToothShowingRetentionShape(tooth) &&
                   renderRetentionSelectorShapeOverlay(tooth, x, width)}
               </g>

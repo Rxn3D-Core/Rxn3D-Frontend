@@ -138,6 +138,8 @@ function imageUrlFromToothChartRow(
   toothNumber: number,
 ): string | null {
   return (
+    nonEmptyUrl(row?.selected_tooth_image_url) ??
+    nonEmptyUrl(row?.tooth_chart_entry?.selected_tooth_image_url) ??
     nonEmptyUrl(row?.selected_image_url) ??
     nonEmptyUrl(row?.tooth_chart_entry?.selected_image_url) ??
     nonEmptyUrl(row?.image_url) ??
@@ -254,16 +256,19 @@ function finalizeProductTeethChartDisplay(
     const mappedCode = toothExtractionMap[toothNumber];
     const mappedMeta = mappedCode ? extractionsByCode[mappedCode] : undefined;
     const mappedIsStatusBox =
-      !!mappedCode &&
-      (looksLikeMissingCode(mappedCode) ||
-        (mappedMeta?.name ?? "").toLowerCase().includes("will extract"));
+      !!mappedCode && isSlipStatusExtractionCode(mappedCode, mappedMeta);
 
+    // Keep non-status catalog/chart images (TIM, tooth-chart selections).
     if (
       mappedCode &&
-      extractionImagesByCode[mappedCode]?.[toothNumber] &&
-      !mappedIsStatusBox
+      !mappedIsStatusBox &&
+      extractionImagesByCode[mappedCode]?.[toothNumber]
     ) {
       continue;
+    }
+
+    if (mappedIsStatusBox) {
+      delete toothExtractionMap[toothNumber];
     }
 
     const timImageUrl = timRow?.code
@@ -271,16 +276,6 @@ function finalizeProductTeethChartDisplay(
         extractionImagesByCode[timRow.code]?.[toothNumber] ??
         null
       : null;
-
-    if (
-      mappedCode &&
-      isSlipStatusExtractionCode(mappedCode, mappedMeta) &&
-      (extractionImagesByCode[mappedCode]?.[toothNumber] ||
-        mappedMeta?.visibility_type === "Image" ||
-        mappedMeta?.visibility_type === "Color")
-    ) {
-      continue;
-    }
 
     if (timRow?.code && timImageUrl) {
       extractionImagesByCode = {
@@ -410,12 +405,57 @@ function buildCatalogFromExtractionsField(
   return [...byCode.values()];
 }
 
+/**
+ * Catalog rows (with per-tooth images) from the per-tooth `slip_product_teeth_selections`
+ * field. Each row carries its own nested `extraction` plus a `selected_tooth_image_url`.
+ */
+function catalogFromSlipProductTeethSelections(apiProduct: any): ProductExtraction[] {
+  const rows = apiProduct?.slip_product_teeth_selections;
+  if (!Array.isArray(rows)) return [];
+  const byCode = new Map<string, ProductExtraction>();
+  for (const row of rows) {
+    if (!row?.extraction) continue;
+    const normalized = normalizeCatalogRow(
+      row.extraction as Partial<ProductExtraction>,
+      Number(row.extraction_id),
+    );
+    if (!normalized?.code) continue;
+    const toothNumber = Number(row.tooth_number);
+    const img =
+      nonEmptyUrl(row.selected_tooth_image_url) ?? nonEmptyUrl(row.selected_image_url);
+    const withImage =
+      Number.isFinite(toothNumber) && img
+        ? {
+            ...normalized,
+            images: [...(normalized.images ?? []), { tooth_number: toothNumber, image_url: img }],
+          }
+        : normalized;
+    const existing = byCode.get(normalized.code);
+    byCode.set(normalized.code, existing ? mergeCatalogRows(existing, withImage) : withImage);
+  }
+  return [...byCode.values()];
+}
+
 function catalogFromProduct(apiProduct: any): ProductExtraction[] {
-  return buildCatalogFromExtractionsField(apiProduct, "extractions", [
+  const base = buildCatalogFromExtractionsField(apiProduct, "extractions", [
     apiProduct?.product?.extractions,
     apiProduct?.variation?.extractions,
     apiProduct?.product?.variation?.extractions,
   ]);
+  const fromSelections = catalogFromSlipProductTeethSelections(apiProduct);
+  if (fromSelections.length === 0) return base;
+  const byCode = new Map<string, ProductExtraction>();
+  for (const row of [...base, ...fromSelections]) {
+    if (!row?.code) continue;
+    const existing = byCode.get(row.code);
+    byCode.set(row.code, existing ? mergeCatalogRows(existing, row) : row);
+  }
+  return [...byCode.values()];
+}
+
+/** Merged extraction catalog for CDC preload (`product.extractions` + slip row data). */
+export function slipProductExtractionCatalog(apiProduct: any): ProductExtraction[] {
+  return catalogFromProduct(apiProduct);
 }
 
 function catalogFromOpposingProduct(apiProduct: any): ProductExtraction[] {
@@ -535,6 +575,7 @@ function applyGroupedExtractions(
 
 function getToothChartRows(apiProduct: any): any[] {
   const candidates = [
+    apiProduct?.slip_product_teeth_selections,
     apiProduct?.selected_teeth,
     apiProduct?.selected_teeth_map,
     apiProduct?.tooth_chart,
@@ -547,6 +588,30 @@ function getToothChartRows(apiProduct: any): any[] {
     if (Array.isArray(candidate)) return candidate;
   }
   return [];
+}
+
+/**
+ * Authoritative per-tooth source: `slip_product_teeth_selections` carries one row
+ * per tooth ({ tooth_number, extraction_id, extraction, selected_tooth_image_url }),
+ * including the product's own teeth (which are no longer duplicated in `extractions[]`).
+ * Unlike `applyToothChartExtractions`, this does NOT skip product teeth, so a selected
+ * tooth that also carries a status (e.g. "Will extract on delivery") still gets it.
+ */
+function applySlipProductTeethSelections(
+  apiProduct: any,
+  catalog: ProductExtraction[],
+  state: Pick<ExtractionDisplayVM, "toothExtractionMap" | "claspTeeth">,
+): void {
+  const rows = apiProduct?.slip_product_teeth_selections;
+  if (!Array.isArray(rows) || rows.length === 0) return;
+  for (const row of rows) {
+    const toothNumber = Number(row?.tooth_number);
+    if (!Number.isFinite(toothNumber)) continue;
+    const catalogRow =
+      resolveToothChartCatalogRow(row, catalog) ??
+      findCatalogRow(catalog, Number(row?.extraction_id));
+    assignToothExtraction(toothNumber, catalogRow ?? undefined, state);
+  }
 }
 
 function applyToothChartExtractions(
@@ -564,12 +629,47 @@ function applyToothChartExtractions(
   }
 }
 
+/**
+ * Arch-level read-only chart: grouped `extractions[]` only (MT, WEOD, clasps).
+ * Does not apply `teeth_selection`, `slip_product_teeth_selections`, or TIM catalog.
+ */
+export function buildGroupedExtractionsChartDisplay(apiProduct: any): ExtractionDisplayVM {
+  if (!apiProduct) return { ...EMPTY_DISPLAY };
+
+  const catalog = catalogFromProduct(apiProduct);
+  const rows = Array.isArray(apiProduct?.extractions) ? apiProduct.extractions : [];
+  const hasGrouped = rows.length > 0 && isGroupedExtractionRow(rows[0]);
+  if (catalog.length === 0 && !hasGrouped) return { ...EMPTY_DISPLAY };
+
+  const { extractionsByCode, extractionImagesByCode } = buildCatalogMaps(catalog);
+  const toothExtractionMap: Record<number, string> = {};
+  const claspTeeth: number[] = [];
+
+  applyGroupedExtractions(apiProduct, catalog, { toothExtractionMap, claspTeeth }, []);
+
+  claspTeeth.sort((a, b) => a - b);
+
+  return {
+    toothExtractionMap,
+    claspTeeth,
+    extractionsByCode,
+    extractionImagesByCode,
+  };
+}
+
 /** Build extraction overlay state for one slip-details product row. */
 export function buildExtractionDisplayFromSlipProduct(apiProduct: any): ExtractionDisplayVM {
   if (!apiProduct) return { ...EMPTY_DISPLAY };
 
   const catalog = catalogFromProduct(apiProduct);
-  if (catalog.length === 0 && !Array.isArray(apiProduct?.extractions)) {
+  const hasTeethSelections =
+    Array.isArray(apiProduct?.slip_product_teeth_selections) &&
+    apiProduct.slip_product_teeth_selections.length > 0;
+  if (
+    catalog.length === 0 &&
+    !Array.isArray(apiProduct?.extractions) &&
+    !hasTeethSelections
+  ) {
     return { ...EMPTY_DISPLAY };
   }
 
@@ -578,8 +678,11 @@ export function buildExtractionDisplayFromSlipProduct(apiProduct: any): Extracti
   const toothExtractionMap: Record<number, string> = {};
   const claspTeeth: number[] = [];
 
-  // Grouped slip `extractions[]` is authoritative for chart status (MT / WEOD / clasps).
-  applyGroupedExtractions(apiProduct, catalog, { toothExtractionMap, claspTeeth });
+  // Grouped slip `extractions[]` drives status-box teeth only — never product teeth_selection.
+  applyGroupedExtractions(apiProduct, catalog, { toothExtractionMap, claspTeeth }, productTeeth);
+  // Per-tooth `slip_product_teeth_selections` carries statuses for the product's own
+  // teeth (no longer duplicated in `extractions[]`). Applied without skipping product teeth.
+  applySlipProductTeethSelections(apiProduct, catalog, { toothExtractionMap, claspTeeth });
   applyToothChartExtractions(apiProduct, catalog, { toothExtractionMap, claspTeeth }, productTeeth);
 
   claspTeeth.sort((a, b) => a - b);
@@ -892,11 +995,16 @@ export function buildVirtualSlipStatusBoxProps(
   },
 ): VirtualSlipStatusBoxProps | null {
   const catalogField = options?.catalogField ?? "extractions";
-  const excludeTeeth = options?.excludeTeeth ?? [];
+  const apiProduct = options?.apiProduct;
+  const productTeeth =
+    catalogField === "extractions" && apiProduct
+      ? parseTeethSelection(apiProduct?.teeth_selection ?? apiProduct?.teeth)
+      : [];
+  const excludeTeeth = options?.excludeTeeth ?? productTeeth;
   const archTeeth = arch === "maxillary" ? MAXILLARY_ALL_TEETH : MANDIBULAR_ALL_TEETH;
   const extractions = productExtractionsForStatusBoxes(
     display,
-    options?.apiProduct,
+    apiProduct,
     catalogField,
   );
 
@@ -904,11 +1012,14 @@ export function buildVirtualSlipStatusBoxProps(
     return null;
   }
 
-  const selectedTeeth = Object.keys(display.toothExtractionMap)
-    .map(Number)
-    .filter((n) => Number.isFinite(n));
+  const scopeAnchor =
+    productTeeth.length > 0
+      ? productTeeth
+      : Object.keys(display.toothExtractionMap)
+          .map(Number)
+          .filter((n) => Number.isFinite(n));
   const extractionScope = buildExtractionScopeTeeth(
-    selectedTeeth,
+    scopeAnchor,
     display.toothExtractionMap,
     display.claspTeeth,
     archTeeth,
@@ -1045,6 +1156,481 @@ export function formatOpposingImpressions(impressions: unknown): string {
     .join(", ");
 }
 
+export type ToothChartPreloadTooth = {
+  tooth_number?: number;
+  extraction_id?: number | null;
+  retention_option_id?: number | null;
+  color?: string | null;
+  default_image_url?: string | null;
+  image_url?: string | null;
+  overlay?: string;
+  overlay_image_url?: string | null;
+  visibility_type?: string;
+};
+
+export type ToothChartPreload = {
+  arch?: string;
+  tooth_numbers?: number[];
+  teeth?: ToothChartPreloadTooth[];
+};
+
+function imageUrlFromSlipTeethSelections(apiProduct: any, toothNumber: number): string | null {
+  const rows = apiProduct?.slip_product_teeth_selections;
+  if (!Array.isArray(rows)) return null;
+  for (const row of rows) {
+    if (Number(row?.tooth_number) !== toothNumber) continue;
+    return (
+      nonEmptyUrl(row?.selected_tooth_image_url) ??
+      nonEmptyUrl(row?.selected_image_url) ??
+      nonEmptyUrl(row?.image_url) ??
+      null
+    );
+  }
+  return null;
+}
+
+/** Preload often echoes the anatomical default PNG in `image_url`; prefer catalog/TIM when that happens. */
+function isDefaultAnatomicalPreloadImage(
+  imageUrl: string | null,
+  defaultImageUrl: string | null,
+): boolean {
+  if (!imageUrl) return false;
+  if (defaultImageUrl && imageUrl === defaultImageUrl) return true;
+  return /\/images\/teeth\/(?:maxillary|mandibular)\/tooth-\d+\.png/i.test(imageUrl);
+}
+
+function resolvePreloadToothImageUrl(
+  row: ToothChartPreloadTooth,
+  catalogRow: ProductExtraction | undefined,
+  timRow: ProductExtraction | undefined,
+  toothNumber: number,
+  apiProduct?: any,
+): string | null {
+  const fromPreload =
+    nonEmptyUrl(row?.image_url) ?? nonEmptyUrl(row?.overlay_image_url);
+  const defaultUrl = nonEmptyUrl(row?.default_image_url);
+
+  const catalogImageSource =
+    catalogRow && isTimExtractionRow(catalogRow)
+      ? catalogRow
+      : catalogRow &&
+          !isSlipStatusExtractionCode(catalogRow.code, { name: catalogRow.name })
+        ? catalogRow
+        : timRow;
+
+  const fromCatalog = imageUrlForToothFromCatalogRow(catalogImageSource, toothNumber);
+  const fromSelections = apiProduct
+    ? imageUrlFromSlipTeethSelections(apiProduct, toothNumber)
+    : null;
+
+  if (fromPreload && !isDefaultAnatomicalPreloadImage(fromPreload, defaultUrl)) {
+    return fromPreload;
+  }
+
+  return fromSelections ?? fromCatalog ?? fromPreload;
+}
+
+function registerPreloadTimCode(
+  extractionsByCode: ExtractionMetaByCode,
+  timRow: ProductExtraction | undefined,
+): string {
+  const code = timRow?.code ?? "TIM";
+  if (timRow?.code) {
+    registerCatalogMeta(extractionsByCode, timRow);
+  } else {
+    extractionsByCode[code] = {
+      code,
+      name: "Teeth in mouth",
+      visibility_type: "Image",
+      color: null,
+      overlay: "No",
+    };
+  }
+  return code;
+}
+
+/** `tooth_chart_preload.arch` from slip details (`upper` / `lower`). */
+export function toothChartPreloadArchMatches(
+  preloadArch: unknown,
+  arch: "maxillary" | "mandibular",
+): boolean {
+  const value = typeof preloadArch === "string" ? preloadArch.trim().toLowerCase() : "";
+  if (!value) return true;
+  if (arch === "maxillary") {
+    return value === "upper" || value === "maxillary" || value === "maxilla";
+  }
+  return value === "lower" || value === "mandibular" || value === "mandible";
+}
+
+/**
+ * Build chart overlay state from API `tooth_chart_preload` (authoritative per-tooth
+ * `image_url`; never uses `default_image_url` when `image_url` is present).
+ */
+export function buildExtractionDisplayFromToothChartPreload(
+  preload: unknown,
+  apiProduct?: any,
+): ExtractionDisplayVM {
+  if (!preload || typeof preload !== "object") return { ...EMPTY_DISPLAY };
+  const rows = Array.isArray((preload as ToothChartPreload).teeth)
+    ? (preload as ToothChartPreload).teeth!
+    : [];
+  if (rows.length === 0) return { ...EMPTY_DISPLAY };
+
+  const catalog = apiProduct ? catalogFromProduct(apiProduct) : [];
+  const timRow = findTimCatalogRow(catalog);
+  const productTeeth = parseTeethSelection(apiProduct?.teeth_selection ?? apiProduct?.teeth);
+
+  const toothExtractionMap: Record<number, string> = {};
+  const claspTeeth: number[] = [];
+  const extractionsByCode: ExtractionMetaByCode = {};
+  let extractionImagesByCode: ExtractionImagesByCode = {};
+
+  for (const row of rows) {
+    const toothNumber = Number(row?.tooth_number);
+    if (!Number.isFinite(toothNumber)) continue;
+
+    const extractionId =
+      row?.extraction_id != null && Number.isFinite(Number(row.extraction_id))
+        ? Number(row.extraction_id)
+        : null;
+
+    const catalogRow = extractionId != null ? findCatalogRow(catalog, extractionId) : undefined;
+    const overlayFlag =
+      String(row?.overlay ?? catalogRow?.overlay ?? "No").trim().toLowerCase() === "yes";
+
+    const imageUrl = resolvePreloadToothImageUrl(
+      row,
+      catalogRow,
+      timRow,
+      toothNumber,
+      apiProduct,
+    );
+
+    if (overlayFlag) {
+      const claspCode = catalogRow?.code;
+      if (claspCode) {
+        registerCatalogMeta(extractionsByCode, catalogRow!);
+        if (!claspTeeth.includes(toothNumber)) claspTeeth.push(toothNumber);
+        if (imageUrl) {
+          extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, claspCode, [
+            { tooth_number: toothNumber, image_url: imageUrl },
+          ]);
+        }
+      } else if (imageUrl) {
+        const syntheticCode =
+          extractionId != null ? `PRELOAD_CLASP_${extractionId}` : "PRELOAD_CLASP";
+        extractionsByCode[syntheticCode] = {
+          code: syntheticCode,
+          name: "Clasps",
+          visibility_type: "Image",
+          color: null,
+          overlay: "Yes",
+        };
+        extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, syntheticCode, [
+          { tooth_number: toothNumber, image_url: imageUrl },
+        ]);
+        if (!claspTeeth.includes(toothNumber)) claspTeeth.push(toothNumber);
+      }
+      continue;
+    }
+
+    let code: string | undefined;
+
+    if (catalogRow?.code && !isTimExtractionRow(catalogRow)) {
+      code = catalogRow.code;
+      registerCatalogMeta(extractionsByCode, catalogRow);
+    } else if (extractionId != null && catalogRow?.code && isTimExtractionRow(catalogRow)) {
+      code = registerPreloadTimCode(extractionsByCode, catalogRow);
+    } else if (extractionId != null) {
+      code = `PRELOAD_${extractionId}`;
+      extractionsByCode[code] = {
+        code,
+        name: code,
+        visibility_type: String(row?.visibility_type ?? "Image").trim() || "Image",
+        color: row?.color ?? null,
+        overlay: "No",
+      };
+    } else if (row?.retention_option_id != null) {
+      code = `PRELOAD_RET_${row.retention_option_id}`;
+      extractionsByCode[code] = {
+        code,
+        name: "Prep",
+        visibility_type: String(row?.visibility_type ?? "Image").trim() || "Image",
+        color: null,
+        overlay: "No",
+      };
+    } else {
+      code = registerPreloadTimCode(extractionsByCode, timRow);
+    }
+
+    toothExtractionMap[toothNumber] = code;
+
+    if (imageUrl) {
+      extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, code, [
+        { tooth_number: toothNumber, image_url: imageUrl },
+      ]);
+    }
+  }
+
+  for (const toothNumber of productTeeth) {
+    if (toothExtractionMap[toothNumber]) continue;
+    const imageUrl =
+      imageUrlFromSlipTeethSelections(apiProduct, toothNumber) ??
+      imageUrlForToothFromCatalogRow(timRow, toothNumber);
+    if (!imageUrl && !timRow) continue;
+    const code = registerPreloadTimCode(extractionsByCode, timRow);
+    toothExtractionMap[toothNumber] = code;
+    if (imageUrl) {
+      extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, code, [
+        { tooth_number: toothNumber, image_url: imageUrl },
+      ]);
+    }
+  }
+
+  return {
+    toothExtractionMap,
+    claspTeeth,
+    extractionsByCode,
+    extractionImagesByCode,
+  };
+}
+
+/** Merge per-product `tooth_chart_preload` payloads for one arch column. */
+export function mergePreloadExtractionDisplaysForArch(
+  archProducts: any[],
+  arch: "maxillary" | "mandibular",
+): ExtractionDisplayVM | null {
+  const displays = archProducts
+    .filter((p) => {
+      const preload = p?.tooth_chart_preload;
+      return preload && typeof preload === "object" && toothChartPreloadArchMatches(preload.arch, arch);
+    })
+    .map((p) => buildExtractionDisplayFromToothChartPreload(p.tooth_chart_preload, p));
+
+  if (displays.length === 0) return null;
+  return mergeArchExtractionDisplays(displays);
+}
+
+/**
+ * Apply `tooth_chart_preload` images onto the extractions-only arch chart.
+ * Skips product `teeth_selection` teeth so the top chart stays extraction-driven.
+ */
+export function overlayPreloadExtractionsOnChartDisplay(
+  chartDisplay: ExtractionDisplayVM,
+  preloadDisplay: ExtractionDisplayVM,
+  archProducts: any[],
+): ExtractionDisplayVM {
+  const productTeeth = new Set<number>();
+  for (const p of archProducts) {
+    for (const tooth of parseTeethSelection(p?.teeth_selection ?? p?.teeth)) {
+      productTeeth.add(tooth);
+    }
+  }
+
+  const toothExtractionMap = { ...chartDisplay.toothExtractionMap };
+  const extractionsByCode: ExtractionMetaByCode = { ...chartDisplay.extractionsByCode };
+  let extractionImagesByCode: ExtractionImagesByCode = {
+    ...chartDisplay.extractionImagesByCode,
+  };
+
+  for (const [toothStr, preloadCode] of Object.entries(preloadDisplay.toothExtractionMap)) {
+    const toothNumber = Number(toothStr);
+    if (!Number.isFinite(toothNumber) || productTeeth.has(toothNumber)) continue;
+
+    const preloadUrl = preloadDisplay.extractionImagesByCode[preloadCode]?.[toothNumber] ?? null;
+    const preloadMeta = preloadDisplay.extractionsByCode[preloadCode];
+
+    toothExtractionMap[toothNumber] = preloadCode;
+    if (preloadMeta) extractionsByCode[preloadCode] = preloadMeta;
+    if (preloadUrl) {
+      extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, preloadCode, [
+        { tooth_number: toothNumber, image_url: preloadUrl },
+      ]);
+    }
+  }
+
+  for (const [code, byTooth] of Object.entries(preloadDisplay.extractionImagesByCode)) {
+    const meta = preloadDisplay.extractionsByCode[code];
+    if (String(meta?.overlay ?? "").trim().toLowerCase() !== "yes") continue;
+    if (meta) extractionsByCode[code] = meta;
+    for (const [toothStr, url] of Object.entries(byTooth)) {
+      if (!url) continue;
+      const toothNumber = Number(toothStr);
+      if (!Number.isFinite(toothNumber) || productTeeth.has(toothNumber)) continue;
+      extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, code, [
+        { tooth_number: toothNumber, image_url: url },
+      ]);
+    }
+  }
+
+  const claspTeeth = [
+    ...new Set([
+      ...chartDisplay.claspTeeth,
+      ...preloadDisplay.claspTeeth.filter((t) => !productTeeth.has(t)),
+    ]),
+  ].sort((a, b) => a - b);
+
+  return {
+    toothExtractionMap,
+    claspTeeth,
+    extractionsByCode,
+    extractionImagesByCode,
+  };
+}
+
+/**
+ * Layer API `tooth_chart_preload` onto the CDC-aligned slip display. Keeps
+ * `buildExtractionDisplayFromSlipProduct` + `scopeArchChartExtractionDisplay` as
+ * the base (catalog maps, product-teeth scoping) and applies authoritative preload
+ * image URLs without replacing that pipeline.
+ */
+export function overlayToothChartPreloadOnArchDisplay(
+  slipDisplay: ExtractionDisplayVM,
+  preloadDisplay: ExtractionDisplayVM,
+  archProducts: any[],
+): ExtractionDisplayVM {
+  const productTeeth = new Set<number>();
+  for (const p of archProducts) {
+    for (const tooth of parseTeethSelection(p?.teeth_selection ?? p?.teeth)) {
+      productTeeth.add(tooth);
+    }
+  }
+
+  const toothExtractionMap = { ...slipDisplay.toothExtractionMap };
+  const extractionsByCode: ExtractionMetaByCode = { ...slipDisplay.extractionsByCode };
+  let extractionImagesByCode: ExtractionImagesByCode = {
+    ...slipDisplay.extractionImagesByCode,
+  };
+
+  for (const [toothStr, preloadCode] of Object.entries(preloadDisplay.toothExtractionMap)) {
+    const toothNumber = Number(toothStr);
+    if (!Number.isFinite(toothNumber)) continue;
+
+    const preloadUrl = preloadDisplay.extractionImagesByCode[preloadCode]?.[toothNumber] ?? null;
+    const preloadMeta = preloadDisplay.extractionsByCode[preloadCode];
+
+    if (productTeeth.has(toothNumber)) {
+      const slipCode = slipDisplay.toothExtractionMap[toothNumber];
+      const slipMeta = slipCode ? slipDisplay.extractionsByCode[slipCode] : undefined;
+      const slipIsStatusBox =
+        !!slipCode && isSlipStatusExtractionCode(slipCode, slipMeta);
+
+      const targetCode =
+        slipCode && !slipIsStatusBox ? slipCode : preloadCode;
+
+      if (preloadMeta) {
+        extractionsByCode[targetCode] = extractionsByCode[targetCode] ?? preloadMeta;
+      }
+      if (preloadUrl) {
+        toothExtractionMap[toothNumber] = targetCode;
+        extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, targetCode, [
+          { tooth_number: toothNumber, image_url: preloadUrl },
+        ]);
+      } else if (!slipIsStatusBox && slipCode) {
+        toothExtractionMap[toothNumber] = targetCode;
+      }
+      continue;
+    }
+
+    toothExtractionMap[toothNumber] = preloadCode;
+    if (preloadMeta) {
+      extractionsByCode[preloadCode] = preloadMeta;
+    }
+    if (preloadUrl) {
+      extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, preloadCode, [
+        { tooth_number: toothNumber, image_url: preloadUrl },
+      ]);
+    }
+  }
+
+  for (const [code, byTooth] of Object.entries(preloadDisplay.extractionImagesByCode)) {
+    const meta = preloadDisplay.extractionsByCode[code];
+    if (String(meta?.overlay ?? "").trim().toLowerCase() !== "yes") continue;
+    if (meta) extractionsByCode[code] = meta;
+    for (const [toothStr, url] of Object.entries(byTooth)) {
+      if (!url) continue;
+      const toothNumber = Number(toothStr);
+      if (!Number.isFinite(toothNumber)) continue;
+      extractionImagesByCode = mergeImagesForCode(extractionImagesByCode, code, [
+        { tooth_number: toothNumber, image_url: url },
+      ]);
+    }
+  }
+
+  const claspTeeth = [
+    ...new Set([...slipDisplay.claspTeeth, ...preloadDisplay.claspTeeth]),
+  ].sort((a, b) => a - b);
+
+  return {
+    toothExtractionMap,
+    claspTeeth,
+    extractionsByCode,
+    extractionImagesByCode,
+  };
+}
+
+/** TIM / retention chart selections from preload `image_url` (not `default_image_url`). */
+export function populateToothChartSelectionsFromPreload(
+  archProducts: any[],
+  arch: "maxillary" | "mandibular",
+  selections: Record<
+    number,
+    { chartType: "Implant" | "Prep" | "Pontic" | null; imageUrl: string | null }
+  >,
+): void {
+  for (const p of archProducts) {
+    const preload = p?.tooth_chart_preload;
+    if (!preload?.teeth || !toothChartPreloadArchMatches(preload.arch, arch)) continue;
+
+    const catalog = catalogFromProduct(p);
+    const timRow = findTimCatalogRow(catalog);
+    const productTeeth = new Set(parseTeethSelection(p?.teeth_selection ?? p?.teeth));
+
+    for (const row of preload.teeth) {
+      const toothNumber = Number(row?.tooth_number);
+      if (!Number.isFinite(toothNumber)) continue;
+
+      const extractionId =
+        row?.extraction_id != null && Number.isFinite(Number(row.extraction_id))
+          ? Number(row.extraction_id)
+          : null;
+      const catalogRow = extractionId != null ? findCatalogRow(catalog, extractionId) : undefined;
+      const isStatusBox =
+        !!catalogRow &&
+        isSlipStatusExtractionCode(catalogRow.code, { name: catalogRow.name }) &&
+        !isTimExtractionRow(catalogRow);
+      if (isStatusBox && !productTeeth.has(toothNumber)) continue;
+
+      const imageUrl = resolvePreloadToothImageUrl(
+        row,
+        catalogRow,
+        timRow,
+        toothNumber,
+        p,
+      );
+      if (!imageUrl) continue;
+
+      const existing = selections[toothNumber];
+      selections[toothNumber] = {
+        chartType: existing?.chartType ?? "Prep",
+        imageUrl,
+      };
+    }
+
+    for (const toothNumber of productTeeth) {
+      if (selections[toothNumber]?.imageUrl) continue;
+      const imageUrl =
+        imageUrlFromSlipTeethSelections(p, toothNumber) ??
+        imageUrlForToothFromCatalogRow(timRow, toothNumber);
+      if (!imageUrl) continue;
+      selections[toothNumber] = {
+        chartType: selections[toothNumber]?.chartType ?? "Prep",
+        imageUrl,
+      };
+    }
+  }
+}
+
 export function mergeArchExtractionDisplays(displays: ExtractionDisplayVM[]): ExtractionDisplayVM {
   return displays.reduce(
     (acc, cur) => mergeExtractionDisplay(acc, cur),
@@ -1052,19 +1638,92 @@ export function mergeArchExtractionDisplays(displays: ExtractionDisplayVM[]): Ex
   );
 }
 
+/** Re-apply per-product chart scoping after arch merge so teeth_selection never keeps status-box codes. */
+export function scopeArchChartExtractionDisplay(
+  display: ExtractionDisplayVM,
+  archProducts: any[],
+): ExtractionDisplayVM {
+  if (!Array.isArray(archProducts) || archProducts.length === 0) return display;
+  return archProducts.reduce(
+    (acc, apiProduct) =>
+      finalizeProductTeethChartDisplay(acc, apiProduct, catalogFromProduct(apiProduct)),
+    display,
+  );
+}
+
+function findTimCodeInDisplay(display: ExtractionDisplayVM): string | null {
+  for (const [code, meta] of Object.entries(display.extractionsByCode)) {
+    if (
+      isTimExtractionRow({ code, name: meta?.name ?? "" }) &&
+      !isSlipStatusExtractionCode(code, meta)
+    ) {
+      return code;
+    }
+  }
+  for (const code of Object.keys(display.extractionImagesByCode)) {
+    if (isSlipStatusExtractionCode(code, display.extractionsByCode[code])) continue;
+    if (isTimExtractionRow({ code, name: display.extractionsByCode[code]?.name ?? "" })) {
+      return code;
+    }
+  }
+  return null;
+}
+
+/** Strip status-box codes from product teeth; restore TIM / catalog chart images when present. */
+export function scopeChartExtractionDisplayForProductTeeth(
+  display: ExtractionDisplayVM,
+  productTeeth: number[],
+): ExtractionDisplayVM {
+  if (!productTeeth.length) return display;
+  const toothExtractionMap = { ...display.toothExtractionMap };
+  const timCode = findTimCodeInDisplay(display);
+
+  for (const tooth of productTeeth) {
+    const code = toothExtractionMap[tooth];
+    const meta = code ? display.extractionsByCode[code] : undefined;
+    const mappedIsStatusBox = !!code && isSlipStatusExtractionCode(code, meta);
+
+    if (
+      code &&
+      !mappedIsStatusBox &&
+      display.extractionImagesByCode[code]?.[tooth]
+    ) {
+      continue;
+    }
+
+    if (mappedIsStatusBox) {
+      delete toothExtractionMap[tooth];
+    }
+
+    if (timCode) {
+      const timUrl = display.extractionImagesByCode[timCode]?.[tooth];
+      if (timUrl) {
+        toothExtractionMap[tooth] = timCode;
+      }
+    }
+  }
+
+  return { ...display, toothExtractionMap };
+}
+
 /**
  * Missing / will-extract teeth for chart fallback overlays when slip rows omit per-tooth image URLs.
  */
-export function chartStatusTeethFromExtractionDisplay(display: ExtractionDisplayVM): {
+export function chartStatusTeethFromExtractionDisplay(
+  display: ExtractionDisplayVM,
+  options?: { excludeTeeth?: number[] },
+): {
   missingTeeth: number[];
   willExtractTeeth: number[];
 } {
   const missingTeeth: number[] = [];
   const willExtractTeeth: number[] = [];
+  const excludeSet = new Set(options?.excludeTeeth ?? []);
 
   for (const [toothKey, code] of Object.entries(display.toothExtractionMap)) {
     const toothNumber = Number(toothKey);
     if (!Number.isFinite(toothNumber)) continue;
+    if (excludeSet.has(toothNumber)) continue;
     const meta = display.extractionsByCode[code];
     const nameLower = (meta?.name ?? "").toLowerCase();
     if (looksLikeMissingCode(code) || nameLower.includes("missing")) {
