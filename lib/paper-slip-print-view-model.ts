@@ -919,9 +919,8 @@ function buildOpposingCallouts(product: any): PaperSlipCallout[] {
 }
 
 /** Build the per-arch opposing block. A product's opposite work targets the
- *  opposite jaw. Match /virtual-slip-v2 by keeping opposing extractions visible
- *  even when the target arch has its own products, while suppressing opposing
- *  impressions in that case. */
+ *  opposite jaw. Skip opposing extractions and impressions when the target
+ *  arch already has its own product (matches /virtual-slip-v2). */
 function buildOpposing(products: any[]): {
   maxillary: PaperSlipOpposingVM | null;
   mandibular: PaperSlipOpposingVM | null;
@@ -936,6 +935,7 @@ function buildOpposing(products: any[]): {
 
   for (const product of products) {
     const target: PaperSlipArch = archFromType(product?.type) === "maxillary" ? "mandibular" : "maxillary";
+    if (archHasProducts[target]) continue;
     const impression = formatOpposingImpression(product?.opposite_impressions);
     if (impression) acc[target].impressions.push(impression);
     acc[target].callouts.push(...buildOpposingCallouts(product));

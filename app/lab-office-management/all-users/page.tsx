@@ -14,6 +14,21 @@ import { Avatar } from "@/components/ui/avatar"
 import ReactDOM from "react-dom"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
+import {
+  USER_STATUSES,
+  formatUserStatusForApi,
+  normalizeUserStatus,
+  type UserStatus,
+} from "@/lib/user-status"
+
+const USER_STATUS_OPTIONS: Array<{ value: UserStatus; dotClass: string }> = [
+  { value: "Active", dotClass: "bg-green-500" },
+  { value: "Inactive", dotClass: "bg-gray-400" },
+  { value: "Suspended", dotClass: "bg-yellow-500" },
+  { value: "Pending", dotClass: "bg-blue-500" },
+  { value: "Archived", dotClass: "bg-red-500" },
+  { value: "Invited", dotClass: "bg-purple-500" },
+]
 
 interface StaffUser {
   id: number
@@ -33,7 +48,7 @@ interface StaffUser {
   roleNamesList?: string[]
   departmentsList?: string[]
   joinDate: string
-  status: "Active" | "Inactive" | "Suspended" | "Archived"
+  status: UserStatus
   avatar?: string
   avatarColor?: string
 }
@@ -69,6 +84,7 @@ export default function AllUsers() {
   const [isLoading, setIsLoading] = useState(true)
   const [users, setUsers] = useState<StaffUser[]>([])
   const [showStatusDropdown, setShowStatusDropdown] = useState<number | null>(null)
+  const [statusDropdownCustomerId, setStatusDropdownCustomerId] = useState<number | null>(null)
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
   const [sortColumn, setSortColumn] = useState("created_at")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
@@ -222,7 +238,7 @@ export default function AllUsers() {
           roleNamesList: scopedRoleData.roleNamesList,
           departmentsList: scopedRoleData.departmentsList,
           joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
-          status: (user.status || "Inactive") as StaffUser["status"],
+          status: normalizeUserStatus(user.status),
           avatarColor: avatarColors[index % avatarColors.length],
         }
       }))
@@ -284,7 +300,7 @@ export default function AllUsers() {
         roleNamesList: scopedRoleData.roleNamesList,
         departmentsList: scopedRoleData.departmentsList,
         joinDate: details.created_at ? new Date(details.created_at).toISOString().split("T")[0] : "",
-        status: (details.status || "Inactive") as StaffUser["status"],
+        status: normalizeUserStatus(details.status),
         avatarColor: user.avatarColor,
       }
       setSelectedUser(mapped)
@@ -337,12 +353,27 @@ export default function AllUsers() {
         return "bg-[#fff3e1] text-[#ff9500]"
       case "Archived":
         return "bg-[#f8dddd] text-[#eb0303]"
+      case "Pending":
+        return "bg-[#e3f2fd] text-[#1162a8]"
+      case "Invited":
+        return "bg-[#ede7f6] text-[#673ab7]"
       default:
         return "bg-[#eeeeee] text-[#a19d9d]"
     }
   }
 
   // Get avatar fallback from name
+  const resolveCustomerIdForUserAction = (user: StaffUser): number | undefined => {
+    if (customerFilter.trim()) return Number(customerFilter.trim())
+    if (user.customerRoles?.length === 1) return user.customerRoles[0].customerId
+    return undefined
+  }
+
+  const userNeedsCustomerPickForStatus = (user: StaffUser) => {
+    if (customerFilter.trim()) return false
+    return (user.customerRoles?.length ?? 0) > 1
+  }
+
   const getAvatarFallback = (name: string) => {
     const initials = name
       .split(' ')
@@ -354,14 +385,39 @@ export default function AllUsers() {
     return { initials, color: avatarColors[colorIndex] };
   }
 
-  const handleStatusChange = async (userId: number, newStatus: string) => {
+  const handleStatusChange = async (userId: number, newStatus: UserStatus) => {
     if (!canEditUser) return
+    const user = users.find((entry) => entry.id === userId)
+    const customerId = statusDropdownCustomerId ?? (user ? resolveCustomerIdForUserAction(user) : undefined)
+
+    if (!customerId) {
+      toast({
+        title: "Customer required",
+        description: "Select which lab or office this status change applies to.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      const statusMap: Record<string, string> = { Active: "active", Inactive: "inactive", Suspended: "suspended", Archived: "archived" }
-      await updateUser(userId, { status: statusMap[newStatus] || "inactive" })
-      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: newStatus as StaffUser["status"] } : u)))
+      await updateUser(userId, {
+        status: formatUserStatusForApi(newStatus),
+        customer_id: customerId,
+      })
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: newStatus } : u)))
+      toast({
+        title: "Status Updated",
+        description: `User status changed to ${newStatus}.`,
+      })
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error?.message || "Could not update user status.",
+        variant: "destructive",
+      })
     } finally {
       setShowStatusDropdown(null)
+      setStatusDropdownCustomerId(null)
       setDropdownPosition(null)
     }
   }
@@ -384,13 +440,15 @@ export default function AllUsers() {
   }
 
   // Handle status dropdown open/close and position
-  const handleStatusDropdown = (userId: number, event: React.MouseEvent<HTMLButtonElement>) => {
-    if (showStatusDropdown === userId) {
+  const handleStatusDropdown = (user: StaffUser, event: React.MouseEvent<HTMLButtonElement>) => {
+    if (showStatusDropdown === user.id) {
       setShowStatusDropdown(null)
+      setStatusDropdownCustomerId(null)
       setDropdownPosition(null)
     } else {
       const rect = (event.target as HTMLElement).getBoundingClientRect()
-      setShowStatusDropdown(userId)
+      setShowStatusDropdown(user.id)
+      setStatusDropdownCustomerId(resolveCustomerIdForUserAction(user) ?? null)
       setDropdownPosition({
         top: rect.bottom + window.scrollY,
         left: rect.left + window.scrollX,
@@ -406,6 +464,7 @@ export default function AllUsers() {
         const dropdown = document.getElementById("status-dropdown-portal")
         if (dropdown && !dropdown.contains(e.target as Node)) {
           setShowStatusDropdown(null)
+          setStatusDropdownCustomerId(null)
           setDropdownPosition(null)
         }
       }
@@ -467,10 +526,11 @@ export default function AllUsers() {
                 <SelectTrigger className="w-[150px]"><SelectValue placeholder="All Statuses" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                  <SelectItem value="Suspended">Suspended</SelectItem>
-                  <SelectItem value="Archived">Archived</SelectItem>
+                  {USER_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Select value={roleFilter} onValueChange={(value) => { setRoleFilter(value); setCurrentPage(1) }}>
@@ -613,7 +673,7 @@ export default function AllUsers() {
                     <td className="px-4 py-4 relative">
                       <div className="relative">
                         <button
-                          onClick={(e) => handleStatusDropdown(user.id, e)}
+                          onClick={(e) => handleStatusDropdown(user, e)}
                           className={`${getStatusBadgeClass(user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
                           disabled={!canEditUser}
                         >
@@ -625,7 +685,7 @@ export default function AllUsers() {
                           ReactDOM.createPortal(
                             <div
                               id="status-dropdown-portal"
-                              className="z-50 w-40 bg-white border border-gray-200 rounded-md shadow-lg absolute"
+                              className="z-50 min-w-[11rem] max-w-xs bg-white border border-gray-200 rounded-md shadow-lg absolute"
                               style={{
                                 position: "absolute",
                                 top: dropdownPosition.top,
@@ -633,34 +693,41 @@ export default function AllUsers() {
                               }}
                             >
                               <div className="py-1">
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(user.id, "Active")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                                  Active
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(user.id, "Inactive")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
-                                  Inactive
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(user.id, "Suspended")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></span>
-                                  Suspended
-                                </button>
-                                <button
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
-                                  onClick={() => handleStatusChange(user.id, "Archived")}
-                                >
-                                  <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
-                                  Archived
-                                </button>
+                                {userNeedsCustomerPickForStatus(user) && !statusDropdownCustomerId ? (
+                                  <>
+                                    <div className="px-4 py-2 text-xs font-medium text-gray-500 border-b border-gray-100">
+                                      Select customer
+                                    </div>
+                                    {user.customerRoles?.map((customerRole) => (
+                                      <button
+                                        key={customerRole.customerId}
+                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                                        onClick={() => setStatusDropdownCustomerId(customerRole.customerId)}
+                                      >
+                                        {customerRole.customerName || `Customer #${customerRole.customerId}`}
+                                      </button>
+                                    ))}
+                                  </>
+                                ) : (
+                                  <>
+                                    {statusDropdownCustomerId && user.customerRoles && user.customerRoles.length > 1 && (
+                                      <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+                                        {user.customerRoles.find((role) => role.customerId === statusDropdownCustomerId)?.customerName
+                                          || `Customer #${statusDropdownCustomerId}`}
+                                      </div>
+                                    )}
+                                    {USER_STATUS_OPTIONS.map((option) => (
+                                      <button
+                                        key={option.value}
+                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
+                                        onClick={() => handleStatusChange(user.id, option.value)}
+                                      >
+                                        <span className={`w-2 h-2 rounded-full mr-2 ${option.dotClass}`}></span>
+                                        {option.value}
+                                      </button>
+                                    ))}
+                                  </>
+                                )}
                               </div>
                             </div>,
                             document.body

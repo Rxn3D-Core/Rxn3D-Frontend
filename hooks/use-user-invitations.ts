@@ -37,6 +37,65 @@ export interface CreateUserInvitationResponse {
   data: UserInvitation
 }
 
+export interface GetUserInvitationResponse {
+  message?: string
+  data: UserInvitation
+}
+
+function coerceApiBoolean(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "true"
+}
+
+/** Laravel-style responses wrap the invitation in `{ data: ... }`; unwrap for callers. */
+export function unwrapUserInvitation(json: unknown): UserInvitation {
+  let current: unknown = json
+
+  // Unwrap one or more `{ data: ... }` envelopes (API + stale React Query cache).
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (
+      current &&
+      typeof current === "object" &&
+      "data" in current &&
+      (current as GetUserInvitationResponse).data != null &&
+      typeof (current as GetUserInvitationResponse).data === "object"
+    ) {
+      current = (current as GetUserInvitationResponse).data
+      continue
+    }
+    break
+  }
+
+  const payload = current as UserInvitation
+
+  if (!payload?.email) {
+    throw new Error("Invalid invitation response")
+  }
+
+  return normalizeUserInvitation(payload)
+}
+
+/** Normalize API booleans and flags used for accept-page branching. */
+export function normalizeUserInvitation(payload: UserInvitation): UserInvitation {
+  return {
+    ...payload,
+    user_exists: coerceApiBoolean(payload.user_exists),
+    already_linked: coerceApiBoolean(payload.already_linked),
+    requires_login: coerceApiBoolean(payload.requires_login),
+    requires_doctor_documents: coerceApiBoolean(payload.requires_doctor_documents),
+    is_expired: payload.is_expired != null ? coerceApiBoolean(payload.is_expired) : payload.is_expired,
+  }
+}
+
+/** Existing ACTIVE user invited to another customer — login + token-only accept. */
+export function isExistingActiveUserInvitation(invitation: UserInvitation): boolean {
+  return invitation.user_exists && invitation.requires_login && !invitation.already_linked
+}
+
+/** New user or Invited user who still needs password on accept. */
+export function isRegistrationInvitation(invitation: UserInvitation): boolean {
+  return !invitation.user_exists || !invitation.requires_login
+}
+
 // Create user invitation
 const createUserInvitation = async (payload: CreateUserInvitationPayload): Promise<CreateUserInvitationResponse> => {
   const token = localStorage.getItem("token")
@@ -80,7 +139,8 @@ const getUserInvitation = async (token: string): Promise<UserInvitation> => {
     throw new Error(errorData.message || "Failed to fetch invitation")
   }
 
-  return response.json()
+  const json = await response.json()
+  return unwrapUserInvitation(json)
 }
 
 export interface AcceptUserInvitationPayload {
@@ -107,10 +167,12 @@ export const acceptUserInvitation = async (
     headers.Authorization = `Bearer ${authToken}`
   }
 
+  const body = authToken ? { token } : { token, ...payload }
+
   const response = await fetch(`${API_BASE_URL}/user-invitations/${token}/accept`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ token, ...payload }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {
@@ -226,9 +288,13 @@ export function useCreateUserInvitation() {
 
 export function useGetUserInvitation(token: string) {
   return useQuery({
-    queryKey: ["user-invitation", token],
+    // v2: bust stale persisted/unwrapped cache from earlier accept-page logic
+    queryKey: ["user-invitation", "v2", token],
     queryFn: () => getUserInvitation(token),
     enabled: !!token,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: "always",
   })
 }
 

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Search } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { getActiveCustomerId } from "@/lib/customer-scope"
 import {
   defaultPermissionsForRole,
   filterGroupedForActiveContext,
@@ -31,11 +32,13 @@ function formatPermissionLabel(key: string): string {
 }
 
 export type PermissionAssignmentPanelProps = {
-  /** When set, loads role_permissions + direct_permissions from GET /users/{id}/permissions */
+  /** When set, loads role_permissions + override_permissions from GET /users/{id}/permissions */
   userId?: number
+  /** Lab/office profile for customer-scoped catalog and user permission APIs */
+  customerId?: string | number
   /** Used for default template when userId is absent (create flow) */
   role?: string
-  /** `role` = edit a Spatie role bundle (no user template / locked role rows) */
+  /** `role` = edit a per-lab role template (no user template / locked role rows) */
   variant?: "user" | "role"
   selected: string[]
   onChange: (selected: string[]) => void
@@ -45,6 +48,7 @@ export type PermissionAssignmentPanelProps = {
 
 export function PermissionAssignmentPanel({
   userId,
+  customerId,
   role = "",
   variant = "user",
   selected,
@@ -53,6 +57,7 @@ export function PermissionAssignmentPanel({
   className,
 }: PermissionAssignmentPanelProps) {
   const normalizedRole = normalizeRoleSlug(role)
+  const scopedCustomerId = customerId ?? getActiveCustomerId()
   const { getAvailablePermissions, isSuperadmin } = useAuth()
   const { toast } = useToast()
   const [grouped, setGrouped] = useState<Record<string, string[]>>({})
@@ -68,10 +73,13 @@ export function PermissionAssignmentPanel({
     const load = async () => {
       setIsLoading(true)
       try {
-        const catalog = await getAvailablePermissions()
+        const catalog = await getAvailablePermissions(
+          scopedCustomerId != null ? String(scopedCustomerId) : undefined,
+        )
         if (cancelled) return
         setGrouped(catalog.grouped ?? {})
         setLabRoleBundle(catalog.lab_role_bundle ?? [])
+        setOfficeRoleBundle(catalog.office_role_bundle ?? [])
       } catch (error: unknown) {
         if (!cancelled) {
           toast({
@@ -89,7 +97,7 @@ export function PermissionAssignmentPanel({
     return () => {
       cancelled = true
     }
-  }, [getAvailablePermissions, toast])
+  }, [getAvailablePermissions, scopedCustomerId, toast])
 
   useEffect(() => {
     if (variant === "role") return
@@ -102,16 +110,22 @@ export function PermissionAssignmentPanel({
       return
     }
 
+    if (scopedCustomerId == null || scopedCustomerId === "") {
+      setRolePermissions([])
+      return
+    }
+
     let cancelled = false
     const loadUser = async () => {
       try {
         const { fetchUserPermissionDetail } = await import("@/lib/api/user-permissions-api")
-        const detail = await fetchUserPermissionDetail(userId)
+        const detail = await fetchUserPermissionDetail(
+          userId,
+          String(scopedCustomerId),
+        )
         if (cancelled) return
         setRolePermissions(detail.role_permissions ?? [])
-        if (selected.length === 0) {
-          onChange(detail.all_permissions ?? [])
-        }
+        onChange(detail.override_permissions ?? detail.direct_permissions ?? [])
       } catch (error: unknown) {
         if (!cancelled) {
           toast({
@@ -128,7 +142,7 @@ export function PermissionAssignmentPanel({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, normalizedRole, labRoleBundle.join(","), variant])
+  }, [userId, normalizedRole, labRoleBundle.join(","), variant, scopedCustomerId])
 
   useEffect(() => {
     if (variant === "role") return
@@ -141,9 +155,11 @@ export function PermissionAssignmentPanel({
 
   const rolePermissionSet = useMemo(() => new Set(rolePermissions), [rolePermissions])
   const selectedSet = useMemo(() => new Set(selected), [selected])
+  const isUserOverrideEdit = variant === "user" && Boolean(userId)
+  const lockRolePermissions = isUserOverrideEdit
 
   const scopedGrouped = useMemo(() => {
-    if (variant === "role" && isSuperadmin) return grouped
+    if (isSuperadmin) return grouped
     return filterGroupedForActiveContext(
       grouped,
       labRoleBundle,
@@ -169,7 +185,7 @@ export function PermissionAssignmentPanel({
 
   const togglePermission = (permission: string, checked: boolean) => {
     if (readOnly) return
-    if (!checked && rolePermissionSet.has(permission)) return
+    if (lockRolePermissions && rolePermissionSet.has(permission)) return
 
     const next = new Set(selected)
     if (checked) next.add(permission)
@@ -180,7 +196,10 @@ export function PermissionAssignmentPanel({
   const selectAllInGroup = (permissions: string[]) => {
     if (readOnly) return
     const next = new Set(selected)
-    permissions.forEach((p) => next.add(p))
+    permissions.forEach((p) => {
+      if (lockRolePermissions && rolePermissionSet.has(p)) return
+      next.add(p)
+    })
     onChange(Array.from(next).sort())
   }
 
@@ -188,7 +207,8 @@ export function PermissionAssignmentPanel({
     if (readOnly) return
     const next = new Set(selected)
     permissions.forEach((p) => {
-      if (!rolePermissionSet.has(p)) next.delete(p)
+      if (lockRolePermissions && rolePermissionSet.has(p)) return
+      next.delete(p)
     })
     onChange(Array.from(next).sort())
   }
@@ -206,9 +226,20 @@ export function PermissionAssignmentPanel({
     <div className={className}>
       <div className="mb-4 space-y-2">
         <p className="text-sm text-muted-foreground">
-          Permissions checked from the user&apos;s <strong>role</strong> cannot be removed here.
-          Additional checks are saved as <strong>direct permissions</strong> via{" "}
-          <code className="text-xs">PUT /users/&#123;id&#125;/permissions</code>.
+          {lockRolePermissions ? (
+            <>
+              Permissions marked <strong>(role)</strong> come from the user&apos;s role template and
+              cannot be changed here. Only additional checks are saved as{" "}
+              <strong>override permissions</strong> via{" "}
+              <code className="text-xs">PUT /users/&#123;id&#125;/permissions</code> with{" "}
+              <code className="text-xs">customer_id</code> for the selected lab or office profile.
+            </>
+          ) : (
+            <>
+              Select the permissions for this role. Changes are saved via{" "}
+              <code className="text-xs">PUT /role-permissions/roles/&#123;id&#125;</code>.
+            </>
+          )}
         </p>
         {normalizedRole && !userId && isLabRoleName(normalizedRole) && (
           <p className="text-xs text-muted-foreground">
@@ -277,8 +308,10 @@ export function PermissionAssignmentPanel({
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {permissions.map((permission) => {
-                const fromRole = rolePermissionSet.has(permission)
-                const checked = selectedSet.has(permission)
+                const fromRole = lockRolePermissions && rolePermissionSet.has(permission)
+                const checked = isUserOverrideEdit
+                  ? fromRole || selectedSet.has(permission)
+                  : selectedSet.has(permission)
                 const disabled = readOnly || fromRole
 
                 return (

@@ -6,8 +6,14 @@ import {
   type AdvanceFieldFileSlot,
 } from "./slipPayloadMappers";
 import { snapshotToProduct } from "./caseSubmissionPayload";
+import {
+  buildBaselineEditSlipProducts,
+  findBaselineProductForPrepared,
+  mergeEditSlipProductWithBaseline,
+  type EditSlipProduct,
+} from "./apiSlipProductPayload";
 
-export type EditSlipProduct = SlipCreationProduct & { id?: number };
+export type { EditSlipProduct };
 
 export type EditSlipPayload = {
   location_id?: number;
@@ -30,8 +36,8 @@ export interface BuildEditSlipPayloadParams {
 
 function normalizeSlipProductType(type: string | null | undefined): "Upper" | "Lower" | null {
   const t = String(type ?? "").toLowerCase();
-  if (t === "upper") return "Upper";
-  if (t === "lower") return "Lower";
+  if (t === "upper" || t === "maxillary") return "Upper";
+  if (t === "lower" || t === "mandibular") return "Lower";
   return null;
 }
 
@@ -93,6 +99,7 @@ export async function buildEditSlipSubmissionPayloadAsync(
     labCustomerId,
   } = params;
 
+  const baselineProducts = buildBaselineEditSlipProducts(apiProducts);
   const filteredSnapshots = snapshots.filter(
     (s) => s.teethNumbers.length > 0 || s.productId > 0
   );
@@ -105,7 +112,7 @@ export async function buildEditSlipSubmissionPayloadAsync(
   const slipProductIds = buildSlipProductIdByType(apiProducts);
   const multipartFiles: SlipCreationMultipartFile[] = [];
 
-  const products: EditSlipProduct[] = filteredSnapshots.map((snap, productIndex) => {
+  const preparedProducts: EditSlipProduct[] = filteredSnapshots.map((snap, productIndex) => {
     const product = snapshotToProduct(snap, implantCatalogs.get(snap.productId)) as EditSlipProduct;
     const existingId = slipProductIds.get(snap.type as "Upper" | "Lower");
     if (existingId) {
@@ -123,6 +130,17 @@ export async function buildEditSlipSubmissionPayloadAsync(
 
     return product;
   });
+
+  const products: EditSlipProduct[] =
+    preparedProducts.length > 0
+      ? preparedProducts.map((prepared, index) => {
+          const baseline = findBaselineProductForPrepared(prepared, baselineProducts, index);
+          return baseline ? mergeEditSlipProductWithBaseline(prepared, baseline) : prepared;
+        })
+      : baselineProducts.map((baseline) => {
+          const existingId = slipProductIds.get(baseline.type);
+          return existingId ? { ...baseline, id: existingId } : baseline;
+        });
 
   const slipNotes = products
     .map((p) => p.notes)

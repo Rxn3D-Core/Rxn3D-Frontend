@@ -82,7 +82,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId } = useAuth()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -814,18 +814,32 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   // Ensure safeLocations is only valid Location objects
   const safeLocations = Array.isArray(locations) ? locations.filter(isLocation) : []
 
-  const handleLocationChange = (value: string) => {
-    const locationId = Number(value);
-    setSelectedLocation(locationId);
-    const location = safeLocations.find((loc) => loc.id === locationId);
-    if (location) {
-      localStorage.setItem("selectedLocation", JSON.stringify(location));
+  const handleLocationChange = async (value: string) => {
+    const locationId = Number(value)
+    const location = safeLocations.find((loc) => loc.id === locationId)
+    if (!location) return
+
+    const fullCustomer = user?.customers?.find((c) => c.id === locationId) ?? location
+
+    setSelectedLocation(locationId)
+    localStorage.setItem("selectedLocation", JSON.stringify(fullCustomer))
+    localStorage.setItem("customerId", String(locationId))
+
+    try {
+      await setCustomerId(locationId)
       toast({
         title: "Location Selected",
         description: `You've selected ${location.name}`,
-      });
+      })
+    } catch (error) {
+      console.error("Failed to switch location:", error)
+      toast({
+        title: "Error",
+        description: "Failed to switch location. Please try again.",
+        variant: "destructive",
+      })
     }
-  };
+  }
 
   return (
     <>

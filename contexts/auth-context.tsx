@@ -12,10 +12,13 @@ import {
   hasPermission as checkPermission,
   normalizeAvailablePermissions,
   normalizePermissionsResponse,
+  parsePermissionsProfile,
   permissionsFromCustomer,
+  roleOnCustomer,
   userIsSuperadmin,
   type AvailablePermissionsPayload,
 } from "@/lib/permissions"
+import { formatUserStatusForApi } from "@/lib/user-status"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -162,10 +165,23 @@ type AuthContextType = {
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
   fetchUserActivity: (userId: number, params?: { per_page?: number; page?: number }) => Promise<any>
   getUserPermissions: (customerId?: string) => Promise<any>
-  getAvailablePermissions: () => Promise<AvailablePermissionsPayload>
-  fetchUserPermissionDetail: (userId: number) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
-  updateUserDirectPermissions: (userId: number, permissions: string[]) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  getAvailablePermissions: (customerId?: string) => Promise<AvailablePermissionsPayload>
+  fetchUserPermissionDetail: (
+    userId: number,
+    customerId?: string,
+  ) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  updateUserDirectPermissions: (
+    userId: number,
+    permissions: string[],
+    customerId?: string,
+  ) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  /** Effective permissions for the active customer profile (alias: permissions). */
   profilePermissions: string[]
+  permissions: string[]
+  selectedCustomerId: number | null
+  profileRole: string | null
+  rolePermissions: string[]
+  overridePermissions: string[]
   isSuperadmin: boolean
   refreshProfilePermissions: (customerId?: string) => Promise<string[]>
   hasPermission: (permission: string) => boolean
@@ -205,6 +221,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return []
     }
   })
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null
+    const stored = localStorage.getItem("customerId")
+    if (!stored) return null
+    const parsed = Number(stored)
+    return Number.isNaN(parsed) ? null : parsed
+  })
+  const [profileRole, setProfileRole] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("role")
+  })
+  const [rolePermissions, setRolePermissions] = useState<string[]>([])
+  const [overridePermissions, setOverridePermissions] = useState<string[]>([])
   const router = useRouter()
   const { toast } = useToast()
 
@@ -219,6 +248,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user])
 
   const isSuperadmin = userIsSuperadmin(user)
+
+  const applyPermissionsProfile = useCallback(
+    (snapshot: ReturnType<typeof parsePermissionsProfile>) => {
+      setProfilePermissions(snapshot.permissions)
+      setRolePermissions(snapshot.role_permissions)
+      setOverridePermissions(snapshot.override_permissions)
+      if (snapshot.role) {
+        setProfileRole(snapshot.role)
+        localStorage.setItem("role", snapshot.role)
+      }
+      if (typeof snapshot.customer_id === "number") {
+        setSelectedCustomerId(snapshot.customer_id)
+        localStorage.setItem("customerId", String(snapshot.customer_id))
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("profilePermissions", JSON.stringify(snapshot.permissions))
+        localStorage.setItem("rolePermissions", JSON.stringify(snapshot.role_permissions))
+        localStorage.setItem("overridePermissions", JSON.stringify(snapshot.override_permissions))
+      }
+    },
+    [],
+  )
 
   const applyProfilePermissions = useCallback((permissions: string[]) => {
     setProfilePermissions(permissions)
@@ -466,6 +517,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (customerIdToStore
           ? permissionsFromCustomer(authData.user.customers, customerIdToStore)
           : [])
+      if (customerIdToStore) {
+        setSelectedCustomerId(customerIdToStore)
+        const roleOnProfile = roleOnCustomer(authData.user.customers, customerIdToStore)
+        if (roleOnProfile) {
+          setProfileRole(roleOnProfile)
+          localStorage.setItem("role", roleOnProfile)
+        }
+      }
       if (loginPermissions.length > 0) {
         applyProfilePermissions(loginPermissions)
       }
@@ -775,6 +834,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setToken(null)
       setProfilePermissions([])
+      setSelectedCustomerId(null)
+      setProfileRole(null)
+      setRolePermissions([])
+      setOverridePermissions([])
       syncedCustomerIdRef.current = null
       setCustomerIdInFlightRef.current = null
       lastPermissionsFetchKeyRef.current = null
@@ -823,11 +886,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     page?: number
   }): Promise<any> => {
     try {
-      // Always get customer_id from params first, then fall back to localStorage
-      const customerId = params?.customer_id || localStorage.getItem("customerId");
+      const superadmin = userIsSuperadmin(userRef.current)
+      const customerId =
+        params?.customer_id ?? (!superadmin ? localStorage.getItem("customerId") : null)
       const queryParams = new URLSearchParams();
       
-      if (params?.status) queryParams.append("status", params.status);
+      if (params?.status) queryParams.append("status", formatUserStatusForApi(params.status));
       if (params?.role) queryParams.append("role", params.role);
       if (params?.department_id) queryParams.append("department_id", params.department_id);
       if (params?.q) queryParams.append("q", params.q);
@@ -887,6 +951,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
       const payload = {
         ...data,
+        ...(data.status !== undefined ? { status: formatUserStatusForApi(data.status) } : {}),
         ...(customerId !== undefined ? { customer_id: customerId } : {}),
       }
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
@@ -1044,38 +1109,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfilePermissions = useCallback(
     async (customerId?: string): Promise<string[]> => {
       if (userIsSuperadmin(userRef.current)) {
-        applyProfilePermissions([])
+        applyPermissionsProfile({
+          permissions: [],
+          role_permissions: [],
+          override_permissions: [],
+          role: "superadmin",
+        })
         return []
       }
 
       const id = customerId ?? getActiveCustomerId()
       if (!id) {
-        applyProfilePermissions([])
+        applyPermissionsProfile({
+          permissions: [],
+          role_permissions: [],
+          override_permissions: [],
+        })
         return []
       }
 
       const result = await getUserPermissions(id)
-      const permissions = normalizePermissionsResponse(result)
-      applyProfilePermissions(permissions)
-      return permissions
+      const snapshot = parsePermissionsProfile(result)
+      const roleFromCustomers = roleOnCustomer(userRef.current?.customers, Number(id))
+      applyPermissionsProfile({
+        ...snapshot,
+        role: snapshot.role ?? roleFromCustomers,
+        customer_id: snapshot.customer_id ?? Number(id),
+      })
+      return snapshot.permissions
     },
-    [getUserPermissions, applyProfilePermissions],
+    [getUserPermissions, applyPermissionsProfile],
   )
 
-  const getAvailablePermissions = useCallback(async (): Promise<AvailablePermissionsPayload> => {
+  const getAvailablePermissions = useCallback(async (customerId?: string): Promise<AvailablePermissionsPayload> => {
     const { fetchAvailablePermissions } = await import("@/lib/api/user-permissions-api")
-    return fetchAvailablePermissions()
+    return fetchAvailablePermissions(customerId ?? getActiveCustomerId())
   }, [])
 
-  const fetchUserPermissionDetail = useCallback(async (userId: number) => {
+  const fetchUserPermissionDetail = useCallback(async (userId: number, customerId?: string) => {
     const { fetchUserPermissionDetail: fetchDetail } = await import("@/lib/api/user-permissions-api")
-    return fetchDetail(userId)
+    return fetchDetail(userId, customerId ?? getActiveCustomerId())
   }, [])
 
-  const updateUserDirectPermissions = useCallback(async (userId: number, permissions: string[]) => {
-    const { updateUserDirectPermissions: updateDirect } = await import("@/lib/api/user-permissions-api")
-    return updateDirect(userId, permissions)
-  }, [])
+  const updateUserDirectPermissions = useCallback(
+    async (userId: number, permissions: string[], customerId?: string) => {
+      const { updateUserOverridePermissions } = await import("@/lib/api/user-permissions-api")
+      return updateUserOverridePermissions(userId, permissions, customerId ?? getActiveCustomerId())
+    },
+    [],
+  )
 
   const hasPermission = useCallback(
     (permission: string) => checkPermission(profilePermissions, permission, isSuperadmin),
@@ -1151,7 +1233,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({
+          ...userData,
+          status: formatUserStatusForApi(userData.status),
+        }),
       });
 
       if (response.status === 401) {
@@ -1210,12 +1295,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const result = await response.json()
           localStorage.setItem("token", result.token)
           localStorage.setItem("customerId", String(customerId))
+          setSelectedCustomerId(customerId)
           setToken(result.token)
           syncedCustomerIdRef.current = customerId
           lastPermissionsFetchKeyRef.current = null
 
           const currentUser = userRef.current
           if (currentUser) {
+            const roleOnProfile = roleOnCustomer(currentUser.customers, customerId)
+            if (roleOnProfile) {
+              setProfileRole(roleOnProfile)
+              localStorage.setItem("role", roleOnProfile)
+            }
+            const selectedCustomer = currentUser.customers?.find((c) => c.id === customerId)
+            if (selectedCustomer?.type) {
+              localStorage.setItem("customerType", selectedCustomer.type)
+            }
             const updatedUser = {
               ...currentUser,
               customer_id: customerId,
@@ -1425,6 +1520,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchUserPermissionDetail,
         updateUserDirectPermissions,
         profilePermissions,
+        permissions: profilePermissions,
+        selectedCustomerId,
+        profileRole,
+        rolePermissions,
+        overridePermissions,
         isSuperadmin,
         refreshProfilePermissions,
         hasPermission,

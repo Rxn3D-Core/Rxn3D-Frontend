@@ -1,4 +1,5 @@
 import { clearSessionStorage } from "@/lib/clear-session-storage"
+import { appendCustomerIdQuery, resolveApiCustomerId } from "@/lib/customer-scope"
 import {
   computeDirectPermissionsToSave,
   normalizeAvailablePermissions,
@@ -52,10 +53,13 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 
 export type UserPermissionDetail = {
   user_id: number
+  customer_id?: number
   user_name?: string
   direct_permissions: string[]
+  override_permissions: string[]
   role_permissions: string[]
   all_permissions: string[]
+  effective_permissions: string[]
   roles: string[]
 }
 
@@ -66,9 +70,54 @@ function unwrapData<T>(payload: T | { data: T }): T {
   return payload as T
 }
 
-/** GET /users/permissions/available */
-export async function fetchAvailablePermissions(): Promise<AvailablePermissionsPayload> {
-  const response = await fetch(ensureAbsoluteUrl("/users/permissions/available"), {
+function normalizeUserPermissionDetail(
+  data: Record<string, unknown>,
+  userId: number,
+): UserPermissionDetail {
+  const override = Array.isArray(data.override_permissions)
+    ? (data.override_permissions as string[])
+    : Array.isArray(data.direct_permissions)
+      ? (data.direct_permissions as string[])
+      : []
+
+  const effective = Array.isArray(data.effective_permissions)
+    ? (data.effective_permissions as string[])
+    : Array.isArray(data.all_permissions)
+      ? (data.all_permissions as string[])
+      : []
+
+  return {
+    user_id: typeof data.user_id === "number" ? data.user_id : userId,
+    customer_id: typeof data.customer_id === "number" ? data.customer_id : undefined,
+    user_name: typeof data.user_name === "string" ? data.user_name : undefined,
+    direct_permissions: override,
+    override_permissions: override,
+    role_permissions: Array.isArray(data.role_permissions) ? (data.role_permissions as string[]) : [],
+    all_permissions: effective,
+    effective_permissions: effective,
+    roles: Array.isArray(data.roles) ? (data.roles as string[]) : [],
+  }
+}
+
+function requireCustomerId(customerId?: string | number | null): number {
+  const resolved = resolveApiCustomerId(customerId)
+  if (!resolved) {
+    throw new Error("customer_id is required for this operation")
+  }
+  const parsed = Number(resolved)
+  if (Number.isNaN(parsed)) {
+    throw new Error("customer_id is invalid")
+  }
+  return parsed
+}
+
+/** GET /users/permissions/available?customer_id={labId} */
+export async function fetchAvailablePermissions(
+  customerId?: string | number | null,
+): Promise<AvailablePermissionsPayload> {
+  const scopedCustomerId = resolveApiCustomerId(customerId)
+  const url = appendCustomerIdQuery("/users/permissions/available", scopedCustomerId)
+  const response = await fetch(ensureAbsoluteUrl(url), {
     method: "GET",
     headers: getBearerHeaders(),
   })
@@ -76,45 +125,79 @@ export async function fetchAvailablePermissions(): Promise<AvailablePermissionsP
   return normalizeAvailablePermissions(result)
 }
 
-/** GET /users/{userId}/permissions */
-export async function fetchUserPermissionDetail(userId: number): Promise<UserPermissionDetail> {
-  const response = await fetch(ensureAbsoluteUrl(`/users/${userId}/permissions`), {
+/** GET /users/{userId}/permissions?customer_id={labId} */
+export async function fetchUserPermissionDetail(
+  userId: number,
+  customerId?: string | number | null,
+): Promise<UserPermissionDetail> {
+  const scopedCustomerId = resolveApiCustomerId(customerId)
+  const url = appendCustomerIdQuery(`/users/${userId}/permissions`, scopedCustomerId)
+  const response = await fetch(ensureAbsoluteUrl(url), {
     method: "GET",
     headers: getBearerHeaders(),
   })
   const result = await parseJsonResponse<UserPermissionDetail | { data: UserPermissionDetail }>(response)
-  const data = unwrapData(result)
-  return {
-    user_id: data.user_id ?? userId,
-    user_name: data.user_name,
-    direct_permissions: data.direct_permissions ?? [],
-    role_permissions: data.role_permissions ?? [],
-    all_permissions: data.all_permissions ?? [],
-    roles: data.roles ?? [],
-  }
+  const data = unwrapData(result) as Record<string, unknown>
+  return normalizeUserPermissionDetail(data, userId)
 }
 
-/** PUT /users/{userId}/permissions — replaces direct permissions only */
-export async function updateUserDirectPermissions(
+/** PUT /users/{userId}/permissions — replaces override permissions for one lab */
+export async function updateUserOverridePermissions(
   userId: number,
   permissions: string[],
+  customerId?: string | number | null,
 ): Promise<UserPermissionDetail> {
+  const cid = requireCustomerId(customerId)
   const response = await fetch(ensureAbsoluteUrl(`/users/${userId}/permissions`), {
     method: "PUT",
     headers: getBearerHeaders(),
-    body: JSON.stringify({ permissions }),
+    body: JSON.stringify({ customer_id: cid, permissions }),
   })
-  const result = await parseJsonResponse<{ data?: Partial<UserPermissionDetail> }>(response)
-  const data = result.data ?? {}
-  return fetchUserPermissionDetail(userId)
+  await parseJsonResponse<unknown>(response)
+  return fetchUserPermissionDetail(userId, cid)
 }
 
-/** Load current role permissions, compute direct extras, and PUT (including clearing all direct grants). */
+/** @deprecated Use updateUserOverridePermissions */
+export async function updateUserDirectPermissions(
+  userId: number,
+  permissions: string[],
+  customerId?: string | number | null,
+): Promise<UserPermissionDetail> {
+  return updateUserOverridePermissions(userId, permissions, customerId)
+}
+
+/** Load role + override split, compute override extras, and PUT. */
+export async function persistUserOverridePermissions(
+  userId: number,
+  selected: string[],
+  customerId?: string | number | null,
+): Promise<UserPermissionDetail> {
+  const detail = await fetchUserPermissionDetail(userId, customerId)
+  const overrides = computeDirectPermissionsToSave(selected, detail.role_permissions ?? [])
+  return updateUserOverridePermissions(userId, overrides, customerId ?? detail.customer_id)
+}
+
+/**
+ * Save user override permissions for one customer profile.
+ * `overridePermissions` must be the override list only (not role template grants).
+ */
+export async function persistUserPermissions(
+  userId: number,
+  overridePermissions: string[],
+  customerId?: string | number | null,
+): Promise<UserPermissionDetail> {
+  const cid = requireCustomerId(customerId)
+  return updateUserOverridePermissions(userId, overridePermissions, cid)
+}
+
+/**
+ * Save from create/edit modals where `selected` may be a full template or override list.
+ * Computes override extras against role grants when needed.
+ */
 export async function persistUserDirectPermissions(
   userId: number,
   selected: string[],
+  customerId?: string | number | null,
 ): Promise<UserPermissionDetail> {
-  const detail = await fetchUserPermissionDetail(userId)
-  const direct = computeDirectPermissionsToSave(selected, detail.role_permissions ?? [])
-  return updateUserDirectPermissions(userId, direct)
+  return persistUserOverridePermissions(userId, selected, customerId)
 }

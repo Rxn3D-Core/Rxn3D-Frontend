@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
 import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
+import { getActiveCustomerId } from "@/lib/customer-scope"
 import { Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -75,6 +76,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   // Get auth context
   const authContext = useAuth()
   const canManagePermissions = authContext.hasAnyPermission?.(["manage_users", "edit_user"]) ?? false
+  const activeCustomerId = getActiveCustomerId()
 
   // Check if auth context is properly initialized
   if (!authContext?.createUser) {
@@ -452,7 +454,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
         createResult?.id
 
       if (canManagePermissions && newUserId) {
-        await persistUserDirectPermissions(Number(newUserId), selectedPermissions)
+        await persistUserDirectPermissions(Number(newUserId), selectedPermissions, activeCustomerId)
       }
 
       toast({
@@ -894,7 +896,8 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
               <div className="space-y-3 border-t pt-4">
                 <h4 className="text-sm font-semibold">Permissions</h4>
                 <PermissionAssignmentPanel
-                  key={selectedRole}
+                  key={`${selectedRole}-${activeCustomerId ?? "none"}`}
+                  customerId={activeCustomerId ?? undefined}
                   role={selectedRole}
                   selected={selectedPermissions}
                   onChange={setSelectedPermissions}

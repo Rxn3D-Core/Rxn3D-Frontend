@@ -8,7 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { useGetUserInvitation, acceptUserInvitation } from "@/hooks/use-user-invitations"
+import {
+  useGetUserInvitation,
+  acceptUserInvitation,
+  isExistingActiveUserInvitation,
+  isRegistrationInvitation,
+} from "@/hooks/use-user-invitations"
 
 const formatRoleLabel = (role?: string) =>
   role
@@ -37,19 +42,52 @@ function Shell({ children }: { children: React.ReactNode }) {
   )
 }
 
-function InvitationHeader({ customerName, role, email }: { customerName?: string; role?: string; email?: string }) {
+function InvitationHeader({
+  customerName,
+  role,
+  email,
+  variant = "invite",
+}: {
+  customerName?: string
+  role?: string
+  email?: string
+  variant?: "invite" | "join"
+}) {
   return (
     <div className="mb-6 text-center">
-      <h1 className="text-2xl font-bold text-gray-900">You've been invited</h1>
-      <p className="mt-2 text-sm text-gray-600">
-        Join <span className="font-semibold">{customerName}</span>
-        {role ? (
+      <h1 className="text-2xl font-bold text-gray-900">
+        {variant === "join" ? (
           <>
-            {" "}
-            as <span className="font-semibold">{formatRoleLabel(role)}</span>
+            Join <span className="text-[#1162a8]">{customerName}</span>
           </>
-        ) : null}
-        .
+        ) : (
+          "You've been invited"
+        )}
+      </h1>
+      <p className="mt-2 text-sm text-gray-600">
+        {variant === "join" ? (
+          <>
+            Accept this invitation
+            {role ? (
+              <>
+                {" "}
+                as <span className="font-semibold">{formatRoleLabel(role)}</span>
+              </>
+            ) : null}
+            .
+          </>
+        ) : (
+          <>
+            Join <span className="font-semibold">{customerName}</span>
+            {role ? (
+              <>
+                {" "}
+                as <span className="font-semibold">{formatRoleLabel(role)}</span>
+              </>
+            ) : null}
+            .
+          </>
+        )}
       </p>
       <p className="mt-1 text-xs text-gray-500">{email}</p>
     </div>
@@ -92,8 +130,9 @@ export default function UserInvitationPage() {
   }, [invitation])
 
   const isProcessed = invitation?.status === "Accepted" || invitation?.status === "Cancelled"
-  // requires_login => existing ACTIVE account: must authenticate, then accept with Bearer (token-only body).
-  const requiresLogin = !!invitation?.requires_login
+  const alreadyLinked = invitation?.already_linked === true
+  const existingActiveUserFlow = invitation ? isExistingActiveUserInvitation(invitation) : false
+  const showRegistrationForm = invitation ? isRegistrationInvitation(invitation) : false
   const requiresDoctorDocuments = !!invitation?.requires_doctor_documents
 
   // A different user is signed in than the one the invitation is addressed to
@@ -195,7 +234,7 @@ export default function UserInvitationPage() {
     )
   }
 
-  if (isError || !invitation) {
+  if (isError || !invitation?.email) {
     return (
       <Shell>
         <div className="text-center">
@@ -253,18 +292,14 @@ export default function UserInvitationPage() {
     )
   }
 
-  if (isProcessed || invitation.already_linked) {
+  if (alreadyLinked) {
     return (
       <Shell>
         <div className="text-center">
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[#119933]" />
-          <h1 className="mb-2 text-xl font-bold text-gray-900">
-            {invitation.already_linked ? "You're already a member" : "Invitation already processed"}
-          </h1>
+          <h1 className="mb-2 text-xl font-bold text-gray-900">You already have access</h1>
           <p className="mb-6 text-sm text-gray-600">
-            {invitation.already_linked
-              ? `You already have access to ${invitation.customer?.name}. Just log in to continue.`
-              : "This invitation has already been used. Please log in to continue."}
+            You already have access to {invitation.customer?.name}. Log in to continue.
           </p>
           <Button className="w-full bg-[#1162a8] hover:bg-[#0d5999]" onClick={() => router.push("/login")}>
             Go to login
@@ -274,15 +309,35 @@ export default function UserInvitationPage() {
     )
   }
 
-  // Existing ACTIVE account → must be authenticated to accept
-  if (requiresLogin) {
+  if (isProcessed) {
+    return (
+      <Shell>
+        <div className="text-center">
+          <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[#119933]" />
+          <h1 className="mb-2 text-xl font-bold text-gray-900">Invitation already processed</h1>
+          <p className="mb-6 text-sm text-gray-600">This invitation has already been used. Please log in to continue.</p>
+          <Button className="w-full bg-[#1162a8] hover:bg-[#0d5999]" onClick={() => router.push("/login")}>
+            Go to login
+          </Button>
+        </div>
+      </Shell>
+    )
+  }
+
+  // user_exists + requires_login → Join {customer} (not registration)
+  if (existingActiveUserFlow) {
     // Not signed in → send to login and return here afterwards
     if (!isAuthenticated) {
       return (
         <Shell>
-          <InvitationHeader customerName={invitation.customer?.name} role={invitation.role} email={invitation.email} />
+          <InvitationHeader
+            variant="join"
+            customerName={invitation.customer?.name}
+            role={invitation.role}
+            email={invitation.email}
+          />
           <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
-            You already have an account with this email. Log in to add this profile.
+            Log in with <span className="font-semibold">{invitation.email}</span> to accept this invitation.
           </div>
           <Button
             className="mt-4 w-full bg-[#1162a8] hover:bg-[#0d5999]"
@@ -299,7 +354,12 @@ export default function UserInvitationPage() {
     if (emailMismatch) {
       return (
         <Shell>
-          <InvitationHeader customerName={invitation.customer?.name} role={invitation.role} email={invitation.email} />
+          <InvitationHeader
+            variant="join"
+            customerName={invitation.customer?.name}
+            role={invitation.role}
+            email={invitation.email}
+          />
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             You're signed in as <span className="font-semibold">{user?.email}</span>, but this invitation is for{" "}
             <span className="font-semibold">{invitation.email}</span>. Log out and sign in as that user to accept.
@@ -314,7 +374,12 @@ export default function UserInvitationPage() {
     // Signed in as the correct user → confirm accept (Bearer, token-only body)
     return (
       <Shell>
-        <InvitationHeader customerName={invitation.customer?.name} role={invitation.role} email={invitation.email} />
+        <InvitationHeader
+          variant="join"
+          customerName={invitation.customer?.name}
+          role={invitation.role}
+          email={invitation.email}
+        />
         {error && (
           <div className="mb-4 flex items-center rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             <AlertTriangle className="mr-2 h-5 w-5 flex-shrink-0" />
@@ -322,8 +387,8 @@ export default function UserInvitationPage() {
           </div>
         )}
         <p className="text-sm text-gray-600">
-          Accept this invitation to add <span className="font-semibold">{invitation.customer?.name}</span> to your
-          account. You can switch between profiles after signing in.
+          Add <span className="font-semibold">{invitation.customer?.name}</span> to your account. You can switch
+          between profiles after accepting.
         </p>
         <Button
           className="mt-4 w-full bg-[#1162a8] hover:bg-[#0d5999]"
@@ -349,7 +414,25 @@ export default function UserInvitationPage() {
     )
   }
 
-  // New user OR Invited user (no password yet) → full registration form
+  if (!showRegistrationForm) {
+    return (
+      <Shell>
+        <div className="text-center">
+          <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-red-500" />
+          <h1 className="mb-2 text-xl font-bold text-gray-900">Unable to process invitation</h1>
+          <p className="mb-6 text-sm text-gray-600">
+            This invitation could not be loaded correctly. Please ask your administrator to send a new link.
+          </p>
+          <Link href="/login" className="inline-flex items-center text-[#1162a8] hover:underline">
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Back to login
+          </Link>
+        </div>
+      </Shell>
+    )
+  }
+
+  // user_exists === false (or Invited user needing password) → registration form
   return (
     <Shell>
       <InvitationHeader customerName={invitation.customer?.name} role={invitation.role} email={invitation.email} />

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Search, Shield, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { getActiveCustomerId } from "@/lib/customer-scope"
 import { filterGroupedForActiveContext, profileScopeLabel } from "@/lib/permissions"
 
 function formatGroupLabel(key: string): string {
@@ -38,7 +39,8 @@ export function ACLManager() {
     const load = async () => {
       setIsLoading(true)
       try {
-        const data = await getAvailablePermissions()
+        const customerId = getActiveCustomerId()
+        const data = await getAvailablePermissions(customerId ?? undefined)
         if (cancelled) return
         setGrouped(data.grouped ?? {})
         setLabRoleBundle(data.lab_role_bundle ?? [])

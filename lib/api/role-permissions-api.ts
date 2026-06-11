@@ -1,4 +1,5 @@
 import { clearSessionStorage } from "@/lib/clear-session-storage"
+import { appendCustomerIdQuery } from "@/lib/customer-scope"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -57,7 +58,81 @@ export type BackendRole = {
   permissions?: BackendPermission[]
 }
 
-/** GET /role-permissions/roles — superadmin only */
+export type CustomerRoleTemplate = {
+  id: number
+  name: string
+  permissions: string[]
+  is_customized: boolean
+}
+
+export type CustomerRolePermissionsList = {
+  customer_id: number
+  roles: CustomerRoleTemplate[]
+}
+
+function unwrapData<T>(payload: T | { data: T }): T {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data
+  }
+  return payload as T
+}
+
+/** GET /customers/{customerId}/role-permissions */
+export async function fetchCustomerRolePermissions(
+  customerId: number | string,
+): Promise<CustomerRolePermissionsList> {
+  const response = await fetch(
+    ensureAbsoluteUrl(`/customers/${customerId}/role-permissions`),
+    {
+      method: "GET",
+      headers: getBearerHeaders(),
+    },
+  )
+  const result = await parseJsonResponse<CustomerRolePermissionsList | { data: CustomerRolePermissionsList }>(
+    response,
+  )
+  const data = unwrapData(result)
+  return {
+    customer_id: data.customer_id ?? Number(customerId),
+    roles: data.roles ?? [],
+  }
+}
+
+/** GET /customers/{customerId}/roles/{roleId}/permissions */
+export async function fetchCustomerRolePermissionDetail(
+  customerId: number | string,
+  roleId: number,
+): Promise<CustomerRoleTemplate> {
+  const response = await fetch(
+    ensureAbsoluteUrl(`/customers/${customerId}/roles/${roleId}/permissions`),
+    {
+      method: "GET",
+      headers: getBearerHeaders(),
+    },
+  )
+  const result = await parseJsonResponse<CustomerRoleTemplate | { data: CustomerRoleTemplate }>(response)
+  return unwrapData(result)
+}
+
+/** PUT /customers/{customerId}/roles/{roleId}/permissions */
+export async function updateCustomerRolePermissions(
+  customerId: number | string,
+  roleId: number,
+  permissions: string[],
+): Promise<CustomerRoleTemplate> {
+  const response = await fetch(
+    ensureAbsoluteUrl(`/customers/${customerId}/roles/${roleId}/permissions`),
+    {
+      method: "PUT",
+      headers: getBearerHeaders(),
+      body: JSON.stringify({ permissions }),
+    },
+  )
+  const result = await parseJsonResponse<CustomerRoleTemplate | { data: CustomerRoleTemplate }>(response)
+  return unwrapData(result)
+}
+
+/** GET /role-permissions/roles — superadmin only (global defaults) */
 export async function fetchBackendRoles(): Promise<BackendRole[]> {
   const response = await fetch(ensureAbsoluteUrl("/role-permissions/roles"), {
     method: "GET",
@@ -68,7 +143,7 @@ export async function fetchBackendRoles(): Promise<BackendRole[]> {
   return result.data ?? []
 }
 
-/** PUT /role-permissions/roles/{id} — sync permissions by permission name */
+/** PUT /role-permissions/roles/{id} — superadmin global role bundle */
 export async function updateBackendRolePermissions(
   roleId: number,
   permissions: string[],

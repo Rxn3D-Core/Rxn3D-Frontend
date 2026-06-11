@@ -9,20 +9,50 @@ import {
   isOfficeCustomerContext,
 } from "@/lib/role-utils"
 
+export type CustomerProfile = {
+  id: number
+  name: string
+  type: "lab" | "office"
+  role: string
+  permissions: string[]
+}
+
+export type PermissionsProfileSnapshot = {
+  customer_id?: number
+  role?: string | null
+  permissions: string[]
+  role_permissions: string[]
+  override_permissions: string[]
+  is_superadmin?: boolean
+}
+
 export type PermissionsApiPayload =
   | string[]
   | {
       permissions?: string[]
       all_permissions?: string[]
+      effective_permissions?: string[]
       customer_permissions?: string[]
+      role_permissions?: string[]
+      override_permissions?: string[]
+      direct_permissions?: string[]
+      role?: string
+      customer_id?: number
+      is_superadmin?: boolean
       data?: {
         permissions?: string[]
         all_permissions?: string[]
+        effective_permissions?: string[]
         customer_permissions?: string[]
+        role_permissions?: string[]
+        override_permissions?: string[]
+        direct_permissions?: string[]
         grouped?: Record<string, string[]>
         lab_role_bundle?: string[]
         lab_role_names?: string[]
         total_count?: number
+        role?: string
+        customer_id?: number
       }
     }
   | null
@@ -51,7 +81,12 @@ export function normalizePermissionsResponse(payload: PermissionsApiPayload): st
       ? (root.data as Record<string, unknown>)
       : root
 
-  for (const key of ["permissions", "all_permissions", "customer_permissions"] as const) {
+  for (const key of [
+    "permissions",
+    "effective_permissions",
+    "all_permissions",
+    "customer_permissions",
+  ] as const) {
     const list = data[key]
     if (Array.isArray(list) && list.length > 0) {
       return list.filter((p): p is string => typeof p === "string" && p.length > 0)
@@ -59,6 +94,55 @@ export function normalizePermissionsResponse(payload: PermissionsApiPayload): st
   }
 
   return []
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((p): p is string => typeof p === "string" && p.length > 0)
+}
+
+/** Parse GET /users/permissions (or admin user detail) into auth state fields. */
+export function parsePermissionsProfile(payload: unknown): PermissionsProfileSnapshot {
+  if (!payload || typeof payload !== "object") {
+    return {
+      permissions: [],
+      role_permissions: [],
+      override_permissions: [],
+    }
+  }
+
+  const root = payload as Record<string, unknown>
+  const data =
+    root.data && typeof root.data === "object" && !Array.isArray(root.data)
+      ? (root.data as Record<string, unknown>)
+      : root
+
+  const override =
+    stringList(data.override_permissions).length > 0
+      ? stringList(data.override_permissions)
+      : stringList(data.direct_permissions)
+
+  return {
+    customer_id:
+      typeof data.customer_id === "number"
+        ? data.customer_id
+        : typeof root.customer_id === "number"
+          ? root.customer_id
+          : undefined,
+    role:
+      typeof data.role === "string"
+        ? data.role
+        : typeof root.role === "string"
+          ? root.role
+          : null,
+    permissions: normalizePermissionsResponse(payload as PermissionsApiPayload),
+    role_permissions: stringList(data.role_permissions),
+    override_permissions: override,
+    is_superadmin:
+      root.is_superadmin === true ||
+      data.is_superadmin === true ||
+      root.is_superadmin === 1,
+  }
 }
 
 export function normalizeAvailablePermissions(payload: unknown): AvailablePermissionsPayload {
@@ -144,6 +228,86 @@ export function userIsSuperadmin(user?: { roles?: string[]; role?: string } | nu
 }
 
 export const LAB_ROLE_NAMES = ["lab_admin", "lab_user", "lab_driver"] as const
+
+/** Per-lab role templates editable by lab_admin (lab_admin bundle is locked). */
+export const LAB_EDITABLE_ROLE_NAMES = ["lab_user", "lab_driver"] as const
+
+export function isLabEditableRoleName(role: string): boolean {
+  return (LAB_EDITABLE_ROLE_NAMES as readonly string[]).includes(role)
+}
+
+export function canAccessAclManagement(
+  permissions: string[] | null | undefined,
+  role: string | null | undefined,
+  isSuperadmin = false,
+): boolean {
+  if (isSuperadmin) return true
+  return hasPermission(permissions, "update_role", false) && role === "lab_admin"
+}
+
+export function roleOnCustomer(
+  customers: Array<{ id: number; role?: string }> | undefined,
+  customerId: number,
+): string | null {
+  const match = customers?.find((c) => c.id === customerId)
+  return match?.role ?? null
+}
+
+export type UserCustomerProfileOption = {
+  id: number
+  name: string
+  type: string
+  role: string
+}
+
+function extractRoleNameFromApi(role: unknown): string {
+  if (typeof role === "string") return role
+  if (role && typeof role === "object" && "name" in role) {
+    return String((role as { name: string }).name)
+  }
+  return ""
+}
+
+/** Lab/office profiles a user belongs to — used when superadmin picks permission scope. */
+export function customerProfilesFromUser(
+  apiUser: Record<string, unknown>,
+): UserCustomerProfileOption[] {
+  const profiles: UserCustomerProfileOption[] = []
+  const seen = new Set<number>()
+
+  const addProfile = (id: number, name: string, type: string, role: string) => {
+    if (!id || Number.isNaN(id) || !role || seen.has(id)) return
+    seen.add(id)
+    profiles.push({ id, name, type, role })
+  }
+
+  const customerUsers = Array.isArray(apiUser.customer_users) ? apiUser.customer_users : []
+  for (const cu of customerUsers) {
+    if (!cu || typeof cu !== "object") continue
+    const row = cu as Record<string, unknown>
+    const customer = row.customer as Record<string, unknown> | undefined
+    const id = Number(row.customer_id ?? customer?.id)
+    const role = extractRoleNameFromApi(row.role)
+    addProfile(
+      id,
+      String(customer?.name ?? row.name ?? `Customer ${id}`),
+      String(customer?.type ?? row.type ?? ""),
+      role,
+    )
+  }
+
+  // GET /users/{id} often returns `customers[]` with id, name, type, role on each row.
+  const customers = Array.isArray(apiUser.customers) ? apiUser.customers : []
+  for (const entry of customers) {
+    if (!entry || typeof entry !== "object") continue
+    const row = entry as Record<string, unknown>
+    const id = Number(row.id)
+    const role = extractRoleNameFromApi(row.role)
+    addProfile(id, String(row.name ?? `Customer ${id}`), String(row.type ?? ""), role)
+  }
+
+  return profiles
+}
 
 export const OFFICE_ROLE_NAMES = [
   "office_admin",

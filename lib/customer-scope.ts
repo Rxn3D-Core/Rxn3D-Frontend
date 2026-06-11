@@ -8,6 +8,14 @@ export function getActiveCustomerId(): string | null {
   return localStorage.getItem("customerId")
 }
 
+/** Active profile customer id for permission-scoped API calls. */
+export function resolveApiCustomerId(customerId?: string | number | null): string | null {
+  if (customerId != null && customerId !== "") {
+    return String(customerId)
+  }
+  return getActiveCustomerId()
+}
+
 export function appendCustomerIdQuery(
   endpoint: string,
   customerId?: string | number | null,
