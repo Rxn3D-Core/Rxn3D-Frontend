@@ -1,4 +1,5 @@
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
 
 /**
  * Display-oriented view model for the redesigned (view-only) virtual slip page.
@@ -118,6 +119,11 @@ export interface VirtualSlipHeaderVM {
   slipNumber: string;
   caseNumber: string;
   panNumber: string;
+  /** Case-level status (hold, in progress, etc.). */
+  caseStatus: string;
+  /** Current slip status. */
+  slipStatus: string;
+  /** @deprecated Prefer `caseStatus` for case-level checks. */
   status: string;
   location: string;
   /** `slip_locations` id when API provides it (listing / FAB actions). */
@@ -432,7 +438,7 @@ function buildProduct(apiProduct: any): ProductVM {
     chipTeeth?.willExtractTeeth ??
     parseTeeth(apiProduct?.extraction_teeth ?? apiProduct?.will_extract);
 
-  const teethLabel = teeth.length > 0 ? `#${teeth.join(",")}` : "";
+  const teethLabel = formatToothNumbersLabel(teeth);
 
   const variationImage = firstStr(variation?.image_url, variation?.image) || null;
   const productImage = firstStr(product?.image_url, product?.image, apiProduct?.image) || null;
@@ -780,7 +786,9 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
     slipNumber: firstStr(safe.slip_number),
     caseNumber: firstStr(caseObj.case_number),
     panNumber: firstStr(safe.casepan?.number, caseObj.casepan?.number),
-    status: firstStr(safe.status, caseObj.case_status),
+    caseStatus: firstStr(caseObj.case_status, safe.status),
+    slipStatus: firstStr(safe.status, caseObj.case_status),
+    status: firstStr(caseObj.case_status, safe.status),
     location: firstStr(safe.location?.current?.name, safe.location?.name),
     locationId:
       typeof safe.location?.current?.id === "number"

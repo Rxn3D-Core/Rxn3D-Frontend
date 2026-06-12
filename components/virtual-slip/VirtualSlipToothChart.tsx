@@ -133,7 +133,7 @@ export function VirtualSlipToothChart({
   };
 
   return (
-    <div className="pointer-events-none w-full select-none">
+    <div className="pointer-events-none mx-auto w-full max-w-[80%] select-none">
       {arch === "maxillary" ? (
         <MaxillaryTeethSVG {...commonProps} />
       ) : (

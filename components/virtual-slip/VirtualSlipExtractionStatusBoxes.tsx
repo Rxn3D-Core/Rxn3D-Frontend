@@ -27,6 +27,7 @@ export function VirtualSlipExtractionStatusBoxes({
       submitted
       hideDefaultBox
       disableRequiredValidation
+      compact
     />
   );
 }

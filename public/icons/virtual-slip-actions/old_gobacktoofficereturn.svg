@@ -7,8 +7,8 @@
       }
     </style>
     <linearGradient id="d" x1="0" y1="31.67" x2="65.25" y2="31.67" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff5f6d"/>
-      <stop offset="1" stop-color="#c1121f"/>
+      <stop offset="0" stop-color="#16ade1"/>
+      <stop offset="1" stop-color="#6563ac"/>
     </linearGradient>
   </defs>
   <g id="c" data-name="Layer 2">

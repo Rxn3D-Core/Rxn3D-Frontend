@@ -7,15 +7,33 @@ import { SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location";
 
 const CENTER_ICON_BASE = "/icons/virtual-slip-center";
 
-function CenterIcon({ src, alt, className }: { src: string; alt: string; className?: string }) {
+const LEGACY_ICON_CLASS = "h-[52px] w-[52px]";
+const VIRTUAL_SLIP_ICON_CLASS =
+  "h-10 w-10 transition-[width,height] duration-200 ease-out group-hover:h-12 group-hover:w-12";
+
+function CenterIcon({
+  src,
+  alt,
+  className,
+  virtualSlipSizing = false,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  virtualSlipSizing?: boolean;
+}) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyphs
     <img
       src={src}
       alt={alt}
-      width={52}
-      height={52}
-      className={cn("h-[52px] w-[52px] object-contain", className)}
+      width={virtualSlipSizing ? 40 : 52}
+      height={virtualSlipSizing ? 40 : 52}
+      className={cn(
+        "object-contain",
+        virtualSlipSizing ? VIRTUAL_SLIP_ICON_CLASS : LEGACY_ICON_CLASS,
+        className
+      )}
     />
   );
 }
@@ -58,6 +76,8 @@ interface CenterActionIconsProps {
   visible: boolean;
   /** When true, render the full virtual-slip icon row (disabled if handler missing). */
   showFullIconRow?: boolean;
+  /** 40×40 default, 48×48 on hover — used on virtual slip. */
+  virtualSlipIconSizing?: boolean;
   /** Pencil — edit slip */
   onEditGeneral?: () => void;
   /** Stage / slip notes */
@@ -81,6 +101,7 @@ interface CenterActionIconsProps {
 export function CenterActionIcons({
   visible,
   showFullIconRow = false,
+  virtualSlipIconSizing = false,
   onEditGeneral,
   onStickyNote,
   onEdit,
@@ -100,8 +121,18 @@ export function CenterActionIcons({
   if (!visible) return null;
 
   const stickyNoteHandler = onStickyNote ?? onEdit;
-  const iconButtonClass =
-    "h-14 w-14 shrink-0 flex items-center justify-center rounded-full transition-transform duration-200 ease-out hover:scale-[1.15] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60";
+  const iconButtonClass = cn(
+    "shrink-0 flex items-center justify-center rounded-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-60",
+    virtualSlipIconSizing
+      ? "group h-10 w-10 overflow-visible transition-transform duration-200 ease-out hover:scale-[1.15] active:scale-95"
+      : "h-14 w-14 transition-transform duration-200 ease-out hover:scale-[1.15]"
+  );
+  const rushIconClass = virtualSlipIconSizing
+    ? VIRTUAL_SLIP_ICON_CLASS
+    : LEGACY_ICON_CLASS;
+  const driverHistoryIconClass = virtualSlipIconSizing
+    ? "h-10 w-[58px] transition-[width,height] duration-200 ease-out group-hover:h-12 group-hover:w-[70px]"
+    : "h-[52px] w-[76px]";
 
   const rowIcon = (
     key: string,
@@ -119,6 +150,7 @@ export function CenterActionIcons({
       <CenterIcon
         src={`${CENTER_ICON_BASE}/${src}`}
         alt={label}
+        virtualSlipSizing={virtualSlipIconSizing}
         className={options?.className}
       />
     ),
@@ -132,7 +164,7 @@ export function CenterActionIcons({
       key: "rush",
       label: rushLabel,
       onClick: onRush,
-      node: <RushIcon className="h-[52px] w-[52px]" />,
+      node: <RushIcon className={rushIconClass} />,
     },
     rowIcon("attach", "Attach files", "attachments.svg", onAttach),
   ];
@@ -140,7 +172,7 @@ export function CenterActionIcons({
   const moreRowDefs: CenterRowIconDef[] = [
     rowIcon("driver-history", "Driver history", "driver-history.svg", onDriverHistory, {
       // Truck artwork is wide — scale width so visual height matches other row icons.
-      className: "h-[52px] w-[76px]",
+      className: driverHistoryIconClass,
     }),
     rowIcon("call-log", "Call log", "call-log.svg", onCallLog),
     rowIcon("send-back-to-office", "Send back to office", "send-back-to-office.svg", onSendBackToOffice),
@@ -168,7 +200,7 @@ export function CenterActionIcons({
           key: "rush",
           label: rushLabel,
           onClick: onRush,
-          node: <RushIcon className="h-[52px] w-[52px]" />,
+          node: <RushIcon className={rushIconClass} />,
         }
       : null,
     onAttach ? rowIcon("attach", "Attach files", "attachments.svg", onAttach) : null,
@@ -223,7 +255,11 @@ export function CenterActionIcons({
                 aria-label={moreExpanded ? "Hide more actions" : "Show more actions"}
                 aria-expanded={moreExpanded}
               >
-                <CenterIcon src={`${CENTER_ICON_BASE}/ellipsis.svg`} alt="" />
+                <CenterIcon
+                  src={`${CENTER_ICON_BASE}/ellipsis.svg`}
+                  alt=""
+                  virtualSlipSizing={virtualSlipIconSizing}
+                />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
