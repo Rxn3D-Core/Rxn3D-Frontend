@@ -425,12 +425,6 @@ export const officeAdminMenu: MenuItem[] = [
         path: "/office-administrator/users",
         permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
-      {
-        id: "permission-management",
-        title: "User Permissions",
-        path: "/permission",
-        permission: ["update_role"],
-      },
     ],
   },
   {
@@ -444,33 +438,7 @@ export const officeAdminMenu: MenuItem[] = [
         path: "/office-case-management/",
         permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
       },
-      {
-        id: "call-logs",
-        title: "Call logs",
-        path: "/office-case-management/call-logs",
-        permission: ["view_call_logs", "edit_call_logs"],
-      },
-      {
-        id: "slip-notes",
-        title: "Slip notes",
-        path: "/office-case-management/slip-notes",
-        permission: ["view_case_details_status"],
-      },
     ],
-  },
-  {
-    id: "office-connections",
-    title: "Connections",
-    icon: <Link className="h-5 w-5" />,
-    path: "/office-administrator/connections",
-    permission: ["get_connections"],
-  },
-  {
-    id: "billing",
-    title: "Billing",
-    icon: <CreditCard className="h-5 w-5" />,
-    path: "/office-administrator/billing",
-    permission: ["view_billing", "manage_billing"],
   },
   {
     id: "settings",
@@ -483,13 +451,6 @@ export const officeAdminMenu: MenuItem[] = [
         icon: <LayoutDashboard className="h-5 w-5" />,
         path: "/dashboard/settings",
         permission: ["manage_dashboard_settings"],
-      },
-      {
-        id: "slip-settings",
-        title: "Slip Settings",
-        icon: <FileText className="h-5 w-5" />,
-        path: "/dashboard/slip-settings",
-        permission: ["manage_slip_settings"],
       },
       {
         id: "system-settings-main",
