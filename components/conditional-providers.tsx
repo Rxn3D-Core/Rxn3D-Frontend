@@ -15,7 +15,6 @@ import { ProductCategoryProvider } from "@/contexts/product-category-context"
 import { StagesProvider } from "@/contexts/product-stages-context"
 import { GradesProvider } from "@/contexts/product-grades-context"
 import { DriverSlipProvider } from "@/contexts"
-import { CustomerProvider } from "@/contexts/customer-context"
 // Lazy load ModelPreloadProvider to prevent Three.js from loading on login page
 const ModelPreloadProvider = React.lazy(() =>
   import("@/contexts/3d-model-preload-context").then(mod => ({ default: mod.ModelPreloadProvider }))
@@ -43,8 +42,7 @@ function ConditionalProvidersInternal({ children }: { children: React.ReactNode 
       <LabAdminProvider>
         <RegistrationProvider>
           <BusinessSettingsProvider>
-            <CustomerProvider>
-              <LibraryItemsProvider>
+            <LibraryItemsProvider>
                 <ProductCategoryProvider>
                   <StagesProvider>
                     <GradesProvider>
@@ -65,7 +63,6 @@ function ConditionalProvidersInternal({ children }: { children: React.ReactNode 
                   </StagesProvider>
                 </ProductCategoryProvider>
               </LibraryItemsProvider>
-            </CustomerProvider>
           </BusinessSettingsProvider>
         </RegistrationProvider>
       </LabAdminProvider>

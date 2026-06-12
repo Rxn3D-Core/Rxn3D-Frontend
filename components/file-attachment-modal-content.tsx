@@ -3,9 +3,7 @@
 import type React from "react"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
   Paperclip,
@@ -33,17 +31,8 @@ import { useSlipCreation } from "../contexts/slip-creation-context"
 import {
   mapSlipAttachmentToLocalItem,
   validateSlipAttachmentFile,
-  type SlipAttachmentType,
 } from "@/services/slip-attachments-service"
 
-const ATTACHMENT_TYPE_OPTIONS: { value: SlipAttachmentType; label: string }[] = [
-  { value: "global", label: "Global" },
-  { value: "impression", label: "Impression" },
-  { value: "design", label: "Design" },
-  { value: "scan", label: "Scan" },
-  { value: "photo", label: "Photo" },
-  { value: "other", label: "Other" },
-]
 
 type LocalUploadItem = {
   file: File | { name: string; size: number; lastModified: number }
@@ -171,10 +160,7 @@ export default function FileAttachmentModalContent({
     })
   }, [impressionFiles])
 
-  const [description, setDescription] = useState("")
-  const [attachmentType, setAttachmentType] = useState<SlipAttachmentType>("global")
-  // "Make files available to related cases" — controls the isPublic flag stamped on new uploads
-  const [shareWithRelatedCases, setShareWithRelatedCases] = useState(true)
+  const description = ""
   // Filters
   const [stageFilter, setStageFilter] = useState("all-stages")
   const [visibilityFilter, setVisibilityFilter] = useState("all-visibility")
@@ -307,7 +293,6 @@ export default function FileAttachmentModalContent({
         url,
         type,
         stage: targetStage,
-        attachmentType,
         notes: description,
       })
     })
@@ -332,7 +317,7 @@ export default function FileAttachmentModalContent({
         if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
-        return { file, url, type, stage: targetStage, isPublic: shareWithRelatedCases }
+        return { file, url, type, stage: targetStage }
       })
       setSimulatedUploads(prev => [...prev, ...newUploads])
     }
@@ -340,10 +325,6 @@ export default function FileAttachmentModalContent({
 
   const handleUploadButtonClick = () => {
     fileInputRef.current?.click()
-  }
-
-  const handleDescriptionChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDescription(event.target.value)
   }
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
@@ -364,11 +345,11 @@ export default function FileAttachmentModalContent({
         if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
-        return { file, url, type, stage: targetStage, isPublic: shareWithRelatedCases }
+        return { file, url, type, stage: targetStage }
       })
       setSimulatedUploads(prev => [...prev, ...newUploads])
     }
-  }, [activeStage, stages, shareWithRelatedCases])
+  }, [activeStage, stages])
 
   const uploadedFilesSize = simulatedUploads.reduce((sum, { file }) => sum + file.size, 0)
   const totalSizeMB = (uploadedFilesSize / (1024 * 1024)).toFixed(2)
@@ -486,7 +467,6 @@ export default function FileAttachmentModalContent({
             const data = await uploadSlipAttachment(
               Number(slipId),
               upload.file as File,
-              description,
             )
             const generatedPath = extractGeneratedPath(data)
             return {
@@ -781,45 +761,6 @@ export default function FileAttachmentModalContent({
           <p className={`text-gray-500 ${isViewerOpen ? "text-[10px] leading-tight" : "text-xs"}`}>Drag & drop files here<br />or click to browse files.</p>
         </div>
 
-        <Select
-          value={attachmentType}
-          onValueChange={(v) => setAttachmentType(v as SlipAttachmentType)}
-          disabled={isCaseSubmitted}
-        >
-          <SelectTrigger className={`mb-2 ${isViewerOpen ? "h-7 text-[10px]" : "h-8 text-xs"}`}>
-            <SelectValue placeholder="Attachment type" />
-          </SelectTrigger>
-          <SelectContent>
-            {ATTACHMENT_TYPE_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Textarea
-          placeholder="Label or describe this attachment"
-          className={`mb-3 ${isViewerOpen ? "text-[10px] min-h-[50px]" : "text-xs min-h-[60px]"}`}
-          rows={isViewerOpen ? 2 : 3}
-          disabled={isCaseSubmitted}
-          value={description}
-          onChange={handleDescriptionChange}
-        />
-
-        <div className="flex items-center gap-1.5 mb-4">
-          <input
-            type="checkbox"
-            id="shareFiles"
-            className="rounded border-gray-300 w-3.5 h-3.5"
-            disabled={isCaseSubmitted}
-            checked={shareWithRelatedCases}
-            onChange={(e) => setShareWithRelatedCases(e.target.checked)}
-          />
-          <Label htmlFor="shareFiles" className={`${isViewerOpen ? "text-[10px]" : "text-xs"}`}>
-            Make files available to related cases
-          </Label>
-        </div>
 
         {uploadError && (
           <div className="text-red-600 text-[10px] mb-1">{uploadError}</div>
@@ -855,27 +796,31 @@ export default function FileAttachmentModalContent({
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={stageFilter} onValueChange={setStageFilter} disabled={isCaseSubmitted}>
-              <SelectTrigger className={`${isViewerOpen ? "w-[100px] h-7 text-[10px]" : "w-[120px] h-8 text-xs"}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all-stages">All Stages</SelectItem>
-                {stages.map((stage) => (
-                  <SelectItem key={stage} value={stage.toLowerCase().replace(/\s+/g, "-")}>{stage}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={visibilityFilter} onValueChange={setVisibilityFilter} disabled={isCaseSubmitted}>
-              <SelectTrigger className={`${isViewerOpen ? "w-[100px] h-7 text-[10px]" : "w-[120px] h-8 text-xs"}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all-visibility">All Visibility</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
-                <SelectItem value="private">Private</SelectItem>
-              </SelectContent>
-            </Select>
+            {stages.length > 0 && (
+              <Select value={stageFilter} onValueChange={setStageFilter} disabled={isCaseSubmitted}>
+                <SelectTrigger className={`${isViewerOpen ? "w-[100px] h-7 text-[10px]" : "w-[120px] h-8 text-xs"}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-stages">All Stages</SelectItem>
+                  {stages.map((stage) => (
+                    <SelectItem key={stage} value={stage.toLowerCase().replace(/\s+/g, "-")}>{stage}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {stages.length > 0 && (
+              <Select value={visibilityFilter} onValueChange={setVisibilityFilter} disabled={isCaseSubmitted}>
+                <SelectTrigger className={`${isViewerOpen ? "w-[100px] h-7 text-[10px]" : "w-[120px] h-8 text-xs"}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all-visibility">All Visibility</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Button
               variant="outline"
               size="sm"

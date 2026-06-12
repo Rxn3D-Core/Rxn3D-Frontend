@@ -62,8 +62,32 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     const customerType =
       typeof window !== "undefined" ? localStorage.getItem("customerType") : null
     const baseMenu = getMenuForProfile(userRole || "", customerType)
-    if (!usesProfilePermissions) return baseMenu
-    return filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin)
+    const filtered = usesProfilePermissions
+      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin)
+      : baseMenu
+    if (userRole !== "superadmin") return filtered
+    const hiddenIds = new Set([
+      "billing-dunning",
+      "billing-integrations",
+      "global-workflow",
+      "global-pricing",
+      "global-clinical-option",
+      "api-webhook",
+      "case-management",
+      "feedback-system",
+      "slip-settings",
+      "system-setting-main",
+      "performance-management",
+      "marketplace",
+      "invite-entity",
+    ])
+    return filtered
+      .filter((item) => !hiddenIds.has(item.id))
+      .map((item) =>
+        item.children
+          ? { ...item, children: item.children.filter((c) => !hiddenIds.has(c.id)) }
+          : item,
+      )
   }, [userRole, usesProfilePermissions, profilePermissions, isSuperadmin])
   const { t } = useTranslation();
   const { theme } = useTheme();

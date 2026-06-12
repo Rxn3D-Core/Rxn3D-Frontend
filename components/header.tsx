@@ -41,7 +41,7 @@ import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 import { UserProfileModal } from "@/components/user-profile-modal"
-import { DashboardOfficeInviteModal } from "@/components/dashboard/dashboard-office-invite-modal"
+import { DashboardInviteModal } from "@/components/dashboard/dashboard-invite-modal"
 import {
   fetchCurrentUserProfile,
   updateCurrentUserProfile,
@@ -115,6 +115,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const scannedQrTextsRef = useRef<Set<string>>(new Set())
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
   const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
+  const [showNewLabModal, setShowNewLabModal] = useState(false)
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
@@ -872,23 +873,34 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                   <span>{t("header.newOffice", "New Office")}</span>
                 </Button>
               )}
-              <Button
-                size="sm"
-                className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md relative"
-                onClick={openScanner}
-                aria-label={t("header.openScanner", "Open QR code scanner")}
-              >
-                <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
-                <span>{t("header.scanCode", "Scan Code")}</span>
-                {scanHistory.length > 0 && (
-                  <Badge 
-                    variant="secondary" 
-                    className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#1162a8] font-semibold rounded-full"
-                  >
-                    {scanHistory.length}
-                  </Badge>
-                )}
-              </Button>
+              {isSuperAdmin && (
+                <Button
+                  size="sm"
+                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  onClick={() => setShowNewLabModal(true)}
+                >
+                  <span>{t("header.newLab", "New Lab")}</span>
+                </Button>
+              )}
+              {!isSuperAdmin && (
+                <Button
+                  size="sm"
+                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md relative"
+                  onClick={openScanner}
+                  aria-label={t("header.openScanner", "Open QR code scanner")}
+                >
+                  <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
+                  <span>{t("header.scanCode", "Scan Code")}</span>
+                  {scanHistory.length > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#1162a8] font-semibold rounded-full"
+                    >
+                      {scanHistory.length}
+                    </Badge>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* Center Section - Logo or Search */}
@@ -959,9 +971,9 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               </div>
 
               {/* Language Switcher - Desktop */}
-              <div className="hidden lg:block">
+              {/* <div className="hidden lg:block">
                 <LanguageSwitcher />
-              </div>
+              </div> */}
 
 {/* Settings Icon */}
               <Button
@@ -1071,7 +1083,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             {/* Mobile Theme & Language */}
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
-              <LanguageSwitcher />
+              {/* <LanguageSwitcher /> */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -1086,12 +1098,23 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         </div>
       </header>
 
-      <DashboardOfficeInviteModal
-        practicesCount={0}
-        invitationsCount={0}
+      <DashboardInviteModal
+        type="Office"
+        title="Invite Your Practice"
+        description="Connect with dental practices to start receiving cases and managing your digital workflow."
         isOpen={showNewOfficeModal}
         forceOpen
         onClose={() => setShowNewOfficeModal(false)}
+      />
+
+      <DashboardInviteModal
+        type="Lab"
+        title="Invite a Lab"
+        description="Connect with dental labs to start sending cases and managing your digital workflow."
+        searchPlaceholder="Search by lab name, city or email..."
+        isOpen={showNewLabModal}
+        forceOpen
+        onClose={() => setShowNewLabModal(false)}
       />
 
       {/* Enhanced Scanner Dialog with maintained functionality */}
