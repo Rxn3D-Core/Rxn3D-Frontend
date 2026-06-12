@@ -56,8 +56,8 @@ function teethForRushRep(p: ArchVM["products"][number]): number[] {
   const fromApi = parseTeeth(api?.teeth_selection ?? api?.teeth);
   if (fromApi.length > 0) return fromApi;
   if (p.teethLabel.startsWith("#")) {
-    return p.teethLabel
-      .slice(1)
+    const numbersPart = p.teethLabel.replace(/^#'s\s+/, "").replace(/^#/, "");
+    return numbersPart
       .split(",")
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n));

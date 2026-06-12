@@ -36,6 +36,7 @@ import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
 import type { AddOnsProduct } from "@/components/add-ons-modal";
 import { VirtualSlipNotes } from "@/components/virtual-slip/VirtualSlipNotes";
 import { VirtualSlipCenterActions } from "@/components/virtual-slip/VirtualSlipCenterActions";
+import { VirtualSlipToolbarRow } from "@/components/virtual-slip/VirtualSlipToolbarRow";
 import DriverHistoryModal from "@/components/driver-history-modal";
 import ReadyToSendModal from "@/components/ready-to-send-modal";
 import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal";
@@ -318,8 +319,8 @@ export default function VirtualSlipV2Page() {
     }
   };
 
-  const caseOnHold = isSlipCaseOnHold(vm.header.status);
-  const caseCancelled = isSlipCaseCancelled(vm.header.status);
+  const caseOnHold = isSlipCaseOnHold(vm.header.caseStatus);
+  const caseCancelled = isSlipCaseCancelled(vm.header.caseStatus);
 
   const { notes: caseNotes } = useCaseSlipNotes(caseId, {
     refreshKey: notesRefreshKey,
@@ -486,7 +487,19 @@ export default function VirtualSlipV2Page() {
         header={vm.header}
         onPrint={handlePrint}
         onPrintInvoice={handlePrintInvoice}
-        onBackToCaseList={goToCaseList}
+        locationAction={{
+          pickupDropoffAction:
+            canRunLabDriverActions && showPickupDropoffFab ? pickupDropoffAction : null,
+          pickupDropoffLabel: slipPickupDropoffLabel(pickupDropoffAction),
+          onPickupDropoff:
+            canRunLabDriverActions ? () => setPickupDropoffOpen(true) : undefined,
+          showReadyToSend: canRunLabDriverActions && showReadyToSendFab,
+          onReadyToSend:
+            canRunLabDriverActions ? () => setReadyToSendOpen(true) : undefined,
+          showAddStage: showAddStageFab,
+          onAddStage: handleAddStage,
+          disabled: caseBlocked,
+        }}
       />
 
       {/* Content region below the header. */}
@@ -532,7 +545,7 @@ export default function VirtualSlipV2Page() {
           </>
         ) : null}
         {/* Column headers */}
-        <div className="relative flex gap-[120px] px-6 pt-4">
+        <div className="relative flex gap-[120px] px-6 pt-1">
           <div className="min-w-0 flex-1 text-center font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
             {hasMaxillary ? "MAXILLARY" : null}
           </div>
@@ -540,7 +553,7 @@ export default function VirtualSlipV2Page() {
             {hasMandibular ? "MANDIBULAR" : null}
           </div>
           <div
-            className="pointer-events-none absolute inset-x-0 top-4 flex justify-center"
+            className="pointer-events-none absolute inset-x-0 flex justify-center"
             aria-hidden
           >
             <span className="whitespace-nowrap font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
@@ -549,7 +562,7 @@ export default function VirtualSlipV2Page() {
           </div>
         </div>
         {/* Column content */}
-        <div className="flex gap-[120px] px-6 pb-4 pt-3">
+        <div className="flex gap-[120px] px-6 pb-1 pt-1">
           <div className="min-w-0 flex-1">
             {maxillary ? <VirtualSlipArch data={maxillary} /> : null}
           </div>
@@ -559,7 +572,12 @@ export default function VirtualSlipV2Page() {
         </div>
       </div>
 
-      <div className="flex justify-center px-6 py-2">
+      <VirtualSlipToolbarRow
+        caseId={caseId}
+        relatedSlips={vm.relatedSlips}
+        notesRefreshKey={notesRefreshKey}
+        onBackToCaseList={goToCaseList}
+      >
         <VirtualSlipCenterActions
           slipId={slipId}
           caseId={caseId}
@@ -612,30 +630,14 @@ export default function VirtualSlipV2Page() {
           openRushModal={fabRushOpen}
           onOpenRushModalChange={setFabRushOpen}
         />
-      </div>
+      </VirtualSlipToolbarRow>
 
       <VirtualSlipNotes
         caseId={caseId}
         slipId={slipId}
         stageSeeds={stageSeeds}
         notesRefreshKey={notesRefreshKey}
-        relatedSlips={vm.relatedSlips}
-        slipNumber={vm.header.slipNumber}
         onOpenNotesModal={() => setFabNotesOpen(true)}
-        pickupDropoffAction={
-          canRunLabDriverActions && showPickupDropoffFab ? pickupDropoffAction : null
-        }
-        pickupDropoffLabel={slipPickupDropoffLabel(pickupDropoffAction)}
-        onPickupDropoff={
-          canRunLabDriverActions ? () => setPickupDropoffOpen(true) : undefined
-        }
-        showReadyToSend={canRunLabDriverActions && showReadyToSendFab}
-        onReadyToSend={
-          canRunLabDriverActions ? () => setReadyToSendOpen(true) : undefined
-        }
-        showAddStage={showAddStageFab}
-        onAddStage={handleAddStage}
-        disableFooterAction={caseBlocked}
       />
       </div>
 

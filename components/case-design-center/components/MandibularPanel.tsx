@@ -68,6 +68,12 @@ import {
 } from "../utils/gradeHelpers";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import {
+  FLIPPER_STAYPLATE_SELECTION_HINT,
+  isFlipperOrStayplateProduct,
+  isRemovableToothSelectionFocused,
+  isRemovableToothStatusPopoverEligible,
+} from "../utils/removableSelectionHints";
+import {
   isSingleDefaultOnlyExtractionList,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
@@ -1492,6 +1498,37 @@ export function MandibularPanel({
                 : activeProductCardId !== 0
                   ? activeProductCardId
                   : 0;
+              const baseProductName = activeProductCardId !== 0
+                ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "")
+                : (() => {
+                    const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
+                    return t ? (getToothProduct("mandibular", t)?.name ?? "") : "";
+                  })();
+              const showFlipperStayplateHint =
+                isFlipperOrStayplateProduct(baseProductName) &&
+                isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
+                isRemovableToothSelectionFocused({
+                  caseSubmitted,
+                  activeProductCardId,
+                  confirmDetailsChecked,
+                  isCardActive: isCardActiveForToothStatus(activeProductCardId),
+                  toothChartInteractionEnabled,
+                  teethCount: removableTeethCount,
+                  isSelectionModeActive,
+                });
+              if (showFlipperStayplateHint) {
+                if (
+                  requiresExtractionsAcknowledgement(hintExtractions) &&
+                  isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)
+                ) {
+                  return null;
+                }
+                return (
+                  <p className="text-center font-bold text-sm mb-1 text-red-600">
+                    {FLIPPER_STAYPLATE_SELECTION_HINT}
+                  </p>
+                );
+              }
               if (requiresExtractionsAcknowledgement(hintExtractions)) {
                 if (isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) return null;
                 const isExtractionBoxSelected = activeExtractionCode !== null;

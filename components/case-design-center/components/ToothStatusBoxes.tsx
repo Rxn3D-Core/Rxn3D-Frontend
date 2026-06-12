@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { DoneTransitionButton } from "./DoneTransitionButton";
 import type { ProductExtraction } from "../types";
+import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
 import { getStatusBoxTeeth } from "../utils/removableToothDisplay";
 import {
   isOverlayExtractionByFlag,
@@ -41,10 +42,12 @@ interface ToothStatusBoxesProps {
   /** Optional acknowledgement props to control Done button display */
   acknowledged?: boolean;
   onAcknowledgedChange?: (value: boolean) => void;
+  /** Smaller icons and tighter boxes (virtual slip read-only view). */
+  compact?: boolean;
 }
 
-const CleanToothSVG = () => (
-  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const CleanToothSVG = ({ size = 38 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F2F2F2"
@@ -56,8 +59,8 @@ const CleanToothSVG = () => (
   </svg>
 );
 
-const RedXToothSVG = () => (
-  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const RedXToothSVG = ({ size = 38 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F5EFEB"
@@ -69,8 +72,8 @@ const RedXToothSVG = () => (
   </svg>
 );
 
-const FixRepairSVG = () => (
-  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const FixRepairSVG = ({ size = 38 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F2F2F2"
@@ -83,8 +86,8 @@ const FixRepairSVG = () => (
   </svg>
 );
 
-const ClaspsSVG = () => (
-  <svg width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const ClaspsSVG = ({ size = 38 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F2F2F2"
@@ -97,21 +100,21 @@ const ClaspsSVG = () => (
   </svg>
 );
 
-function getExtractionIcon(code: string, name: string) {
+function getExtractionIcon(code: string, name: string, iconSize = 38) {
   const lowerName = (name || "").toLowerCase();
   if (code === "MT" || lowerName.includes("missing")) {
-    return <CleanToothSVG />;
+    return <CleanToothSVG size={iconSize} />;
   }
   if (code === "WE" || lowerName.includes("extract")) {
-    return <RedXToothSVG />;
+    return <RedXToothSVG size={iconSize} />;
   }
   if (code === "FR" || code === "RP" || lowerName.includes("fix") || lowerName.includes("repair")) {
-    return <FixRepairSVG />;
+    return <FixRepairSVG size={iconSize} />;
   }
   if (code === "CL" || lowerName.includes("clasp")) {
-    return <ClaspsSVG />;
+    return <ClaspsSVG size={iconSize} />;
   }
-  return <CleanToothSVG />;
+  return <CleanToothSVG size={iconSize} />;
 }
 
 /** Unassigned teeth (not in toothExtractionMap) belong to the is_tim extraction bucket. */
@@ -157,6 +160,7 @@ export function ToothStatusBoxes({
   displayTeethByCode,
   acknowledged = false,
   onAcknowledgedChange,
+  compact = false,
 }: ToothStatusBoxesProps) {
   const allActiveExtractions = extractions
     .filter((e) => e.status === "Active" && e.name != null && e.code != null)
@@ -208,11 +212,33 @@ export function ToothStatusBoxes({
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
   const isInteractive = !submitted && !grayed;
+  const iconSize = compact ? 26 : 38;
+  const imgWidth = compact ? 26 : 50;
+  const imgHeight = compact ? 30 : 70;
+  const iconLeft = compact ? -10 : -20;
+  const boxMinHeight = compact ? 40 : 50;
+  const boxMinWidth = compact ? 120 : 148;
+  const boxPadding = compact ? "4px 10px 4px 28px" : "8px 14px 8px 44px";
+  const emptyIconW = compact ? 26 : 50;
+  const emptyIconH = compact ? 30 : 70;
+  const iconMaxHeight = compact ? boxMinHeight - 8 : undefined;
+  const formatBoxTeethLabel = (teeth: number[]) =>
+    compact
+      ? formatToothNumbersLabel(teeth, { separator: ", " })
+      : `#${[...teeth].sort((a, b) => a - b).join(", ")}`;
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 w-full py-2">
+    <div
+      className={`flex w-full flex-col ${
+        compact ? "items-start gap-2 py-0" : "items-center justify-center gap-4 py-2"
+      }`}
+    >
       {/* Horizontally centered row of extraction options */}
-      <div className="flex items-center justify-center gap-6 flex-wrap">
+      <div
+        className={`flex flex-wrap items-center ${
+          compact ? "justify-start gap-3" : "justify-center gap-6"
+        }`}
+      >
         {activeExtractions.map((extraction) => {
           const isActive = !submitted && activeExtractionCode === extraction.code;
           const teethForBox = getTeethForBox(extraction);
@@ -231,30 +257,37 @@ export function ToothStatusBoxes({
             <img
               alt=""
               loading="lazy"
-              width="50"
-              height="70"
+              width={imgWidth}
+              height={imgHeight}
               decoding="async"
               src={extraction.image_url}
               style={{
                 color: "transparent",
                 filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
                 position: "absolute",
-                left: "-20px",
+                left: `${iconLeft}px`,
                 top: "50%",
                 transform: "translateY(-50%)",
+                objectFit: "contain",
+                ...(iconMaxHeight != null
+                  ? { maxHeight: `${iconMaxHeight}px`, maxWidth: `${imgWidth}px` }
+                  : {}),
               }}
             />
           ) : (
             <div
               style={{
                 position: "absolute",
-                left: "-20px",
+                left: `${iconLeft}px`,
                 top: "50%",
                 transform: "translateY(-50%)",
                 filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
+                ...(iconMaxHeight != null
+                  ? { height: `${iconMaxHeight}px`, width: `${imgWidth}px`, display: "flex", alignItems: "center", justifyContent: "center" }
+                  : {}),
               }}
             >
-              {getExtractionIcon(extraction.code, extraction.name)}
+              {getExtractionIcon(extraction.code, extraction.name, iconSize)}
             </div>
           );
 
@@ -272,10 +305,10 @@ export function ToothStatusBoxes({
                   border: "2px solid rgb(211, 211, 211)",
                   borderRadius: "14px",
                   background: "rgb(255, 255, 255)",
-                  minHeight: "50px",
-                  minWidth: "148px",
+                  minHeight: `${boxMinHeight}px`,
+                  minWidth: `${boxMinWidth}px`,
                   width: "fit-content",
-                  padding: "8px 14px 8px 44px",
+                  padding: boxPadding,
                   cursor: isInteractive ? "pointer" : "default",
                   textAlign: "center",
                   display: "flex",
@@ -294,7 +327,7 @@ export function ToothStatusBoxes({
                   </div>
                   {displayTeethForBox.length > 0 && (
                     <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.1, fontWeight: 400 }}>
-                      #{[...displayTeethForBox].sort((a, b) => a - b).join(", ")}
+                      {formatBoxTeethLabel(displayTeethForBox)}
                     </div>
                   )}
                 </div>
@@ -318,10 +351,10 @@ export function ToothStatusBoxes({
                   border: "2px solid rgb(211, 211, 211)",
                   borderRadius: "14px",
                   background: "rgb(255, 255, 255)",
-                  minHeight: "50px",
-                  minWidth: "148px",
+                  minHeight: `${boxMinHeight}px`,
+                  minWidth: `${boxMinWidth}px`,
                   width: "fit-content",
-                  padding: "8px 14px 8px 44px",
+                  padding: boxPadding,
                   cursor: isInteractive ? "pointer" : "default",
                   textAlign: "center",
                   display: "flex",
@@ -339,7 +372,7 @@ export function ToothStatusBoxes({
                   </div>
                   {displayTeethForBox.length > 0 && (
                     <div style={{ color: "rgb(102, 102, 102)", fontSize: "12px", lineHeight: 1.1, fontWeight: 400 }}>
-                      #{[...displayTeethForBox].sort((a, b) => a - b).join(", ")}
+                      {formatBoxTeethLabel(displayTeethForBox)}
                     </div>
                   )}
                 </div>
@@ -353,15 +386,17 @@ export function ToothStatusBoxes({
               key={extraction.id}
               title={extraction.name}
               aria-label={extraction.name}
-              className="flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center w-[50px] h-[70px]"
+              className={`flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center ${
+                compact ? "w-[26px] h-[30px]" : "w-[50px] h-[70px]"
+              }`}
               onClick={toggleBox}
             >
               {extraction.image_url ? (
                 <img
                   src={extraction.image_url}
                   alt={extraction.name}
-                  width="50"
-                  height="70"
+                  width={imgWidth}
+                  height={imgHeight}
                   style={{
                     color: "transparent",
                     filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
@@ -370,7 +405,7 @@ export function ToothStatusBoxes({
                 />
               ) : (
                 <div style={{ filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)" }}>
-                  {getExtractionIcon(extraction.code, extraction.name)}
+                  {getExtractionIcon(extraction.code, extraction.name, iconSize)}
                 </div>
               )}
             </div>

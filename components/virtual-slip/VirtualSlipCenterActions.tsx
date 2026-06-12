@@ -181,6 +181,7 @@ export function VirtualSlipCenterActions({
         <CenterActionIcons
           visible
           showFullIconRow
+          virtualSlipIconSizing
           onEditGeneral={
             showEditSlip && slipId > 0 && !caseOnHold
               ? () => router.push(`/edit-slip?slipId=${slipId}`)
