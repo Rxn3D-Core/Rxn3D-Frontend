@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import ReactDOM from "react-dom";
 import { DoneTransitionButton } from "./DoneTransitionButton";
 import type { ProductExtraction } from "../types";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
@@ -204,6 +205,8 @@ export function ToothStatusBoxes({
     return teethForBox.length === 0 && !anyOptionalHasTeeth;
   });
 
+  const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
+
   const prevRequiredValidationRef = useRef<boolean | null>(null);
   useEffect(() => {
     if (prevRequiredValidationRef.current === hasRequiredValidation) return;
@@ -291,6 +294,14 @@ export function ToothStatusBoxes({
             </div>
           );
 
+          const tooltipLabel = isInteractive ? `assign teeth to ${extraction.name}` : undefined;
+          const hoverHandlers = tooltipLabel
+            ? {
+                onMouseMove: (e: React.MouseEvent) => setTooltipState({ label: tooltipLabel, x: e.clientX, y: e.clientY }),
+                onMouseLeave: () => setTooltipState(null),
+              }
+            : {};
+
           // Active state: blue border to indicate selection mode
           if (isActive) {
             return (
@@ -298,8 +309,8 @@ export function ToothStatusBoxes({
                 key={extraction.id}
                 type="button"
                 aria-label={extraction.name}
-                title={extraction.name}
                 onClick={toggleBox}
+                {...hoverHandlers}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -344,8 +355,8 @@ export function ToothStatusBoxes({
                 key={extraction.id}
                 type="button"
                 aria-label={extraction.name}
-                title={extraction.name}
                 onClick={toggleBox}
+                {...hoverHandlers}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -384,12 +395,12 @@ export function ToothStatusBoxes({
           return (
             <div
               key={extraction.id}
-              title={extraction.name}
               aria-label={extraction.name}
               className={`flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center ${
                 compact ? "w-[26px] h-[30px]" : "w-[50px] h-[70px]"
               }`}
               onClick={toggleBox}
+              {...hoverHandlers}
             >
               {extraction.image_url ? (
                 <img
@@ -418,6 +429,15 @@ export function ToothStatusBoxes({
         <div className="w-full flex justify-center mt-2 py-2 overflow-visible">
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
+      )}
+      {tooltipState && typeof document !== "undefined" && ReactDOM.createPortal(
+        <div
+          style={{ position: "fixed", left: tooltipState.x + 12, top: tooltipState.y - 36, zIndex: 9999, pointerEvents: "none" }}
+          className="bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
+        >
+          {tooltipState.label}
+        </div>,
+        document.body
       )}
     </div>
   );

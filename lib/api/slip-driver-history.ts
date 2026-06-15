@@ -139,7 +139,7 @@ function deliveryLabel(dates?: SlipDriverHistoryRecord["final_delivery_dates"]):
   return date || time;
 }
 
-function mapTimelineRow(entry: SlipDriverHistoryEntry) {
+export function mapTimelineRow(entry: SlipDriverHistoryEntry) {
   return {
     timestamp: formatHistoryTimestamp(entry.action_date_time),
     location: timelineLocation(entry),
@@ -269,6 +269,51 @@ export async function getSlipDriverHistory(
   await handleUnauthorized(res);
 
   const json: GetSlipDriverHistoryResponse = await res.json().catch(() => ({
+    success: false,
+    message: "Invalid response",
+  }));
+
+  if (!res.ok && !json.success) {
+    return {
+      success: false,
+      message: json.message || `Request failed (${res.status})`,
+    };
+  }
+
+  return json;
+}
+
+/* -------------------- Case-level driver history -------------------- */
+
+export type CaseDriverHistorySlip = {
+  id: number;
+  slip_number: string;
+  current_location: SlipDriverHistoryLocation;
+  driver_history: SlipDriverHistoryEntry[];
+};
+
+export type GetCaseDriverHistoryResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    case: { id: number; case_number: string; patient_name: string };
+    summary: { total_history_count: number; slip_count: number };
+    all_driver_history: (SlipDriverHistoryEntry & { slip_number?: string; slip_status?: string })[];
+    slips: CaseDriverHistorySlip[];
+  };
+};
+
+export async function getCaseDriverHistory(
+  caseId: number
+): Promise<GetCaseDriverHistoryResponse> {
+  const res = await fetch(buildApiUrl(`/slip/case/${caseId}/driver-history`), {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  await handleUnauthorized(res);
+
+  const json: GetCaseDriverHistoryResponse = await res.json().catch(() => ({
     success: false,
     message: "Invalid response",
   }));

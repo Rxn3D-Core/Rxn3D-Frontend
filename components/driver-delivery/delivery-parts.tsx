@@ -10,8 +10,11 @@ import {
 import { Loader2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  getCaseDriverHistory,
   getSlipDriverHistory,
+  mapTimelineRow,
   normalizeSlipDriverHistoryPayload,
+  type CaseDriverHistorySlip,
 } from "@/lib/api/slip-driver-history";
 import {
   filesToUploadedImages,
@@ -97,9 +100,20 @@ export function DeliveryModalHeader({
 
 export type DeliveryInfoField = { label: string; value: ReactNode };
 
-export function DeliveryInfoBar({ fields }: { fields: DeliveryInfoField[] }) {
+export function DeliveryInfoBar({
+  fields,
+  sticky = false,
+}: {
+  fields: DeliveryInfoField[];
+  sticky?: boolean;
+}) {
   return (
-    <div className="flex flex-wrap items-center gap-x-10 gap-y-3 border-b border-[#E5E7EB] pb-4">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-10 gap-y-3 border-b border-[#E5E7EB] bg-white pb-4",
+        sticky && "sticky top-0 z-10 pt-1"
+      )}
+    >
       {fields.map((f) => (
         <div key={f.label} className="flex items-baseline gap-2">
           <span className="text-[13px] font-semibold text-[#6B7280]">
@@ -393,6 +407,131 @@ export function ImageDropzone({
           e.target.value = "";
         }}
       />
+    </div>
+  );
+}
+
+/* -------------------- Case-level driver history -------------------- */
+
+type CaseSlipHistoryItem = {
+  slipId: number;
+  slipNumber: string;
+  currentLocation: string;
+  timeline: DeliveryTimelineRow[];
+};
+
+export function useCaseDriverHistory(
+  caseId: number | null | undefined,
+  open: boolean
+) {
+  const [slips, setSlips] = useState<CaseSlipHistoryItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    if (!caseId || Number.isNaN(caseId)) {
+      setSlips([]);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getCaseDriverHistory(caseId);
+      if (!res.success || !res.data) {
+        setError(res.message || "Failed to load case driver history");
+        setSlips([]);
+        return;
+      }
+      const mapped = res.data.slips.map((slip: CaseDriverHistorySlip) => {
+        const sorted = [...slip.driver_history].sort(
+          (a, b) =>
+            new Date(a.action_date_time).getTime() -
+            new Date(b.action_date_time).getTime()
+        );
+        return {
+          slipId: slip.id,
+          slipNumber: slip.slip_number,
+          currentLocation: slip.current_location?.name ?? "—",
+          timeline: sorted.map(mapTimelineRow),
+        };
+      });
+      setSlips(mapped);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Failed to load case driver history"
+      );
+      setSlips([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [caseId]);
+
+  useEffect(() => {
+    if (open) void reload();
+    else {
+      setSlips([]);
+      setError(null);
+    }
+  }, [open, reload]);
+
+  return { slips, loading, error };
+}
+
+export function CaseDriverHistorySection({
+  caseId,
+  open,
+  onLoaded,
+}: {
+  caseId: number | null | undefined;
+  open: boolean;
+  onLoaded?: () => void;
+}) {
+  const { slips, loading, error } = useCaseDriverHistory(caseId, open);
+
+  useEffect(() => {
+    if (!loading && (slips.length > 0 || error)) onLoaded?.();
+  }, [loading, slips.length, error, onLoaded]);
+
+  if (!caseId) return null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-8 text-[#6B7280]">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="text-sm">Loading case history…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="my-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        {error}
+      </div>
+    );
+  }
+
+  if (slips.length === 0) {
+    return (
+      <p className="py-6 text-center text-sm text-[#6B7280]">
+        No driver history recorded for this case yet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {slips.map((slip) => (
+        <div key={slip.slipId}>
+          <DeliveryPills
+            items={[`Slip# ${slip.slipNumber}`, slip.currentLocation]}
+          />
+          <DeliveryTimeline
+            rows={slip.timeline}
+            emptyLabel="No history for this slip."
+          />
+        </div>
+      ))}
     </div>
   );
 }

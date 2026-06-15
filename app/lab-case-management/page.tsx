@@ -1070,6 +1070,7 @@ export default function LabSlipPage() {
             placeholder="Search by patient, office, doctor, case..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id)) }}
           />
           <Select value={office} onValueChange={setOffice}>
             <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
