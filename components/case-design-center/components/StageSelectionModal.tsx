@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,39 @@ import { cn } from "@/lib/utils";
 import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { StageHistoryBlock } from "./StageHistoryBlock";
 
+type StageOption = {
+  name: string;
+  letter: string;
+  image_url?: string | null;
+  stage_id?: number;
+};
+
+function StageOptionImage({
+  stage,
+  letterClassName,
+}: {
+  stage: StageOption;
+  letterClassName: string;
+}) {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const showImage = Boolean(stage.image_url) && !imageFailed;
+
+  return (
+    <div className="w-full bg-gray-50 overflow-hidden relative flex items-center justify-center aspect-square rounded-lg border border-[#E0E0E0]">
+      {showImage ? (
+        <img
+          src={stage.image_url!}
+          alt={stage.name}
+          className="max-w-full max-h-full object-contain object-center rounded-lg"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <div className={letterClassName}>{stage.letter}</div>
+      )}
+    </div>
+  );
+}
+
 export function StageSelectionModal({
   stages,
   selectedStage,
@@ -18,10 +52,10 @@ export function StageSelectionModal({
   onSelect,
   onClose,
 }: {
-  stages: { name: string; letter: string }[];
+  stages: StageOption[];
   selectedStage?: string;
   stageHistory?: NewStageEligibilityStageRef[];
-  onSelect: (stageName: string) => void;
+  onSelect: (stageName: string, stageId?: number) => void;
   onClose: () => void;
 }) {
   return (
@@ -54,7 +88,7 @@ export function StageSelectionModal({
               return (
                 <div
                   key={stage.name}
-                  onClick={() => onSelect(stage.name)}
+                  onClick={() => onSelect(stage.name, stage.stage_id)}
                   className={cn(
                     "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col cursor-pointer p-1.5 gap-2 snap-center flex-shrink-0 w-[140px]",
                     isSelected
@@ -62,11 +96,10 @@ export function StageSelectionModal({
                       : "border-gray-300 hover:border-blue-500 hover:shadow-lg"
                   )}
                 >
-                  <div className="w-full bg-gray-50 overflow-hidden relative flex items-center justify-center aspect-square rounded-lg border border-[#E0E0E0]">
-                    <div className="text-gray-400 text-xl font-bold flex items-center justify-center absolute inset-0">
-                      {stage.letter}
-                    </div>
-                  </div>
+                  <StageOptionImage
+                    stage={stage}
+                    letterClassName="text-gray-400 text-xl font-bold flex items-center justify-center absolute inset-0"
+                  />
                   <div
                     className="flex items-center justify-center text-center text-[14px]"
                     style={{
@@ -90,7 +123,7 @@ export function StageSelectionModal({
               return (
                 <div
                   key={stage.name}
-                  onClick={() => onSelect(stage.name)}
+                  onClick={() => onSelect(stage.name, stage.stage_id)}
                   className={cn(
                     "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col cursor-pointer p-2 gap-[10px]",
                     isSelected
@@ -98,11 +131,10 @@ export function StageSelectionModal({
                       : "border-gray-300 hover:border-blue-500 hover:shadow-lg"
                   )}
                 >
-                  <div className="w-full bg-gray-50 overflow-hidden relative flex items-center justify-center aspect-square rounded-lg border border-[#E0E0E0]">
-                    <div className="text-gray-400 text-2xl font-bold flex items-center justify-center absolute inset-0">
-                      {stage.letter}
-                    </div>
-                  </div>
+                  <StageOptionImage
+                    stage={stage}
+                    letterClassName="text-gray-400 text-2xl font-bold flex items-center justify-center absolute inset-0"
+                  />
                   <div
                     className="flex items-center justify-center text-center text-[18px] lg:text-[22.949px]"
                     style={{

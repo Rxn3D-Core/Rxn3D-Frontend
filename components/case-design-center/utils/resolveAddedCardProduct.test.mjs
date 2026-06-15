@@ -4,6 +4,7 @@ import {
   isHydratedProductApiData,
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
+  resolveCardFieldValue,
 } from "./resolveAddedCardProduct.ts";
 
 test("resolveAddedCardRepTooth uses virtual slot when card has no teeth", () => {
@@ -51,4 +52,21 @@ test("resolveAddedCardProductData falls back to virtual slot", () => {
   );
   assert.equal(p?.id, 99);
   assert.equal(p?.advance_fields?.length, 1);
+});
+
+test("resolveCardFieldValue finds stage on virtual slot when rep tooth is empty", () => {
+  const stageJson = '{"stage_id":13,"name":"Custom Trays"}';
+  const values = new Map([
+    ["maxillary_0", { stage: stageJson }],
+    ["maxillary_8", {}],
+  ]);
+  const val = resolveCardFieldValue(
+    "maxillary",
+    0,
+    [8, 9, 10],
+    8,
+    "stage",
+    (_arch, tooth, step) => values.get(`maxillary_${tooth}`)?.[step] ?? ""
+  );
+  assert.equal(val, stageJson);
 });

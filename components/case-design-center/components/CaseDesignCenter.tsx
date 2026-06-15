@@ -11,7 +11,7 @@ import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
-import { hasRetentionOptions, isNonRetentionCategory } from "../utils/categoryHelpers";
+import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue } from "../utils/categoryHelpers";
 import { hasAdvanceField } from "./FixedRestorationFields";
 import {
   getCardRepresentativeTooth,
@@ -1836,12 +1836,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             name: s.name,
             letter: s.code?.charAt(0)?.toUpperCase() || s.name.charAt(0).toUpperCase(),
             is_default: s.is_default,
+            image_url: s.image_url ?? null,
+            stage_id: s.stage_id ?? s.id,
           }));
         })()}
         handleStageSelect={state.handleStageSelect}
         stageHistory={addStageStageHistoryForModal}
         caseSubmitted={props.caseSubmitted}
-        onStageConfirm={(stageName) => {
+        onStageConfirm={(stageName, stageId) => {
           const arch = state.currentStageArch;
           let toothNum = state.currentStageToothNumber;
           if (toothNum === null) {
@@ -1856,10 +1858,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (toothNum !== null) {
             const product = state.getToothProduct(arch, toothNum);
             const isFixed = hasRetentionOptions(product);
+            const serializedStage = serializeStageFieldValue({ name: stageName, stage_id: stageId });
             if (isFixed) {
-              state.completeFieldStep(arch, toothNum, "fixed_stage", stageName);
+              state.completeFieldStep(arch, toothNum, "fixed_stage", serializedStage);
             } else {
-              state.completeFieldStep(arch, toothNum, "stage", stageName);
+              state.completeFieldStep(arch, toothNum, "stage", serializedStage);
             }
             // Cross-arch stage sync for both-arch removables is handled only inside
             // mirroredCompleteFieldStep (first time the opposite arch has no stage yet),

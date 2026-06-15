@@ -43,7 +43,7 @@ import {
   POST_IMPLANT_FIXED_FIELD_STEPS,
 } from "../utils/implantDetailHelpers";
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
-import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import { productHasGrades } from "../utils/gradeHelpers";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
@@ -817,7 +817,7 @@ export function RetentionProductFields({
               Stage
             </legend>
             <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000]">{fixedStageValue}</span>
+              <span className="text-[14px] sm:text-lg text-[#000000]">{parseStageDisplayName(fixedStageValue)}</span>
               {showStageGreen && <Check size={16} className="text-[#34a853] ml-auto" />}
               <div className={showStageGreen ? "" : "ml-auto"}>
                 <ArticulatorIcon arch={arch} />
@@ -905,7 +905,7 @@ export function RetentionProductFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000]">
-                  {fixedStageValue}
+                  {parseStageDisplayName(fixedStageValue)}
                 </span>
                 {showStageGreen && (
                   <Check size={16} className="text-[#34a853] ml-auto" />

@@ -21,7 +21,7 @@ import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsConfirmMeta, AddOnsProduct } from "@/components/add-ons-modal";
 import type { RushArchSlot } from "../utils/rushModalContext";
-import { getResolvedStageName } from "../utils/categoryHelpers";
+import { getResolvedStageName, resolveStageIdFromSelection } from "../utils/categoryHelpers";
 import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { getDualModalArches } from "../utils/impressionFieldSync";
 import {
@@ -103,11 +103,11 @@ interface ModalOrchestratorProps {
   currentStageProductId: string;
   currentStageArch: Arch;
   currentStageToothNumber: number | null;
-  currentStageOptions: { name: string; letter: string; is_default?: string }[] | null;
+  currentStageOptions: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number }[] | null;
   /** Product for the current stage step — used to resolve skip/auto when options are empty */
   currentStageProduct?: ProductApiData | null;
   handleStageSelect: (stageName: string) => void;
-  onStageConfirm: (stageName: string) => void;
+  onStageConfirm: (stageName: string, stageId?: number) => void;
   /** Prior slips/stages for this arch (add-new-stage). */
   stageHistory?: NewStageEligibilityStageRef[];
   /** When true (virtual slip / read-only view), all modals are suppressed */
@@ -148,9 +148,9 @@ function AutoSelectSingleStage({
   onClose,
   children,
 }: {
-  stages: { name: string; letter: string; is_default?: string }[];
+  stages: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number }[];
   hasExistingSelection: boolean;
-  onAutoSelect: (stageName: string) => void;
+  onAutoSelect: (stageName: string, stageId?: number) => void;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -163,10 +163,10 @@ function AutoSelectSingleStage({
     if (!didAutoSelect.current && shouldAutoSelect) {
       if (stages.length === 1) {
         didAutoSelect.current = true;
-        onAutoSelect(stages[0].name);
+        onAutoSelect(stages[0].name, stages[0].stage_id);
       } else if (defaultStage) {
         didAutoSelect.current = true;
-        onAutoSelect(defaultStage.name);
+        onAutoSelect(defaultStage.name, defaultStage.stage_id);
       }
     }
   }, [stages, defaultStage, onAutoSelect, shouldAutoSelect]);
@@ -383,9 +383,9 @@ export function ModalOrchestrator({
         <AutoSelectSingleStage
           stages={currentStageOptions}
           hasExistingSelection={!!(currentStageProductId && selectedStages[currentStageProductId])}
-          onAutoSelect={(stageName) => {
+          onAutoSelect={(stageName, stageId) => {
             handleStageSelect(stageName);
-            onStageConfirm(stageName);
+            onStageConfirm(stageName, stageId);
           }}
           onClose={() => setIsStageModalOpen(false)}
         >
@@ -393,9 +393,9 @@ export function ModalOrchestrator({
             stages={currentStageOptions}
             selectedStage={selectedStages[currentStageProductId]}
             stageHistory={stageHistory}
-            onSelect={(stageName) => {
+            onSelect={(stageName, stageId) => {
               handleStageSelect(stageName);
-              onStageConfirm(stageName);
+              onStageConfirm(stageName, stageId);
             }}
             onClose={() => setIsStageModalOpen(false)}
           />
@@ -409,8 +409,9 @@ export function ModalOrchestrator({
           onSkip={() => {
             const stageName = getResolvedStageName(currentStageProduct);
             if (stageName) {
+              const stageId = resolveStageIdFromSelection(currentStageProduct, null, stageName);
               handleStageSelect(stageName);
-              onStageConfirm(stageName);
+              onStageConfirm(stageName, stageId);
             }
           }}
           onClose={() => setIsStageModalOpen(false)}

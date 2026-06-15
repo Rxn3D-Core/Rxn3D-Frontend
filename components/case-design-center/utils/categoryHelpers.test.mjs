@@ -9,6 +9,8 @@ import {
   getResolvedStageName,
   isDisplayableStageValue,
   SKIPPED_STAGE_LABEL,
+  parseStageFieldValue,
+  resolveStageIdFromSelection,
 } from "./categoryHelpers.ts";
 
 test("treats has_retention Yes as fixed even when retention_options are omitted", () => {
@@ -114,4 +116,21 @@ test("getResolvedStageName returns null when prompt is required", () => {
 test("isDisplayableStageValue rejects skip placeholder", () => {
   assert.equal(isDisplayableStageValue(SKIPPED_STAGE_LABEL), false);
   assert.equal(isDisplayableStageValue("Custom Trays"), true);
+});
+
+test("parseStageFieldValue reads stage_id from JSON", () => {
+  assert.deepEqual(
+    parseStageFieldValue('{"stage_id":13,"name":"Custom Trays"}'),
+    { stage_id: 13, name: "Custom Trays" }
+  );
+  assert.deepEqual(parseStageFieldValue("Custom Trays"), { name: "Custom Trays" });
+});
+
+test("resolveStageIdFromSelection prefers stored stage_id", () => {
+  const product = { stages: [{ name: "Custom Trays", stage_id: 13 }] };
+  assert.equal(
+    resolveStageIdFromSelection(product, '{"stage_id":13,"name":"Custom Trays"}', null),
+    13
+  );
+  assert.equal(resolveStageIdFromSelection(product, null, "Custom Trays"), 13);
 });

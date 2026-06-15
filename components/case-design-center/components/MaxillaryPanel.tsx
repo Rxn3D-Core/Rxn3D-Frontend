@@ -49,6 +49,7 @@ import {
   isSingleStageNoStages,
   shouldSkipStageSelection,
   isDisplayableStageValue,
+  parseStageDisplayName,
 } from "../utils/categoryHelpers";
 import { isProductRushed, resolveCardRepToothForRush } from "../utils/rushModalContext";
 import {
@@ -2602,7 +2603,7 @@ export function MaxillaryPanel({
                                       onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "maxillary", repTn)}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{parseStageDisplayName(stageVal)}</span>
                                       {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                     </fieldset>
                                   );
@@ -3420,7 +3421,8 @@ export function MaxillaryPanel({
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
               const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
-              const remCard0StageObj = cardProduct?.stages?.find(s => s.name === stageVal);
+              const stageDisplayName = parseStageDisplayName(stageVal);
+              const remCard0StageObj = cardProduct?.stages?.find((s) => s.name === stageDisplayName);
               const remCard0Days = remCard0StageObj?.days_to_process;
               const estDays = remCard0Days != null
                 ? `${remCard0Days} work day${remCard0Days === 1 ? "" : "s"} after submission`
@@ -3463,7 +3465,7 @@ export function MaxillaryPanel({
                       !shouldSkipStageSelection(
                         resolveProductForStageField(cardProduct, "maxillary", getToothProduct)
                       )
-                      ? stageVal
+                      ? stageDisplayName
                       : undefined
                   }
                   estDaysText={estDays}
@@ -3519,7 +3521,7 @@ export function MaxillaryPanel({
                         !shouldSkipStageSelection(
                           resolveProductForStageField(cardProduct, "maxillary", getToothProduct)
                         )
-                          ? stageVal
+                          ? stageDisplayName
                           : undefined
                       }
                       stageProduct={resolveProductForStageField(
@@ -3776,7 +3778,7 @@ export function MaxillaryPanel({
                                       onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "maxillary", repTn)}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{parseStageDisplayName(stageVal)}</span>
                                       {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                     </fieldset>
                                   );

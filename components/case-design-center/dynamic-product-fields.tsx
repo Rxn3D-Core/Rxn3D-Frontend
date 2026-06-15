@@ -24,6 +24,7 @@ import { ImplantPlatformCards } from "@/components/implant-platform-cards"
 import { Card } from "@/components/ui/card"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { ImplantDetailForm } from "@/components/implant-detail-form"
+import { serializeStageFieldValue } from "./utils/categoryHelpers"
 
 export interface FieldConfig {
   key: string
@@ -1290,7 +1291,11 @@ export function DynamicProductFields({
                 stages={stages}
                 selectedStage={value}
                 onSelect={(stageName: string, stageId?: number) => {
-                  onFieldChange(config.key, stageName, stageId)
+                  onFieldChange(
+                    config.key,
+                    serializeStageFieldValue({ name: stageName, stage_id: stageId }),
+                    stageId
+                  )
                   setIsStageModalOpen(false)
                   setFocusedFieldKey(null) // Clear focus after selection
                 }}

@@ -20,7 +20,7 @@ import {
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
-import { isSingleStageNoStages, shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { isSingleStageNoStages, shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import {
   productHasGrades,
   resolveProductGradesForDisplay,
@@ -320,7 +320,8 @@ export function OpposingRemovableAccordion({
   const productKey = `${fieldArch}_prep_${fieldRepTn}`;
   const hasRushed = !!rushedProducts[productKey];
   const stageVal = selectedStages[productKey] || getFieldValue(fieldArch, fieldRepTn, "stage");
-  const remStageObj = opposingProductData.stages?.find((s) => s.name === stageVal);
+  const stageDisplayName = parseStageDisplayName(stageVal);
+  const remStageObj = opposingProductData.stages?.find((s) => s.name === stageDisplayName);
   const remDays = remStageObj?.days_to_process;
   const estDays =
     remDays != null
@@ -651,7 +652,7 @@ export function OpposingRemovableAccordion({
                             >
                               Stage
                             </legend>
-                            <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageValue}</span>
+                            <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{parseStageDisplayName(stageValue)}</span>
                             {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                           </fieldset>
                         );
