@@ -134,3 +134,14 @@ test("resolveStageIdFromSelection prefers stored stage_id", () => {
   );
   assert.equal(resolveStageIdFromSelection(product, null, "Custom Trays"), 13);
 });
+
+test("resolveStageIdFromSelection resolves plain stage name from selectedStages fallback", () => {
+  const product = {
+    stages: [
+      { name: "Bite block", stage_id: 42, id: 42 },
+      { name: "Finish", stage_id: 43, id: 43 },
+    ],
+  };
+  assert.equal(resolveStageIdFromSelection(product, "Bite block", "Bite block"), 42);
+  assert.equal(resolveStageIdFromSelection(product, null, "Bite block"), 42);
+});

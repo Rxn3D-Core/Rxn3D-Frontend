@@ -13,6 +13,8 @@ export interface SlipProductSnapshot {
   teethNumbers: number[];
   /** Full scope for `extractions` / `tooth_chart` (status boxes, clasps, TIM, etc.) */
   allCardTeeth?: number[];
+  /** All teeth on this card — used to read field values stored on any card tooth */
+  cardFieldTeeth?: number[];
   /** Representative tooth number (first in group — field values are keyed here) */
   repToothNumber: number;
   /** Field values keyed by step name */
