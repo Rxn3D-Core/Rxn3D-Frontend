@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -1000,20 +1001,25 @@ export default function SlipPage() {
       </Dialog>
 
       {/* File Attachment Modal */}
-      <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent className="max-w-[1000px] w-[95vw] max-h-[min(750px,85vh)] p-0 overflow-hidden">
-          {selectedSlipForAttachment && (
-            <FileAttachmentModalContent
-              setShowAttachModal={setShowAttachModal}
-              isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
-              slipId={selectedSlipForAttachment.id}
-              doctorName={selectedSlipForAttachment.doctorName}
-              patientName={selectedSlipForAttachment.patientName}
-              onAttachmentsUploaded={handleAttachmentsUploaded}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {showAttachModal && selectedSlipForAttachment && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-white"
+          style={{ width: "100vw", height: "100vh" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="File Attachments"
+        >
+          <FileAttachmentModalContent
+            setShowAttachModal={setShowAttachModal}
+            isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
+            slipId={selectedSlipForAttachment.id}
+            doctorName={selectedSlipForAttachment.doctorName}
+            patientName={selectedSlipForAttachment.patientName}
+            onAttachmentsUploaded={handleAttachmentsUploaded}
+          />
+        </div>,
+        document.body
+      )}
 
       {/* Add Ons Modal */}
       <AddOnsModal

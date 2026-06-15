@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
 import type { STLFile } from "@/components/stl-file-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
@@ -11,12 +12,6 @@ import {
   rushSlotsShareProduct,
   type RushArchSlot,
 } from "../utils/rushModalContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsConfirmMeta, AddOnsProduct } from "@/components/add-ons-modal";
@@ -419,10 +414,15 @@ export function ModalOrchestrator({
       )}
 
 
-      {/* File Attachment Modal */}
-      <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent className={`${attachViewerOpen ? "max-w-[1700px]" : "max-w-[1100px]"} w-[95vw] h-[80vh] max-h-[800px] overflow-hidden flex flex-col p-0 transition-all duration-300`}>
-          <DialogTitle className="sr-only">File Attachments</DialogTitle>
+      {/* File Attachment Modal — portaled to body so fixed inset-0 is never clipped */}
+      {showAttachModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-white"
+          style={{ width: "100vw", height: "100vh" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="File Attachments"
+        >
           <FileAttachmentModalContent
             setShowAttachModal={setShowAttachModal}
             isCaseSubmitted={false}
@@ -431,8 +431,9 @@ export function ModalOrchestrator({
             onFileCountsChange={onAttachFileCountsChange}
             impressionFiles={Object.values(stlFilesByImpression).flat()}
           />
-        </DialogContent>
-      </Dialog>
+        </div>,
+        document.body
+      )}
 
       {/* Rush Request Modal */}
       {(() => {

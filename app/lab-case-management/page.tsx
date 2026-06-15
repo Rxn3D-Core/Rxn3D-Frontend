@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -2051,22 +2052,27 @@ export default function LabSlipPage() {
         </Dialog>
 
         {/* File Attachment Modal */}
-        <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-          <DialogContent className="max-w-[1000px] w-[95vw] max-h-[min(750px,85vh)] p-0 overflow-hidden">
-            {selectedSlipForAttachment && (
-              <FileAttachmentModalContent
-                setShowAttachModal={setShowAttachModal}
-                isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
-                slipId={selectedSlipForAttachment.id}
-                doctorName={selectedSlipForAttachment.doctor}
-                patientName={selectedSlipForAttachment.patient}
-                onAttachmentsUploaded={handleAttachmentsUploaded}
-                onAttachmentStateChange={handleAttachmentStateChange}
-                open={showAttachModal}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+        {showAttachModal && selectedSlipForAttachment && typeof document !== "undefined" && createPortal(
+          <div
+            className="fixed inset-0 z-[9999] bg-white"
+            style={{ width: "100vw", height: "100vh" }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="File Attachments"
+          >
+            <FileAttachmentModalContent
+              setShowAttachModal={setShowAttachModal}
+              isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
+              slipId={selectedSlipForAttachment.id}
+              doctorName={selectedSlipForAttachment.doctor}
+              patientName={selectedSlipForAttachment.patient}
+              onAttachmentsUploaded={handleAttachmentsUploaded}
+              onAttachmentStateChange={handleAttachmentStateChange}
+              open={showAttachModal}
+            />
+          </div>,
+          document.body
+        )}
 
         {/* Change Date Modal */}
         {selectedSlipForDateChange && (

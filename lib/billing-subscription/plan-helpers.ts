@@ -66,7 +66,7 @@ export function buildPlanLimitsText(plan: CatalogPlan): string {
   const userSeats = formatUserSeats(plan.feature_limits?.max_user_seats)
   const slipLabel =
     slipLimit === 0 ? "Unlimited" : `${slipLimit.toLocaleString()}`
-  return `${slipLabel} cases/month · ${adminSeats} admin seat${adminSeats !== 1 ? "s" : ""}, ${userSeats} user${userSeats === "1" ? "" : "s"}`
+  return `${slipLabel} slips/month · ${adminSeats} admin seat${adminSeats !== 1 ? "s" : ""}, ${userSeats} user${userSeats === "1" ? "" : "s"}`
 }
 
 export function buildPlanFeatures(plan: CatalogPlan): string[] {
@@ -79,8 +79,8 @@ export function buildPlanFeatures(plan: CatalogPlan): string[] {
 
   const features: string[] = []
   const slipLimit = getSlipCapacity(plan)
-  if (slipLimit === 0) features.push("Unlimited cases per month")
-  else if (slipLimit > 0) features.push(`${slipLimit.toLocaleString()} cases per month`)
+  if (slipLimit === 0) features.push("Unlimited slips per month")
+  else if (slipLimit > 0) features.push(`${slipLimit.toLocaleString()} slips per month`)
 
   const storage = getStorageGb(plan)
   if (storage != null) features.push(`${storage} GB included storage`)
