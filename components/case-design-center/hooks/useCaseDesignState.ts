@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo, type SetStateAction } from "react";
-import type { CaseDesignProps, Arch, RetentionType, ProductApiData, ProductExtraction } from "../types";
+import type { CaseDesignProps, Arch, RetentionType, ProductApiData, ProductExtraction, ProductTeethShade } from "../types";
 import { mockImpressions } from "../constants";
 import { useToothSelection } from "./useToothSelection";
 import { useShadeSelection } from "./useShadeSelection";
@@ -2088,8 +2088,29 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (!arch || !productId || !fieldType) return;
 
       // Complete immediately so the next step (e.g. gum shade) opens without waiting on the catalog API
-      const shadeJson = buildTeethShadeJson(shade, null);
       prefetchTeethShadeCatalog();
+
+      const prepMatch = productId.match(/^prep_(-?\d+)$/);
+      let matchedTeethShade: TeethShadeEntry | null = null;
+      if (prepMatch && fieldType === "tooth_shade") {
+        const toothNumber = parseInt(prepMatch[1], 10);
+        const rawProduct = toothFieldProgress.getToothProduct(arch, toothNumber);
+        const product = rawProduct ? enrichProductWithGrades(arch, rawProduct) : null;
+        const productShades = (product?.teeth_shades ?? []) as ProductTeethShade[];
+        const fromProduct = productShades.find((s) => s.name === shade);
+        if (fromProduct) {
+          matchedTeethShade = {
+            teeth_shade_id: Number(fromProduct.teeth_shade_id ?? fromProduct.id ?? 0),
+            id: Number(fromProduct.id ?? 0),
+            name: fromProduct.name,
+            brand: fromProduct.brand ? { id: fromProduct.brand.id } : null,
+          };
+        } else if (teethShadeCatalogRef.current.length > 0) {
+          matchedTeethShade =
+            teethShadeCatalogRef.current.find((s) => s.name === shade) ?? null;
+        }
+      }
+      const shadeJson = buildTeethShadeJson(shade, matchedTeethShade);
 
       // Fixed products: fixed_p_{productId} or legacy fixed_NN
       const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
@@ -2209,12 +2230,13 @@ export function useCaseDesignState(props: CaseDesignProps) {
       }
 
       // Removable / other products: prep_NN (also handles negative virtual slots like prep_-5)
-      const prepMatch = productId.match(/^prep_(-?\d+)$/);
       if (prepMatch) {
         const toothNumber = parseInt(prepMatch[1], 10);
         if (fieldType === "tooth_shade") {
           mirroredCompleteFieldStep(arch, toothNumber, "teeth_shade", shadeJson);
-          enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade);
+          if (!matchedTeethShade) {
+            enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade);
+          }
         }
       }
 
@@ -2246,6 +2268,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       buildTeethShadeJson,
       prefetchTeethShadeCatalog,
       enrichTeethShadeFieldValue,
+      enrichProductWithGrades,
       mirroredCompleteFieldStep,
       mirroredStoreFieldValue,
       mirroredUncompleteFieldStep,

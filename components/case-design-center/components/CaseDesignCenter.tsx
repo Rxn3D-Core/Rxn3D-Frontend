@@ -11,7 +11,8 @@ import { MandibularPanel } from "./MandibularPanel";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
-import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue } from "../utils/categoryHelpers";
+import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue, serializeStageSelectionFromProduct } from "../utils/categoryHelpers";
+import { resolveProductForStageField } from "../utils/gradeHelpers";
 import { hasAdvanceField } from "./FixedRestorationFields";
 import {
   getCardRepresentativeTooth,
@@ -1856,9 +1857,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             }
           }
           if (toothNum !== null) {
-            const product = state.getToothProduct(arch, toothNum);
+            const product = resolveProductForStageField(
+              state.getToothProduct(arch, toothNum),
+              arch,
+              state.getToothProduct
+            );
             const isFixed = hasRetentionOptions(product);
-            const serializedStage = serializeStageFieldValue({ name: stageName, stage_id: stageId });
+            const serializedStage =
+              stageId && stageId > 0
+                ? serializeStageFieldValue({ name: stageName, stage_id: stageId })
+                : serializeStageSelectionFromProduct(product, stageName);
             if (isFixed) {
               state.completeFieldStep(arch, toothNum, "fixed_stage", serializedStage);
             } else {

@@ -3,8 +3,13 @@ import {
   hasRetentionOptions,
   parseStageFieldValue,
   parseStageDisplayName,
+  resolveStageIdFromSelection,
 } from "../utils/categoryHelpers";
-import { resolveCardFieldValue } from "../utils/resolveAddedCardProduct";
+import { resolveEnrichedProductForSubmit } from "../utils/gradeHelpers";
+import {
+  resolveAddedCardProductData,
+  resolveCardFieldValue,
+} from "../utils/resolveAddedCardProduct";
 import { getRushFromStore } from "../utils/rushModalContext";
 import {
   buildExtractionScopeTeeth,
@@ -75,7 +80,28 @@ export function useSlipProductCollector({
       cardGroups.forEach((teethNums, cardId) => {
         const sortedTeeth = [...teethNums].sort((a, b) => a - b);
         const repTooth = sortedTeeth.find((tn) => !!state.getToothProduct(arch, tn)) ?? sortedTeeth[0];
-        const productApiData = state.getToothProduct(arch, repTooth);
+        const stubProduct =
+          props.addedProducts?.find((ap) => ap.id === cardId)?.product ?? null;
+        const productApiData = resolveAddedCardProductData(
+          arch,
+          cardId,
+          sortedTeeth,
+          state.getToothProduct,
+          stubProduct
+        );
+        const allCardTeethOnArch = allTeeth.filter(
+          (tn) => state.getToothProductCard(arch, tn) === cardId
+        );
+        const fieldScanTeeth = [
+          ...new Set([...sortedTeeth, ...allCardTeethOnArch]),
+        ].sort((a, b) => a - b);
+        const productForSubmit =
+          resolveEnrichedProductForSubmit(
+            productApiData,
+            arch,
+            state.getToothProduct,
+            stubProduct
+          ) ?? productApiData;
         const productId = productApiData?.id
           ?? (props.addedProducts?.find((ap) => ap.id === cardId)?.productId)
           ?? props.selectedProductId
@@ -116,7 +142,7 @@ export function useSlipProductCollector({
           const val = resolveCardFieldValue(
             arch,
             cardId,
-            sortedTeeth,
+            fieldScanTeeth,
             repTooth,
             step as any,
             state.getFieldValue
@@ -132,8 +158,8 @@ export function useSlipProductCollector({
           stageKey,
           `${arch}_prep_${repTooth}`,
           `${arch}_fixed_${repTooth}`,
-          ...sortedTeeth.map((tn) => `${arch}_prep_${tn}`),
-          ...sortedTeeth.map((tn) => `${arch}_fixed_${tn}`),
+          ...fieldScanTeeth.map((tn) => `${arch}_prep_${tn}`),
+          ...fieldScanTeeth.map((tn) => `${arch}_fixed_${tn}`),
         ]);
         let stageName: string | null = null;
         for (const key of stageKeyCandidates) {
@@ -150,7 +176,11 @@ export function useSlipProductCollector({
               ? parseStageDisplayName(stageRaw)
               : null);
         }
-        const stageId = parsedStage?.stage_id;
+        const stageId = resolveStageIdFromSelection(
+          productForSubmit,
+          stageRaw,
+          stageName
+        );
 
         const catalog = productApiData?.impressions ?? [];
         const resolveImpressionCode = (entryCode: string) => {
@@ -255,7 +285,8 @@ export function useSlipProductCollector({
         snapshots.push({
           type,
           productId,
-          productApiData: productApiData ?? null,
+          productApiData: productForSubmit ?? productApiData ?? null,
+          cardFieldTeeth: fieldScanTeeth,
           teethNumbers: productTeeth,
           allCardTeeth: extractionScopeTeeth,
           repToothNumber: repTooth,

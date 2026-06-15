@@ -236,3 +236,27 @@ export function resolveProductStagesForDisplay(
   if (product?.stages && product.stages.length > 0) return product.stages;
   return donor?.stages ?? [];
 }
+
+/**
+ * Full product snapshot for slip submit — merges stages, teeth_shades, gum_shades,
+ * grades, and advance_fields from same-id donors when the local tooth copy is a stub.
+ */
+export function resolveEnrichedProductForSubmit(
+  product: ProductApiData | null | undefined,
+  arch: Arch,
+  getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null | undefined,
+  stubProduct?: ProductApiData | null
+): ProductApiData | null | undefined {
+  const base = product ?? stubProduct ?? null;
+  if (!base) return base;
+
+  const oppositeTeeth = arch === "maxillary" ? MANDIBULAR_TEETH : MAXILLARY_TEETH;
+  const archTeeth = arch === "maxillary" ? MAXILLARY_TEETH : MANDIBULAR_TEETH;
+  const donor =
+    findOppositeArchProductDonor(arch, base.id, getToothProduct, oppositeTeeth) ??
+    findArchProductDonor(arch, base.id, getToothProduct, archTeeth) ??
+    (stubProduct?.id === base.id ? stubProduct : null);
+
+  if (donor) return mergeEnrichedProductFromDonor(base, donor);
+  return base;
+}

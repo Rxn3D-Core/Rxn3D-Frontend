@@ -70,6 +70,51 @@ function parseRemovableTeethShadeField(raw: string): {
   }
 }
 
+function parseGumShadeField(raw: string): {
+  gum_shade_id: number;
+  gum_shade_brand_id: number;
+  name: string;
+} {
+  if (!raw.trim()) {
+    return { gum_shade_id: 0, gum_shade_brand_id: 0, name: "" };
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      gum_shade_id?: number;
+      brand_id?: number;
+      name?: string;
+    };
+    return {
+      gum_shade_id: Number(parsed.gum_shade_id ?? 0),
+      gum_shade_brand_id: Number(parsed.brand_id ?? 0),
+      name: String(parsed.name ?? "").trim(),
+    };
+  } catch {
+    return { gum_shade_id: 0, gum_shade_brand_id: 0, name: raw.trim() };
+  }
+}
+
+function collectCardRepToothNumbers(snap: SlipProductSnapshot): number[] {
+  const teeth = new Set<number>();
+  if (snap.repToothNumber != null) teeth.add(snap.repToothNumber);
+  snap.teethNumbers?.forEach((tn) => teeth.add(tn));
+  snap.cardFieldTeeth?.forEach((tn) => teeth.add(tn));
+  snap.allCardTeeth?.forEach((tn) => teeth.add(tn));
+  return [...teeth];
+}
+
+function resolveSelectedToothShadeName(
+  snap: SlipProductSnapshot,
+  arch: Arch
+): string | undefined {
+  for (const tn of collectCardRepToothNumbers(snap)) {
+    const key = buildShadeSelectionKey(`prep_${tn}`, arch, "tooth_shade");
+    const val = snap.selectedShades[key]?.trim();
+    if (val) return val;
+  }
+  return undefined;
+}
+
 /** Resolve teeth shade IDs for removable products at submit time. */
 function resolveRemovableTeethShadeIds(
   snap: SlipProductSnapshot,
@@ -80,9 +125,7 @@ function resolveRemovableTeethShadeIds(
 
   if (teeth_shade_id <= 0 || teeth_shade_brand_id <= 0) {
     const snapArch: Arch = snap.type === "Upper" ? "maxillary" : "mandibular";
-    const selectedName = snap.selectedShades[
-      buildShadeSelectionKey(`prep_${snap.repToothNumber}`, snapArch, "tooth_shade")
-    ];
+    const selectedName = resolveSelectedToothShadeName(snap, snapArch);
     if (selectedName) name = name || selectedName;
   }
 
@@ -139,6 +182,33 @@ function resolveStageId(
   stageRaw?: string | null
 ): number | undefined {
   return resolveStageIdFromSelection(product, stageRaw, stageName);
+}
+
+function resolveGumShadeIds(
+  snap: SlipProductSnapshot,
+  product: SlipProductSnapshot["productApiData"]
+): { gum_shade_id: number; gum_shade_brand_id: number } | null {
+  const parsed = parseGumShadeField(snap.fieldValues["gum_shade"] ?? "");
+  let { gum_shade_id, gum_shade_brand_id, name } = parsed;
+
+  if (gum_shade_id > 0 && gum_shade_brand_id > 0) {
+    return { gum_shade_id, gum_shade_brand_id };
+  }
+
+  if (name && product?.gum_shades?.length) {
+    const matched = product.gum_shades.find(
+      (s: { name?: string }) => (s.name ?? "").trim() === name
+    );
+    if (matched) {
+      const id = Number(matched.gum_shade_id ?? matched.id ?? 0);
+      const brandId = Number(matched.brand?.id ?? 0);
+      if (id > 0 && brandId > 0) {
+        return { gum_shade_id: id, gum_shade_brand_id: brandId };
+      }
+    }
+  }
+
+  return null;
 }
 
 function resolveVariationId(
@@ -423,31 +493,13 @@ export function snapshotToProduct(
   }
 
   const teethShadeIds = resolveRemovableTeethShadeIds(snap, product);
-
-  const gumShadeStr = snap.fieldValues["gum_shade"] ?? "";
-  let gum_shade_id = 0;
-  let gum_shade_brand_id = 0;
-  if (gumShadeStr) {
-    try {
-      const parsed = JSON.parse(gumShadeStr);
-      gum_shade_id = parsed.gum_shade_id ?? 0;
-      gum_shade_brand_id = parsed.brand_id ?? 0;
-    } catch {
-      const matchedGumShade = product?.gum_shades?.find(
-        (s: { name?: string }) => s.name === gumShadeStr
-      );
-      if (matchedGumShade) {
-        gum_shade_id = matchedGumShade.gum_shade_id ?? matchedGumShade.id;
-        gum_shade_brand_id = matchedGumShade.brand?.id ?? 0;
-      }
-    }
-  }
+  const gumShadeIds = resolveGumShadeIds(snap, product);
 
   return {
     ...sharedProductFields,
     ...(grade_id ? { grade_id } : {}),
     ...(teethShadeIds ? { ...teethShadeIds } : {}),
-    ...(gum_shade_id ? { gum_shade_id, gum_shade_brand_id } : {}),
+    ...(gumShadeIds ? { ...gumShadeIds } : {}),
   } as SlipCreationProduct;
 }
 
