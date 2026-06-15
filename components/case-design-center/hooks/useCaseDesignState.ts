@@ -31,6 +31,7 @@ import {
   shouldSkipStageSelection,
   SKIPPED_STAGE_LABEL,
   productHasSelectableStages,
+  serializeStageSelectionFromProduct,
 } from "../utils/categoryHelpers";
 import { addedProductAppliesToArch } from "../utils/activeProductChartMode";
 import {
@@ -1281,7 +1282,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
       const isFixed = hasRetentionOptions(product);
       const stageStep = isFixed ? ("fixed_stage" as const) : ("stage" as const);
-      toothFieldProgress.completeFieldStep(arch, toothNumber, stageStep, stageName);
+      const serializedStage = serializeStageSelectionFromProduct(product, stageName);
+      toothFieldProgress.completeFieldStep(arch, toothNumber, stageStep, serializedStage);
       const stageKey = stageKeyOverride ?? buildStageSelectionKey(arch, toothNumber, isFixed);
       modals.setSelectedStages((prev: Record<string, string>) => ({ ...prev, [stageKey]: stageName }));
       return true;

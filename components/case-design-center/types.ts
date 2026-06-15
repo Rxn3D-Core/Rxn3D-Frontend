@@ -19,6 +19,8 @@ export interface SlipProductSnapshot {
   fieldValues: Record<string, string>;
   /** Stage name selected for this product */
   stageName: string | null;
+  /** Resolved stage_id when stored in field JSON or catalog */
+  stageId?: number;
   /** Impression selections for the product arch: { impressionCode: quantity } */
   impressions: Record<string, number>;
   /**

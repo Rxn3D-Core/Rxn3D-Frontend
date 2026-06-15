@@ -22,7 +22,10 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
-import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import {
+  shouldSkipStageSelection,
+  parseStageDisplayName,
+} from "../utils/categoryHelpers";
 import {
   productHasGrades,
   resolveProductGradesForDisplay,
@@ -394,7 +397,8 @@ export function SelectionProductFields({
 
       {/* Step 1: Grade / Stage */}
       {isVisible("grade") && (() => {
-        const stageName = getFieldValueFn(arch, firstToothNumber, "stage");
+        const stageRaw = getFieldValueFn(arch, firstToothNumber, "stage");
+        const stageName = parseStageDisplayName(stageRaw);
         const selectedStageObj = selectedProduct?.stages?.find((s) => s.name === stageName);
         const stageCfg = selectedStageObj?.stage_configurations;
 
@@ -474,7 +478,7 @@ export function SelectionProductFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000]">
-                  {getFieldValueFn(arch, firstToothNumber, "stage")}
+                  {stageName}
                 </span>
                 {isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853]" />

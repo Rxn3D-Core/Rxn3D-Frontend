@@ -1,5 +1,10 @@
 import { useCallback, useEffect } from "react";
-import { hasRetentionOptions } from "../utils/categoryHelpers";
+import {
+  hasRetentionOptions,
+  parseStageFieldValue,
+  parseStageDisplayName,
+} from "../utils/categoryHelpers";
+import { resolveCardFieldValue } from "../utils/resolveAddedCardProduct";
 import { getRushFromStore } from "../utils/rushModalContext";
 import {
   buildExtractionScopeTeeth,
@@ -108,13 +113,44 @@ export function useSlipProductCollector({
           "fixed_impression", "fixed_addons", "fixed_notes", "fixed_retention_type",
         ] as const;
         for (const step of allSteps) {
-          const val = state.getFieldValue(arch, repTooth, step as any);
+          const val = resolveCardFieldValue(
+            arch,
+            cardId,
+            sortedTeeth,
+            repTooth,
+            step as any,
+            state.getFieldValue
+          );
           if (val) fieldValues[step] = val;
         }
 
         const isFixed = hasRetentionOptions(productApiData);
         const stageKey = isFixed ? `${arch}_fixed_${repTooth}` : `${arch}_prep_${repTooth}`;
-        const stageName = state.selectedStages?.[stageKey] ?? fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
+        const stageRaw = fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
+        const parsedStage = parseStageFieldValue(stageRaw);
+        const stageKeyCandidates = new Set<string>([
+          stageKey,
+          `${arch}_prep_${repTooth}`,
+          `${arch}_fixed_${repTooth}`,
+          ...sortedTeeth.map((tn) => `${arch}_prep_${tn}`),
+          ...sortedTeeth.map((tn) => `${arch}_fixed_${tn}`),
+        ]);
+        let stageName: string | null = null;
+        for (const key of stageKeyCandidates) {
+          const fromStore = state.selectedStages?.[key];
+          if (fromStore?.trim()) {
+            stageName = fromStore;
+            break;
+          }
+        }
+        if (!stageName) {
+          stageName =
+            parsedStage?.name ??
+            (stageRaw && !stageRaw.trim().startsWith("{")
+              ? parseStageDisplayName(stageRaw)
+              : null);
+        }
+        const stageId = parsedStage?.stage_id;
 
         const catalog = productApiData?.impressions ?? [];
         const resolveImpressionCode = (entryCode: string) => {
@@ -225,6 +261,7 @@ export function useSlipProductCollector({
           repToothNumber: repTooth,
           fieldValues,
           stageName,
+          ...(stageId && stageId > 0 ? { stageId } : {}),
           impressions,
           ...(Object.keys(oppositeImpressions).length > 0 ? { oppositeImpressions } : {}),
           rush,

@@ -7,7 +7,7 @@ import type {
 import type { ProductImplant } from "@/services/implant-api";
 import type { Arch, SlipProductSnapshot } from "../types";
 import { getPreferredLabTeethShade } from "@/lib/product-shade-preferences";
-import { hasRetentionOptions } from "./categoryHelpers";
+import { hasRetentionOptions, resolveStageIdFromSelection } from "./categoryHelpers";
 import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
 import { findVariationByTeethCount } from "./variationHelpers";
@@ -135,15 +135,10 @@ function resolveTeethShadeSelection(
 
 function resolveStageId(
   product: SlipProductSnapshot["productApiData"],
-  stageName: string | null
+  stageName: string | null,
+  stageRaw?: string | null
 ): number | undefined {
-  if (!product || product.has_stage === "No" || product.is_single_stage === "Yes") {
-    return undefined;
-  }
-  if (!stageName) return undefined;
-  const stageObj = product.stages?.find((s: { name?: string }) => s.name === stageName);
-  const stage_id = stageObj?.stage_id ?? 0;
-  return stage_id > 0 ? stage_id : undefined;
+  return resolveStageIdFromSelection(product, stageRaw, stageName);
 }
 
 function resolveVariationId(
@@ -171,7 +166,11 @@ export function snapshotToProduct(
 ): SlipCreationProduct {
   const product = snap.productApiData;
   const isFixed = hasRetentionOptions(product);
-  const stage_id = resolveStageId(product, snap.stageName);
+  const stageRaw = snap.fieldValues["stage"] ?? snap.fieldValues["fixed_stage"] ?? null;
+  const stage_id =
+    snap.stageId && snap.stageId > 0
+      ? snap.stageId
+      : resolveStageId(product, snap.stageName, stageRaw);
 
   const mapImpressionEntries = (byCode: Record<string, number> | undefined) =>
     Object.entries(byCode ?? {})

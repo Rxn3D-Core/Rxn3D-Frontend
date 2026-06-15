@@ -80,12 +80,6 @@ export function shouldSkipStageSelection(
   return !productHasStageField(product);
 }
 
-/** Stage value safe to show in accordion badges and fieldsets (never the skip placeholder). */
-export function isDisplayableStageValue(value: string | undefined | null): boolean {
-  const v = value?.trim();
-  return !!v && v !== SKIPPED_STAGE_LABEL;
-}
-
 export type StageSelectionResolution =
   | { kind: "skip" }
   | { kind: "auto"; stageName: string }
@@ -128,6 +122,89 @@ export function getResolvedStageName(
   const resolution = resolveStageSelection(product);
   if (resolution.kind === "auto") return resolution.stageName;
   return null;
+}
+
+/** Human-readable stage label; never returns raw JSON. */
+export function parseStageDisplayName(stageRaw: string | undefined | null): string {
+  if (!stageRaw?.trim()) return "";
+  try {
+    const parsed = JSON.parse(stageRaw) as { name?: string };
+    if (typeof parsed?.name === "string" && parsed.name.trim()) return parsed.name;
+  } catch {
+    /* plain string stage name */
+  }
+  return stageRaw;
+}
+
+/** Stage value safe to show in accordion badges and fieldsets (never the skip placeholder). */
+export function isDisplayableStageValue(value: string | undefined | null): boolean {
+  const v = parseStageDisplayName(value);
+  return !!v && v !== SKIPPED_STAGE_LABEL;
+}
+
+export function parseStageFieldValue(
+  stageRaw: string | undefined | null
+): { stage_id?: number; name: string } | null {
+  const trimmed = (stageRaw ?? "").trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as { stage_id?: number; name?: string };
+    if (typeof parsed?.name === "string" && parsed.name.trim()) {
+      const stage_id = Number(parsed.stage_id ?? 0);
+      return {
+        name: parsed.name.trim(),
+        ...(stage_id > 0 ? { stage_id } : {}),
+      };
+    }
+  } catch {
+    /* plain string stage name */
+  }
+  return { name: trimmed };
+}
+
+export function serializeStageFieldValue(stage: {
+  stage_id?: number | null;
+  name: string;
+}): string {
+  const stage_id = Number(stage.stage_id ?? 0);
+  if (stage_id > 0) {
+    return JSON.stringify({ stage_id, name: stage.name });
+  }
+  return stage.name;
+}
+
+type StageIdLookup = {
+  stages?: Array<{ name?: string; stage_id?: number; id?: number }>;
+};
+
+/** Resolve stage_id from stored field JSON and/or product stage catalog. */
+export function resolveStageIdFromSelection(
+  product: StageIdLookup | null | undefined,
+  stageRaw: string | undefined | null,
+  stageNameFallback?: string | null
+): number | undefined {
+  const fromField = parseStageFieldValue(stageRaw);
+  if (fromField?.stage_id && fromField.stage_id > 0) {
+    return fromField.stage_id;
+  }
+
+  const name = fromField?.name ?? stageNameFallback?.trim() ?? "";
+  if (!name || !product?.stages?.length) return undefined;
+
+  const stageObj = product.stages.find((s) => s.name === name);
+  const stage_id = Number(stageObj?.stage_id ?? stageObj?.id ?? 0);
+  return stage_id > 0 ? stage_id : undefined;
+}
+
+export function serializeStageSelectionFromProduct(
+  product: StageIdLookup | null | undefined,
+  stageName: string
+): string {
+  const stageObj = product?.stages?.find((s) => s.name === stageName);
+  return serializeStageFieldValue({
+    name: stageName,
+    stage_id: stageObj?.stage_id ?? stageObj?.id,
+  });
 }
 
 /** @deprecated Use shouldSkipStageSelection — kept for existing call sites. */
