@@ -1022,7 +1022,7 @@ export default function SubscriptionsPage() {
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
           <OverviewCard
             title="Current plan"
-            hint={`Your active subscription plan. Includes ${slipCapacity > 0 ? `${slipCapacity.toLocaleString()} cases/month` : "unlimited cases"}, ${maxAdminSeats} admin seat${maxAdminSeats !== 1 ? "s" : ""}, and ${maxUserSeats === -1 || maxUserSeats == null ? "unlimited" : maxUserSeats} user${maxUserSeats === 1 ? "" : "s"}.`}
+            hint={`Your active subscription plan. Includes ${slipCapacity > 0 ? `${slipCapacity.toLocaleString()} slips/month` : "unlimited slips"}, ${maxAdminSeats} admin seat${maxAdminSeats !== 1 ? "s" : ""}, and ${maxUserSeats === -1 || maxUserSeats == null ? "unlimited" : maxUserSeats} user${maxUserSeats === 1 ? "" : "s"}.`}
             action={
               <SubtleActionButton
                 onClick={() => {
@@ -1042,7 +1042,7 @@ export default function SubscriptionsPage() {
               <div className="space-y-0.5 text-[13px] leading-6 tracking-[-0.02em] text-black">
                 <p>
                   {priceText}
-                  {slipCapacity > 0 ? `, ${slipCapacity.toLocaleString()} cases / month` : ", unlimited cases / month"}
+                  {slipCapacity > 0 ? `, ${slipCapacity.toLocaleString()} slips / month` : ", unlimited slips / month"}
                 </p>
                 <p>
                   {maxAdminSeats} admin seat{maxAdminSeats !== 1 ? "s" : ""},{" "}
@@ -1056,7 +1056,7 @@ export default function SubscriptionsPage() {
 
           <OverviewCard
             title="Usage"
-            hint={`Cases created in the current billing period${billingUsage?.period_start ? ` (${formatBillingDate(billingUsage.period_start)}${billingUsage?.period_end ? ` – ${formatBillingDate(billingUsage.period_end)}` : ""})` : ""}. ${slipCapacity > 0 ? `${usageCount.toLocaleString()} of ${slipCapacity.toLocaleString()} used.` : "Unlimited plan — no monthly case cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
+            hint={`Slips created in the current billing period${billingUsage?.period_start ? ` (${formatBillingDate(billingUsage.period_start)}${billingUsage?.period_end ? ` – ${formatBillingDate(billingUsage.period_end)}` : ""})` : ""}. ${slipCapacity > 0 ? `${usageCount.toLocaleString()} of ${slipCapacity.toLocaleString()} used.` : "Unlimited plan — no monthly slip cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
             action={
               <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="w-full sm:w-[210px]">
                 Explore Add-ons

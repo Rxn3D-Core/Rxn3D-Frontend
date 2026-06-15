@@ -25,11 +25,7 @@ import {
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
@@ -741,11 +737,14 @@ export default function VirtualSlipV2Page() {
         signatureRequired={readyToSendRequired}
       />
 
-      <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent
-          className={`${attachViewerOpen ? "max-w-[1700px]" : "max-w-[1100px]"} w-[95vw] h-[80vh] max-h-[800px] overflow-hidden flex flex-col p-0 transition-all duration-300`}
+      {showAttachModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-white"
+          style={{ width: "100vw", height: "100vh" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="File Attachments"
         >
-          <DialogTitle className="sr-only">Slip attachments</DialogTitle>
           <FileAttachmentModalContent
             setShowAttachModal={setShowAttachModal}
             isCaseSubmitted={false}
@@ -755,8 +754,9 @@ export default function VirtualSlipV2Page() {
             onViewerToggle={setAttachViewerOpen}
             open={showAttachModal}
           />
-        </DialogContent>
-      </Dialog>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

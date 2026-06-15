@@ -57,6 +57,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Fetch the remote file
   let response: Response;
+  console.log("[file-proxy] fetching →", decodedUrl)
   try {
     response = await fetch(decodedUrl, {
       headers: {
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+    console.error("[file-proxy] fetch error →", decodedUrl, errorMessage)
     return new NextResponse(`Failed to fetch file: ${errorMessage}`, {
       status: 502,
     });
@@ -73,11 +75,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Check if the remote response was successful
   if (!response.ok) {
+    console.error("[file-proxy] S3 error →", response.status, response.statusText, decodedUrl)
     return new NextResponse(
       `Remote server returned ${response.status}: ${response.statusText}`,
       { status: response.status }
     );
   }
+  console.log("[file-proxy] S3 OK →", response.status, response.headers.get("content-type"), response.headers.get("content-length"), "bytes")
 
   // Get the content type from the remote response, with STL override
   const remoteContentType = response.headers.get("content-type") || "application/octet-stream";

@@ -1,166 +1,94 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Canvas, useThree, useFrame } from "@react-three/fiber"
-import { OrbitControls, Grid, Environment } from "@react-three/drei"
 import * as THREE from "three"
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
 
 interface STLCanvasOnlyProps {
-  models: { src: string; color?: string }[]
+  src: string
   isWireframe?: boolean
   showGrid?: boolean
   modelColor?: string
-  realistic?: boolean
-  /** Glossy ceramic/enamel look — white, shiny clearcoat highlights, non-metallic. Takes precedence over `realistic`. */
-  glossy?: boolean
-  /** Continuously auto-rotate the model (matches the card-thumbnail animation). */
   autoRotate?: boolean
-}
-
-function STLModel({
-  src,
-  color,
-  isWireframe,
-  realistic,
-  glossy,
-}: {
-  src: string
-  color: string
-  isWireframe: boolean
-  realistic: boolean
-  glossy: boolean
-}) {
-  const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
-
-  useEffect(() => {
-    const loader = new STLLoader()
-    loader.load(
-      src,
-      (geo) => {
-        geo.computeVertexNormals()
-        geo.center()
-        setGeometry(geo)
-      },
-      undefined,
-      (err) => {
-        console.error("Error loading STL:", err)
-      }
-    )
-    return () => {
-      if (geometry) geometry.dispose()
-    }
-  }, [src])
-
-  if (!geometry) return null
-
-  if (glossy && !isWireframe) {
-    // Mirror the card-thumbnail look (SimpleSTLViewer): MeshStandardMaterial,
-    // roughness 0.18, no clearcoat, no env map.
-    return (
-      <mesh geometry={geometry} castShadow receiveShadow>
-        <meshStandardMaterial
-          color={color}
-          metalness={0}
-          roughness={0.18}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    )
-  }
-
-  if (realistic && !isWireframe) {
-    return (
-      <mesh geometry={geometry} castShadow receiveShadow>
-        <meshPhysicalMaterial
-          color={color}
-          metalness={0.85}
-          roughness={0.15}
-          clearcoat={0.3}
-          clearcoatRoughness={0.1}
-          envMapIntensity={1.5}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    )
-  }
-
-  return (
-    <mesh geometry={geometry}>
-      <meshStandardMaterial
-        color={color}
-        wireframe={isWireframe}
-        side={THREE.DoubleSide}
-      />
-    </mesh>
-  )
-}
-
-function SceneSetup({ realistic, glossy }: { realistic: boolean; glossy: boolean }) {
-  const { gl, scene } = useThree()
-
-  useEffect(() => {
-    if (glossy) {
-      gl.toneMapping = THREE.NoToneMapping
-      gl.toneMappingExposure = 1
-      scene.background = new THREE.Color("#e0e0e0")
-    } else if (realistic) {
-      gl.toneMapping = THREE.ACESFilmicToneMapping
-      gl.toneMappingExposure = 1.2
-      scene.background = new THREE.Color("#1a3a5c")
-    } else {
-      gl.toneMapping = THREE.NoToneMapping
-      gl.toneMappingExposure = 1
-      scene.background = new THREE.Color("#e9ecef")
-    }
-  }, [realistic, glossy, gl, scene])
-
-  return null
-}
-
-function CameraControls({ autoRotate = false }: { autoRotate?: boolean }) {
-  const { invalidate } = useThree()
-  const controlsRef = useRef<any>(null)
-
-  useEffect(() => {
-    const controls = controlsRef.current
-    if (controls) {
-      controls.addEventListener("change", invalidate)
-    }
-    return () => {
-      if (controls) {
-        controls.removeEventListener("change", invalidate)
-      }
-    }
-  }, [invalidate])
-
-  // Drive the auto-rotation every frame (matches the thumbnail's OrbitControls.autoRotate)
-  useFrame(() => {
-    if (autoRotate && controlsRef.current) {
-      controlsRef.current.update()
-    }
-  })
-
-  return (
-    <OrbitControls
-      ref={controlsRef}
-      makeDefault
-      autoRotate={autoRotate}
-      autoRotateSpeed={0.5}
-    />
-  )
+  controlsRef?: React.MutableRefObject<OrbitControls | null>
+  // Legacy props kept for call-site compatibility
+  models?: unknown
+  realistic?: boolean
+  glossy?: boolean
 }
 
 export default function STLCanvasOnly({
-  models,
+  src,
   isWireframe = false,
   showGrid = false,
   modelColor = "#f9c74f",
-  realistic = true,
-  glossy = false,
   autoRotate = false,
+  controlsRef,
 }: STLCanvasOnlyProps) {
-  if (models.length === 0) {
+  const mountRef = useRef<HTMLDivElement>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Live option refs — updated every render so the scene picks up changes without remounting
+  const wireframeRef = useRef(isWireframe)
+  const showGridRef = useRef(showGrid)
+  const modelColorRef = useRef(modelColor)
+
+  // Imperative handles set by mountScene so React can push updates into the live Three.js scene
+  const applyRef = useRef<{
+    setWireframe: (v: boolean) => void
+    setGrid: (v: boolean) => void
+    setColor: (v: string) => void
+  } | null>(null)
+
+  // Sync prop → ref → live scene on every render
+  wireframeRef.current = isWireframe
+  showGridRef.current = showGrid
+  modelColorRef.current = modelColor
+
+  useEffect(() => {
+    if (!applyRef.current) return
+    applyRef.current.setWireframe(isWireframe)
+  }, [isWireframe])
+
+  useEffect(() => {
+    if (!applyRef.current) return
+    applyRef.current.setGrid(showGrid)
+  }, [showGrid])
+
+  useEffect(() => {
+    if (!applyRef.current) return
+    applyRef.current.setColor(modelColor)
+  }, [modelColor])
+
+  useEffect(() => {
+    const container = mountRef.current
+    if (!container || !src) return
+
+    setLoading(true)
+    applyRef.current = null
+
+    const mount = () =>
+      mountScene(
+        container,
+        src,
+        { isWireframe: wireframeRef.current, showGrid: showGridRef.current, modelColor: modelColorRef.current, autoRotate, controlsRef },
+        (handles) => { applyRef.current = handles },
+        () => setLoading(false),
+      )
+
+    // If container has no dimensions yet defer one frame
+    if (!container.clientWidth || !container.clientHeight) {
+      let rafId: number
+      let teardown: (() => void) | undefined
+      rafId = requestAnimationFrame(() => { teardown = mount() })
+      return () => { cancelAnimationFrame(rafId); teardown?.() }
+    }
+
+    return mount()
+  }, [src]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!src) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400 text-xs">
         Select an STL file to preview
@@ -169,64 +97,210 @@ export default function STLCanvasOnly({
   }
 
   return (
-    <div className="w-full h-full">
-      <Canvas
-        shadows={realistic || glossy}
-        frameloop={autoRotate ? "always" : "demand"}
-        camera={{ position: [0, 0, 80], fov: 75 }}
-        style={{ width: "100%", height: "100%" }}
-      >
-        <SceneSetup realistic={realistic} glossy={glossy} />
-        {glossy ? (
-          <>
-            {/* Match SimpleSTLViewer thumbnail lighting exactly */}
-            <hemisphereLight args={[0xffffff, 0x444444, 0.8]} position={[0, 50, 0]} />
-            <directionalLight position={[10, 20, 10]} intensity={1} castShadow />
-            <spotLight position={[-15, 25, 15]} intensity={0.5} castShadow />
-            <ambientLight intensity={0.2} />
-          </>
-        ) : realistic ? (
-          <>
-            <ambientLight intensity={0.3} />
-            <directionalLight
-              position={[10, 15, 10]}
-              intensity={1.5}
-              castShadow
-              shadow-mapSize-width={1024}
-              shadow-mapSize-height={1024}
-            />
-            <directionalLight position={[-8, 10, -5]} intensity={0.6} />
-            <spotLight
-              position={[0, 20, 15]}
-              angle={0.3}
-              penumbra={0.8}
-              intensity={1}
-              castShadow
-            />
-            <pointLight position={[-10, -5, 10]} intensity={0.3} color="#6699cc" />
-            <Environment preset="city" />
-          </>
-        ) : (
-          <>
-            <ambientLight intensity={0.5} />
-            <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
-            <pointLight position={[-10, -10, -10]} />
-            <Environment preset="studio" />
-          </>
-        )}
-        {models.map((model) => (
-          <STLModel
-            key={model.src}
-            src={model.src}
-            color={model.color || modelColor}
-            isWireframe={isWireframe}
-            realistic={realistic}
-            glossy={glossy}
-          />
-        ))}
-        {showGrid && <Grid args={[100, 100]} />}
-        <CameraControls autoRotate={autoRotate} />
-      </Canvas>
+    <div className="w-full h-full relative">
+      {loading && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#c8c8c8] gap-2">
+          <div className="w-8 h-8 border-[3px] border-gray-400 border-t-[#1162A8] rounded-full animate-spin" />
+          <span className="text-xs text-gray-500 font-medium">Loading 3D model…</span>
+        </div>
+      )}
+      <div ref={mountRef} className="w-full h-full" />
     </div>
   )
+}
+
+interface SceneOptions {
+  isWireframe: boolean
+  showGrid: boolean
+  modelColor: string
+  autoRotate: boolean
+  controlsRef?: React.MutableRefObject<OrbitControls | null>
+}
+
+interface SceneHandles {
+  setWireframe: (v: boolean) => void
+  setGrid: (v: boolean) => void
+  setColor: (v: string) => void
+}
+
+// Module-level cache: parsed BufferGeometry keyed by src URL
+// Avoids re-downloading + re-parsing the same 20MB STL on layout changes
+const geoCache = new Map<string, THREE.BufferGeometry>()
+
+function mountScene(
+  container: HTMLDivElement,
+  src: string,
+  opts: SceneOptions,
+  onHandles: (handles: SceneHandles) => void,
+  onLoaded?: () => void,
+): () => void {
+  const { isWireframe, showGrid, modelColor, autoRotate, controlsRef } = opts
+
+  let destroyed = false
+
+  // ── Scene ────────────────────────────────────────────────────────────────
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color("#c8c8c8")
+
+  // ── Camera ───────────────────────────────────────────────────────────────
+  const w = container.clientWidth || container.parentElement?.clientWidth || Math.round(window.innerWidth * 0.6)
+  const h = container.clientHeight || container.parentElement?.clientHeight || Math.round(window.innerHeight * 0.6)
+  const camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 2000)
+  camera.position.set(0, 0, 80)
+
+  // ── Renderer ─────────────────────────────────────────────────────────────
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" })
+  renderer.setSize(w, h)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+  container.appendChild(renderer.domElement)
+
+  // ── Lights ───────────────────────────────────────────────────────────────
+  // Strong ambient so back/underside of dental models are never pitch-black
+  scene.add(new THREE.AmbientLight(0xffffff, 1.2))
+
+  // Hemisphere: warm sky from above, cooler ground bounce from below
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 1.0)
+  hemi.position.set(0, 50, 0)
+  scene.add(hemi)
+
+  // Key light — front-top-right
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2)
+  dir.position.set(10, 20, 15)
+  scene.add(dir)
+
+  // Fill light — back-bottom-left (illuminates the back/underside)
+  const fill = new THREE.DirectionalLight(0xffffff, 0.8)
+  fill.position.set(-15, -10, -15)
+  scene.add(fill)
+
+  // Rim light — back-top, wraps around the arch
+  const rim = new THREE.DirectionalLight(0xffffff, 0.6)
+  rim.position.set(0, 10, -20)
+  scene.add(rim)
+
+  // ── Grid ─────────────────────────────────────────────────────────────────
+  const grid = new THREE.GridHelper(200, 20, 0x888888, 0xcccccc)
+  grid.visible = showGrid
+  scene.add(grid)
+
+  // ── Controls ─────────────────────────────────────────────────────────────
+  const controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.05
+  controls.autoRotate = autoRotate
+  controls.autoRotateSpeed = 0.5
+  if (controlsRef) controlsRef.current = controls
+
+  // ── Load STL ─────────────────────────────────────────────────────────────
+  let mesh: THREE.Mesh | null = null
+
+  const addMesh = (geo: THREE.BufferGeometry) => {
+    if (destroyed) return
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(modelColor),
+      roughness: 0.35,
+      metalness: 0,
+      wireframe: isWireframe,
+      side: THREE.DoubleSide,
+    })
+    mesh = new THREE.Mesh(geo, mat)
+    const center = new THREE.Vector3()
+    geo.boundingBox!.getCenter(center)
+    mesh.position.sub(center)
+    scene.add(mesh)
+    const size = new THREE.Vector3()
+    geo.boundingBox!.getSize(size)
+    const maxDim = Math.max(size.x, size.y, size.z)
+    const dist = Math.abs(maxDim / 2 / Math.tan((camera.fov * Math.PI) / 360)) * 1.5
+    camera.position.set(0, 0, dist)
+    camera.near = dist * 0.01
+    camera.far = dist * 10
+    camera.updateProjectionMatrix()
+    controls.update()
+
+    // Expose imperative handles so React prop changes can update the live scene
+    onHandles({
+      setWireframe: (v) => {
+        if (mesh) {
+          (mesh.material as THREE.MeshStandardMaterial).wireframe = v
+        }
+      },
+      setGrid: (v) => { grid.visible = v },
+      setColor: (v) => {
+        if (mesh) {
+          (mesh.material as THREE.MeshStandardMaterial).color.set(v)
+        }
+      },
+    })
+
+    onLoaded?.()
+  }
+
+  const cached = geoCache.get(src)
+  if (cached) {
+    console.log("[STLCanvasOnly] cache hit →", src)
+    addMesh(cached)
+  } else {
+    console.log("[STLCanvasOnly] fetching →", src)
+    new STLLoader().load(
+      src,
+      (geo) => {
+        if (destroyed) { geo.dispose(); return }
+        geo.computeVertexNormals()
+        geo.computeBoundingBox()
+        geoCache.set(src, geo)
+        console.log("[STLCanvasOnly] loaded OK →", src)
+        addMesh(geo)
+      },
+      (xhr) => {
+        if (xhr.lengthComputable) {
+          console.log(`[STLCanvasOnly] loading ${Math.round((xhr.loaded / xhr.total) * 100)}% →`, src)
+        }
+      },
+      (err) => {
+        console.error("[STLCanvasOnly] LOAD FAILED →", src, err)
+        onLoaded?.()
+      }
+    )
+  }
+
+  // ── ResizeObserver ───────────────────────────────────────────────────────
+  const resizeToContainer = () => {
+    const rw = container.clientWidth
+    const rh = container.clientHeight
+    if (!rw || !rh) return
+    camera.aspect = rw / rh
+    camera.updateProjectionMatrix()
+    renderer.setSize(rw, rh)
+  }
+  const ro = new ResizeObserver(resizeToContainer)
+  ro.observe(container)
+  requestAnimationFrame(resizeToContainer)
+
+  // ── Render loop ──────────────────────────────────────────────────────────
+  let animId: number
+  const animate = () => {
+    animId = requestAnimationFrame(animate)
+    controls.update()
+    renderer.render(scene, camera)
+  }
+  animate()
+
+  // ── Teardown ─────────────────────────────────────────────────────────────
+  return () => {
+    destroyed = true
+    cancelAnimationFrame(animId)
+    ro.disconnect()
+    controls.dispose()
+    renderer.dispose()
+    if (mesh) {
+      // Only dispose geometry if it's not in the cache (cache owns it)
+      if (!geoCache.has(src)) mesh.geometry.dispose()
+      ;(mesh.material as THREE.Material).dispose()
+    }
+    if (container.contains(renderer.domElement)) {
+      container.removeChild(renderer.domElement)
+    }
+    if (controlsRef) controlsRef.current = null
+  }
 }
