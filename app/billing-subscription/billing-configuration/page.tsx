@@ -1353,11 +1353,6 @@ export default function BillingConfigurationPage() {
           </Button>
         </TabsContent>
       </Tabs>
-
-      <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-xs">
-        <Link href="/billing-subscription">← Back to billing hub</Link>
-      </Button>
-
       <Dialog open={openDeleteConfirm} onOpenChange={setOpenDeleteConfirm}>
         <DialogContent className="max-w-md rounded-xl p-0">
           <div className="p-6">

@@ -170,12 +170,6 @@ export default function GlobalPricingPage() {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <div className="flex justify-start">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/billing-subscription">← Back to billing hub</Link>
-        </Button>
-      </div>
     </div>
   )
 }
