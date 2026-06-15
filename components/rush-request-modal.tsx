@@ -358,6 +358,8 @@ export default function RushRequestModal({
         onConfirm(buildPayload(otherArch, targetDateStr, otherKey, otherStandard))
       }
     }
+
+    onClose()
   }
 
   const handleConfirmSlot = (slot: RushArchSlotView) => {
@@ -384,6 +386,8 @@ export default function RushRequestModal({
         onConfirm(buildPayload(other.arch, targetDateStr, other.rushKey, otherStandard))
       }
     }
+
+    onClose()
   }
 
   const labelStyle = { fontWeight: 700, lineHeight: "22px", letterSpacing: "-0.02em", color: "#545F71" } as const
@@ -403,6 +407,9 @@ export default function RushRequestModal({
         <div className="text-center mb-4">
           <h3 className="font-bold text-[14px] tracking-[-0.02em]">{slot.archLabel}</h3>
           <p className="text-[12px] mt-1 text-[#545F71] tracking-[-0.02em]">{slot.productName}</p>
+          {slot.stageName ? (
+            <p className="text-[11px] mt-0.5 text-[#9BA5B7] tracking-[-0.02em]">{slot.stageName}</p>
+          ) : null}
         </div>
       )
     }
@@ -473,8 +480,8 @@ export default function RushRequestModal({
         <div className="text-center mb-4">
           <h3 className="font-bold text-[14px] tracking-[-0.02em]">{slot.archLabel}</h3>
           <p className="text-[12px] mt-1 text-[#545F71] tracking-[-0.02em]">{slot.productName}</p>
-          {slot.toothNumbersLabel ? (
-            <p className="text-[11px] mt-0.5 text-[#9BA5B7] tracking-[-0.02em]">{slot.toothNumbersLabel}</p>
+          {slot.stageName ? (
+            <p className="text-[11px] mt-0.5 text-[#9BA5B7] tracking-[-0.02em]">{slot.stageName}</p>
           ) : null}
         </div>
 
@@ -870,12 +877,16 @@ export default function RushRequestModal({
 
             {useSlotColumns ? (
               <div className="flex gap-6 flex-col sm:flex-row sm:flex-wrap sm:items-start">
-                {archSlots.map((slot, index) => (
+                {(mirrorRushAcrossArches ? archSlots.slice(0, 1) : archSlots).map((slot, index) => (
                   <div key={slot.rushKey} className="flex flex-1 min-w-[260px] gap-6 items-stretch">
                     {index > 0 ? (
                       <div className="w-px bg-gray-200 flex-shrink-0 hidden sm:block self-stretch min-h-[120px]" aria-hidden />
                     ) : null}
-                    {renderSlotColumn(slot)}
+                    {renderSlotColumn(
+                      mirrorRushAcrossArches
+                        ? { ...slot, archLabel: "Upper & Lower" }
+                        : slot
+                    )}
                   </div>
                 ))}
               </div>

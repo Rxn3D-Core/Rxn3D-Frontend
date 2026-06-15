@@ -92,17 +92,11 @@ function priceFromAnchorAndMarkupPercent(anchorPrice: number, markupPercentRaw: 
   return total.toFixed(2)
 }
 
-/** If multiple defaults, keep the first in form order; if none, leave as-is (user must set default explicitly). */
-function ensureOneDefaultGrade(watchedGrades: WatchedGrade[]): WatchedGrade[] {
+/** If multiple defaults, keep the first in form order; otherwise leave selection as-is. */
+function dedupeDefaultGrades(watchedGrades: WatchedGrade[]): WatchedGrade[] {
   if (watchedGrades.length === 0) return watchedGrades
   const withDefault = watchedGrades.filter((g) => g.is_default === "Yes")
-  if (withDefault.length === 1) return watchedGrades
-  if (withDefault.length === 0) {
-    if (watchedGrades.length === 1) {
-      return [{ ...watchedGrades[0], is_default: "Yes" }]
-    }
-    return watchedGrades
-  }
+  if (withDefault.length <= 1) return watchedGrades
   const keepId = withDefault[0].grade_id
   return watchedGrades.map((g) => ({
     ...g,
@@ -210,7 +204,7 @@ export function GradesSection({
   // When first-tooth anchor or teeth strategy changes, re-sync only the anchor (first-by-order) grade to the anchor price.
   useEffect(() => {
     if (!teethGradeLock || watchedGrades.length === 0) return
-    let next = ensureOneDefaultGrade(watchedGrades)
+    let next = dedupeDefaultGrades(watchedGrades)
     next = syncTeethAnchorGradePrice(next, firstToothAnchor, masterGradesFlat)
     if (JSON.stringify(next) !== JSON.stringify(watchedGrades)) {
       setValue("grades", next as NonNullable<ProductCreateForm["grades"]>, { shouldDirty: true })
@@ -247,17 +241,6 @@ export function GradesSection({
       setValue("grades", next as NonNullable<ProductCreateForm["grades"]>, { shouldDirty: true })
     }
   }, [teethGradeLock, firstToothAnchor, anchorGradeId, masterGradesFlat, setValue])
-
-  // Auto-select default grade if only one is selected
-  useEffect(() => {
-    if (watchedGrades.length === 1 && watchedGrades[0].is_default === "No") {
-      const updated = [{ ...watchedGrades[0], is_default: "Yes" as const }]
-      setValue("grades", updated as NonNullable<ProductCreateForm["grades"]>, {
-        shouldDirty: true,
-        shouldValidate: true,
-      })
-    }
-  }, [watchedGrades, setValue])
 
   // State for custom grade form
   const [showCustomGradeForm, setShowCustomGradeForm] = useState(false)
@@ -357,8 +340,8 @@ export function GradesSection({
       updated = [...watchedGrades, newGrade] as NonNullable<ProductCreateForm["grades"]>
     }
 
-    // Always ensure one default if only one grade exists
-    updated = ensureOneDefaultGrade(updated)
+    // Deduplicate if multiple defaults were set
+    updated = dedupeDefaultGrades(updated)
 
     if (teethGradeLock) {
       updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
@@ -395,8 +378,8 @@ export function GradesSection({
       }
       return { ...g, is_default: "No" as const }
     }) as NonNullable<ProductCreateForm["grades"]>
-    // Always ensure one default if only one grade exists
-    updated = ensureOneDefaultGrade(updated)
+    // Deduplicate if multiple defaults were set
+    updated = dedupeDefaultGrades(updated)
 
     if (teethGradeLock) {
       updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
@@ -417,20 +400,19 @@ export function GradesSection({
       // Remove grade
       updated = watchedGrades.filter((g) => g.grade_id !== gradeId) as NonNullable<ProductCreateForm["grades"]>
     } else {
-      // Add grade: first selected grade becomes default
-      const isFirstSelection = watchedGrades.length === 0
+      // Add grade without auto-setting default
       updated = [
         ...watchedGrades,
         {
           grade_id: gradeId as number,
-          is_default: isFirstSelection ? ("Yes" as const) : ("No" as const),
+          is_default: "No" as const,
           price: extra?.price !== undefined && extra?.price !== "" ? extra.price : "",
         },
       ] as NonNullable<ProductCreateForm["grades"]>
     }
 
-    // Always ensure one default if only one grade exists
-    updated = ensureOneDefaultGrade(updated)
+    // Deduplicate if multiple defaults were set
+    updated = dedupeDefaultGrades(updated)
 
     if (teethGradeLock) {
       updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)
@@ -728,8 +710,7 @@ export function GradesSection({
                             onCheckedChange={() => {
                               // Remove custom grade
                               let updated = watchedGrades.filter((g) => g.grade_id !== customGradeId) as NonNullable<ProductCreateForm["grades"]>
-                              // Always ensure one default if only one grade exists
-                              updated = ensureOneDefaultGrade(updated)
+                              updated = dedupeDefaultGrades(updated)
 
                               if (teethGradeLock) {
                                 updated = syncTeethAnchorGradePrice(updated, firstToothAnchor, masterGradesFlat)

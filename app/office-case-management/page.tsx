@@ -17,7 +17,7 @@ import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
@@ -68,6 +68,7 @@ export default function SlipPage() {
   const { slips, loading, error, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("All")
@@ -377,6 +378,7 @@ export default function SlipPage() {
           placeholder="Search by patient, doctor, case..."
           value={search}
           onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && filteredSlips.length === 1) router.push(buildVirtualSlipV2Path(filteredSlips[0].id)) }}
         />
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>

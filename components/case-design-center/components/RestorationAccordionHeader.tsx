@@ -58,6 +58,8 @@ export interface RestorationAccordionHeaderProps {
   isProductSelectionActive?: boolean;
   /** When true, an extraction box is active — always show the Plus icon regardless of extraction acknowledgement state */
   isExtractionActive?: boolean;
+  /** Custom tooltip label for the plus icon (e.g. "Click tooth to mark as Will extract on delivery") */
+  plusTooltipLabel?: string;
 }
 
 /**
@@ -93,6 +95,7 @@ export function RestorationAccordionHeader({
   onPlusClick,
   isProductSelectionActive = false,
   isExtractionActive = false,
+  plusTooltipLabel,
 }: RestorationAccordionHeaderProps) {
   const showStageBadge =
     isDisplayableStageValue(stageName) &&
@@ -159,7 +162,7 @@ export function RestorationAccordionHeader({
                       e.stopPropagation();
                       onPlusClick();
                     }}
-                    title="Activate product tooth selections"
+                    title={plusTooltipLabel || "Activate product tooth selections"}
                   >
                     <svg width="24" height="24" viewBox="0 0 248 248" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path

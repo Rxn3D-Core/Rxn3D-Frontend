@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, Trash2, Plus } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
 import { ProductImagePreview } from "./ProductImagePreview";
@@ -53,6 +54,9 @@ export interface ProductAccordionCardProps {
   /** Removable/fixed layout: large image, tags, active product box (replaces default compact header). */
   customHeader?: React.ReactNode;
 
+  /** When set, shows a + icon with this text as a tooltip next to the tooth display (hints the user to click a tooth). */
+  toothSelectHintLabel?: string;
+
   children?: React.ReactNode;
 }
 
@@ -80,6 +84,7 @@ export function ProductAccordionCard({
   onExtractionsAcknowledgedChange,
   headerExtension,
   customHeader,
+  toothSelectHintLabel,
   children,
 }: ProductAccordionCardProps) {
   return (
@@ -108,6 +113,18 @@ export function ProductAccordionCard({
                 <span className={`${productAccordionTitleClass} truncate`}>{productName}</span>
                 {toothDisplay && (
                   <span className={`${productAccordionToothClass} flex-shrink-0`}>{toothDisplay}</span>
+                )}
+                {toothSelectHintLabel && (
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 cursor-default" onClick={(e) => e.stopPropagation()}>
+                          <Plus size={12} className="text-white" strokeWidth={3} />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">{toothSelectHintLabel}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 {hasRush && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
               </p>

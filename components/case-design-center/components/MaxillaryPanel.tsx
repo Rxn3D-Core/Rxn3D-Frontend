@@ -1493,7 +1493,7 @@ export function MaxillaryPanel({
         )}
         {showMaxillary && (
           <div>
-            {activeProductIsRemovables && !confirmDetailsChecked ? (() => {
+            {activeProductIsRemovables ? (() => {
               const activeExtractions = activeProductCardId !== 0
                 ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions
                 : (() => {
@@ -1501,24 +1501,6 @@ export function MaxillaryPanel({
                   return t ? getToothProduct("maxillary", t)?.extractions : undefined;
                 })();
               if (isFullDentureProduct(activeExtractions)) return null;
-              const removableTeethCount = activeProductCardId !== 0
-                ? MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length
-                : MAXILLARY_ALL_TEETH.filter(tn => { const code = maxillaryToothExtractionMap[tn]; return code && code !== "TIM"; }).length;
-              const removableProductName = activeProductCardId !== 0
-                ? (() => {
-                  const ap = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
-                  if (!ap?.product) return "";
-                  const apAssigned = MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length;
-                  return resolveVariationDisplay(ap.product, apAssigned).name.replace(/^\d+\s+teeth?\s+/i, "");
-                })()
-                : (() => {
-                  const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
-                  if (!t) return "";
-                  const cardProd = getToothProduct("maxillary", t);
-                  const dTeeth = MAXILLARY_ALL_TEETH.filter(tn => { const c = maxillaryToothExtractionMap[tn]; return c && c !== "TIM"; }).length;
-                  return resolveVariationDisplay(cardProd, dTeeth).name.replace(/^\d+\s+teeth?\s+/i, "");
-                })();
-              if (!removableProductName) return null;
               const hintExtractions = (
                 useMaxillaryArchSharedRemovable
                   ? maxillaryMergedExtractions
@@ -1526,62 +1508,59 @@ export function MaxillaryPanel({
               );
               const hintAckCardId = useMaxillaryArchSharedRemovable
                 ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
-                : activeProductCardId !== 0
-                  ? activeProductCardId
-                  : 0;
+                : activeProductCardId !== 0 ? activeProductCardId : 0;
               const baseProductName = activeProductCardId !== 0
                 ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "")
                 : (() => {
                     const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
                     return t ? (getToothProduct("maxillary", t)?.name ?? "") : "";
                   })();
-              const showFlipperStayplateHint =
+              if (
                 isFlipperOrStayplateProduct(baseProductName) &&
                 isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
                 isRemovableToothSelectionFocused({
-                  caseSubmitted,
-                  activeProductCardId,
-                  confirmDetailsChecked,
+                  caseSubmitted, activeProductCardId, confirmDetailsChecked,
                   isCardActive: isCardActiveForToothStatus(activeProductCardId),
-                  toothChartInteractionEnabled,
-                  teethCount: removableTeethCount,
+                  toothChartInteractionEnabled, teethCount: MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length,
                   isSelectionModeActive,
-                });
-              if (showFlipperStayplateHint) {
-                if (
-                  requiresExtractionsAcknowledgement(hintExtractions) &&
-                  isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)
-                ) {
+                })
+              ) {
+                if (requiresExtractionsAcknowledgement(hintExtractions) && isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) {
                   return null;
                 }
+                return <p className="text-center font-bold text-sm mb-1 text-red-600">{FLIPPER_STAYPLATE_SELECTION_HINT}</p>;
+              }
+              // Popover mode: clicking a tooth opens the status popover
+              if (activeExtractionCode === null) {
                 return (
-                  <p className="text-center font-bold text-sm mb-1 text-red-600">
-                    {FLIPPER_STAYPLATE_SELECTION_HINT}
+                  <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
+                    Select teeth to replace
                   </p>
                 );
               }
-              if (requiresExtractionsAcknowledgement(hintExtractions)) {
-                if (isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) return null;
-                const isExtractionBoxSelected = activeExtractionCode !== null;
-                return (
-                  <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                    {isExtractionBoxSelected
-                      ? `Select teeth for reference (not added to ${removableProductName})`
-                      : `Select teeth to replace with "${removableProductName}"`}
-                  </p>
-                );
-              }
+              // Status box mode: an extraction code is active, clicking teeth assigns them
               return (
-                <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                  {activeExtractionCode !== null
-                    ? `Select teeth for reference (not added to ${removableProductName})`
-                    : `Select teeth to replace with "${removableProductName}"`}
+                <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
+                  Select teeth for reference (not added to {baseProductName || "product"})
                 </p>
               );
             })() : (() => {
-              const checkedCount = opposingProductData
-                ? Object.keys(opposingToothExtractionMap).length
-                : maxillaryCheckedTeeth.length;
+              if (opposingProductData && !useScopedRetentionMode) {
+                const opposingName = opposingProductData.name ?? "product";
+                if (opposingActiveExtractionCode === null) {
+                  return (
+                    <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
+                      Select teeth to replace
+                    </p>
+                  );
+                }
+                return (
+                  <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
+                    Select teeth for reference (not added to {opposingName})
+                  </p>
+                );
+              }
+              const checkedCount = maxillaryCheckedTeeth.length;
               const activeProductName = activeProductCardId !== 0
                 ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name || ""
                 : getToothProduct("maxillary", maxillaryTeeth[0])?.name || "";
@@ -1614,14 +1593,15 @@ export function MaxillaryPanel({
                       if (!isCardActiveForToothStatus(activeProductCardId)) {
                         return;
                       }
-                      // If the user has clicked Done (acknowledged), lock tooth selection until
-                      // they re-activate by clicking an extraction box or the plus icon.
+                      // If the user has clicked Done (acknowledged), reset Done state so they
+                      // can continue editing — the click proceeds normally and Done reappears.
                       const currentAckExtractions = activeProductCardId !== 0
                         ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions ?? [])
                         : card0Extractions;
                       const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : activeProductCardId;
                       if (isExtractionsSetupComplete(currentAckExtractions, ackCardId, caseSubmitted)) {
-                        return;
+                        setExtractionsSetupComplete(ackCardId, false);
+                        setIsSelectionModeActive(true);
                       }
                       // Rule 1: active box selected → assign directly, skip popover
                       if (activeExtractionCode) {
@@ -1981,6 +1961,17 @@ export function MaxillaryPanel({
                     setMaxillaryNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                     setToothStatusPopoverTooth(null);
                   }}
+                  toothHoverTooltip={
+                    activeProductIsRemovables && isCardActiveForToothStatus(activeProductCardId)
+                      ? activeExtractionCode
+                        ? `Click tooth to mark as ${toothStatusPopoverExtractions.find(e => e.code === activeExtractionCode)?.name ?? activeExtractionCode}`
+                        : `Click a tooth to add it to ${
+                            activeProductCardId !== 0
+                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "the product")
+                              : ((() => { const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0); return t ? (getToothProduct("maxillary", t)?.name ?? "the product") : "the product"; })())
+                          }`
+                      : undefined
+                  }
                 />
               );
             })()}

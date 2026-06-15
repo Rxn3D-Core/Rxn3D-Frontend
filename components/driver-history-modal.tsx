@@ -2,7 +2,7 @@
 
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -28,14 +28,12 @@ import { useSignatureRequirementSettings } from "@/hooks/use-signature-requireme
 import { driverActionRequiresSignature } from "@/lib/slip-settings-utils"
 import type { UploadedImage } from "@/lib/image-to-base64"
 import {
+  CaseDriverHistorySection,
   DeliveryInfoBar,
   DeliveryModalFooter,
   DeliveryModalHeader,
-  DeliveryPills,
-  DeliveryTimeline,
   ImageDropzone,
   SignaturePad,
-  useSlipDriverTimeline,
   type DeliveryInfoField,
 } from "@/components/driver-delivery/delivery-parts"
 
@@ -95,6 +93,7 @@ export default function DriverHistoryModal({
   const [pickupError, setPickupError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const lastFetchedSlipIdRef = useRef<number | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Convert QR scan data to delivery entries
   const convertQRDataToDeliveryEntries = (qrData: QRScanResponseData[]): DeliveryEntry[] => {
@@ -171,12 +170,11 @@ export default function DriverHistoryModal({
   // Logged-in user's name — used as the drop-off signature (captured automatically).
   const currentUserName = useMemo(() => getCurrentUserName(), [isOpen])
 
-  // Embedded driver history timeline (single slip only).
-  const numericSlipId = typeof slipId === "number" ? slipId : Number(slipId)
-  const timeline = useSlipDriverTimeline(
-    singleSlipMode && Number.isFinite(numericSlipId) ? numericSlipId : null,
-    isOpen
-  )
+  const scrollToBottom = useCallback(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
+    }
+  }, [])
 
   // Virtual slip: one row from details already on the page (no pickup-delivery-slips API)
   useEffect(() => {
@@ -417,7 +415,7 @@ export default function DriverHistoryModal({
           onClose={onClose}
         />
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 sm:px-8">
+        <div ref={scrollContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 sm:px-8">
           {!singleSlipMode && contextQrScanData ? (
             <p className="mb-3 text-xs text-green-700">
               QR scanned ({contextQrScanData.scanned_cases_count} cases)
@@ -435,19 +433,12 @@ export default function DriverHistoryModal({
           {singleSlipMode ? (
             /* ----------------------- Single slip ----------------------- */
             <div className="space-y-1">
-              {infoFields.length > 0 ? <DeliveryInfoBar fields={infoFields} /> : null}
+              {infoFields.length > 0 ? <DeliveryInfoBar fields={infoFields} sticky /> : null}
 
-              <DeliveryPills
-                items={[
-                  singleEntry?.slip_number ? `Slip# ${singleEntry.slip_number}` : null,
-                  singleEntry?.location || null,
-                ]}
-              />
-
-              <DeliveryTimeline
-                rows={timeline.rows}
-                loading={timeline.loading}
-                error={timeline.error}
+              <CaseDriverHistorySection
+                caseId={singleEntry?.case_id}
+                open={isOpen}
+                onLoaded={scrollToBottom}
               />
 
               {isDropoff ? (

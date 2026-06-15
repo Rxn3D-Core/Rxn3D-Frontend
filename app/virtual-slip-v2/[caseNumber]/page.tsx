@@ -652,6 +652,7 @@ export default function VirtualSlipV2Page() {
         open={driverHistoryViewOpen}
         onClose={() => setDriverHistoryViewOpen(false)}
         slipId={slipId}
+        caseId={caseId ?? undefined}
         office={vm.header.officeName}
         code={
           buildPickupDeliveryEntryFromSlip(virtualSlipDetails)?.customer_code ??

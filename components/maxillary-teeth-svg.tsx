@@ -109,6 +109,8 @@ interface MaxillaryTeethSVGProps {
   onCheckedTeethChange?: (teeth: number[]) => void
   /** When true, disables all tooth interactions (pointer-events-none + dimmed). */
   disabled?: boolean
+  /** When provided, shows this text as a tooltip on tooth hover. */
+  toothHoverTooltip?: string
   /** Map of extraction code → per-tooth image URLs. Used to replace static overlays when visibility_type === "Image". */
   extractionImagesByCode?: Record<string, Record<number, string | null>>
   /**
@@ -151,9 +153,11 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   disabled = false,
   extractionImagesByCode = {},
   extractionsByCode = {},
+  toothHoverTooltip,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
+  const [mousePos, setMousePos] = React.useState<{ x: number; y: number } | null>(null)
   const [checkedTeeth, setCheckedTeeth] = React.useState<Set<number>>(new Set())
   React.useEffect(() => {
     onCheckedTeethChange?.(Array.from(checkedTeeth).sort((a, b) => a - b))
@@ -725,7 +729,11 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
         )
       })()}
 
-      <div className={`relative mx-auto max-w-[76%] ${className}${disabled ? ' pointer-events-none opacity-50' : ''}`}>
+      <div
+        className={`relative mx-auto max-w-[76%] ${className}${disabled ? ' pointer-events-none opacity-50' : ''}`}
+        onMouseMove={toothHoverTooltip ? (e) => setMousePos({ x: e.clientX, y: e.clientY }) : undefined}
+        onMouseLeave={toothHoverTooltip ? () => setMousePos(null) : undefined}
+      >
 
         <svg ref={svgRef} className="w-full h-auto" viewBox={`0 0 695 ${showCheckboxes ? "158" : "139"}`} fill="none" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
           {toothMapping.map(({ tooth, x, width, pattern }) => {
@@ -1074,6 +1082,15 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
           )}
         </svg>
       </div>
+      {hoveredTooth !== null && !disabled && toothHoverTooltip && mousePos && ReactDOM.createPortal(
+        <div
+          style={{ position: 'fixed', left: mousePos.x + 12, top: mousePos.y - 36, zIndex: 9999, pointerEvents: 'none' }}
+          className="bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
+        >
+          {toothHoverTooltip}
+        </div>,
+        document.body
+      )}
     </>
   )
 }

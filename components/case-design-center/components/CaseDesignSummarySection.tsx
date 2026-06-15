@@ -51,7 +51,6 @@ export function CaseDesignSummarySection({
         <div className="absolute -top-5 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 inline-flex">
           <CenterActionIcons
             visible={showCaseSummaryNotes}
-            onEdit={() => {}}
             onAddProduct={
               caseHasAddons
                 ? () => {
