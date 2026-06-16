@@ -610,7 +610,8 @@ export default function SubscriptionsPage() {
       </div>
 
       <div className="space-y-3">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+          <OverviewCardSkeleton />
           <OverviewCardSkeleton />
           <OverviewCardSkeleton />
           <OverviewCardSkeleton />
@@ -987,9 +988,16 @@ export default function SubscriptionsPage() {
   const statusLabel = billingProfile?.status?.replace("_", " ") ?? "unknown"
   const latestInvoice = subscriptionInvoices[0]
   const paymentUpdateUrl = getBillingManagementUrl(billingProfile, subscriptionInvoices)
-  const paymentMethodSuffix = billingProfile?.stripe_customer_id?.slice(-4) || "4242"
-  const maskedPaymentMethod = `•••• •••• •••• ${paymentMethodSuffix}`
-  const paymentExpiryLabel = "Expires --/--"
+  const isLinkPayment = billingProfile?.card_brand === "link"
+  const hasCardOnFile = !!billingProfile?.card_last4 || isLinkPayment
+  const maskedPaymentMethod = isLinkPayment
+    ? "Stripe Link"
+    : billingProfile?.card_last4
+    ? `•••• •••• •••• ${billingProfile.card_last4}`
+    : "No card on file"
+  const paymentExpiryLabel = billingProfile?.card_exp_month && billingProfile?.card_exp_year
+    ? `Expires ${String(billingProfile.card_exp_month).padStart(2, "0")}/${String(billingProfile.card_exp_year).slice(-2)}`
+    : isLinkPayment ? "Managed via Stripe Link" : hasCardOnFile ? "Expires --/--" : "Add a card via Stripe"
   return (
     <TooltipProvider>
       <div className="w-full max-w-[1880px] bg-[#F9F9F9] px-4 py-4 sm:px-5 lg:px-6">
@@ -1019,7 +1027,7 @@ export default function SubscriptionsPage() {
 
       <div className="space-y-3">
         {/* Top Stats Cards */}
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
           <OverviewCard
             title="Current plan"
             hint={`Your active subscription plan. Includes ${slipCapacity > 0 ? `${slipCapacity.toLocaleString()} slips/month` : "unlimited slips"}, ${maxAdminSeats} admin seat${maxAdminSeats !== 1 ? "s" : ""}, and ${maxUserSeats === -1 || maxUserSeats == null ? "unlimited" : maxUserSeats} user${maxUserSeats === 1 ? "" : "s"}.`}
@@ -1099,6 +1107,76 @@ export default function SubscriptionsPage() {
               <p className="text-[13px] leading-6 tracking-[-0.02em] text-black">Charged {billingFrequencyLabel}</p>
             </div>
           </OverviewCard>
+
+          {/* Payment Details — custom card to avoid OverviewCard layout constraints */}
+          <section className="flex min-h-[208px] flex-col rounded-md border border-[#E4E6EF] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.03)] lg:px-6">
+            <div className="flex items-center gap-2 text-[14px] font-normal tracking-[-0.02em] text-black">
+              <span>Payment Details</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex h-4 w-4 cursor-default items-center justify-center text-black/80">
+                    <CircleHelp className="h-3 w-3" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[240px] text-xs">
+                  Your payment method on file. Update via Stripe to change your card.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
+            <div className="flex flex-1 flex-col justify-between pt-5">
+              {/* Card chip */}
+              <div className="flex items-center gap-3 rounded-md border border-[#E4E6EF] bg-[#F5F5F7] px-4 py-3">
+                <div className="flex h-9 w-12 items-center justify-center rounded-sm bg-[#1162A8]/10">
+                  <CreditCard className="h-5 w-5 text-[#1162A8] stroke-[1.6]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium leading-5 tracking-[-0.01em] text-black truncate">{maskedPaymentMethod}</p>
+                  <p className="text-[12px] leading-5 text-black/50">{paymentExpiryLabel}</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-2 pt-4">
+                {paymentUpdateUrl ? (
+                  <a
+                    href={paymentUpdateUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-[34px] w-full items-center justify-center gap-2 rounded-md bg-[#1162A8] text-[13px] font-semibold tracking-[-0.01em] text-white shadow-sm transition hover:bg-[#0d4f88]"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Update via Stripe
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => void openBillingManagement(paymentUpdateUrl)}
+                    className="inline-flex h-[34px] w-full items-center justify-center gap-2 rounded-md bg-[#1162A8] text-[13px] font-semibold tracking-[-0.01em] text-white shadow-sm transition hover:bg-[#0d4f88]"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Update via Stripe
+                  </button>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setIsUpdateBillingInfoDialogOpen(true)}
+                    className="inline-flex h-[30px] flex-1 items-center justify-center gap-1.5 rounded-md border border-[#E4E6EF] bg-white text-[12px] font-medium tracking-[-0.01em] text-black/70 transition hover:bg-gray-50 hover:text-black"
+                  >
+                    <UserRound className="h-3 w-3" />
+                    Billing Info
+                  </button>
+                  <button
+                    onClick={() => setIsCancelSubscriptionDialogOpen(true)}
+                    disabled={isProcessing}
+                    className="inline-flex h-[30px] flex-1 items-center justify-center gap-1.5 rounded-md border border-red-100 bg-white text-[12px] font-medium tracking-[-0.01em] text-red-500 transition hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {isProcessing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                    Cancel Plan
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -1138,77 +1216,9 @@ export default function SubscriptionsPage() {
         </div>
       )}
 
-      {/* Payment Details + Invoices */}
+      {/* Invoices */}
       <div className="rounded-md border border-[#E4E6EF] bg-white">
         <div className="px-5 py-5">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-3">
-              <h3 className="text-[15px] font-bold leading-5 tracking-[-0.02em] text-black">Payment Details</h3>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => setIsUpdateBillingInfoDialogOpen(true)}
-                  className="inline-flex min-h-[32px] items-center gap-2 rounded-md border border-[#B4B0B0] bg-white px-3.5 text-[13px] font-normal tracking-[-0.02em] text-black transition hover:bg-gray-50"
-                >
-                  <UserRound className="h-3.5 w-3.5" />
-                  Update Billing Info
-                </button>
-                <button
-                  onClick={() => setIsCancelSubscriptionDialogOpen(true)}
-                  disabled={isProcessing}
-                  className="inline-flex min-h-[32px] items-center gap-2 rounded-md border border-red-200 bg-white px-3.5 text-[13px] font-normal tracking-[-0.02em] text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                >
-                  {isProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
-                  Cancel Subscription
-                </button>
-              </div>
-            </div>
-            <div className="w-full max-w-[320px]">
-              <div className="h-[124px] rounded-md border border-[#E4E6EF] bg-[#ECECF0] px-[27px] py-[16px]">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-[10px] text-black">
-                      <CreditCard className="h-[22px] w-[22px] stroke-[1.8]" />
-                      <span className="text-[14px] font-normal leading-[22px] tracking-[-0.02em]">
-                        {maskedPaymentMethod}
-                      </span>
-                    </div>
-                    <p className="pl-8 text-[14px] font-normal leading-[22px] tracking-[-0.02em] text-black">
-                      {paymentExpiryLabel}
-                    </p>
-                  </div>
-                  <div className="flex h-7 w-7 items-center justify-center text-[#FF9900]">
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-7 w-7">
-                      <path d="m10 1.8 2.43 4.93 5.45.8-3.94 3.84.93 5.43L10 14.24l-4.87 2.56.93-5.43L2.12 7.53l5.45-.8L10 1.8Z" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="pt-[20px]">
-                  {paymentUpdateUrl ? (
-                    <a
-                      href={paymentUpdateUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-[31px] min-w-[183px] items-center justify-center gap-2 rounded-md bg-[#1162A8] px-4 text-[14px] font-bold leading-[22px] tracking-[-0.02em] text-white shadow-[1px_1px_7px_rgba(0,0,0,0.25)] transition hover:bg-[#0d4f88]"
-                    >
-                      <ExternalLink className="h-[18px] w-[18px]" />
-                      Update via Stripe
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => void openBillingManagement(paymentUpdateUrl)}
-                      className="inline-flex h-[31px] min-w-[183px] items-center justify-center gap-2 rounded-md bg-[#1162A8] px-4 text-[14px] font-bold leading-[22px] tracking-[-0.02em] text-white shadow-[1px_1px_7px_rgba(0,0,0,0.25)] transition hover:bg-[#0d4f88]"
-                    >
-                      <ExternalLink className="h-[18px] w-[18px]" />
-                      Update via Stripe
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t border-[#E4E6EF] px-5 py-5">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-[15px] font-bold leading-5 tracking-[-0.02em] text-black">Invoices</h3>
             <div className="flex flex-wrap items-center gap-3 sm:justify-end">
@@ -1297,6 +1307,10 @@ export default function SubscriptionsPage() {
         onOpenChange={setIsUpdateBillingInfoDialogOpen}
         onUpdateStripe={() => void openBillingManagement(paymentUpdateUrl)}
         canManageBilling={!!paymentUpdateUrl || !!resolvedCustomerId || !!billingProfile?.id}
+        cardBrand={billingProfile?.card_brand}
+        cardLast4={billingProfile?.card_last4}
+        cardExpMonth={billingProfile?.card_exp_month}
+        cardExpYear={billingProfile?.card_exp_year}
       />
     </div>
     </TooltipProvider>

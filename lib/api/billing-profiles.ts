@@ -44,6 +44,10 @@ export interface BillingProfile {
   created_at?: string
   updated_at?: string
   plan?: BillingPlan
+  card_last4?: string
+  card_exp_month?: number
+  card_exp_year?: number
+  card_brand?: string
 }
 
 export interface CustomerBillingProfileResponse {
@@ -89,18 +93,8 @@ export async function getCustomerBillingProfile(
   customerId: number
 ): Promise<CustomerBillingProfileResponse> {
   try {
-    const profiles = await listBillingProfiles(customerId)
-    const profile = pickPrimaryProfile(profiles)
-    if (profile) {
-      return { success: true, has_plan: true, data: profile }
-    }
-  } catch (error: any) {
-    if (!error?.message?.includes("404")) throw error
-  }
-
-  try {
     const response = await apiClient.get<any>(`/billing-profiles/customer/${customerId}`)
-    let raw = response.data
+    const raw = response.data
 
     if (raw && typeof raw === "object" && "has_plan" in raw) {
       return {
