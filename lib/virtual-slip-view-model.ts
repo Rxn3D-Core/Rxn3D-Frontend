@@ -79,6 +79,7 @@ import {
   productHasOpposingImpression,
 } from "./virtual-slip-extraction-display";
 import { hasDisplayValue } from "./virtual-slip-display";
+import { parseSlipProductNotes } from "./parse-slip-product-notes";
 import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates";
 
 export type { ExtractionDisplayVM, OpposingArchVM } from "./virtual-slip-extraction-display";
@@ -503,6 +504,8 @@ function buildProduct(apiProduct: any): ProductVM {
     return "";
   })();
 
+  const fromNotes = parseSlipProductNotes(firstStr(apiProduct?.notes));
+
   return {
     apiProduct,
     arch: productArch,
@@ -516,10 +519,20 @@ function buildProduct(apiProduct: any): ProductVM {
     restoration: categoryName,
     productName: firstStr(product?.name, apiProduct?.name),
     grade: firstStr(apiProduct?.grade?.name, apiProduct?.grade_name),
-    stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name),
-    teethShade: firstStr(apiProduct?.teeth_shade?.name, apiProduct?.teeth_shade_name, teethShadeFromAdvance),
-    gumShade: firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name),
-    stumpShade: firstStr(apiProduct?.stump_shade?.name, apiProduct?.stump_shade_name, stumpShadeFromAdvance),
+    stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
+    teethShade: firstStr(
+      apiProduct?.teeth_shade?.name,
+      apiProduct?.teeth_shade_name,
+      teethShadeFromAdvance,
+      fromNotes.teethShade,
+    ),
+    gumShade: firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name, fromNotes.gumShade),
+    stumpShade: firstStr(
+      apiProduct?.stump_shade?.name,
+      apiProduct?.stump_shade_name,
+      stumpShadeFromAdvance,
+      fromNotes.stumpShade,
+    ),
     impression: formatImpressions(apiProduct?.impressions),
     opposingImpression: productHasOpposingImpression(apiProduct)
       ? formatOpposingImpressions(apiProduct?.opposite_impressions)

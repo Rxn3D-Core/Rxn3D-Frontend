@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ChevronDown, Trash2, Plus } from "lucide-react";
+import { DeleteProductConfirmModal } from "./DeleteProductConfirmModal";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
@@ -87,8 +88,18 @@ export function ProductAccordionCard({
   toothSelectHintLabel,
   children,
 }: ProductAccordionCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   return (
     <div className={`relative mt-2 ${!interactionEnabled ? "opacity-45 pointer-events-none" : ""}`}>
+      <DeleteProductConfirmModal
+        open={showDeleteConfirm}
+        productName={productName}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete?.();
+        }}
+      />
       <div className="rounded-lg bg-white overflow-hidden">
         {customHeader ? (
           <div className={headerExtension || isExpanded ? "" : "rounded-b-[5.4px]"}>
@@ -140,13 +151,13 @@ export function ProductAccordionCard({
                     tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete?.();
+                      setShowDeleteConfirm(true);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         e.stopPropagation();
-                        onDelete?.();
+                        setShowDeleteConfirm(true);
                       }
                     }}
                     className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"

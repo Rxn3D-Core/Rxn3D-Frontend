@@ -166,11 +166,16 @@ export function useCaseWizardSession({
         } else {
           setSelectedProductCategoryName(undefined);
         }
-        setCompletedDoctor(result?.doctor ?? null);
-        setCompletedLab(result?.lab ?? null);
-        setCompletedPatientName(result?.patientName ?? "");
-        setCompletedGender(result?.gender ?? "");
-        setCompletedAge(result?.age ?? "");
+        // In backToProducts mode the wizard only collects product info (no doctor/lab/patient
+        // steps), so result.doctor/lab/patientName are undefined. Skip the update to avoid
+        // clearing the patient info header the user already filled in.
+        if (wizardMode !== "backToProducts") {
+          setCompletedDoctor(result?.doctor ?? null);
+          setCompletedLab(result?.lab ?? null);
+          setCompletedPatientName(result?.patientName ?? "");
+          setCompletedGender(result?.gender ?? "");
+          setCompletedAge(result?.age ?? "");
+        }
         if (result?.arch) setInitialArch(result.arch);
         setLabEditMode(false);
         setDoctorEditModalOpen(false);

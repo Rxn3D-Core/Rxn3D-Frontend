@@ -246,12 +246,30 @@ function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = grades.length > 0 ? grades.length : 4;
-  const currentCount = getGradeDiamondCount(currentGradeName, grades);
+  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
+  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
+  // diamond and made them unselectable.
+  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
+  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
+  const currentIndex = sortedGrades.findIndex(
+    (g) => g.name === currentGradeName || g.code === currentGradeName
+  );
+  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
-    ? (grades.find((g) => g.sequence === hoverIndex + 1)?.name || currentGradeName)
+    ? (sortedGrades[hoverIndex]?.name || currentGradeName)
     : currentGradeName;
+
+  // Single grade → auto-select it; don't ask the user to pick.
+  const autoSelectSigRef = useRef<string | null>(null);
+  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
+  useEffect(() => {
+    if (disabled) return;
+    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
+      autoSelectSigRef.current = gradesSignature;
+      onSelect(sortedGrades[0]);
+    }
+  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
   return (
     <div
@@ -263,7 +281,7 @@ function GradeHoverSelector({
       </span>
       <div className="ml-auto flex items-center gap-1">
         {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = grades.find((g) => g.sequence === i + 1);
+          const gradeForIndex = sortedGrades[i];
           return (
             <button
               key={i}
@@ -298,11 +316,6 @@ function getGradeDiamondCount(gradeName: string, grades?: ProductGrade[]): numbe
   }
   const match = grades.find((g) => g.name === gradeName || g.code === gradeName);
   return match ? match.sequence : 0;
-}
-
-function getDefaultGrade(grades?: ProductGrade[]): ProductGrade | null {
-  if (!grades || grades.length === 0) return null;
-  return grades.find((g) => g.is_default === "Yes" && g.status === "Active") || grades.filter((g) => g.status === "Active").sort((a, b) => a.sequence - b.sequence)[0] || null;
 }
 
 function getActiveGrades(grades?: ProductGrade[]): ProductGrade[] {
@@ -1116,29 +1129,20 @@ export function MandibularPanel({
       const currentVal = getFieldValue("mandibular", tn, "grade");
       const activeGrades = getActiveGrades(tp.grades);
       const existing = parseGradeDisplayName(currentVal);
+      // Product has grades: clear any prior auto/skip value so the user must pick a grade explicitly.
       if (isGradeFieldValueSkipped(currentVal) && activeGrades.length > 0) {
-        const def = getDefaultGrade(tp.grades);
-        autoGradeApplied.current.add(key);
-        if (def) {
-          completeFieldStep("mandibular", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
-        } else {
-          uncompleteFieldStep("mandibular", tn, "grade");
-        }
+        uncompleteFieldStep("mandibular", tn, "grade");
         continue;
       }
       if (autoGradeApplied.current.has(key)) continue;
       if (currentVal && existing) continue;
       if (currentVal && !isGradeFieldValueSkipped(currentVal)) continue;
+      // Only auto-complete (skip) the grade step when the product has NO grades to choose from.
+      // When grades exist, leave the field incomplete so the user selects one.
       if (activeGrades.length === 0) {
         if (productHasGrades(tp)) continue;
         autoGradeApplied.current.add(key);
         completeFieldStep("mandibular", tn, "grade", JSON.stringify({ skipped: true }));
-      } else if (!existing) {
-        const def = getDefaultGrade(tp.grades);
-        if (def) {
-          autoGradeApplied.current.add(key);
-          completeFieldStep("mandibular", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
-        }
       }
     }
   }, [getFieldValue, completeFieldStep, uncompleteFieldStep, getToothProduct]);
@@ -1504,7 +1508,7 @@ export function MandibularPanel({
               if (activeExtractionCode === null) {
                 return (
                   <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                    Select teeth to replace
+                    Select teeth to replace{baseProductName ? ` ${baseProductName}` : ""}
                   </p>
                 );
               }
@@ -1517,16 +1521,30 @@ export function MandibularPanel({
             })() : (() => {
               if (opposingProductData && !useScopedRetentionMode) {
                 const opposingName = opposingProductData.name ?? "product";
+                // Opposing-only arch (no product of its own) — don't prompt "Select teeth to
+                // replace"; these teeth are reference/opposing only.
                 if (opposingActiveExtractionCode === null) {
-                  return (
-                    <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                      Select teeth to replace
-                    </p>
-                  );
+                  return null;
                 }
                 return (
                   <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
                     Select teeth for reference (not added to {opposingName})
+                  </p>
+                );
+              }
+              // Own-arch Fixed Restoration active — prompt the user to pick teeth (retention popover flow)
+              if (
+                !useRemovableToothChartPath &&
+                ownArchToothChartEnabled &&
+                (!opposingProductData || useScopedRetentionMode) &&
+                isCardActiveForToothStatus(activeProductCardId)
+              ) {
+                const fixedProductName = activeProductCardId !== 0
+                  ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "")
+                  : (() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "") : ""; })();
+                return (
+                  <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
+                    Select teeth to replace{fixedProductName ? ` ${fixedProductName}` : ""}
                   </p>
                 );
               }
@@ -1924,7 +1942,16 @@ export function MandibularPanel({
                               ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
                               : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
                           }`
-                      : undefined
+                      : !useRemovableToothChartPath &&
+                        ownArchToothChartEnabled &&
+                        (!opposingProductData || useScopedRetentionMode) &&
+                        isCardActiveForToothStatus(activeProductCardId)
+                        ? `Click a tooth to add it to ${
+                            activeProductCardId !== 0
+                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
+                              : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
+                          }`
+                        : undefined
                   }
                 />
               );

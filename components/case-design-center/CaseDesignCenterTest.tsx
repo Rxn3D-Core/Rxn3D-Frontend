@@ -174,6 +174,12 @@ export default function Page() {
               compactLayout={wizardComplete && !caseSubmitted}
             />
             <CaseDesignCenter
+              // Remount with fresh product configuration when the user goes back and
+              // picks a *different* product. selectedProductId only changes on a real
+              // product change (re-picking the same product is a no-op), so the config
+              // is preserved when the product is unchanged. Patient/doctor/lab and
+              // addedProducts live at the page level and survive the remount.
+              key={`cdc-${selectedProductId ?? "none"}`}
               right1Brand={right1Brand}
               setRight1Brand={setRight1Brand}
               right1Platform={right1Platform}

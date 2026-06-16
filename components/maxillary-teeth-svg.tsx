@@ -1085,7 +1085,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
       {hoveredTooth !== null && !disabled && toothHoverTooltip && mousePos && ReactDOM.createPortal(
         <div
           style={{ position: 'fixed', left: mousePos.x + 12, top: mousePos.y - 36, zIndex: 9999, pointerEvents: 'none' }}
-          className="bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
+          className="bg-white/90 backdrop-blur-sm text-gray-900 border border-gray-200 text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
         >
           {toothHoverTooltip}
         </div>,

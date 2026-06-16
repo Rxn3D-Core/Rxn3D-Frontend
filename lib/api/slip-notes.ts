@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/client"
+import { parseStageFromSlipProductNotes } from "../parse-slip-product-notes"
 
 /** Backend note type values (required on create). */
 export type SlipNoteType = "internal" | "stage" | "lab_connect"
@@ -339,10 +340,18 @@ function productArchKey(
 }
 
 function productStageCode(product: CaseSlipProductSummary): string | null {
-  return resolveStageTabLabel(product.stage, {
+  const fromApi = resolveStageTabLabel(product.stage, {
     stage_code: product.stage_code,
     stage_name: product.stage_name,
   })
+  if (fromApi) return fromApi
+  const notes =
+    typeof (product as { notes?: unknown }).notes === "string"
+      ? (product as { notes: string }).notes
+      : ""
+  if (!notes.trim()) return null
+  const fromNotes = parseStageFromSlipProductNotes(notes)
+  return fromNotes || null
 }
 
 function slipProductsHaveBothArches(products: CaseSlipProductSummary[]): boolean {
@@ -450,10 +459,13 @@ export function extractStageSeedFromProduct(product: unknown): CaseNoteStageSeed
       : {}
   const stageIdRaw = row.stage_id ?? stage.id ?? stage.stage_id
   const stageIdNum = typeof stageIdRaw === "number" ? stageIdRaw : Number(stageIdRaw)
-  const label = resolveStageTabLabel(stage as SlipNoteEntityRef, {
-    stage_code: String(row.stage_code ?? stage.code ?? ""),
-    stage_name: String(row.stage_name ?? stage.name ?? ""),
-  })
+  const notes = typeof row.notes === "string" ? row.notes : ""
+  const label =
+    resolveStageTabLabel(stage as SlipNoteEntityRef, {
+      stage_code: String(row.stage_code ?? stage.code ?? ""),
+      stage_name: String(row.stage_name ?? stage.name ?? ""),
+    }) ??
+    (notes.trim() ? parseStageFromSlipProductNotes(notes) : null)
   if (!label) return null
   return {
     stageId: Number.isFinite(stageIdNum) && stageIdNum > 0 ? stageIdNum : null,
