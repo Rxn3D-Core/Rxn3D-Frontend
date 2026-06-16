@@ -433,7 +433,7 @@ export function ToothStatusBoxes({
       {tooltipState && typeof document !== "undefined" && ReactDOM.createPortal(
         <div
           style={{ position: "fixed", left: tooltipState.x + 12, top: tooltipState.y - 36, zIndex: 9999, pointerEvents: "none" }}
-          className="bg-gray-900 text-white text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
+          className="bg-white/90 backdrop-blur-sm text-gray-900 border border-gray-200 text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
         >
           {tooltipState.label}
         </div>,

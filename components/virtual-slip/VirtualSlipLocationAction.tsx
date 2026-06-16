@@ -15,7 +15,7 @@ export interface VirtualSlipLocationActionProps {
   disabled?: boolean;
 }
 
-const ACTION_ICON_CLASS = "h-[72px] w-[72px] max-w-none object-contain";
+const ACTION_ICON_CLASS = "h-[45px] w-[45px] max-w-none object-contain";
 
 function LocationActionButton({
   src,
@@ -47,8 +47,8 @@ function LocationActionButton({
       <img
         src={src}
         alt=""
-        width={72}
-        height={72}
+        width={45}
+        height={45}
         className={cn(ACTION_ICON_CLASS, disabled && "opacity-50 grayscale")}
         aria-hidden
       />

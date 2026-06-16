@@ -20,6 +20,7 @@ import {
   getRepresentativeTeethByCard,
 } from "../utils/productSelectionReadiness";
 import { BackToProductsControl, CaseDesignHeaderActions } from "./CaseDesignHeaderActions";
+import { ChangeProductConfirmModal } from "./ChangeProductConfirmModal";
 import { CaseDesignSummarySection } from "./CaseDesignSummarySection";
 import { useSlipProductCollector } from "../hooks/useSlipProductCollector";
 import { getFirstMissingShadeGuideField, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
@@ -1297,12 +1298,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const inlineAddProductArch = props.inlineAddProductArch ?? null;
   const isAddingMaxillaryProduct = inlineAddProductArch === "maxillary";
   const isAddingMandibularProduct = inlineAddProductArch === "mandibular";
+  const [showChangeProductConfirm, setShowChangeProductConfirm] = useState(false);
+  const onBackToProducts = props.onBackToProducts;
   return (
     <>
+    <ChangeProductConfirmModal
+      open={showChangeProductConfirm}
+      onCancel={() => setShowChangeProductConfirm(false)}
+      onConfirm={() => {
+        setShowChangeProductConfirm(false);
+        onBackToProducts?.();
+      }}
+    />
     <div className="relative">
       {!props.caseSubmitted && props.onBackToProducts && (
         <BackToProductsControl
-          onBackToProducts={props.onBackToProducts}
+          onBackToProducts={() => setShowChangeProductConfirm(true)}
           hasIncompleteAccordion={hasIncompleteAccordion}
           className="absolute left-0 top-0 z-30"
         />

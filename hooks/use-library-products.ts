@@ -108,6 +108,12 @@ export const libraryProductsQueryKey = (
   page: number
 ) => ["library-products", customerId, subcategoryId, page] as const
 
+export const libraryProductSearchQueryKey = (
+  customerId: number | undefined,
+  search: string,
+  page: number
+) => ["library-product-search", customerId, search, page] as const
+
 const PRODUCT_IMG_FALLBACK = "/placeholder.svg"
 
 /** Product fallback images when API image_url is null (by code and name) */
@@ -133,6 +139,53 @@ function getProductFallbackImg(p: LibraryProductApi): string {
   if (p.name && PRODUCT_FALLBACK_BY_NAME[p.name]) return PRODUCT_FALLBACK_BY_NAME[p.name]
   if (p.code && PRODUCT_FALLBACK_BY_CODE[p.code]) return PRODUCT_FALLBACK_BY_CODE[p.code]
   return PRODUCT_IMG_FALLBACK
+}
+
+async function fetchLibraryProductsSearch(
+  customerId: number,
+  search: string,
+  page: number,
+  perPage: number
+): Promise<LibraryProductsApiResponse> {
+  const token = localStorage.getItem("token")
+  if (!token) {
+    throw new Error("No authentication token found")
+  }
+
+  const url = new URL("/v1/library/products", API_BASE_URL)
+  url.searchParams.set("customer_id", String(customerId))
+  url.searchParams.set("search", search)
+  url.searchParams.set("per_page", String(perPage))
+  url.searchParams.set("page", String(page))
+  url.searchParams.set("lang", "en")
+
+  const res = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  })
+
+  if (res.status === 401) {
+    window.location.href = "/login"
+    throw new Error("Unauthorized")
+  }
+
+  if (!res.ok) {
+    throw new Error(`Failed to search products: ${res.status}`)
+  }
+
+  const json = await res.json()
+  const data = json.data?.data ?? json.data
+  if (!Array.isArray(data)) {
+    throw new Error(json.message || "Invalid products response")
+  }
+  return {
+    status: json.status,
+    message: json.message,
+    data: { data, pagination: json.data?.pagination ?? json.pagination },
+  }
 }
 
 async function fetchLibraryProducts(
@@ -238,6 +291,48 @@ export function useLibraryProducts(options: {
     ...query,
     data: query.data,
     productsAsWizard,
+    pagination: query.data?.data?.pagination,
+  }
+}
+
+/**
+ * Lab-wide product name search (no subcategory filter).
+ * Used by the case wizard search bar on the category / product steps.
+ */
+export function useLibraryProductSearch(options: {
+  customerId: number | undefined
+  search: string
+  page?: number
+  perPage?: number
+  enabled?: boolean
+}) {
+  const {
+    customerId,
+    search,
+    page = 1,
+    perPage = 50,
+    enabled = true,
+  } = options
+  const trimmedSearch = search.trim()
+  const effectiveEnabled =
+    enabled && typeof customerId === "number" && trimmedSearch.length > 0
+
+  const query = useQuery({
+    queryKey: libraryProductSearchQueryKey(customerId, trimmedSearch, page),
+    queryFn: () =>
+      fetchLibraryProductsSearch(customerId!, trimmedSearch, page, perPage),
+    enabled: effectiveEnabled,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 5,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  })
+
+  const products: LibraryProductApi[] = query.data?.data?.data ?? []
+
+  return {
+    ...query,
+    products,
     pagination: query.data?.data?.pagination,
   }
 }

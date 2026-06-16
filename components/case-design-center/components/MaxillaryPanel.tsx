@@ -251,12 +251,30 @@ function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = grades.length > 0 ? grades.length : 4;
-  const currentCount = getGradeDiamondCount(currentGradeName, grades);
+  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
+  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
+  // diamond and made them unselectable.
+  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
+  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
+  const currentIndex = sortedGrades.findIndex(
+    (g) => g.name === currentGradeName || g.code === currentGradeName
+  );
+  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
-    ? (grades.find((g) => g.sequence === hoverIndex + 1)?.name || currentGradeName)
+    ? (sortedGrades[hoverIndex]?.name || currentGradeName)
     : currentGradeName;
+
+  // Single grade → auto-select it; don't ask the user to pick.
+  const autoSelectSigRef = useRef<string | null>(null);
+  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
+  useEffect(() => {
+    if (disabled) return;
+    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
+      autoSelectSigRef.current = gradesSignature;
+      onSelect(sortedGrades[0]);
+    }
+  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
   return (
     <div
@@ -268,7 +286,7 @@ function GradeHoverSelector({
       </span>
       <div className="ml-auto flex items-center gap-1">
         {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = grades.find((g) => g.sequence === i + 1);
+          const gradeForIndex = sortedGrades[i];
           return (
             <button
               key={i}
@@ -307,12 +325,6 @@ function getGradeDiamondCount(gradeName: string, grades?: ProductGrade[]): numbe
     (g) => g.name === gradeName || g.code === gradeName
   );
   return match ? match.sequence : 0;
-}
-
-/** Get the default grade from the API grades array */
-function getDefaultGrade(grades?: ProductGrade[]): ProductGrade | null {
-  if (!grades || grades.length === 0) return null;
-  return grades.find((g) => g.is_default === "Yes" && g.status === "Active") || grades.filter((g) => g.status === "Active").sort((a, b) => a.sequence - b.sequence)[0] || null;
 }
 
 /** Get active grades sorted by sequence */
@@ -1137,29 +1149,20 @@ export function MaxillaryPanel({
       const currentVal = getFieldValue("maxillary", tn, "grade");
       const activeGrades = getActiveGrades(tp.grades);
       const existing = parseGradeDisplayName(currentVal);
+      // Product has grades: clear any prior auto/skip value so the user must pick a grade explicitly.
       if (isGradeFieldValueSkipped(currentVal) && activeGrades.length > 0) {
-        const def = getDefaultGrade(tp.grades);
-        autoGradeApplied.current.add(key);
-        if (def) {
-          completeFieldStep("maxillary", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
-        } else {
-          uncompleteFieldStep("maxillary", tn, "grade");
-        }
+        uncompleteFieldStep("maxillary", tn, "grade");
         continue;
       }
       if (autoGradeApplied.current.has(key)) continue;
       if (currentVal && existing) continue;
       if (currentVal && !isGradeFieldValueSkipped(currentVal)) continue;
+      // Only auto-complete (skip) the grade step when the product has NO grades to choose from.
+      // When grades exist, leave the field incomplete so the user selects one.
       if (activeGrades.length === 0) {
         if (productHasGrades(tp)) continue;
         autoGradeApplied.current.add(key);
         completeFieldStep("maxillary", tn, "grade", JSON.stringify({ skipped: true }));
-      } else if (!existing) {
-        const def = getDefaultGrade(tp.grades);
-        if (def) {
-          autoGradeApplied.current.add(key);
-          completeFieldStep("maxillary", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
-        }
       }
     }
   }, [getFieldValue, completeFieldStep, uncompleteFieldStep, getToothProduct]);
@@ -1474,6 +1477,82 @@ export function MaxillaryPanel({
       : (retentionOptions ?? []);
   })();
 
+  // Tooth-selection hint descriptor for the maxillary chart. Computed once here so the
+  // same logic can render the "replace"/"flipper"/"count" hints above the tooth chart
+  // while the "reference" hint is rendered lower down, just above the product card.
+  const maxillaryToothHint: { kind: "replace" | "reference" | "flipper" | "count"; text: string; className: string } | null = (() => {
+    if (!showMaxillary) return null;
+    if (activeProductIsRemovables) {
+      const activeExtractions = activeProductCardId !== 0
+        ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions
+        : (() => {
+          const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
+          return t ? getToothProduct("maxillary", t)?.extractions : undefined;
+        })();
+      if (isFullDentureProduct(activeExtractions)) return null;
+      const hintExtractions = (
+        useMaxillaryArchSharedRemovable
+          ? maxillaryMergedExtractions
+          : ((activeExtractions?.length ? activeExtractions : card0Extractions) as ProductExtraction[])
+      );
+      const hintAckCardId = useMaxillaryArchSharedRemovable
+        ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
+        : activeProductCardId !== 0 ? activeProductCardId : 0;
+      const baseProductName = activeProductCardId !== 0
+        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "")
+        : (() => {
+            const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
+            return t ? (getToothProduct("maxillary", t)?.name ?? "") : "";
+          })();
+      if (
+        isFlipperOrStayplateProduct(baseProductName) &&
+        isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
+        isRemovableToothSelectionFocused({
+          caseSubmitted, activeProductCardId, confirmDetailsChecked,
+          isCardActive: isCardActiveForToothStatus(activeProductCardId),
+          toothChartInteractionEnabled, teethCount: MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length,
+          isSelectionModeActive,
+        })
+      ) {
+        if (requiresExtractionsAcknowledgement(hintExtractions) && isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) {
+          return null;
+        }
+        return { kind: "flipper", text: FLIPPER_STAYPLATE_SELECTION_HINT, className: "text-center font-bold text-sm mb-1 text-red-600" };
+      }
+      if (activeExtractionCode === null) {
+        return { kind: "replace", text: `Select teeth to replace${baseProductName ? ` ${baseProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+      }
+      return { kind: "reference", text: `Select teeth for reference (not added to ${baseProductName || "product"})`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+    }
+    if (opposingProductData && !useScopedRetentionMode) {
+      const opposingName = opposingProductData.name ?? "product";
+      // Opposing-only arch (no product of its own) — don't prompt "Select teeth to replace";
+      // these teeth are reference/opposing only.
+      if (opposingActiveExtractionCode === null) {
+        return null;
+      }
+      return { kind: "reference", text: `Select teeth for reference (not added to ${opposingName})`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+    }
+    if (
+      !useRemovableToothChartPath &&
+      ownArchToothChartEnabled &&
+      (!opposingProductData || useScopedRetentionMode) &&
+      isCardActiveForToothStatus(activeProductCardId)
+    ) {
+      const fixedProductName = activeProductCardId !== 0
+        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "")
+        : (() => { const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("maxillary", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("maxillary", t)?.name ?? "") : ""; })();
+      return { kind: "replace", text: `Select teeth to replace${fixedProductName ? ` ${fixedProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+    }
+    const checkedCount = maxillaryCheckedTeeth.length;
+    const activeProductName = activeProductCardId !== 0
+      ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name || ""
+      : getToothProduct("maxillary", maxillaryTeeth[0])?.name || "";
+    return checkedCount > 0
+      ? { kind: "count", text: `${checkedCount} ${checkedCount === 1 ? "TOOTH" : "TEETH"} to include in ${activeProductName}`, className: "text-center text-orange-500 font-bold text-sm mb-1" }
+      : null;
+  })();
+
   return (
     <div className={`flex-1 min-w-0 px-0 order-1 lg:order-none relative`}>
       {/* Eye toggle hidden — restore by removing false && wrapper */}
@@ -1493,83 +1572,11 @@ export function MaxillaryPanel({
         )}
         {showMaxillary && (
           <div>
-            {activeProductIsRemovables ? (() => {
-              const activeExtractions = activeProductCardId !== 0
-                ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions
-                : (() => {
-                  const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
-                  return t ? getToothProduct("maxillary", t)?.extractions : undefined;
-                })();
-              if (isFullDentureProduct(activeExtractions)) return null;
-              const hintExtractions = (
-                useMaxillaryArchSharedRemovable
-                  ? maxillaryMergedExtractions
-                  : ((activeExtractions?.length ? activeExtractions : card0Extractions) as ProductExtraction[])
-              );
-              const hintAckCardId = useMaxillaryArchSharedRemovable
-                ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
-                : activeProductCardId !== 0 ? activeProductCardId : 0;
-              const baseProductName = activeProductCardId !== 0
-                ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "")
-                : (() => {
-                    const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0);
-                    return t ? (getToothProduct("maxillary", t)?.name ?? "") : "";
-                  })();
-              if (
-                isFlipperOrStayplateProduct(baseProductName) &&
-                isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
-                isRemovableToothSelectionFocused({
-                  caseSubmitted, activeProductCardId, confirmDetailsChecked,
-                  isCardActive: isCardActiveForToothStatus(activeProductCardId),
-                  toothChartInteractionEnabled, teethCount: MAXILLARY_ALL_TEETH.filter(tn => getToothProductCard("maxillary", tn) === activeProductCardId).length,
-                  isSelectionModeActive,
-                })
-              ) {
-                if (requiresExtractionsAcknowledgement(hintExtractions) && isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) {
-                  return null;
-                }
-                return <p className="text-center font-bold text-sm mb-1 text-red-600">{FLIPPER_STAYPLATE_SELECTION_HINT}</p>;
-              }
-              // Popover mode: clicking a tooth opens the status popover
-              if (activeExtractionCode === null) {
-                return (
-                  <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                    Select teeth to replace
-                  </p>
-                );
-              }
-              // Status box mode: an extraction code is active, clicking teeth assigns them
-              return (
-                <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                  Select teeth for reference (not added to {baseProductName || "product"})
-                </p>
-              );
-            })() : (() => {
-              if (opposingProductData && !useScopedRetentionMode) {
-                const opposingName = opposingProductData.name ?? "product";
-                if (opposingActiveExtractionCode === null) {
-                  return (
-                    <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                      Select teeth to replace
-                    </p>
-                  );
-                }
-                return (
-                  <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                    Select teeth for reference (not added to {opposingName})
-                  </p>
-                );
-              }
-              const checkedCount = maxillaryCheckedTeeth.length;
-              const activeProductName = activeProductCardId !== 0
-                ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name || ""
-                : getToothProduct("maxillary", maxillaryTeeth[0])?.name || "";
-              return checkedCount > 0 ? (
-                <p className="text-center text-orange-500 font-bold text-sm mb-1">
-                  {checkedCount} {checkedCount === 1 ? "TOOTH" : "TEETH"} to include in {activeProductName}
-                </p>
-              ) : null;
-            })()}
+            {/* Non-reference tooth-selection hints render above the chart.
+                The "reference" hint is rendered below the chart, just above the product card. */}
+            {maxillaryToothHint && maxillaryToothHint.kind !== "reference" && (
+              <p className={maxillaryToothHint.className}>{maxillaryToothHint.text}</p>
+            )}
             {(() => {
               const currentExtractions = activeProductCardId !== 0
                 ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.extractions ?? [])
@@ -1970,7 +1977,16 @@ export function MaxillaryPanel({
                               ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "the product")
                               : ((() => { const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0); return t ? (getToothProduct("maxillary", t)?.name ?? "the product") : "the product"; })())
                           }`
-                      : undefined
+                      : !useRemovableToothChartPath &&
+                        ownArchToothChartEnabled &&
+                        (!opposingProductData || useScopedRetentionMode) &&
+                        isCardActiveForToothStatus(activeProductCardId)
+                        ? `Click a tooth to add it to ${
+                            activeProductCardId !== 0
+                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "the product")
+                              : ((() => { const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("maxillary", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("maxillary", t)?.name ?? "the product") : "the product"; })())
+                          }`
+                        : undefined
                   }
                 />
               );
@@ -3573,6 +3589,11 @@ export function MaxillaryPanel({
                             : cardExtractions
                         ) &&
                         maxillaryTeeth.length > 0 ? (
+                          <>
+                          {/* "Select teeth for reference" hint — directly above the status boxes. */}
+                          {maxillaryToothHint && maxillaryToothHint.kind === "reference" && (
+                            <p className={maxillaryToothHint.className}>{maxillaryToothHint.text}</p>
+                          )}
                           <ToothStatusBoxes
                             extractions={
                               useMaxillaryArchSharedRemovable
@@ -3640,6 +3661,7 @@ export function MaxillaryPanel({
                                 : setExtractionsSetupComplete(0, v);
                             }}
                           />
+                          </>
                         ) : undefined
                       }
                     />

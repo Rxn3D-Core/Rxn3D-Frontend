@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Trash2 } from "lucide-react";
+import { DeleteProductConfirmModal } from "./DeleteProductConfirmModal";
 import {
   caseDesignInter,
   removableHeaderTitleClass,
@@ -101,11 +102,22 @@ export function RestorationAccordionHeader({
     isDisplayableStageValue(stageName) &&
     !shouldSkipStageSelection(stageProduct ?? undefined);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   return (
     <div
       className={`w-full flex flex-col transition-colors rounded-t-[5.4px] relative ${hasRush ? "bg-[#FCE4E4]" : "bg-white"
         }`}
     >
+      <DeleteProductConfirmModal
+        open={showDeleteConfirm}
+        productName={productName}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete?.();
+        }}
+      />
       <AccordionHeaderActions
         isExpanded={isExpanded}
         caseSubmitted={caseSubmitted}
@@ -207,7 +219,7 @@ export function RestorationAccordionHeader({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete();
+                      setShowDeleteConfirm(true);
                     }}
                     className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
                     title="Remove this product"
