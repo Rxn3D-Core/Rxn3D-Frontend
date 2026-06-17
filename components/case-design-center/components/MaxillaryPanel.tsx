@@ -681,6 +681,8 @@ interface MaxillaryPanelProps {
   isAccordionExpanded: (slotId: string) => boolean;
   isAccordionEnabled: (slotId: string) => boolean;
   toggleAccordionFocus: (slotId: string, cardId?: number) => void;
+  /** Fired once when the card-0 extraction setup is acknowledged ("Done"). Drives the guided cross-arch flow. */
+  onExtractionsDone?: () => void;
   getToothProductCard: (arch: Arch, toothNumber: number) => number;
 
   // Tooth field progress (Prep/Pontic step-by-step)
@@ -943,6 +945,7 @@ export function MaxillaryPanel({
   isAccordionExpanded,
   isAccordionEnabled,
   toggleAccordionFocus,
+  onExtractionsDone,
   getToothProductCard,
   isFieldVisible,
   isFieldCompleted,
@@ -1065,6 +1068,21 @@ export function MaxillaryPanel({
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   } = useExtractionsAcknowledged("maxillary", preloadInitialSlipState);
+
+  // Guided cross-arch flow: notify the parent once the card-0 extraction setup is
+  // acknowledged ("Done"). Only meaningful when the product actually needs acknowledgement.
+  const card0ExtractionsAcked =
+    !caseSubmitted &&
+    requiresExtractionsAcknowledgement(card0Extractions) &&
+    isExtractionsSetupComplete(card0Extractions, 0, caseSubmitted);
+  const prevCard0AckedRef = useRef(card0ExtractionsAcked);
+  useEffect(() => {
+    if (card0ExtractionsAcked && !prevCard0AckedRef.current) {
+      onExtractionsDone?.();
+    }
+    prevCard0AckedRef.current = card0ExtractionsAcked;
+  }, [card0ExtractionsAcked, onExtractionsDone]);
+
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
   const [toothStatusPopoverExtractions, setToothStatusPopoverExtractions] = useState<ProductExtraction[]>([]);
   const [maxillaryCheckedTeeth, setMaxillaryCheckedTeeth] = useState<number[]>([]);
