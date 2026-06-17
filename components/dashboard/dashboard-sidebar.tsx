@@ -262,7 +262,10 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   const sidebarBorder = isDark ? "border-[#0f5497]" : "border-[#d9d9d9]"
   const textColor = isDark ? "text-white" : "text-[#000000]"
   const hoverBg = isDark ? "hover:bg-[#0f5497]" : "hover:bg-gray-100"
-  
+
+  // ponytail: sidebar hidden for waffle launcher — remove these 2 lines to re-enable
+  if (true) return null
+
   return (
     <div
       className={cn(
