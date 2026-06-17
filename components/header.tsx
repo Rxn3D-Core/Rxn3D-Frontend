@@ -51,6 +51,7 @@ import type { UpdateMeProfileInput } from "@/lib/api/me"
 import { User as UserIcon } from "lucide-react"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
+import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -851,6 +852,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-2 sm:py-2.5 md:py-3">
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
+              <HeaderWaffleLauncher />
               {!isSuperAdmin && canCreateSlip && (
                 <Button
                   size="sm"
