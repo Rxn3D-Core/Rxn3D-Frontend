@@ -172,7 +172,12 @@ export default function LabSlipPage() {
   const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
-  const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
+  const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
+    caseId: number
+    caseNumber: string
+    patient: string
+    doctor: string
+  } | null>(null)
   const [showChangeDateModal, setShowChangeDateModal] = useState(false)
   const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<any>(null)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
@@ -326,32 +331,13 @@ export default function LabSlipPage() {
   }
 
   const handleAttachmentClick = (slip: any) => {
-    setSelectedSlipForAttachment(slip)
-    setShowAttachModal(true)
-  }
-
-  const handleAttachmentsUploaded = (attachments: any[]) => {
-    if (!selectedSlipForAttachment?.id) return
-    updateSlipAttachmentState(selectedSlipForAttachment.id, attachments.length > 0)
-    const customerId = getLabCustomerId()
-    if (!customerId) return
-    void fetchLabSlips(customerId, {
-      q: debouncedSearch.trim() || undefined,
-      office_code: office !== "All" ? office : undefined,
-      status: status !== "All" ? status : undefined,
-      location_id: location !== "All" ? Number(location) : undefined,
-      has_attachments: showWithAttachments ? true : undefined,
-      product_name: productType !== "All" ? productType : undefined,
-      delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
-      delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
-      page: currentPage,
-      per_page: itemsPerPage,
+    setSelectedCaseForAttachment({
+      caseId: slip.caseId,
+      caseNumber: slip.caseNumber ?? "",
+      patient: slip.patient ?? "",
+      doctor: slip.doctor ?? "",
     })
-  }
-
-  const handleAttachmentStateChange = (hasAttachments: boolean) => {
-    if (!selectedSlipForAttachment?.id) return
-    updateSlipAttachmentState(selectedSlipForAttachment.id, hasAttachments)
+    setShowAttachModal(true)
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -2023,22 +2009,18 @@ export default function LabSlipPage() {
         </Dialog>
 
         {/* File Attachment Modal */}
-        {showAttachModal && selectedSlipForAttachment && typeof document !== "undefined" && createPortal(
-          <div
-            className="fixed inset-0 z-[9999] bg-white"
-            style={{ width: "100vw", height: "100vh" }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="File Attachments"
-          >
+        {showAttachModal && selectedCaseForAttachment && createPortal(
+          <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
             <FileAttachmentModalContent
-              setShowAttachModal={setShowAttachModal}
-              isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
-              slipId={selectedSlipForAttachment.id}
-              doctorName={selectedSlipForAttachment.doctor}
-              patientName={selectedSlipForAttachment.patient}
-              onAttachmentsUploaded={handleAttachmentsUploaded}
-              onAttachmentStateChange={handleAttachmentStateChange}
+              setShowAttachModal={(show) => {
+                setShowAttachModal(show)
+                if (!show) setSelectedCaseForAttachment(null)
+              }}
+              isCaseSubmitted={false}
+              caseId={selectedCaseForAttachment.caseId}
+              caseNumber={selectedCaseForAttachment.caseNumber}
+              doctorName={selectedCaseForAttachment.doctor}
+              patientName={selectedCaseForAttachment.patient}
               open={showAttachModal}
             />
           </div>,
