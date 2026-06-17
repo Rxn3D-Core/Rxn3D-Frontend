@@ -189,6 +189,7 @@ export default function FileAttachmentModalContent({
   const [viewing3dUrl, setViewing3dUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [addingFiles, setAddingFiles] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([])
   const [selectedLayout, setSelectedLayout] = useState("1x1")
@@ -313,6 +314,7 @@ export default function FileAttachmentModalContent({
   const [selectedImageThumbnailUrls, setSelectedImageThumbnailUrls] = useState<string[]>([])
 
   const addLocalFiles = (files: FileList | File[]) => {
+    setAddingFiles(true)
     const targetStage = activeStage || stages[0]
     const rejected: string[] = []
     const newUploads: LocalUploadItem[] = []
@@ -345,11 +347,13 @@ export default function FileAttachmentModalContent({
     if (newUploads.length > 0) {
       setSimulatedUploads((prev) => [...prev, ...newUploads])
     }
+    setAddingFiles(false)
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
+      setAddingFiles(true)
       const targetStage = activeStage || stages[0]
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
@@ -360,6 +364,7 @@ export default function FileAttachmentModalContent({
         return { file, url, type, stage: targetStage }
       })
       setSimulatedUploads(prev => [...prev, ...newUploads])
+      setAddingFiles(false)
     }
   }
 
@@ -378,6 +383,7 @@ export default function FileAttachmentModalContent({
     event.stopPropagation()
     const files = event.dataTransfer.files
     if (files && files.length > 0) {
+      setAddingFiles(true)
       const targetStage = activeStage || stages[0]
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
@@ -388,6 +394,7 @@ export default function FileAttachmentModalContent({
         return { file, url, type, stage: targetStage }
       })
       setSimulatedUploads(prev => [...prev, ...newUploads])
+      setAddingFiles(false)
     }
   }, [activeStage, stages])
 
@@ -953,7 +960,16 @@ export default function FileAttachmentModalContent({
       </div>
 
       {/* ===== Row 3: Thumbnail strip — full width (upload zone first, then files) ===== */}
-      <div className="flex gap-3 px-4 py-3 border-b overflow-x-auto flex-shrink-0 bg-white" style={{ minHeight: "110px" }}>
+      <div className="relative flex gap-3 px-4 py-3 border-b overflow-x-auto flex-shrink-0 bg-white" style={{ minHeight: "110px" }}>
+        {addingFiles && (
+          <div className="absolute inset-0 z-20 bg-white/70 flex items-center justify-center gap-2">
+            <svg className="animate-spin w-4 h-4 text-[#1162A8]" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <span className="text-xs text-[#1162A8] font-medium">Adding files…</span>
+          </div>
+        )}
         {/* Upload drop zone as first thumbnail slot */}
         <div
           className="flex-shrink-0 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 transition-colors bg-gray-50"

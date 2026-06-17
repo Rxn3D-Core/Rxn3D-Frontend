@@ -623,14 +623,7 @@ export default function LabSlipPage() {
         return;
       }
 
-      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer");
-      if (!printWindow) {
-        toast({
-          title: "Pop-up blocked",
-          description: "Please allow pop-ups for this site and try again.",
-          variant: "destructive",
-        });
-      }
+      router.push(printRoute);
     } catch (err: any) {
       toast({
         title: "Failed to open paper slip",
@@ -675,17 +668,7 @@ export default function LabSlipPage() {
         return;
       }
 
-      const printWindow = window.open(printRoute, "_blank", "noopener,noreferrer");
-      if (!printWindow) {
-        toast({
-          title: "Pop-up blocked",
-          description: "Please allow pop-ups for this site and try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({ title: "Paper slips opened", description: `${slipIds.length} slip(s) are being prepared for print.` });
+      router.push(printRoute);
     } catch (err: any) {
       toast({
         title: "Failed to open paper slips",
@@ -1294,11 +1277,12 @@ export default function LabSlipPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <Select value={productType} onValueChange={setProductType}>
                 <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                  <SelectValue placeholder="All product type" />
+                  {/* ponytail: explicit label avoids Radix ItemText cloning bug when items are conditionally rendered */}
+                  <span className="text-sm">{productType === "All" ? "All product type" : productType}</span>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="[&_[data-radix-select-item-indicator]]:hidden [&_[role=option]]:pl-2">
                   <SelectItem value="All">All product type</SelectItem>
-                  {allProductTypes.filter(p => p).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  {allProductTypes.filter(p => p && p !== "Unknown").map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={stageFilter} onValueChange={setStageFilter}>
@@ -1847,11 +1831,12 @@ export default function LabSlipPage() {
                         <div className="flex items-center gap-0.5">
                           <Popover open={printDropdownOpen === row.id} onOpenChange={open => setPrintDropdownOpen(open ? row.id : null)}>
                             <PopoverTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className={slipListingActionIconButtonClass()}
                                 onClick={(e) => e.stopPropagation()}
+                                title="Print"
                               >
                                 <SlipListingVsIcon src={`${VS_ACTION_ICONS}/printer.svg`} />
                               </Button>
@@ -1887,6 +1872,7 @@ export default function LabSlipPage() {
                             variant="ghost"
                             size="sm"
                             className={slipListingActionIconButtonClass()}
+                            title="Add-ons"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleAddOnsClick(row)
@@ -1894,10 +1880,11 @@ export default function LabSlipPage() {
                           >
                             <SlipListingVsIcon src={`${VS_CENTER_ICONS}/add-general.svg`} />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className={slipListingActionIconButtonClass()}  
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={slipListingActionIconButtonClass()}
+                            title="Call log"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCallLogClick(row)
@@ -1905,30 +1892,14 @@ export default function LabSlipPage() {
                           >
                             <SlipListingVsIcon src={`${VS_CENTER_ICONS}/call-log.svg`} />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className={slipListingActionIconButtonClass()}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <svg
-                              width="22"
-                              height="22"
-                              viewBox="0 0 17 17"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className={cn(SLIP_LISTING_ICON_SIZE_CLASS, SLIP_LISTING_ICON_HOVER_CLASS)}
-                            >
-                              <path d="M14.5031 5.57471H7.10957C6.2929 5.57471 5.63086 6.23675 5.63086 7.05342V14.447C5.63086 15.2636 6.2929 15.9257 7.10957 15.9257H14.5031C15.3198 15.9257 15.9818 15.2636 15.9818 14.447V7.05342C15.9818 6.23675 15.3198 5.57471 14.5031 5.57471Z" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
-                              <path d="M2.67402 11.4896C1.86073 11.4896 1.19531 10.8242 1.19531 10.0109V2.61738C1.19531 1.80409 1.86073 1.13867 2.67402 1.13867H10.0676C10.8809 1.13867 11.5463 1.80409 11.5463 2.61738" stroke="#1162A8" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </Button>
+                          {/* ponytail: copy button hidden until duplicate endpoint is built */}
                           <Popover open={menuRow === row.id} onOpenChange={open => setMenuRow(open ? row.id : null)}>
                             <PopoverTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className={slipListingActionIconButtonClass()}
+                                title="More actions"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <MoreVertical

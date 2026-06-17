@@ -238,10 +238,8 @@ function mountScene(
 
   const cached = geoCache.get(src)
   if (cached) {
-    console.log("[STLCanvasOnly] cache hit →", src)
     addMesh(cached)
   } else {
-    console.log("[STLCanvasOnly] fetching →", src)
     new STLLoader().load(
       src,
       (geo) => {
@@ -249,14 +247,9 @@ function mountScene(
         geo.computeVertexNormals()
         geo.computeBoundingBox()
         geoCache.set(src, geo)
-        console.log("[STLCanvasOnly] loaded OK →", src)
         addMesh(geo)
       },
-      (xhr) => {
-        if (xhr.lengthComputable) {
-          console.log(`[STLCanvasOnly] loading ${Math.round((xhr.loaded / xhr.total) * 100)}% →`, src)
-        }
-      },
+      undefined,
       (err) => {
         console.error("[STLCanvasOnly] LOAD FAILED →", src, err)
         onLoaded?.()

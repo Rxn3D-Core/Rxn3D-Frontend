@@ -662,8 +662,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             // Onboarding is complete - safe to go to the role's landing page
             const landingPath = getPostLoginLandingPath(userRoles)
-            console.log(`Onboarding complete, redirecting to ${landingPath}`)
-            if (shouldSeeMultiLocation && hasMultipleLocations) {
+if (shouldSeeMultiLocation && hasMultipleLocations) {
               router.replace("/multiple-location")
             } else {
               // Single location or no multi-location role - go directly to landing page

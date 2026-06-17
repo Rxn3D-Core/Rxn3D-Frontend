@@ -8,6 +8,10 @@ type UpdateBillingInfoDialogProps = {
   onOpenChange: (open: boolean) => void
   onUpdateStripe?: () => void
   canManageBilling?: boolean
+  cardBrand?: string | null
+  cardLast4?: string | null
+  cardExpMonth?: number | null
+  cardExpYear?: number | null
 }
 
 export function UpdateBillingInfoDialog({
@@ -15,7 +19,20 @@ export function UpdateBillingInfoDialog({
   onOpenChange,
   onUpdateStripe,
   canManageBilling = false,
+  cardBrand,
+  cardLast4,
+  cardExpMonth,
+  cardExpYear,
 }: UpdateBillingInfoDialogProps) {
+  const isLink = cardBrand === "link"
+  const cardLabel = isLink
+    ? "Stripe Link"
+    : cardLast4
+    ? `${cardBrand ? cardBrand.charAt(0).toUpperCase() + cardBrand.slice(1) : "Card"} •••• ${cardLast4}`
+    : null
+  const expiryLabel = cardExpMonth && cardExpYear
+    ? `Expires ${String(cardExpMonth).padStart(2, "0")}/${String(cardExpYear).slice(-2)}`
+    : isLink ? "Managed via Stripe Link" : null
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="w-[min(520px,calc(100vw-24px))] max-w-none overflow-hidden rounded-[10px] border-0 bg-white p-0 shadow-2xl">
@@ -29,16 +46,18 @@ export function UpdateBillingInfoDialog({
             Update your default card, add a new payment method, or manage billing details through Stripe.
           </p>
 
-          <div className="mt-5 rounded-[6px] border border-[#E4E6EF] bg-[#F9FAFB] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-[#666666]" />
-                <span className="text-[13px] font-medium leading-4 text-[#333333]">Visa •••• 4242</span>
+          {cardLabel && (
+            <div className="mt-5 rounded-[6px] border border-[#E4E6EF] bg-[#F9FAFB] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-[#666666]" />
+                  <span className="text-[13px] font-medium leading-4 text-[#333333]">{cardLabel}</span>
+                </div>
+                <span className="rounded bg-[#E8F3FF] px-2 py-1 text-[11px] font-semibold text-[#1567B8]">DEFAULT</span>
               </div>
-              <span className="rounded bg-[#E8F3FF] px-2 py-1 text-[11px] font-semibold text-[#1567B8]">DEFAULT</span>
+              {expiryLabel && <p className="mt-2 text-[12px] leading-[15px] text-[#666666]">{expiryLabel}</p>}
             </div>
-            <p className="mt-2 text-[12px] leading-[15px] text-[#666666]">Expires 12/27</p>
-          </div>
+          )}
 
           <div className="mt-4 rounded-[6px] bg-[#F4F8FF] px-3 py-3 text-[12px] leading-[15px] text-[#4B5563]">
             {canManageBilling

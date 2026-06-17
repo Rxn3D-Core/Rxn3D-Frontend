@@ -7,7 +7,6 @@
  *
  * @param {{
  *   onEditCase?: (() => void) | null,
- *   onDuplicate?: (() => void) | null,
  *   onChangeDueDate?: (() => void) | null,
  *   onPrintDriverLabel?: (() => void) | null,
  *   onPrintPaperSlip?: (() => void) | null,
@@ -21,7 +20,6 @@
 export function buildLabCaseDropdownActions(handlers) {
   return [
     { key: "edit-case", label: "Edit Case", onSelect: handlers.onEditCase ?? null, disabled: !handlers.onEditCase },
-    { key: "duplicate", label: "Duplicate", onSelect: handlers.onDuplicate ?? null, disabled: !handlers.onDuplicate },
     { key: "change-due-date", label: "Change due date", onSelect: handlers.onChangeDueDate ?? null, disabled: !handlers.onChangeDueDate },
     { key: "print-driver-label", label: "Print Driver label", onSelect: handlers.onPrintDriverLabel ?? null, disabled: !handlers.onPrintDriverLabel },
     { key: "print-paper-slip", label: "Print Paper slip", onSelect: handlers.onPrintPaperSlip ?? null, disabled: !handlers.onPrintPaperSlip },
