@@ -1342,6 +1342,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           toggleAccordionFocus={(slotId, cardId) =>
             state.toggleAccordionFocus("maxillary", slotId, cardId)
           }
+          onExtractionsDone={() => state.handleArchExtractionsDone("maxillary")}
           showMaxillary={
               state.showMaxillary ||
               (props.caseSubmitted && (state.maxillaryTeeth.length > 0 || Object.keys(state.maxillaryRetentionTypes).length > 0)) ||
@@ -1479,6 +1480,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           toggleAccordionFocus={(slotId, cardId) =>
             state.toggleAccordionFocus("mandibular", slotId, cardId)
           }
+          onExtractionsDone={() => state.handleArchExtractionsDone("mandibular")}
           showMandibular={
             state.showMandibular ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||

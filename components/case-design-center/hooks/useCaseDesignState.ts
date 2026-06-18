@@ -12,6 +12,7 @@ import {
   useToothFieldProgress,
   FIXED_SHADE_FIELD_TO_STEP,
   getRetentionFieldChain,
+  getSelectionFieldChain,
   type FieldStep,
 } from "./useToothFieldProgress";
 import {
@@ -409,6 +410,75 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
+
+  // ── Guided cross-arch flow (both arches, one product per arch) ──────────────
+  // When the same product is configured on both arches, walk the user through:
+  //   1. Upper teeth/extractions → Done  →  jump to Lower teeth/extractions
+  //   2. Lower teeth/extractions → Done (first time)  →  jump back to Upper fields
+  //   3. Upper last field completed  →  jump to Lower (fields)
+  // Each jump fires once. Only applies to the both-arches removable case.
+  const guidedBothArches = props.initialArch === "both";
+  const crossArchFlowRef = useRef({ upperDoneJumped: false, lowerDoneJumped: false, upperFieldsDoneJumped: false });
+
+  const focusArchCard0 = useCallback(
+    (arch: Arch) => {
+      focusAccordion(arch, "removable0", 0);
+    },
+    [focusAccordion]
+  );
+
+  // Steps 1 & 2 — fired by a panel when its card-0 extraction setup is acknowledged ("Done").
+  const handleArchExtractionsDone = useCallback(
+    (arch: Arch) => {
+      if (!guidedBothArches) return;
+      if (arch === "maxillary") {
+        if (crossArchFlowRef.current.upperDoneJumped) return;
+        crossArchFlowRef.current.upperDoneJumped = true;
+        focusArchCard0("mandibular"); // → lower teeth/extraction selection
+      } else {
+        if (crossArchFlowRef.current.lowerDoneJumped) return;
+        crossArchFlowRef.current.lowerDoneJumped = true;
+        focusArchCard0("maxillary"); // → back to upper (fields; extractions already Done)
+      }
+    },
+    [guidedBothArches, focusArchCard0]
+  );
+
+  // Step 3 — upper card-0 product's field chain fully complete → jump to lower (fields).
+  const upperCard0FieldsComplete = useMemo(() => {
+    if (!guidedBothArches) return false;
+    const repTooth = teeth.maxillaryTeeth
+      .filter(
+        (tn) =>
+          toothFieldProgress.getToothProductCard("maxillary", tn) === 0 &&
+          toothFieldProgress.getToothProduct("maxillary", tn)
+      )
+      .sort((a, b) => a - b)[0];
+    if (repTooth == null) return false;
+    const product = toothFieldProgress.getToothProduct("maxillary", repTooth);
+    if (!product || hasRetentionOptions(product)) return false; // removable card-0 only
+    const chain = getSelectionFieldChain(product);
+    if (chain.length === 0) return false;
+    return chain.every((step) => toothFieldProgress.isFieldCompleted("maxillary", repTooth, step));
+    // toothFieldProgress.fieldValues changes whenever a field is completed — drives recompute.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    guidedBothArches,
+    teeth.maxillaryTeeth,
+    toothFieldProgress.fieldValues,
+    toothFieldProgress.toothProducts,
+    toothFieldProgress.toothProductCardMap,
+  ]);
+
+  useEffect(() => {
+    if (!guidedBothArches) return;
+    if (!upperCard0FieldsComplete) return;
+    if (crossArchFlowRef.current.upperFieldsDoneJumped) return;
+    // Only after the user has gone Upper→Lower→Upper (selection round-trip complete).
+    if (!crossArchFlowRef.current.lowerDoneJumped) return;
+    crossArchFlowRef.current.upperFieldsDoneJumped = true;
+    focusArchCard0("mandibular");
+  }, [guidedBothArches, upperCard0FieldsComplete, focusArchCard0]);
 
   // ── Auto-copy between arches for removable restoration "both arches" ──
   // When user selects "both arches", configuring one side auto-copies to the other.
@@ -2402,6 +2472,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     isAccordionEnabled,
     toggleAccordionFocus,
     focusAccordion,
+    handleArchExtractionsDone,
     // Expansion
     expandedCard,
     setExpandedCard,
