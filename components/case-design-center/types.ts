@@ -532,6 +532,8 @@ export interface ProductApiData {
   status: string;
   sequence: number;
   is_single_stage: string;
+  is_splinted?: string;
+  show_jaw_photo?: string;
   has_multiple_grades: string;
   is_teeth_based_price: string;
   customer_id: number | null;

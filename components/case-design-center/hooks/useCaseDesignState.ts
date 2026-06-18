@@ -2006,6 +2006,18 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Block before the retention-selection flow starts (before toggling popover choice).
     if (!isDeselecting && (type === "Prep" || type === "Pontic" || type === "Implant")) {
       if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
+      // Initial Fixed Restoration without jaw-specific selection (show_jaw_photo !== "Yes"):
+      // both charts start active so the user can begin on either side. The first arch they
+      // select on becomes the active flow — lock the active accordion to it so the other
+      // arch goes inactive.
+      if (
+        activeProductCardId === 0 &&
+        hasRetentionOptions(initialProductDetails) &&
+        initialProductDetails?.show_jaw_photo !== "Yes"
+      ) {
+        const desiredKey = productAccordionKey(arch, "removable0");
+        if (activeAccordionKey !== desiredKey) focusAccordion(arch, "removable0");
+      }
     }
 
     originalHandleSelectRetentionType(arch, toothNumber, type);

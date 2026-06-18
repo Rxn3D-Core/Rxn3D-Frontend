@@ -93,6 +93,7 @@ import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
 } from "../utils/resolveAddedCardProduct";
+import { formatSplintGroups } from "../utils/splintHelpers";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
 import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
 import {
@@ -766,6 +767,10 @@ interface MandibularPanelProps {
   activeProductCardId: number;
   setActiveProductCardId: (id: number) => void;
   activeAccordionKey: string;
+  /** Force this arch's tooth chart interactive even when it doesn't own the active accordion (initial fixed "both" flow). */
+  forceOwnArchChartEnabled?: boolean;
+  /** Initial (card 0) product name — used for the "Select teeth to replace with …" hint before any teeth are assigned. */
+  initialProductName?: string;
   isAccordionExpanded: (slotId: string) => boolean;
   isAccordionEnabled: (slotId: string) => boolean;
   toggleAccordionFocus: (slotId: string, cardId?: number) => void;
@@ -879,6 +884,8 @@ function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; has
 
 export function MandibularPanel({
   activeAccordionKey,
+  forceOwnArchChartEnabled = false,
+  initialProductName,
   isAccordionExpanded,
   isAccordionEnabled,
   toggleAccordionFocus,
@@ -1421,6 +1428,80 @@ export function MandibularPanel({
     return mandibularTeeth;
   })();
 
+  // ── Splint (connect adjacent teeth of a single product) ──────────────────
+  // Product key derived from the tooth so chart, toggle and summary always agree.
+  const [splintLinksByKey, setSplintLinksByKey] = useState<Record<string, number[]>>({});
+  const splintKeyForMandibularTooth = useCallback(
+    (tooth: number): string => {
+      const card = getToothProductCard("mandibular", tooth);
+      if (card !== 0) return `card:${card}`;
+      const pid = getToothProduct("mandibular", tooth)?.id;
+      return pid != null ? `fixed:${pid}` : "card0";
+    },
+    [getToothProductCard, getToothProduct]
+  );
+  const mandibularSplintSummaryFor = useCallback(
+    (teeth: number[]): string => {
+      if (teeth.length === 0) return "";
+      const key = splintKeyForMandibularTooth(teeth[0]);
+      return formatSplintGroups(teeth, splintLinksByKey[key] ?? []);
+    },
+    [splintKeyForMandibularTooth, splintLinksByKey]
+  );
+  const activeMandibularProduct = (() => {
+    const rep = activeCardMandibularTeeth[0];
+    if (rep != null) {
+      const p = getToothProduct("mandibular", rep);
+      if (p) return p;
+    }
+    if (activeProductCardId !== 0) {
+      return (
+        getToothProduct("mandibular", -activeProductCardId) ??
+        addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "mandibular")?.product ??
+        null
+      );
+    }
+    return null;
+  })();
+  const activeMandibularProductIsSplinted = activeMandibularProduct?.is_splinted === "Yes";
+  const handleToggleMandibularSplint = useCallback(
+    (lower: number) => {
+      const key = splintKeyForMandibularTooth(lower);
+      setSplintLinksByKey((prev) => {
+        const cur = prev[key] ?? [];
+        const next = cur.includes(lower)
+          ? cur.filter((l) => l !== lower)
+          : [...cur, lower].sort((a, b) => a - b);
+        return { ...prev, [key]: next };
+      });
+    },
+    [splintKeyForMandibularTooth]
+  );
+  // Drop any stored splint link once either of its teeth is deselected or reassigned
+  // to a different product — so it never resurrects on re-select or leaks on submit.
+  const mandibularAssignmentSig = mandibularTeeth
+    .map((tn) => `${tn}:${getToothProduct("mandibular", tn)?.id ?? ""}`)
+    .join(",");
+  useEffect(() => {
+    setSplintLinksByKey((prev) => {
+      let changed = false;
+      const next: Record<string, number[]> = {};
+      for (const [key, links] of Object.entries(prev)) {
+        const kept = links.filter((lower) => {
+          if (!mandibularTeeth.includes(lower) || !mandibularTeeth.includes(lower + 1)) return false;
+          const pa = getToothProduct("mandibular", lower)?.id;
+          const pb = getToothProduct("mandibular", lower + 1)?.id;
+          if (pa == null || pa !== pb) return false;
+          return splintKeyForMandibularTooth(lower) === key;
+        });
+        if (kept.length !== links.length) changed = true;
+        if (kept.length > 0) next[key] = kept;
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mandibularAssignmentSig]);
+
   const activeMandibularSvgState = (() => {
     return {
       toothExtractionMap: opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap,
@@ -1434,9 +1515,55 @@ export function MandibularPanel({
     activeFixedGroupProductId,
   });
 
-  const ownArchToothChartEnabled = isOwnArchToothChartEnabled("mandibular", activeAccordionKey);
+  const ownArchToothChartEnabled =
+    isOwnArchToothChartEnabled("mandibular", activeAccordionKey) || forceOwnArchChartEnabled;
   const opposingToothChartEnabled = !!opposingProductData;
   const toothChartInteractionEnabled = ownArchToothChartEnabled || opposingToothChartEnabled;
+
+  const mandibularSplintEnabled =
+    activeMandibularProductIsSplinted &&
+    ownArchToothChartEnabled &&
+    !caseSubmitted &&
+    !opposingProductData &&
+    activeCardMandibularTeeth.length >= 2;
+  // A tooth counts as "selected for the product" once it has a retention type chosen
+  // from the popover (fixed) or a tooth status assigned (removable) — not on mere click.
+  const isMandibularToothAssigned = (tn: number): boolean => {
+    const rt = mandibularRetentionTypes[tn];
+    if (rt && rt.length > 0) return true;
+    const code = mandibularToothExtractionMap[tn];
+    return !!code && code !== "TIM";
+  };
+  const mandibularSplintableLinks = (() => {
+    if (!mandibularSplintEnabled) return [] as number[];
+    const sorted = [...activeCardMandibularTeeth].sort((a, b) => a - b);
+    const out: number[] = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i + 1] !== sorted[i] + 1) continue;
+      if (!isMandibularToothAssigned(sorted[i]) || !isMandibularToothAssigned(sorted[i + 1])) continue;
+      const pa = getToothProduct("mandibular", sorted[i])?.id;
+      const pb = getToothProduct("mandibular", sorted[i + 1])?.id;
+      if (pa != null && pa === pb) out.push(sorted[i]);
+    }
+    return out;
+  })();
+  // Splinted (connected) gaps across ALL selected teeth on this arch. Computed over the
+  // whole arch (not just the active card) and independently of `mandibularSplintEnabled`
+  // so existing splints stay visible when the accordion is collapsed OR the other arch
+  // is active (read-only there; editable when this product is active).
+  const mandibularSplintedLinks = (() => {
+    const sorted = [...mandibularTeeth].sort((a, b) => a - b);
+    const out: number[] = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i + 1] !== sorted[i] + 1) continue;
+      const pa = getToothProduct("mandibular", sorted[i])?.id;
+      const pb = getToothProduct("mandibular", sorted[i + 1])?.id;
+      if (pa == null || pa !== pb) continue;
+      const key = splintKeyForMandibularTooth(sorted[i]);
+      if ((splintLinksByKey[key] ?? []).includes(sorted[i])) out.push(sorted[i]);
+    }
+    return out;
+  })();
 
   const activeMandibularRetentionOptions = (() => {
     if (activeProductCardId !== 0) {
@@ -1555,14 +1682,15 @@ export function MandibularPanel({
                 !useRemovableToothChartPath &&
                 ownArchToothChartEnabled &&
                 (!opposingProductData || useScopedRetentionMode) &&
-                isCardActiveForToothStatus(activeProductCardId)
+                (isCardActiveForToothStatus(activeProductCardId) || forceOwnArchChartEnabled)
               ) {
-                const fixedProductName = activeProductCardId !== 0
+                const fixedProductName = (activeProductCardId !== 0
                   ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "")
-                  : (() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "") : ""; })();
+                  : (() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "") : ""; })())
+                  || initialProductName || "";
                 return (
                   <p className="text-center font-bold text-sm mb-1 text-orange-500 uppercase">
-                    Select teeth to replace{fixedProductName ? ` ${fixedProductName}` : ""}
+                    Select teeth to replace{fixedProductName ? ` with ${fixedProductName}` : ""}
                   </p>
                 );
               }
@@ -1586,6 +1714,10 @@ export function MandibularPanel({
                   selectedTeeth={activeCardMandibularTeeth}
                   willExtractTeeth={[]}
                   missingTeeth={[]}
+                  splintEnabled={mandibularSplintEnabled}
+                  splintableLinks={mandibularSplintableLinks}
+                  splintedLinks={mandibularSplintedLinks}
+                  onToggleSplintLink={handleToggleMandibularSplint}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;
@@ -2246,6 +2378,11 @@ export function MandibularPanel({
                             hasVariationMatch: apVariationDisplay.matched,
                           })}
                           toothDisplay={cardToothDisplay}
+                          splintSummary={
+                            apProduct?.is_splinted === "Yes"
+                              ? mandibularSplintSummaryFor(assignedTeeth)
+                              : ""
+                          }
                           categoryName={cardCategoryName}
                           subcategoryName={cardSubcategoryName}
                           stageName={
@@ -2407,6 +2544,11 @@ export function MandibularPanel({
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
                           toothDisplay={cardToothDisplay}
+                          splintSummary={
+                            apProduct?.is_splinted === "Yes"
+                              ? mandibularSplintSummaryFor(assignedTeeth)
+                              : ""
+                          }
                           categoryName={cardCategoryName}
                           subcategoryName={cardSubcategoryName}
                           stageName={
@@ -3182,6 +3324,11 @@ export function MandibularPanel({
                         productImageUrl={productImage}
                         productName={productName}
                         toothDisplay={toothNumbersDisplay}
+                        splintSummary={
+                          selectedProduct?.is_splinted === "Yes"
+                            ? mandibularSplintSummaryFor(toothNumbers)
+                            : ""
+                        }
                         categoryName={categoryName}
                         subcategoryName={subcategoryName}
                         stageName={
@@ -3529,6 +3676,11 @@ export function MandibularPanel({
                         hasVariationMatch,
                       })}
                       toothDisplay={cardToothDisplay}
+                      splintSummary={
+                        cardProduct?.is_splinted === "Yes"
+                          ? mandibularSplintSummaryFor(card0AssignedTeeth)
+                          : ""
+                      }
                       categoryName={cardProduct?.subcategory?.category?.name}
                       subcategoryName={cardProduct?.subcategory?.name}
                       stageName={

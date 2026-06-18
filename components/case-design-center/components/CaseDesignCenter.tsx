@@ -187,6 +187,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     .some(tn => state.getToothProductCard("maxillary", Number(tn)) === 0);
   const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
     .some(tn => state.getToothProductCard("mandibular", Number(tn)) === 0);
+  // Initial Fixed Restoration without jaw-specific selection (product's "Show jaw photo"
+  // is not "Yes"): let the user start on EITHER arch (both tooth charts active) instead of
+  // forcing upper-first. Once a tooth is selected on one arch, the active accordion locks
+  // to that arch (handled in useCaseDesignState). When show_jaw_photo === "Yes", keep the
+  // existing single-jaw flow.
+  const forceBothArchFixedChartSelection =
+    !props.caseSubmitted &&
+    activeProductIsFixed &&
+    state.initialProductDetails?.show_jaw_photo !== "Yes" &&
+    !maxillaryHasFixedCard0 &&
+    !mandibularHasFixedCard0;
   // Show accordion when card 0 initial product is Removable/Ortho — show immediately once product is selected,
   // no need to wait for teeth to be assigned (the accordion lets the user select teeth).
   // Gate each panel to its own arch so the opposite panel doesn't show a duplicate card 0 accordion
@@ -1337,6 +1348,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
           activeAccordionKey={state.activeAccordionKey}
+          forceOwnArchChartEnabled={forceBothArchFixedChartSelection}
+          initialProductName={state.initialProductDetails?.name}
           isAccordionExpanded={(slotId) => state.isAccordionExpanded("maxillary", slotId)}
           isAccordionEnabled={(slotId) => state.isAccordionEnabled("maxillary", slotId)}
           toggleAccordionFocus={(slotId, cardId) =>
@@ -1345,6 +1358,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onExtractionsDone={() => state.handleArchExtractionsDone("maxillary")}
           showMaxillary={
               state.showMaxillary ||
+              forceBothArchFixedChartSelection ||
               (props.caseSubmitted && (state.maxillaryTeeth.length > 0 || Object.keys(state.maxillaryRetentionTypes).length > 0)) ||
               (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularTeethSelected)
             }
@@ -1475,6 +1489,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
           activeAccordionKey={state.activeAccordionKey}
+          forceOwnArchChartEnabled={forceBothArchFixedChartSelection}
+          initialProductName={state.initialProductDetails?.name}
           isAccordionExpanded={(slotId) => state.isAccordionExpanded("mandibular", slotId)}
           isAccordionEnabled={(slotId) => state.isAccordionEnabled("mandibular", slotId)}
           toggleAccordionFocus={(slotId, cardId) =>
@@ -1483,6 +1499,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onExtractionsDone={() => state.handleArchExtractionsDone("mandibular")}
           showMandibular={
             state.showMandibular ||
+            forceBothArchFixedChartSelection ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
             (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular)
           }
