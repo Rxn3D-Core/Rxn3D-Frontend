@@ -1195,43 +1195,85 @@ export function ProductDetailsSection({
             </div>
           </div>
 
-          {/* Is Single Stage Radio Button */}
-          <div className="space-y-3">
-            <label className="text-sm font-medium text-gray-700">
-              Is Single Stage
-            </label>
-            <Controller
-              name="is_single_stage"
-              control={control}
-              render={({ field }) => (
-                <RadioGroup
-                  value={field.value || "No"}
-                  onValueChange={(value) => field.onChange(value)}
-                  className="flex flex-row gap-6"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="Yes"
-                      id="is_single_stage-yes"
-                      className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
-                    />
-                    <label htmlFor="is_single_stage-yes" className="text-sm font-medium cursor-pointer">
-                      Yes
-                    </label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="No"
-                      id="is_single_stage-no"
-                      className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
-                    />
-                    <label htmlFor="is_single_stage-no" className="text-sm font-medium cursor-pointer">
-                      No
-                    </label>
-                  </div>
-                </RadioGroup>
-              )}
-            />
+          {/* Is Single Stage / Is Splinted Radio Buttons */}
+          <div className="flex flex-row gap-12">
+            {/* Is Single Stage Radio Button */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700">
+                Is Single Stage
+              </label>
+              <Controller
+                name="is_single_stage"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup
+                    value={field.value || "No"}
+                    onValueChange={(value) => field.onChange(value)}
+                    className="flex flex-row gap-6"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="Yes"
+                        id="is_single_stage-yes"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="is_single_stage-yes" className="text-sm font-medium cursor-pointer">
+                        Yes
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="No"
+                        id="is_single_stage-no"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="is_single_stage-no" className="text-sm font-medium cursor-pointer">
+                        No
+                      </label>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
+            </div>
+
+            {/* Is Splinted Radio Button */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700">
+                Is Splinted
+              </label>
+              <Controller
+                name="is_splinted"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup
+                    value={field.value || "No"}
+                    onValueChange={(value) => field.onChange(value)}
+                    className="flex flex-row gap-6"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="Yes"
+                        id="is_splinted-yes"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="is_splinted-yes" className="text-sm font-medium cursor-pointer">
+                        Yes
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="No"
+                        id="is_splinted-no"
+                        className="data-[state=checked]:border-[#1162a8] data-[state=checked]:text-[#1162a8]"
+                      />
+                      <label htmlFor="is_splinted-no" className="text-sm font-medium cursor-pointer">
+                        No
+                      </label>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
+            </div>
           </div>
 
           {/* Min and Max Days to Process - Show only when is_single_stage is "Yes" */}

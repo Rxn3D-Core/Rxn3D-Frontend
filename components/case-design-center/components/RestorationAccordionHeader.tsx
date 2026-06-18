@@ -53,6 +53,8 @@ export interface RestorationAccordionHeaderProps {
 
   /** e.g. ToothStatusBoxes below title box, above Est days */
   middleContent?: ReactNode;
+  /** Splinted teeth groups summary, e.g. "6-7-8, 11-12". Shown below Est days when non-empty. */
+  splintSummary?: string;
   /** Callback when the plus icon is clicked to activate product tooth selection */
   onPlusClick?: () => void;
   /** When true, standard product selection mode is active and we render a distinct thick border */
@@ -93,6 +95,7 @@ export function RestorationAccordionHeader({
   retentionDoneAcknowledged = false,
   onRetentionDoneChange,
   middleContent,
+  splintSummary = "",
   onPlusClick,
   isProductSelectionActive = false,
   isExtractionActive = false,
@@ -229,6 +232,18 @@ export function RestorationAccordionHeader({
                   </button>
                 ) : null}
               </div>
+              {splintSummary ? (
+                <div className="w-full flex justify-center mt-1">
+                  <div className="inline-flex flex-col items-center justify-center leading-tight rounded-md border border-[#1162A8] bg-[#EAF3FB] px-3 py-1">
+                    <span className="text-[12px] sm:text-[13px] font-semibold text-[#1162A8]">
+                      Splinted
+                    </span>
+                    <span className="text-[12px] sm:text-[13px] text-[#1162A8]">
+                      {splintSummary}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
                 <div className="w-full flex justify-center mt-2 py-2 overflow-visible" onClick={(e) => e.stopPropagation()}>
                   <DoneTransitionButton onComplete={() => onRetentionDoneChange(true)} />
