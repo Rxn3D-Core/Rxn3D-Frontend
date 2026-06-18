@@ -8,7 +8,7 @@ type SlipListingRowClassOptions = {
 /** Full-row background for slip listing tables (rush highlight, selection, hover). */
 export function slipListingRowClassName({ selected, rush }: SlipListingRowClassOptions): string {
   return cn(
-    "transition-all duration-150",
+    "group relative transition-all duration-150",
     selected
       ? "bg-blue-50 border-l-4 border-blue-500"
       : rush

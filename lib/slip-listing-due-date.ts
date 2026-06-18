@@ -66,3 +66,25 @@ export function formatSlipListingDueDate(
   }
   return { label: `${diffDays} days to ${mmdd}`, tone: "upcoming" }
 }
+
+/**
+ * Compact due-date copy for the listing table: "{n}d · MM/DD".
+ * - overdue: "-3d · MM/DD"  · today: "0d · MM/DD"  · future: "7d · MM/DD"
+ */
+export function formatSlipListingDueDateCompact(
+  dueDateRaw: string,
+  now: Date = new Date(),
+): SlipListingDueDateDisplay {
+  const due = parseSlipListingDueDate(dueDateRaw)
+  if (!due) {
+    return { label: "—", tone: "empty" }
+  }
+
+  const today = startOfLocalDay(now)
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000)
+  const mmdd = formatMmDd(due)
+  const tone: SlipListingDueDateTone =
+    diffDays < 0 ? "overdue" : diffDays === 0 ? "today" : "upcoming"
+
+  return { label: `${diffDays}d · ${mmdd}`, tone }
+}
