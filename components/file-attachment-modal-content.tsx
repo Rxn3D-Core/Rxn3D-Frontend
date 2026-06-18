@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -15,15 +15,17 @@ import {
   Maximize2,
   Minimize2,
   RotateCcw,
+  RotateCw,
   ZoomIn,
   ZoomOut,
+  Eye,
+  Plus,
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import SimpleSTLViewer from "./demo/simple-stl-generator"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useSlipCreation } from "../contexts/slip-creation-context"
 import {
-  mapSlipAttachmentToLocalItem,
   validateSlipAttachmentFile,
 } from "@/services/slip-attachments-service"
 
@@ -38,10 +40,15 @@ type LocalUploadItem = {
   stage?: string
   attachmentType?: string
   notes?: string
+  slipNumber?: string
+  slipStageName?: string
 }
 import { toProxiedFileUrl } from "@/lib/file-proxy"
 import * as THREE from "three"
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+
+const areStringArraysEqual = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index])
 
 /** Smoothly rotate raw Three.js OrbitControls by azimuth/polar delta over ~300ms. */
 function rotateOrbitControls(controls: OrbitControls, azimuthDelta: number, polarDelta: number) {
@@ -91,6 +98,9 @@ interface FileAttachmentModalContentProps {
   setShowAttachModal: (show: boolean) => void
   isCaseSubmitted: boolean
   slipId?: number
+  /** When set, fetches all slips for the case and shows slip-grouped files */
+  caseId?: number
+  caseNumber?: string
   onAttachmentsUploaded?: (attachments: any[]) => void
   onAttachmentStateChange?: (hasAttachments: boolean) => void
   doctorName?: string
@@ -132,6 +142,8 @@ export default function FileAttachmentModalContent({
   setShowAttachModal,
   isCaseSubmitted,
   slipId,
+  caseId,
+  caseNumber,
   onAttachmentsUploaded,
   onAttachmentStateChange,
   doctorName: propDoctorName,
@@ -146,6 +158,7 @@ export default function FileAttachmentModalContent({
   const {
     uploadSlipAttachment,
     fetchSlipAttachments,
+    fetchCaseAttachments,
     deleteSlipAttachment,
     toggleSlipAttachmentArchive,
   } = useSlipCreation()
@@ -277,6 +290,7 @@ export default function FileAttachmentModalContent({
 
   const [doctorName, setDoctorName] = useState<string>(propDoctorName || readDoctorFromStorage)
   const [patientName, setPatientName] = useState<string>(propPatientName || readPatientFromStorage)
+  const lastFileCountsRef = useRef<{ photoCount: number; stlCount: number } | null>(null)
 
   // Re-read from localStorage when props change or on mount — covers Dialog re-open
   useEffect(() => {
@@ -292,22 +306,17 @@ export default function FileAttachmentModalContent({
     if (onFileCountsChange) {
       const photoCount = simulatedUploads.filter((u) => u.type === "image").length
       const stlCount = simulatedUploads.filter((u) => u.type === "stl" || u.type === "3dobject").length
-      onFileCountsChange(photoCount, stlCount)
+      const lastCounts = lastFileCountsRef.current
+      if (!lastCounts || lastCounts.photoCount !== photoCount || lastCounts.stlCount !== stlCount) {
+        lastFileCountsRef.current = { photoCount, stlCount }
+        onFileCountsChange(photoCount, stlCount)
+      }
     }
-    // Auto-populate viewer with all viewable files (images + STL)
-    const viewable = simulatedUploads.filter(
-      (u) => u.type === "image" || u.type === "stl" || u.type === "3dobject"
-    )
-    const newItems = viewable.map((u): { url: string; type: "stl" | "image" } => ({
-      url: u.url,
-      type: u.type === "image" ? "image" : "stl",
-    }))
-    setViewerItems(newItems)
-    setViewerStlUrls(viewable.filter((u) => u.type !== "image").map((u) => u.url))
-    setSelectedImageThumbnailUrls(viewable.filter((u) => u.type === "image").map((u) => u.url))
-    if (newItems.length > 0 && !viewing3dUrl) {
-      setViewing3dUrl(newItems[0].url)
-    }
+    // ponytail: no auto-select — user clicks to add files to viewer
+    const stlUrls = simulatedUploads.filter((u) => u.type !== "image").map((u) => u.url)
+    const imageUrls = simulatedUploads.filter((u) => u.type === "image").map((u) => u.url)
+    setViewerStlUrls((prev) => (areStringArraysEqual(prev, stlUrls) ? prev : stlUrls))
+    setSelectedImageThumbnailUrls((prev) => (areStringArraysEqual(prev, imageUrls) ? prev : imageUrls))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [simulatedUploads, onFileCountsChange])
 
@@ -401,24 +410,12 @@ export default function FileAttachmentModalContent({
   const uploadedFilesSize = simulatedUploads.reduce((sum, { file }) => sum + file.size, 0)
   const totalSizeMB = (uploadedFilesSize / (1024 * 1024)).toFixed(2)
 
-  // Guards against duplicate fetches for the same slipId (StrictMode double-invoke
-  // and callback-identity churn both re-run the effect below).
-  const fetchedSlipIdRef = useRef<number | null>(null)
   const [fetchingAttachments, setFetchingAttachments] = useState(false)
 
-  // Reset the fetch guard each time the modal opens so we re-fetch current attachments
-  useEffect(() => {
-    if (open) {
-      fetchedSlipIdRef.current = null
-    }
-  }, [open])
-
-  // Fetch remote attachments — re-runs each time the modal opens (open prop resets the guard)
+  // Fetch remote attachments for a single slip (used when slipId prop is set)
   useEffect(() => {
     if (!slipId) return
     const numericSlipId = Number(slipId)
-    if (fetchedSlipIdRef.current === numericSlipId) return
-    fetchedSlipIdRef.current = numericSlipId
     let mounted = true
     setFetchingAttachments(true)
     ;(async () => {
@@ -466,7 +463,82 @@ export default function FileAttachmentModalContent({
     })()
     return () => { mounted = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slipId, fetchSlipAttachments, open])
+  }, [slipId])
+
+  // Case-level fetch: loads all slips' attachments when caseId is provided.
+  useEffect(() => {
+    if (!caseId) return
+    let mounted = true
+    setFetchingAttachments(true)
+    ;(async () => {
+      try {
+        const responseData = await fetchCaseAttachments(caseId)
+        if (!mounted || !responseData) return
+        const dataAny = (responseData as any).data ?? responseData
+        const slips = Array.isArray(dataAny.slips) ? dataAny.slips : []
+        const slipById = new Map(slips.map((s: any) => [s.id, s]))
+        const allAttachments: any[] = Array.isArray(dataAny.all_attachments) && dataAny.all_attachments.length > 0
+          ? dataAny.all_attachments
+          : [
+              ...(Array.isArray(dataAny.case_attachments)
+                ? dataAny.case_attachments.map((a: any) => ({
+                    ...a,
+                    source: a.source ?? "case",
+                    slip_id: a.slip_id ?? null,
+                    slip_number: a.slip_number ?? null,
+                  }))
+                : []),
+              ...slips.flatMap((s: any) =>
+                Array.isArray(s.attachments)
+                  ? s.attachments.map((a: any) => ({
+                      ...a,
+                      source: a.source ?? "slip",
+                      slip_id: a.slip_id ?? s.id,
+                      slip_number: a.slip_number ?? s.slip_number,
+                    }))
+                  : [],
+              ),
+            ]
+        const mapped: LocalUploadItem[] = allAttachments.map((a: any) => {
+          const slip = slipById.get(a.slip_id) as any
+          const stageName =
+            slip?.products?.[0]?.stage_name ??
+            slip?.stage_name ??
+            a.stage_name ??
+            undefined
+          const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
+          const mime = (a.mime_type || a.file_type || "").toLowerCase()
+          let type: "stl" | "image" | "3dobject" | "other" = "other"
+          if (a.is_stl || fileName.endsWith(".stl") || mime === "model/stl" || mime === "application/sla") type = "stl"
+          else if (a.is_image || mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/.test(fileName)) type = "image"
+          return {
+            file: {
+              name: a.file_name || "remote-file",
+              size: Number(a.file_size) || 0,
+              lastModified: a.created_at ? new Date(a.created_at).getTime() : Date.now(),
+            },
+            url: a.download_url || a.file_path,
+            type,
+            archived: a.is_archived || false,
+            remoteId: a.id,
+            remoteMeta: a,
+            slipNumber: a.slip_number ?? slip?.slip_number,
+            slipStageName: a.source === "case" ? "Case Attachments" : stageName,
+          }
+        })
+        if (mounted) {
+          setSimulatedUploads(mapped)
+          onAttachmentStateChange?.(mapped.length > 0)
+        }
+      } catch (e) {
+        console.error("[case attachments] fetch failed:", e)
+      } finally {
+        if (mounted) setFetchingAttachments(false)
+      }
+    })()
+    return () => { mounted = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId])
 
   // Pull the backend-generated storage path / URL out of an upload response
   const extractGeneratedPath = (data: any): string | undefined => {
@@ -560,7 +632,7 @@ export default function FileAttachmentModalContent({
     simulatedUploads.forEach((file) => {
       if (!passesFilters(file)) return
       const sid = (file.remoteMeta as any)?.slip_id
-      const key = sid != null ? String(sid) : "local"
+      const key = (file.remoteMeta as any)?.source === "case" ? "case" : sid != null ? String(sid) : "local"
       if (!grouped[key]) grouped[key] = []
       grouped[key].push(file)
     })
@@ -666,7 +738,59 @@ export default function FileAttachmentModalContent({
     window.open(href, "_blank", "noopener,noreferrer")
   }
 
-  const visibleUploads = simulatedUploads.filter((item) => !hideArchived || !item.archived)
+  const visibleUploads = useMemo(
+    () => simulatedUploads.filter((item) => !hideArchived || !item.archived),
+    [hideArchived, simulatedUploads],
+  )
+
+  const [activeSlipKey, setActiveSlipKey] = useState<string | null>(null)
+  const [fileOrder, setFileOrder] = useState<string[]>([])
+  const dragFileIdx = useRef<number | null>(null)
+  const dragOverFileIdx = useRef<number | null>(null)
+
+  // Keep fileOrder in sync when uploads change
+  useEffect(() => {
+    setFileOrder(prev => {
+      const urls = visibleUploads.map(u => u.url)
+      const kept = prev.filter(u => urls.includes(u))
+      const added = urls.filter(u => !kept.includes(u))
+      const next = [...kept, ...added]
+      if (prev.length === next.length && prev.every((url, index) => url === next[index])) {
+        return prev
+      }
+      return next
+    })
+  }, [visibleUploads])
+
+  const filteredUploads = (() => {
+    const base = activeSlipKey === null
+      ? visibleUploads
+      : visibleUploads.filter((u) => {
+          const sid = (u.remoteMeta as any)?.slip_id
+          const key = (u.remoteMeta as any)?.source === "case" ? "case" : sid != null ? String(sid) : "local"
+          return key === activeSlipKey
+        })
+    return [...base].sort((a, b) => {
+      const ai = fileOrder.indexOf(a.url)
+      const bi = fileOrder.indexOf(b.url)
+      return (ai === -1 ? 9999 : ai) - (bi === -1 ? 9999 : bi)
+    })
+  })()
+
+  const slipGroups = (() => {
+    const groups: { key: string; slipNumber: string | undefined; stageName: string | undefined; files: LocalUploadItem[] }[] = []
+    const seen = new Map<string, number>()
+    visibleUploads.forEach((u) => {
+      const sid = (u.remoteMeta as any)?.slip_id
+      const key = (u.remoteMeta as any)?.source === "case" ? "case" : sid != null ? String(sid) : "local"
+      if (!seen.has(key)) {
+        seen.set(key, groups.length)
+        groups.push({ key, slipNumber: u.slipNumber, stageName: u.slipStageName, files: [] })
+      }
+      groups[seen.get(key)!].files.push(u)
+    })
+    return groups
+  })()
 
   // Get the active layout definition
   const activeLayout = LAYOUT_OPTIONS.find(l => l.id === selectedLayout) || LAYOUT_OPTIONS[0]
@@ -709,6 +833,7 @@ export default function FileAttachmentModalContent({
   // Zoom state per viewer cell (keyed by url)
   const [imageZoom, setImageZoom] = useState<Record<string, number>>({})
   const [imagePan, setImagePan] = useState<Record<string, { x: number; y: number }>>({})
+  const [imageRotation, setImageRotation] = useState<Record<string, number>>({})
 
   const handleImageZoomIn = (url: string) => {
     setImageZoom(prev => ({ ...prev, [url]: Math.min((prev[url] || 1) + 0.25, 5) }))
@@ -719,21 +844,29 @@ export default function FileAttachmentModalContent({
   const handleImageZoomReset = (url: string) => {
     setImageZoom(prev => ({ ...prev, [url]: 1 }))
     setImagePan(prev => ({ ...prev, [url]: { x: 0, y: 0 } }))
+    setImageRotation(prev => ({ ...prev, [url]: 0 }))
+  }
+  const handleImageRotateLeft = (url: string) => {
+    setImageRotation(prev => ({ ...prev, [url]: ((prev[url] || 0) - 90) % 360 }))
+  }
+  const handleImageRotateRight = (url: string) => {
+    setImageRotation(prev => ({ ...prev, [url]: ((prev[url] || 0) + 90) % 360 }))
   }
 
   // View file: open STL viewer pane with this file
   const handleViewFile = (url: string) => {
+    const alreadyIn = viewerItems.some(v => v.url === url)
+    if (alreadyIn) {
+      setViewerItems(prev => prev.filter(v => v.url !== url))
+      setViewerStlUrls(prev => prev.filter(u => u !== url))
+      if (viewing3dUrl === url) setViewing3dUrl(null)
+      return
+    }
     setViewing3dUrl(url)
     const item = simulatedUploads.find(u => u.url === url)
     const itemType: "stl" | "image" = item?.type === "image" ? "image" : "stl"
-    // Auto-add to viewer items if not already present
-    if (!viewerItems.find(v => v.url === url)) {
-      setViewerItems(prev => [...prev, { url, type: itemType }])
-    }
-    // Keep legacy viewerStlUrls in sync for checkbox highlights
-    if (!viewerStlUrls.includes(url) && itemType === "stl") {
-      setViewerStlUrls(prev => [...prev, url])
-    }
+    setViewerItems(prev => [...prev, { url, type: itemType }])
+    if (itemType === "stl") setViewerStlUrls(prev => [...prev, url])
   }
 
   // Add to Viewer: add selected STL files + selected images (up to layout cell count)
@@ -760,11 +893,23 @@ export default function FileAttachmentModalContent({
     }
   }
 
+  const handleClearSelectedFiles = () => {
+    setViewerItems([])
+    setViewerStlUrls([])
+    setSelectedStlUrls([])
+    setSelectedImageThumbnailUrls([])
+    setViewing3dUrl(null)
+  }
+
   // Clear display
   const displaySlipId = slipId ? String(slipId) : "------"
 
   // Is viewer panel open
   const isViewerOpen = viewing3dUrl !== null
+  const hasSelectedFiles =
+    viewerItems.length > 0 ||
+    selectedStlUrls.length > 0 ||
+    selectedImageThumbnailUrls.length > 0
 
   // Notify parent when viewer opens/closes so dialog can resize
   useEffect(() => {
@@ -915,14 +1060,28 @@ export default function FileAttachmentModalContent({
       {/* ===== Row 2: Profile / doctor info bar ===== */}
       <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 bg-gray-50">
         <div className="flex items-center gap-6">
-          {slipId && <span className="text-sm text-gray-700">Slip #<span className="font-semibold text-gray-900">{slipId}</span></span>}
+          {caseId
+            ? caseNumber && <span className="text-sm text-gray-700">Case #<span className="font-semibold text-gray-900">{caseNumber}</span></span>
+            : slipId && <span className="text-sm text-gray-700">Slip #<span className="font-semibold text-gray-900">{slipId}</span></span>
+          }
           <span className="font-semibold text-sm">Dr: {doctorName || "-"}</span>
           <span className="text-sm text-gray-700">Patient: {patientName || "-"}</span>
           <span className="text-xs text-gray-500">Total Size: {totalSizeMB} MB</span>
         </div>
         <div className="flex items-center gap-2">
-          {stages.length > 0 && (
-            <Select value={stageFilter} onValueChange={setStageFilter} disabled={isCaseSubmitted}>
+          {hasSelectedFiles && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-[11px] px-2.5 text-gray-600 border-gray-300 hover:bg-gray-50"
+              onClick={handleClearSelectedFiles}
+            >
+              <X className="w-3 h-3 mr-1" />
+              Clear Selected
+            </Button>
+          )}
+	          {stages.length > 0 && (
+	            <Select value={stageFilter} onValueChange={setStageFilter} disabled={isCaseSubmitted}>
               <SelectTrigger className="w-[110px] h-7 text-[11px]">
                 <SelectValue />
               </SelectTrigger>
@@ -959,63 +1118,158 @@ export default function FileAttachmentModalContent({
         </div>
       </div>
 
-      {/* ===== Row 3: Thumbnail strip — full width (upload zone first, then files) ===== */}
-      <div className="relative flex gap-3 px-4 py-3 border-b overflow-x-auto flex-shrink-0 bg-white" style={{ minHeight: "110px" }}>
-        {addingFiles && (
-          <div className="absolute inset-0 z-20 bg-white/70 flex items-center justify-center gap-2">
-            <svg className="animate-spin w-4 h-4 text-[#1162A8]" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            <span className="text-xs text-[#1162A8] font-medium">Adding files…</span>
-          </div>
-        )}
-        {/* Upload drop zone as first thumbnail slot */}
-        <div
-          className="flex-shrink-0 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 transition-colors bg-gray-50"
-          style={{ width: "180px", height: "90px" }}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onClick={handleUploadButtonClick}
-        >
-          <Upload className="text-gray-400 w-5 h-5 mb-1" />
-          <p className="text-gray-400 text-[9px] leading-tight text-center">Drop or<br />browse files</p>
-        </div>
-
-        {viewerItems.map((item, idx) => (
-          <div
-            key={item.url}
-            draggable
-            onDragStart={() => handleThumbDragStart(idx)}
-            onDragOver={(e) => handleThumbDragOver(e, idx)}
-            onDrop={handleThumbDrop}
-            onClick={() => handleThumbClick(idx)}
-            className="flex-shrink-0 rounded-xl border-2 overflow-hidden relative group/thumb shadow-sm select-none"
-            style={{
-              width: "140px",
-              height: "90px",
-              borderColor: (isSingleLayout ? idx === 0 : false) ? "#1162A8" : "#e5e7eb",
-              cursor: isSingleLayout ? (idx === 0 ? "default" : "pointer") : "grab",
-            }}
-          >
-            {item.type === "image" ? (
-              <img src={toProxiedFileUrl(item.url)} className="w-full h-full object-cover pointer-events-none" alt={`Viewer ${idx + 1}`} />
-            ) : (
-              <div className="w-full h-full bg-[#2a3a4a] flex items-center justify-center pointer-events-none">
-                <Box className="w-8 h-8 text-yellow-400" />
-              </div>
-            )}
-            <div className="absolute top-1 left-1 bg-black/50 text-white text-[8px] font-medium px-1.5 py-0.5 rounded-full">
-              {idx + 1}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ===== Row 4: Main body — canvas | controls ===== */}
+      {/* ===== Row 3 + 4: Slip pills + Canvas | Controls ===== */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
 
-        {/* Center: 3D canvas / image viewer */}
+        {/* Center: pills bar + 3D canvas / image viewer */}
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+
+          {/* Slip pills */}
+          {slipGroups.length > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-white overflow-x-auto flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveSlipKey(null)}
+                className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
+                  activeSlipKey === null
+                    ? "bg-[#1162A8] text-white border-[#1162A8]"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-[#1162A8] hover:text-[#1162A8]"
+                }`}
+              >
+                All
+              </button>
+              {slipGroups.map((group) => (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => setActiveSlipKey(group.key === activeSlipKey ? null : group.key)}
+                  className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
+                    activeSlipKey === group.key
+                      ? "bg-[#1162A8] text-white border-[#1162A8]"
+                      : "bg-white text-gray-600 border-gray-300 hover:border-[#1162A8] hover:text-[#1162A8]"
+                  }`}
+                >
+                  {group.key === "case"
+                    ? "Case Attachments"
+                    : group.stageName
+                      ? `${group.stageName} – Slip #${group.slipNumber ?? group.key}`
+                      : `Slip #${group.slipNumber ?? group.key}`}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* File strip — below pills, above canvas */}
+          <div className="flex-shrink-0 border-b bg-white">
+            <div className="flex items-end gap-2.5 px-4 py-2.5 overflow-x-auto">
+              {!isCaseSubmitted && (
+                <button
+                  type="button"
+                  className="flex-shrink-0 w-[120px] h-[120px] rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 hover:border-[#1162A8] hover:bg-blue-50 transition text-gray-400 hover:text-[#1162A8]"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="text-[9px] font-medium">Add Files</span>
+                </button>
+              )}
+              {filteredUploads.length === 0 && isCaseSubmitted && (
+                <div className="text-gray-400 text-xs py-1">No files</div>
+              )}
+              {filteredUploads.map((upload, idx) => {
+                const isInViewer = viewerItems.some(v => v.url === upload.url)
+                const isImage = upload.type === "image"
+                const uploadDate = upload.file.lastModified
+                  ? new Date(upload.file.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : null
+                return (
+                  <div
+                    key={upload.url}
+                    draggable
+                    onDragStart={() => { dragFileIdx.current = idx }}
+                    onDragOver={(e) => { e.preventDefault(); dragOverFileIdx.current = idx }}
+                    onDrop={() => {
+                      const from = dragFileIdx.current
+                      const to = dragOverFileIdx.current
+                      if (from === null || to === null || from === to) return
+                      setFileOrder(prev => {
+                        const urls = filteredUploads.map(u => u.url)
+                        const next = [...urls]
+                        const [moved] = next.splice(from, 1)
+                        next.splice(to, 0, moved)
+                        const allUrls = visibleUploads.map(u => u.url)
+                        const filteredSet = new Set(urls)
+                        let ni = 0
+                        return allUrls.map(u => filteredSet.has(u) ? next[ni++] : u)
+                      })
+                      dragFileIdx.current = null
+                      dragOverFileIdx.current = null
+                    }}
+                    onDragEnd={() => { dragFileIdx.current = null; dragOverFileIdx.current = null }}
+                    className={`flex-shrink-0 w-[120px] rounded-lg border cursor-grab active:cursor-grabbing select-none group ${
+                      isInViewer ? "ring-2 ring-[#1162A8] border-[#1162A8]" : "border-gray-200 hover:border-gray-400"
+                    } ${upload.archived ? "opacity-60" : ""}`}
+                    onClick={() => handleToggleFileInViewer(upload.url)}
+                  >
+                    <div className="relative h-[88px] bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
+                      {isImage ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={toProxiedFileUrl(upload.url)} alt={upload.file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <Box className="w-8 h-8 text-gray-300" />
+                      )}
+                      {isInViewer && (
+                        <div className="absolute inset-0 bg-[#1162A8]/15 pointer-events-none">
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#1162A8] flex items-center justify-center">
+                            <Eye className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        className={`absolute bottom-1.5 right-1.5 flex items-center gap-1 transition-opacity ${
+                          isInViewer ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                        }`}
+                      >
+                        {upload.remoteId && (
+                          <button
+                            type="button"
+                            className="w-6 h-6 rounded-md bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8] hover:bg-white"
+                            title={upload.archived ? "Unarchive file" : "Archive file"}
+                            aria-label={upload.archived ? "Unarchive file" : "Archive file"}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleToggleArchive(upload)
+                            }}
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {upload.url && (
+                          <button
+                            type="button"
+                            className="w-6 h-6 rounded-md bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8] hover:bg-white"
+                            title="Download file"
+                            aria-label="Download file"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDownloadFile(upload)
+                            }}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="px-2 py-1.5">
+                      <div className="truncate text-[9px] font-medium text-gray-700">{upload.file.name || "File"}</div>
+                      {uploadDate && <div className="truncate text-[8px] text-gray-400 mt-0.5">{uploadDate}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+        {/* 3D canvas / image viewer */}
         <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden bg-[#e9ecef]">
           {viewerItems.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
@@ -1086,7 +1340,7 @@ export default function FileAttachmentModalContent({
                           draggable={false}
                           referrerPolicy="no-referrer"
                           style={{
-                            transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px)`,
+                            transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px) rotate(${imageRotation[item.url] || 0}deg)`,
                             transformOrigin: "center center",
                           }}
                         />
@@ -1110,8 +1364,22 @@ export default function FileAttachmentModalContent({
                           </button>
                           <button
                             className="p-0.5 hover:bg-white/20 rounded text-white transition"
+                            onClick={(e) => { e.stopPropagation(); handleImageRotateLeft(item.url) }}
+                            title="Rotate left"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                          <button
+                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
+                            onClick={(e) => { e.stopPropagation(); handleImageRotateRight(item.url) }}
+                            title="Rotate right"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                          <button
+                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
                             onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}
-                            title="Reset zoom"
+                            title="Reset view"
                           >
                             <RotateCcw className="w-3 h-3" />
                           </button>
@@ -1132,6 +1400,7 @@ export default function FileAttachmentModalContent({
               })}
             </div>
           )}
+        </div>
         </div>
 
         {/* Right: Controls sidebar */}
@@ -1359,15 +1628,17 @@ export default function FileAttachmentModalContent({
                             window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp)
                           }}
                         >
-                          <img src={item.url} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain select-none" draggable={false} referrerPolicy="no-referrer"
-                            style={{ transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px)`, transformOrigin: "center center" }}
-                          />
-                          <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1 z-20">
-                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }}><ZoomOut className="w-4 h-4" /></button>
-                            <span className="text-white text-xs font-medium min-w-[36px] text-center">{Math.round((imageZoom[item.url] || 1) * 100)}%</span>
-                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }}><ZoomIn className="w-4 h-4" /></button>
-                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}><RotateCcw className="w-3.5 h-3.5" /></button>
-                          </div>
+	                          <img src={toProxiedFileUrl(item.url)} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain select-none" draggable={false} referrerPolicy="no-referrer"
+	                            style={{ transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px) rotate(${imageRotation[item.url] || 0}deg)`, transformOrigin: "center center" }}
+	                          />
+	                          <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1 z-20">
+	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }}><ZoomOut className="w-4 h-4" /></button>
+	                            <span className="text-white text-xs font-medium min-w-[36px] text-center">{Math.round((imageZoom[item.url] || 1) * 100)}%</span>
+	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }}><ZoomIn className="w-4 h-4" /></button>
+	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" title="Rotate left" onClick={(e) => { e.stopPropagation(); handleImageRotateLeft(item.url) }}><RotateCcw className="w-3.5 h-3.5" /></button>
+	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" title="Rotate right" onClick={(e) => { e.stopPropagation(); handleImageRotateRight(item.url) }}><RotateCw className="w-3.5 h-3.5" /></button>
+	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}><RotateCcw className="w-3.5 h-3.5" /></button>
+	                          </div>
                         </div>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">{idx === 0 ? "Select a file to preview" : `Cell ${idx + 1}`}</div>

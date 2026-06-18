@@ -60,15 +60,13 @@ import {
   slipListingIconButtonClass,
 } from "@/components/slip-listing/slip-listing-icon-hover"
 import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
-import {
-  SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON,
-  SlipListingViewSlipLink,
-} from "@/components/slip-listing/SlipListingViewSlipLink"
+import { SlipListingViewSlipLink } from "@/components/slip-listing/SlipListingViewSlipLink"
 import { SlipListingLocationIconSlot } from "@/components/slip-listing/SlipListingLocationIconSlot"
 import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
 import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
 import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
+import { SlipListingStatusTabs, slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import { useDebounce } from "@/lib/performance-utils"
 
@@ -172,7 +170,12 @@ export default function LabSlipPage() {
   const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
-  const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
+  const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
+    caseId: number
+    caseNumber: string
+    patient: string
+    doctor: string
+  } | null>(null)
   const [showChangeDateModal, setShowChangeDateModal] = useState(false)
   const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<any>(null)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
@@ -271,7 +274,17 @@ export default function LabSlipPage() {
   const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode))), [slips])
   const allStatuses = useMemo(() => {
     const fromSlips = slips.map((s) => s.status).filter(Boolean) as string[]
-    return Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...fromSlips]))
+    // Canonical API values first so they win de-duplication; collapse entries that
+    // share a friendly label (e.g. raw "On process" vs display "In Progress").
+    const seenLabels = new Set<string>()
+    const result: string[] = []
+    for (const status of [...LAB_SLIP_STATUS_OPTIONS, ...fromSlips]) {
+      const label = slipListingStatusLabel(status)
+      if (seenLabels.has(label)) continue
+      seenLabels.add(label)
+      result.push(status)
+    }
+    return result
   }, [slips])
   const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
   const allUsers = useMemo(() => Array.from(new Set(slips.map((s) => s.user || "Unknown"))), [slips])
@@ -290,6 +303,16 @@ export default function LabSlipPage() {
 
   const totalListingCount = labListingPagination?.total ?? clientFilteredSlips.length
   const maxPage = Math.max(1, labListingPagination?.last_page ?? 1)
+  // Visible table columns after consolidation: checkbox + Patient/Slip + Office + Pan/Product + Status + Location + Due.
+  // Actions are a hover overlay (no column), so they are not counted here.
+  const listingColumnCount =
+    1 +
+    (visibleColumns.patient || visibleColumns.slipNumber ? 1 : 0) +
+    (visibleColumns.office ? 1 : 0) +
+    (visibleColumns.pan || visibleColumns.product ? 1 : 0) +
+    (visibleColumns.status ? 1 : 0) +
+    (visibleColumns.location ? 1 : 0) +
+    (visibleColumns.due ? 1 : 0)
   const slipsPage = clientFilteredSlips
   /** Alias for the current page rows (server-filtered). Fixes legacy references to `filteredSlips`. */
   const filteredSlips = clientFilteredSlips
@@ -326,32 +349,13 @@ export default function LabSlipPage() {
   }
 
   const handleAttachmentClick = (slip: any) => {
-    setSelectedSlipForAttachment(slip)
-    setShowAttachModal(true)
-  }
-
-  const handleAttachmentsUploaded = (attachments: any[]) => {
-    if (!selectedSlipForAttachment?.id) return
-    updateSlipAttachmentState(selectedSlipForAttachment.id, attachments.length > 0)
-    const customerId = getLabCustomerId()
-    if (!customerId) return
-    void fetchLabSlips(customerId, {
-      q: debouncedSearch.trim() || undefined,
-      office_code: office !== "All" ? office : undefined,
-      status: status !== "All" ? status : undefined,
-      location_id: location !== "All" ? Number(location) : undefined,
-      has_attachments: showWithAttachments ? true : undefined,
-      product_name: productType !== "All" ? productType : undefined,
-      delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
-      delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
-      page: currentPage,
-      per_page: itemsPerPage,
+    setSelectedCaseForAttachment({
+      caseId: slip.caseId,
+      caseNumber: slip.caseNumber ?? "",
+      patient: slip.patient ?? "",
+      doctor: slip.doctor ?? "",
     })
-  }
-
-  const handleAttachmentStateChange = (hasAttachments: boolean) => {
-    if (!selectedSlipForAttachment?.id) return
-    updateSlipAttachmentState(selectedSlipForAttachment.id, hasAttachments)
+    setShowAttachModal(true)
   }
 
   const handleDateIconClick = (slip: any) => {
@@ -1047,14 +1051,18 @@ export default function LabSlipPage() {
 
       <div className="w-full px-4 pb-8">
         {/* Filter Bar */}
-        <div className="flex flex-wrap gap-3 items-center rounded-lg bg-white shadow-sm px-4 py-3">
+        <div className="rounded-lg bg-white shadow-sm px-4 py-3 space-y-3">
+          {/* Status tabs + full-width search */}
+          <SlipListingStatusTabs value={status} onChange={setStatus} />
           <Input
-            className="w-72 bg-white border-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500"
-            placeholder="Search by patient, office, doctor, case..."
+            className="w-full bg-white border-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500"
+            placeholder="Search patient, slip, office…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id)) }}
           />
+          {/* Secondary filters */}
+          <div className="flex flex-wrap gap-3 items-center">
           <Select value={office} onValueChange={setOffice}>
             <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
               <SelectValue placeholder="All offices" />
@@ -1070,7 +1078,7 @@ export default function LabSlipPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="All">All status</SelectItem>
-              {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{slipListingStatusLabel(s)}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={location} onValueChange={setLocation}>
@@ -1155,6 +1163,7 @@ export default function LabSlipPage() {
               </div>
             </PopoverContent>
           </Popover>
+          </div>
         </div>
 
         {/* Advanced Filter Section */}
@@ -1250,7 +1259,7 @@ export default function LabSlipPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All Status</SelectItem>
-                  {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{slipListingStatusLabel(s)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={office} onValueChange={setOffice}>
@@ -1420,10 +1429,10 @@ export default function LabSlipPage() {
 
         {/* Table */}
         <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white overflow-x-auto">
-          <table className="min-w-full text-base">
+          <table className="w-full text-base">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-3 py-1 w-12 whitespace-nowrap">
+                <th className="px-3 py-1 w-10 whitespace-nowrap">
                   <Checkbox
                     checked={selectAllHeaderChecked}
                     onCheckedChange={handleSelectAllPage}
@@ -1436,36 +1445,13 @@ export default function LabSlipPage() {
                     }}
                   />
                 </th>
-                {visibleColumns.timestamp && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
-                {visibleColumns.office && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Office Code</th>}
-                {visibleColumns.patient && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Patient</th>}
-                {visibleColumns.slipNumber && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Slip #</th>}
-                {visibleColumns.pan && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Pan</th>}
-                {visibleColumns.product && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Product</th>}
-                {visibleColumns.status && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
-                {visibleColumns.location && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
-                {visibleColumns.attachment && (
-                  <th className="px-3 py-1 text-center align-middle font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="Attachment">
-                    <div className="flex h-[30px] items-center justify-center">
-                      <SlipListingVsIcon
-                        src={`${VS_CENTER_ICONS}/attachments.svg`}
-                        hover={false}
-                      />
-                    </div>
-                  </th>
-                )}
-                {visibleColumns.viewSlip && (
-                  <th className="px-3 py-1 text-center align-middle font-medium text-gray-700 whitespace-nowrap" scope="col" aria-label="View virtual slip">
-                    <div className="flex h-[30px] items-center justify-center">
-                      <SlipListingVsIcon
-                        src={SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON}
-                        hover={false}
-                      />
-                    </div>
-                  </th>
-                )}
-                {visibleColumns.due && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
-                {visibleColumns.actions && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Actions</th>}
+                {(visibleColumns.patient || visibleColumns.slipNumber) && <th className="px-3 py-2 text-left font-medium text-gray-700 w-[30%]">Patient / Slip</th>}
+                {visibleColumns.office && <th className="px-3 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Office</th>}
+                {(visibleColumns.pan || visibleColumns.product) && <th className="px-6 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Pan / Product</th>}
+                {visibleColumns.status && <th className="px-6 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Status</th>}
+                {visibleColumns.location && <th className="px-6 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Location</th>}
+                {visibleColumns.due && <th className="px-6 py-2 text-left font-medium text-gray-700 whitespace-nowrap">Due date</th>}
+                {visibleColumns.actions && <th className="pl-4 pr-0 py-2 whitespace-nowrap" aria-hidden="true" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -1473,95 +1459,48 @@ export default function LabSlipPage() {
                 // Skeleton loading rows
                 Array.from({ length: itemsPerPage }).map((_, idx) => (
                   <tr key={`skeleton-${idx}`} className="hover:bg-gray-50">
-                    <td className="px-3 py-1 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap">
                       <Skeleton className="h-4 w-4" />
                     </td>
-                    {visibleColumns.timestamp && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-4 w-32" />
+                    {(visibleColumns.patient || visibleColumns.slipNumber) && (
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <Skeleton className="h-4 w-32 mb-1" />
+                        <Skeleton className="h-3 w-24" />
                       </td>
                     )}
                     {visibleColumns.office && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-4 w-24" />
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <Skeleton className="h-4 w-16" />
                       </td>
                     )}
-                    {visibleColumns.patient && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-4 w-32" />
-                      </td>
-                    )}
-                    {visibleColumns.slipNumber && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-4 w-24" />
-                      </td>
-                    )}
-                    {visibleColumns.pan && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-5 w-12 rounded" />
-                      </td>
-                    )}
-                    {visibleColumns.product && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-4 w-40" />
+                    {(visibleColumns.pan || visibleColumns.product) && (
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <Skeleton className="h-5 w-12 rounded mb-1" />
+                        <Skeleton className="h-3 w-20" />
                       </td>
                     )}
                     {visibleColumns.status && (
-                      <td className="px-3 py-1 whitespace-nowrap">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
                         <Skeleton className="h-5 w-20 rounded-full" />
                       </td>
                     )}
                     {visibleColumns.location && (
-                      <td className="px-3 py-1 whitespace-nowrap">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
                         <Skeleton className="h-4 w-48" />
                       </td>
                     )}
-                    {visibleColumns.attachment && (
-                      <td className="px-3 py-1 text-center whitespace-nowrap">
-                        <Skeleton className="h-4 w-4 mx-auto" />
-                      </td>
-                    )}
-                    {visibleColumns.viewSlip && (
-                      <td className="px-3 py-1 text-center whitespace-nowrap">
-                        <Skeleton className="h-4 w-4 mx-auto" />
-                      </td>
-                    )}
                     {visibleColumns.due && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <Skeleton className="h-4 w-28" />
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <Skeleton className="h-4 w-24" />
                       </td>
                     )}
-                    {visibleColumns.actions && (
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          <Skeleton className="h-6 w-6 rounded" />
-                          <Skeleton className="h-6 w-6 rounded" />
-                          <Skeleton className="h-6 w-6 rounded" />
-                          <Skeleton className="h-6 w-6 rounded" />
-                          <Skeleton className="h-6 w-6 rounded" />
-                        </div>
-                      </td>
-                    )}
+                    {visibleColumns.actions && <td className="pl-4 pr-0 py-2.5" />}
                   </tr>
                 ))
               ) : slipsPage.length === 0 ? (
                 <tr>
-                  <td 
-                    colSpan={
-                      1 + // checkbox column
-                      (visibleColumns.timestamp ? 1 : 0) +
-                      (visibleColumns.office ? 1 : 0) +
-                      (visibleColumns.patient ? 1 : 0) +
-                      (visibleColumns.slipNumber ? 1 : 0) +
-                      (visibleColumns.pan ? 1 : 0) +
-                      (visibleColumns.product ? 1 : 0) +
-                      (visibleColumns.status ? 1 : 0) +
-                      (visibleColumns.location ? 1 : 0) +
-                      (visibleColumns.attachment ? 1 : 0) +
-                      (visibleColumns.viewSlip ? 1 : 0) +
-                      (visibleColumns.due ? 1 : 0) +
-                      (visibleColumns.actions ? 1 : 0)
-                    } 
+                  <td
+                    colSpan={listingColumnCount}
                     className="py-8 text-center text-gray-500"
                   >
                     No slips found for selected filters.
@@ -1576,7 +1515,7 @@ export default function LabSlipPage() {
                       rush: row.rush,
                     })}
                   >
-                    <td className="px-3 py-1 whitespace-nowrap">
+                    <td className="px-3 py-2.5 whitespace-nowrap align-top">
                       <Checkbox
                         checked={selected.includes(row.id)}
                         onCheckedChange={() =>
@@ -1593,50 +1532,49 @@ export default function LabSlipPage() {
                         }}
                       />
                     </td>
-                    {visibleColumns.timestamp && (
-                      <td className="px-3 py-1 whitespace-nowrap text-base text-black">
-                        {row.createdAt}
+                    {(visibleColumns.patient || visibleColumns.slipNumber) && (
+                      <td className="px-3 py-2.5 whitespace-nowrap align-top">
+                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell" className="hover:no-underline">
+                          {visibleColumns.patient && (
+                            <span className="block font-semibold text-gray-900 text-base">
+                              {formatSlipListingPatientName(row.patient)}
+                            </span>
+                          )}
+                          {visibleColumns.slipNumber && (
+                            <span className="block text-base text-gray-700">
+                              {row.slipNumber || "-"}
+                              {row.createdAt ? ` · ${row.createdAt}` : ""}
+                            </span>
+                          )}
+                        </SlipListingVirtualSlipLink>
                       </td>
                     )}
                     {visibleColumns.office && (
-                      <td className="px-3 py-1 whitespace-nowrap font-medium text-gray-900 text-base">
+                      <td className="px-3 py-2.5 whitespace-nowrap font-medium text-gray-900 text-base align-top">
                         <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
                           {row.officeCode}
                         </SlipListingVirtualSlipLink>
                       </td>
                     )}
-                    {visibleColumns.patient && (
-                      <td className="px-3 py-1 whitespace-nowrap text-gray-900 text-base">
-                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
-                          {formatSlipListingPatientName(row.patient)}
-                        </SlipListingVirtualSlipLink>
-                      </td>
-                    )}
-                    {visibleColumns.slipNumber && (
-                      <td className="px-3 py-1 whitespace-nowrap text-gray-900 font-mono text-base">
-                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
-                          {row.slipNumber || "-"}
-                        </SlipListingVirtualSlipLink>
-                      </td>
-                    )}
-                    {visibleColumns.pan &&
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <span
-                          className={`inline-block w-12 text-center py-0.5 rounded text-white font-mono text-base`}
-                          style={row.panColorStyle}
-                        >
-                          {row.pan}
+                    {(visibleColumns.pan || visibleColumns.product) && (
+                      <td className="px-6 py-2.5 whitespace-nowrap align-top">
+                        <span className="inline-flex items-center gap-1.5">
+                          {visibleColumns.pan && (
+                            <span
+                              className="inline-block w-12 text-center py-0.5 rounded text-white font-mono text-sm flex-shrink-0"
+                              style={row.panColorStyle}
+                            >
+                              {row.pan}
+                            </span>
+                          )}
+                          {visibleColumns.product && (
+                            <span className="text-sm text-gray-600">{row.product}</span>
+                          )}
                         </span>
-                      </td>}
-                    {visibleColumns.product && (
-                      <td className="px-3 py-1 whitespace-nowrap text-gray-900 text-base">
-                        <SlipListingVirtualSlipLink slipId={row.id} variant="cell">
-                          {row.product}
-                        </SlipListingVirtualSlipLink>
                       </td>
                     )}
                     {visibleColumns.status &&
-                      <td className="px-3 py-1 whitespace-nowrap">
+                      <td className="px-6 py-2.5 whitespace-nowrap align-top">
                         <div className="flex gap-1.5 items-center">
                           {row.rush && (
                             <SlipListingStatusBadge tone="rush" className="flex items-center gap-0.5 border-0 text-base">
@@ -1664,7 +1602,7 @@ export default function LabSlipPage() {
                         </div>
                       </td>}
                     {visibleColumns.location &&
-                      <td className="px-3 py-1 whitespace-nowrap">
+                      <td className="px-6 py-2.5 whitespace-nowrap align-top">
                         {rowAtSlipLocation(row, 1) && (
                           <span className="inline-flex items-center gap-1.5 text-green-700">
                             <SlipListingLocationIconSlot>
@@ -1779,10 +1717,36 @@ export default function LabSlipPage() {
 
 
                       </td>}
-                    {visibleColumns.attachment &&
-                      <td className="px-3 py-1 text-center align-middle whitespace-nowrap">
-                        <div className="flex h-[30px] items-center justify-center">
-                          {row.attachment ? (
+                    {visibleColumns.due &&
+                      <td className="px-6 py-2.5 whitespace-nowrap align-top">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDateIconClick(row)
+                            }}
+                            className={slipListingIconButtonClass("flex-shrink-0")}
+                            title="Change due date"
+                          >
+                            <SlipListingCalendarIcon />
+                          </button>
+                          <SlipListingDueDateLabel dueDate={row.dueDate} variant="compact" className="text-sm" />
+                          {row.rush && <span className="text-red-500 flex-shrink-0">
+                            <svg width="10" height="12" viewBox="0 0 16 19" fill="none">
+                              <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 7.91504L8.71094 7.91504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </span>}
+                        </div>
+                      </td>}
+                    {visibleColumns.actions &&
+                      <td className="pl-4 pr-0 py-2.5 align-middle whitespace-nowrap">
+                        <div className="pointer-events-none opacity-0 inline-flex w-fit items-center gap-4 rounded-xl border border-gray-200 bg-white/95 px-5 py-2 shadow-sm transition-opacity duration-100 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+                          {visibleColumns.viewSlip && (
+                            <div className="flex h-[30px] w-[30px] items-center justify-center">
+                              <SlipListingViewSlipLink slipId={row.id} />
+                            </div>
+                          )}
+                          {visibleColumns.attachment && row.attachment && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1796,39 +1760,7 @@ export default function LabSlipPage() {
                             >
                               <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
                             </button>
-                          ) : null}
-                        </div>
-                      </td>}
-                    {visibleColumns.viewSlip &&
-                      <td className="px-3 py-1 text-center align-middle whitespace-nowrap">
-                        <div className="flex h-[30px] items-center justify-center">
-                          <SlipListingViewSlipLink slipId={row.id} />
-                        </div>
-                      </td>}
-                    {visibleColumns.due &&
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDateIconClick(row)
-                            }}
-                            className={slipListingIconButtonClass("flex-shrink-0")}
-                            title="Change due date"
-                          >
-                            <SlipListingCalendarIcon />
-                          </button>
-                          <SlipListingDueDateLabel dueDate={row.dueDate} />
-                          {row.rush && <span className="text-red-500 flex-shrink-0">
-                            <svg width="10" height="12" viewBox="0 0 16 19" fill="none">
-                              <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 7.91504L8.71094 7.91504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          </span>}
-                        </div>
-                      </td>}
-                    {visibleColumns.actions &&
-                      <td className="px-3 py-1 whitespace-nowrap">
-                        <div className="flex items-center gap-0.5">
+                          )}
                           <Popover open={printDropdownOpen === row.id} onOpenChange={open => setPrintDropdownOpen(open ? row.id : null)}>
                             <PopoverTrigger asChild>
                               <Button
@@ -1957,6 +1889,11 @@ export default function LabSlipPage() {
           </table>
         </div>
 
+        {/* Helper hint */}
+        <p className="mt-2 text-xs text-gray-500">
+          Hover a row to reveal actions · Paperclip shows when attachments exist · Click a row to open the case
+        </p>
+
         {/* Pagination at Bottom */}
         <div className="flex items-center justify-between mt-2 border-t border-gray-200 pt-2">
           <div className="text-sm text-gray-600">
@@ -2023,22 +1960,18 @@ export default function LabSlipPage() {
         </Dialog>
 
         {/* File Attachment Modal */}
-        {showAttachModal && selectedSlipForAttachment && typeof document !== "undefined" && createPortal(
-          <div
-            className="fixed inset-0 z-[9999] bg-white"
-            style={{ width: "100vw", height: "100vh" }}
-            role="dialog"
-            aria-modal="true"
-            aria-label="File Attachments"
-          >
+        {showAttachModal && selectedCaseForAttachment && createPortal(
+          <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
             <FileAttachmentModalContent
-              setShowAttachModal={setShowAttachModal}
-              isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
-              slipId={selectedSlipForAttachment.id}
-              doctorName={selectedSlipForAttachment.doctor}
-              patientName={selectedSlipForAttachment.patient}
-              onAttachmentsUploaded={handleAttachmentsUploaded}
-              onAttachmentStateChange={handleAttachmentStateChange}
+              setShowAttachModal={(show) => {
+                setShowAttachModal(show)
+                if (!show) setSelectedCaseForAttachment(null)
+              }}
+              isCaseSubmitted={false}
+              caseId={selectedCaseForAttachment.caseId}
+              caseNumber={selectedCaseForAttachment.caseNumber}
+              doctorName={selectedCaseForAttachment.doctor}
+              patientName={selectedCaseForAttachment.patient}
               open={showAttachModal}
             />
           </div>,

@@ -165,7 +165,8 @@ export function PaperSlipPrintPageShell({
   }
 
   return (
-    <div ref={printRootRef}>
+    // ponytail: invisible until printed so browser shows print dialog directly; print media ignores visibility
+    <div ref={printRootRef} className={printed ? undefined : "invisible"}>
       {showPrintButton ? (
         <div className="fixed right-6 top-6 z-50 print:hidden">
           <Button

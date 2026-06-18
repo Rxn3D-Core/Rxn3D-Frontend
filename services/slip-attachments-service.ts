@@ -89,10 +89,17 @@ export type CaseAttachmentsData = {
   case_status: string;
   created_at: string;
   updated_at: string;
+  summary?: {
+    case_attachment_count: number;
+    slip_attachment_count: number;
+    total_count: number;
+  };
   lab?: { id: number; name: string };
   office?: { id: number; name: string };
   doctor?: { id: number; name: string };
   created_by?: { id: number; name: string };
+  all_attachments?: SlipAttachmentRecord[];
+  case_attachments?: SlipAttachmentRecord[];
   slips: CaseAttachmentSlip[];
 };
 
