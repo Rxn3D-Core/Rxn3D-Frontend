@@ -47,8 +47,8 @@ interface ToothStatusBoxesProps {
   compact?: boolean;
 }
 
-const CleanToothSVG = ({ size = 38 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const CleanToothSVG = ({ width = 40, height = 50 }: { width?: number; height?: number }) => (
+  <svg width={width} height={height} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F2F2F2"
@@ -60,8 +60,8 @@ const CleanToothSVG = ({ size = 38 }: { size?: number }) => (
   </svg>
 );
 
-const RedXToothSVG = ({ size = 38 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const RedXToothSVG = ({ width = 40, height = 50 }: { width?: number; height?: number }) => (
+  <svg width={width} height={height} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F5EFEB"
@@ -73,8 +73,8 @@ const RedXToothSVG = ({ size = 38 }: { size?: number }) => (
   </svg>
 );
 
-const FixRepairSVG = ({ size = 38 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const FixRepairSVG = ({ width = 40, height = 50 }: { width?: number; height?: number }) => (
+  <svg width={width} height={height} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F2F2F2"
@@ -87,8 +87,8 @@ const FixRepairSVG = ({ size = 38 }: { size?: number }) => (
   </svg>
 );
 
-const ClaspsSVG = ({ size = 38 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+const ClaspsSVG = ({ width = 40, height = 50 }: { width?: number; height?: number }) => (
+  <svg width={width} height={height} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M18 4C14.5 4 11 6.5 11 12C11 15.5 12 18.5 13 22C13.5 23.5 13 25.5 12.5 27.5C12.2 28.7 13.5 30 14.8 29.5C16.5 28.8 17.2 27 18 27C18.8 27 19.5 28.8 21.2 29.5C22.5 30 23.8 28.7 23.5 27.5C23 25.5 22.5 23.5 23 22C24 18.5 25 15.5 25 12C25 6.5 21.5 4 18 4Z"
       fill="#F2F2F2"
@@ -101,21 +101,21 @@ const ClaspsSVG = ({ size = 38 }: { size?: number }) => (
   </svg>
 );
 
-function getExtractionIcon(code: string, name: string, iconSize = 38) {
+function getExtractionIcon(code: string, name: string, width = 40, height = 50) {
   const lowerName = (name || "").toLowerCase();
   if (code === "MT" || lowerName.includes("missing")) {
-    return <CleanToothSVG size={iconSize} />;
+    return <CleanToothSVG width={width} height={height} />;
   }
   if (code === "WE" || lowerName.includes("extract")) {
-    return <RedXToothSVG size={iconSize} />;
+    return <RedXToothSVG width={width} height={height} />;
   }
   if (code === "FR" || code === "RP" || lowerName.includes("fix") || lowerName.includes("repair")) {
-    return <FixRepairSVG size={iconSize} />;
+    return <FixRepairSVG width={width} height={height} />;
   }
   if (code === "CL" || lowerName.includes("clasp")) {
-    return <ClaspsSVG size={iconSize} />;
+    return <ClaspsSVG width={width} height={height} />;
   }
-  return <CleanToothSVG size={iconSize} />;
+  return <CleanToothSVG width={width} height={height} />;
 }
 
 /** Unassigned teeth (not in toothExtractionMap) belong to the is_tim extraction bucket. */
@@ -215,16 +215,13 @@ export function ToothStatusBoxes({
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
   const isInteractive = !submitted && !grayed;
-  const iconSize = compact ? 26 : 38;
-  const imgWidth = compact ? 26 : 50;
-  const imgHeight = compact ? 30 : 70;
-  const iconLeft = compact ? -10 : -20;
+  const iconWidth = compact ? 26 : 40;
+  const iconHeight = compact ? 30 : 50;
+  const iconLeft = compact ? -10 : -18;
   const boxMinHeight = compact ? 40 : 50;
   const boxMinWidth = compact ? 120 : 148;
-  const boxPadding = compact ? "4px 10px 4px 28px" : "8px 14px 8px 44px";
-  const emptyIconW = compact ? 26 : 50;
-  const emptyIconH = compact ? 30 : 70;
-  const iconMaxHeight = compact ? boxMinHeight - 8 : undefined;
+  const boxPadding = compact ? "4px 10px 4px 28px" : "8px 12px 8px 36px";
+  const iconMaxHeight = compact ? boxMinHeight - 8 : iconHeight;
   const formatBoxTeethLabel = (teeth: number[]) =>
     compact
       ? formatToothNumbersLabel(teeth, { separator: ", " })
@@ -262,8 +259,8 @@ export function ToothStatusBoxes({
             <img
               alt=""
               loading="lazy"
-              width={imgWidth}
-              height={imgHeight}
+              width={iconWidth}
+              height={iconHeight}
               decoding="async"
               src={extraction.image_url}
               style={{
@@ -274,9 +271,10 @@ export function ToothStatusBoxes({
                 top: "50%",
                 transform: "translateY(-50%)",
                 objectFit: "contain",
-                ...(iconMaxHeight != null
-                  ? { maxHeight: `${iconMaxHeight}px`, maxWidth: `${imgWidth}px` }
-                  : {}),
+                width: `${iconWidth}px`,
+                height: `${iconHeight}px`,
+                maxHeight: `${iconMaxHeight}px`,
+                maxWidth: `${iconWidth}px`,
               }}
             />
           ) : (
@@ -287,12 +285,14 @@ export function ToothStatusBoxes({
                 top: "50%",
                 transform: "translateY(-50%)",
                 filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
-                ...(iconMaxHeight != null
-                  ? { height: `${iconMaxHeight}px`, width: `${imgWidth}px`, display: "flex", alignItems: "center", justifyContent: "center" }
-                  : {}),
+                width: `${iconWidth}px`,
+                height: `${iconHeight}px`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              {getExtractionIcon(extraction.code, extraction.name, iconSize)}
+              {getExtractionIcon(extraction.code, extraction.name, iconWidth, iconHeight)}
             </div>
           );
 
@@ -399,7 +399,7 @@ export function ToothStatusBoxes({
               key={extraction.id}
               aria-label={extraction.name}
               className={`flex items-center cursor-pointer transition-all duration-300 transform hover:scale-[1.05] relative select-none justify-center ${
-                compact ? "w-[26px] h-[30px]" : "w-[50px] h-[70px]"
+                compact ? "w-[26px] h-[30px]" : "w-[40px] h-[50px]"
               }`}
               onClick={toggleBox}
               {...hoverHandlers}
@@ -408,17 +408,19 @@ export function ToothStatusBoxes({
                 <img
                   src={extraction.image_url}
                   alt={extraction.name}
-                  width={imgWidth}
-                  height={imgHeight}
+                  width={iconWidth}
+                  height={iconHeight}
                   style={{
                     color: "transparent",
                     filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)",
                     objectFit: "contain",
+                    width: `${iconWidth}px`,
+                    height: `${iconHeight}px`,
                   }}
                 />
               ) : (
                 <div style={{ filter: "drop-shadow(rgba(35, 31, 32, 0.22) 5px 14px 13px)" }}>
-                  {getExtractionIcon(extraction.code, extraction.name, iconSize)}
+                  {getExtractionIcon(extraction.code, extraction.name, iconWidth, iconHeight)}
                 </div>
               )}
             </div>
