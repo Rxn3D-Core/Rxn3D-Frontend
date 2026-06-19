@@ -52,6 +52,7 @@ import {
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
 import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
+import { openPaperSlipPrintTab } from "@/lib/paper-slip-print-tab";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
@@ -357,8 +358,8 @@ export default function VirtualSlipV2Page() {
   const handlePrint = useCallback(() => {
     const printRoute = buildVirtualSlipPrintRoute(slipId);
     if (!printRoute) return;
-    router.push(printRoute);
-  }, [router, slipId]);
+    openPaperSlipPrintTab(printRoute);
+  }, [slipId]);
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
