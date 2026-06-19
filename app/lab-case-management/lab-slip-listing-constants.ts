@@ -14,7 +14,7 @@ export const SLIP_LOCATION_FILTER_OPTIONS = [
 /** Lab slip listing API `status` filter values (see API docs) */
 export const LAB_SLIP_STATUS_OPTIONS = [
   "Draft",
-  "On process",
+  "In Progress",
   "On hold",
   "cancelled",
   "Finished",

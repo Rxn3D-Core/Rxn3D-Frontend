@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 
 /** Tab label → API `status` filter value. "All" clears the status filter. */
 const STATUS_TABS = [
-  { label: "In Progress", value: "On process" },
+  { label: "In Progress", value: "In Progress" },
   { label: "On Hold", value: "On hold" },
   { label: "Cancelled", value: "cancelled" },
   { label: "Done", value: "Finished" },
@@ -10,7 +10,7 @@ const STATUS_TABS = [
 
 /** Friendly display labels for raw API `status` values (used by the status dropdown). */
 const STATUS_DISPLAY_LABELS: Record<string, string> = {
-  "On process": "In Progress",
+  "In Progress": "In Progress",
   "On hold": "On Hold",
   cancelled: "Cancelled",
   Finished: "Done",
@@ -42,12 +42,17 @@ export function SlipListingStatusTabs({ value, onChange, className }: SlipListin
             aria-selected={active}
             onClick={() => onChange(active ? "All" : tab.value)}
             className={cn(
-              "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
               active
                 ? "border-[#1162A8] bg-[#1162A8] text-white"
                 : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50",
             )}
           >
+            {active && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
             {tab.label}
           </button>
         )

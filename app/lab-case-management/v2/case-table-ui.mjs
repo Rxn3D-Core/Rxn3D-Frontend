@@ -35,6 +35,7 @@ export function getV2PaginationPages(currentPage, totalPages) {
   return Array.from({ length: windowSize }, (_, index) => startPage + index);
 }
 
-export function v2RowActionStripClass() {
-  return "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
+export function v2RowActionStripClass(isActive = false) {
+  const active = isActive ? "pointer-events-auto opacity-100" : "";
+  return `pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 ${active}`.trim();
 }

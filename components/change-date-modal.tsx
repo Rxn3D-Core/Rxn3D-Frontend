@@ -9,9 +9,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, X, MoreVertical, Info } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { X, MoreVertical, Info, CalendarIcon, Clock } from "lucide-react";
+import { format, parse } from "date-fns";
+
+// Generates HH:MM slots every 30 minutes
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+  const h = Math.floor(i / 2).toString().padStart(2, "0");
+  const m = i % 2 === 0 ? "00" : "30";
+  return `${h}:${m}`;
+});
+
+function formatTimeDisplay(val: string) {
+  if (!val) return "Pick a time";
+  const [h, m] = val.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon";
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -157,6 +179,7 @@ export default function ChangeDateModal({
         title: "Saved",
         description: res.message || "Custom delivery date created",
       });
+      onClose();
     } catch (error) {
       console.error("Error saving custom delivery date:", error);
       toast({
@@ -175,10 +198,10 @@ export default function ChangeDateModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent
-        className="max-w-4xl p-0 overflow-visible rounded-lg border-0"
+        className="w-[calc(100%-2rem)] max-w-4xl p-0 overflow-y-auto rounded-lg border-0"
         style={{ boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)" }}
       >
-        <DialogHeader className="px-8 pt-8 pb-0">
+        <DialogHeader className="px-4 sm:px-8 pt-6 sm:pt-8 pb-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <SlipListingCalendarIcon className="h-8 w-8" />
@@ -192,8 +215,8 @@ export default function ChangeDateModal({
           </div>
         </DialogHeader>
 
-        <div className="px-8 pt-6 pb-0">
-          <div className="flex items-center justify-between mb-8">
+        <div className="px-4 sm:px-8 pt-6 pb-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
             <div className="text-base">
               <div className="mb-2">
                 <span className="font-medium">Patient:</span>{" "}
@@ -209,17 +232,17 @@ export default function ChangeDateModal({
             </div>
           </div>
 
-          <div className="flex gap-6 mb-10 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 mb-8 sm:mb-10 sm:justify-center">
             <Button
               variant="outline"
               disabled
-              className="rounded-xl border-gray-300 font-medium text-gray-400 bg-gray-50 cursor-not-allowed px-8 py-4 text-lg min-w-[180px]"
+              className="rounded-xl border-gray-300 font-medium text-gray-400 bg-gray-50 cursor-not-allowed px-8 py-4 text-lg w-full sm:min-w-[180px] sm:w-auto"
             >
               Pick up Date
             </Button>
             <Button
               variant="default"
-              className="rounded-xl bg-blue-600 hover:bg-blue-700 font-medium px-8 py-4 text-lg min-w-[180px]"
+              className="rounded-xl bg-blue-600 hover:bg-blue-700 font-medium px-8 py-4 text-lg w-full sm:min-w-[180px] sm:w-auto"
             >
               Delivery Date
             </Button>
@@ -235,35 +258,67 @@ export default function ChangeDateModal({
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="max-w-xs">
-                      By default, 2 days are added to the current date to calculate the due date. 
-                      You can adjust this date as needed. The system automatically sets the delivery 
+                      By default, 2 days are added to the current date to calculate the due date.
+                      You can adjust this date as needed. The system automatically sets the delivery
                       date to 2 days from today when no specific date is provided.
                     </p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <div className="flex gap-4">
-              <div className="relative flex-1">
-                <Input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  disabled={!canEditDueDate}
-                  className="pr-12 h-12 rounded-lg border-gray-300 text-base"
-                />
-                <SlipListingCalendarIcon className="h-5 w-5 absolute right-3 top-3.5 pointer-events-none" />
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={!canEditDueDate}
+                      className="w-full h-12 justify-start rounded-lg border-gray-300 text-base font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
+                      {date ? format(parse(date, "yyyy-MM-dd", new Date()), "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={date ? parse(date, "yyyy-MM-dd", new Date()) : undefined}
+                      onSelect={(d) => d && setDate(format(d, "yyyy-MM-dd"))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div className="relative flex-1">
-                <Input
-                  type="time"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                  disabled={!canEditDueDate}
-                  className="pr-12 h-12 rounded-lg border-gray-300 text-base"
-                  step="300"
-                />
-                <Clock className="w-5 h-5 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+              <div className="flex-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={!canEditDueDate}
+                      className="w-full h-12 justify-start rounded-lg border-gray-300 text-base font-normal"
+                    >
+                      <Clock className="mr-2 h-4 w-4 text-gray-400" />
+                      {formatTimeDisplay(time)}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-40 p-0" align="start">
+                    <ScrollArea className="h-64">
+                      <div className="py-1">
+                        {TIME_SLOTS.map((slot) => (
+                          <button
+                            key={slot}
+                            onClick={() => setTime(slot)}
+                            className={`w-full px-4 py-2 text-sm text-left hover:bg-accent hover:text-accent-foreground transition-colors ${
+                              time === slot ? "bg-primary text-primary-foreground" : ""
+                            }`}
+                          >
+                            {formatTimeDisplay(slot)}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
@@ -273,30 +328,30 @@ export default function ChangeDateModal({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             disabled={!canEditDueDate}
-            className="mb-8 min-h-[100px] resize-none rounded-lg border-gray-300 text-base p-4"
+            className="mb-6 sm:mb-8 min-h-[100px] resize-none rounded-lg border-gray-300 text-base p-4"
             required
           />
 
-          <div className="flex justify-end gap-4 mb-8">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sm:gap-4 mb-6 sm:mb-8">
             <Button
               variant="ghost"
               onClick={onClose}
               disabled={saving}
-              className="px-8 py-3 font-medium text-gray-600 hover:bg-gray-100 text-base"
+              className="px-8 py-3 font-medium text-gray-600 hover:bg-gray-100 text-base w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSave}
               disabled={isSaveDisabled}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-3 rounded-lg text-base"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-3 rounded-lg text-base w-full sm:w-auto"
             >
               Save Dates
             </Button>
           </div>
         </div>
 
-        <div className="bg-gray-50 px-8 py-6 border-t border-gray-200">
+        <div className="bg-gray-50 px-4 sm:px-8 py-6 border-t border-gray-200">
           <div className="font-bold text-xl text-black mb-6">Change Date History</div>
           <div className="space-y-0 max-h-60 overflow-y-auto">
             {loadingHistory ? (
@@ -307,16 +362,16 @@ export default function ChangeDateModal({
               customDeliveryDates.map((item) => (
                 <div
                   key={item.id}
-                  className="bg-gray-100 p-5 relative"
+                  className="bg-gray-100 p-4 sm:p-5 relative"
                 >
                   <div className="flex justify-between items-start mb-4">
-                    <div className="text-base text-gray-500 leading-relaxed italic">
+                    <div className="text-sm sm:text-base text-gray-500 leading-relaxed italic pr-2">
                       {new Date(item.created_at).toLocaleDateString()} @ {item.created_by.name} changed delivery date to {item.formatted_delivery_date} at {item.formatted_delivery_time ?? normalizeDeliveryTimeForInput(item.delivery_time)}
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-gray-400 hover:text-gray-600"
+                      className="h-8 w-8 shrink-0 text-gray-400 hover:text-gray-600"
                     >
                       <MoreVertical className="w-5 h-5" />
                     </Button>

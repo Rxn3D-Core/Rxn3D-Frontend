@@ -1,4 +1,5 @@
 "use client"
+import Image from "next/image"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
@@ -853,6 +854,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
               <HeaderWaffleLauncher />
+              <Image
+                src="/images/rxn3d-latest.png"
+                alt="RXN3D"
+                width={195}
+                height={76}
+                priority
+                className="h-8 sm:h-9 md:h-10 w-auto object-contain flex-shrink-0"
+              />
               {!isSuperAdmin && canCreateSlip && (
                 <Button
                   size="sm"

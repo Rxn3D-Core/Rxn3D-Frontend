@@ -8,7 +8,7 @@ import { buildLabCaseDropdownActions } from "../../dropdown-actions.mjs"
 
 import { v2RowActionStripClass } from "../case-table-ui.mjs"
 import type { V2CaseRowData, V2RowActions } from "../case-table-types"
-import { CopyIcon, MoreIcon, PaperclipIcon, PhoneIcon, PrintIcon, ViewIcon } from "./V2CaseIcons"
+import { CalendarIcon, CopyIcon, LabLocationIcon, MoreIcon, PaperclipIcon, PhoneIcon, PrintIcon, ViewIcon } from "./V2CaseIcons"
 
 type Props = {
   row: V2CaseRowData
@@ -17,37 +17,38 @@ type Props = {
   canSendBack: boolean
   printOpen: boolean
   moreOpen: boolean
-  showAttachment: boolean
   showView: boolean
   onPrintOpenChange: (open: boolean) => void
   onMoreOpenChange: (open: boolean) => void
 }
 
-export function V2CaseRowActions({ row, actions, canPrintStatement, canSendBack, printOpen, moreOpen, showAttachment, showView, onPrintOpenChange, onMoreOpenChange }: Props) {
+export function V2CaseRowActions({ row, actions, canPrintStatement, canSendBack, printOpen, moreOpen, showView, onPrintOpenChange, onMoreOpenChange }: Props) {
   const stop = (event: MouseEvent) => event.stopPropagation()
-  const iconButton = "grid h-7 w-7 place-items-center rounded text-[#69655e] transition-colors hover:bg-[#eeebe4] hover:text-[#34322e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]"
+  const iconButton = "grid h-10 w-10 place-items-center rounded text-gray-600 transition-colors hover:bg-white hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
 
   return (
-    <div className={cn("inline-flex items-center gap-0.5 rounded-md border border-[#d7d3ca] bg-[#fbfaf7] p-1 shadow-md", v2RowActionStripClass())}>
-      {showView && <button aria-label="View case" className={iconButton} title="View case" type="button" onClick={(event) => { stop(event); actions.onOpen(row) }}><ViewIcon /></button>}
+    <div className={cn("inline-flex items-center gap-0.5 rounded-md border border-[#d6d2ca] bg-[#ece9e2] p-1 shadow-md", v2RowActionStripClass(printOpen || moreOpen))}>
+      {showView && <button aria-label="View case" className={iconButton} title="View case" type="button" onClick={(event) => { stop(event); actions.onOpen(row) }}><ViewIcon className="h-5 w-5" /></button>}
       <Popover open={printOpen} onOpenChange={onPrintOpenChange}>
         <PopoverTrigger asChild>
-          <button aria-label="Print" className={iconButton} title="Print" type="button" onClick={stop}><PrintIcon /></button>
+          <button aria-label="Print" className={iconButton} title="Print" type="button" onClick={stop}><PrintIcon className="h-5 w-5" /></button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-48 border-[#d7d3ca] bg-[#fbfaf7] p-1" onClick={stop}>
+        <PopoverContent align="end" className="w-48 border-gray-200 bg-white p-1" onClick={stop}>
           <MenuButton onClick={() => { onPrintOpenChange(false); return actions.onPrintPaperSlip(row) }}>Print paper slip</MenuButton>
           <MenuButton onClick={() => { onPrintOpenChange(false); return actions.onPrintDriverLabel(row) }}>Print driver label</MenuButton>
           {canPrintStatement && <MenuButton onClick={() => { onPrintOpenChange(false); return actions.onPrintStatement(row) }}>Print statement</MenuButton>}
         </PopoverContent>
       </Popover>
-      <button aria-label="Call log" className={iconButton} title="Call log" type="button" onClick={(event) => { stop(event); actions.onCallLog(row) }}><PhoneIcon /></button>
-      {showAttachment && <button aria-label="Attachments" className={cn(iconButton, row.attachment && "text-[#1769aa]")} title="Attachments" type="button" onClick={(event) => { stop(event); actions.onAttachment(row) }}><PaperclipIcon /></button>}
-      <button aria-label="Copy case identifier" className={iconButton} title="Copy" type="button" onClick={(event) => { stop(event); actions.onCopy(row) }}><CopyIcon /></button>
+      <button aria-label="Call log" className={iconButton} title="Call log" type="button" onClick={(event) => { stop(event); actions.onCallLog(row) }}><PhoneIcon className="h-5 w-5" /></button>
+      {row.attachment && <button aria-label="Attachments" className={cn(iconButton, "text-[#1769aa]")} title="Attachments" type="button" onClick={(event) => { stop(event); actions.onAttachment(row) }}><PaperclipIcon className="h-5 w-5" /></button>}
+      <button aria-label="Location" className={iconButton} title={row.locationId === 3 ? "Mark ready to send" : "Driver history"} type="button" onClick={(event) => { stop(event); row.locationId === 3 ? actions.onReadyToSend(row) : actions.onDriverHistory(row) }}><LabLocationIcon className="h-5 w-5" /></button>
+      <button aria-label="Change due date" className={iconButton} title="Change due date" type="button" onClick={(event) => { stop(event); actions.onChangeDueDate(row) }}><CalendarIcon className="h-5 w-5" /></button>
+      <button aria-label="Copy case identifier" className={iconButton} title="Copy" type="button" onClick={(event) => { stop(event); actions.onCopy(row) }}><CopyIcon className="h-5 w-5" /></button>
       <Popover open={moreOpen} onOpenChange={onMoreOpenChange}>
         <PopoverTrigger asChild>
-          <button aria-label="More actions" className={iconButton} title="More actions" type="button" onClick={stop}><MoreIcon /></button>
+          <button aria-label="More actions" className={iconButton} title="More actions" type="button" onClick={stop}><MoreIcon className="h-5 w-5" /></button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-52 border-[#d7d3ca] bg-[#fbfaf7] p-1" onClick={stop}>
+        <PopoverContent align="end" className="w-52 border-gray-200 bg-white p-1" onClick={stop}>
           {buildLabCaseDropdownActions({
             onEditCase: () => actions.onEdit(row),
             onChangeDueDate: () => actions.onChangeDueDate(row),
@@ -67,5 +68,5 @@ export function V2CaseRowActions({ row, actions, canPrintStatement, canSendBack,
 }
 
 function MenuButton({ children, disabled, onClick }: { children: ReactNode; disabled?: boolean; onClick: () => void | Promise<void> }) {
-  return <button className="block w-full rounded px-3 py-2 text-left text-xs text-[#4f4c47] hover:bg-[#ece9e2] disabled:cursor-not-allowed disabled:text-[#aaa69e]" disabled={disabled} type="button" onClick={() => void onClick()}>{children}</button>
+  return <button className="block w-full rounded px-3 py-2 text-left text-xs text-gray-700 hover:bg-[#ece9e2] disabled:cursor-not-allowed disabled:text-gray-400" disabled={disabled} type="button" onClick={() => void onClick()}>{children}</button>
 }

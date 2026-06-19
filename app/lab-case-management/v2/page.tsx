@@ -986,7 +986,7 @@ export default function LabSlipPage() {
     : undefined
 
   return (
-    <div className="min-h-screen bg-[#ece9e2]">
+    <div className="min-h-screen">
       <div className="px-4 py-2">
         <HIPAAComplianceBanner variant="default" showDetails={false} />
       </div>

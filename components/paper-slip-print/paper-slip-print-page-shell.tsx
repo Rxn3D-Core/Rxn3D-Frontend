@@ -55,6 +55,13 @@ export function PaperSlipPrintPageShell({
   const [printed, setPrinted] = useState(false);
   const hasRequestedFetch = useRef(false);
   const printRootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = "[data-accessibility-widget] { display: none !important; }";
+    document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, []);
+
   const { showPrintButton } = buildPaperSlipPrintActionState({
     fetchError,
     loading,
@@ -131,8 +138,16 @@ export function PaperSlipPrintPageShell({
       await waitForImageLikes(images, 5000);
 
       if (cancelled) return;
-      window.print();
       setPrinted(true);
+
+      const html = printRootRef.current?.innerHTML ?? "";
+      if (window.opener) {
+        // ponytail: send rendered HTML to opener, opener handles print + cleanup
+        window.opener.postMessage({ type: "PAPER_SLIP_PRINT_READY", html }, window.location.origin);
+        window.close();
+      } else {
+        window.print();
+      }
     };
 
     void schedulePrint();

@@ -25,7 +25,7 @@ export function V2CaseWidget(props: Props) {
   const lastEntry = Math.min(props.currentPage * props.itemsPerPage, props.totalCount)
 
   return (
-    <section className="overflow-hidden rounded-lg border border-[#d6d2c9] bg-[#faf9f6] shadow-[0_8px_30px_rgba(50,47,42,0.08)]">
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <V2CaseControlsMenu {...props} />
       <V2BulkActionBar
         canPrintStatement={props.bulkCanPrintStatement}
@@ -36,7 +36,7 @@ export function V2CaseWidget(props: Props) {
         selectedCount={props.selected.length}
       />
       <V2CaseTable {...props} />
-      <div className="border-t border-[#d8d4cb] bg-[#f3f1eb] px-4 py-2.5">
+      <div className="border-t border-gray-200 bg-gray-50 px-4 py-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[11px] text-[#77736b]">ⓘ Hover or focus a row to reveal actions · Blue paperclip means attachments · Click a row to open</p>
           <div className="flex items-center justify-between gap-3 sm:justify-end">
@@ -55,6 +55,6 @@ export function V2CaseWidget(props: Props) {
 
 function PageButton({ active, children, disabled, label, onClick }: { active?: boolean; children: ReactNode; disabled?: boolean; label: string; onClick: () => void }) {
   return (
-    <button aria-label={label} aria-current={active ? "page" : undefined} className={`grid h-7 min-w-7 place-items-center rounded px-1.5 text-[11px] transition-colors disabled:opacity-35 ${active ? "bg-[#514e48] text-white" : "bg-[#e7e4dd] text-[#625f59] hover:bg-[#dcd8cf]"}`} disabled={disabled} type="button" onClick={onClick}>{children}</button>
+    <button aria-label={label} aria-current={active ? "page" : undefined} className={`grid h-7 min-w-7 place-items-center rounded px-1.5 text-[11px] transition-colors disabled:opacity-35 ${active ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`} disabled={disabled} type="button" onClick={onClick}>{children}</button>
   )
 }

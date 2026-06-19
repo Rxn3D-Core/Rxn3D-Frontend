@@ -89,11 +89,11 @@ const requiredColumns = new Set<keyof V2VisibleColumns>(["actions", "office", "p
 export function V2CaseControlsMenu(props: V2CaseControlsMenuProps) {
   return (
     <>
-      <div className="border-b border-[#dedbd3] bg-[#f5f3ee] px-4 py-3">
+      <div className="border-b border-gray-200 bg-white px-4 py-3">
         <div className="flex items-center gap-2">
           <Input
             aria-label="Search cases"
-            className="h-9 flex-1 border-[#d5d1c8] bg-[#fbfaf7] text-[13px] shadow-none placeholder:text-[#8a877f] focus-visible:border-[#9b978d] focus-visible:ring-1 focus-visible:ring-[#9b978d]"
+            className="h-9 flex-1 border-gray-300 bg-white text-[13px] shadow-none placeholder:text-gray-400 focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
             placeholder="Search patient, slip, office…"
             value={props.search}
             onChange={(event) => props.onSearchChange(event.target.value)}
@@ -103,13 +103,13 @@ export function V2CaseControlsMenu(props: V2CaseControlsMenuProps) {
             <PopoverTrigger asChild>
               <button
                 aria-label="Case table controls"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[#67645e] transition-colors hover:bg-[#e9e6df] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                 type="button"
               >
                 <MoreIcon className="h-[18px] w-[18px]" />
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 border-[#d7d3ca] bg-[#fbfaf7] p-3 shadow-xl">
+            <PopoverContent align="end" className="w-80 border-gray-200 bg-white p-3 shadow-xl">
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <Select value={props.office} onValueChange={props.onOfficeChange}>
@@ -147,7 +147,7 @@ export function V2CaseControlsMenu(props: V2CaseControlsMenuProps) {
                     ))}
                   </div>
                 </div>
-                <button className="w-full border-t border-[#e1ddd5] pt-2 text-left text-xs font-medium text-[#8b3f37] hover:text-[#6f2e28]" type="button" onClick={props.onClearFilters}>
+                <button className="w-full border-t border-gray-200 pt-2 text-left text-xs font-medium text-red-600 hover:text-red-800" type="button" onClick={props.onClearFilters}>
                   Clear filters
                 </button>
               </div>
@@ -162,7 +162,7 @@ export function V2CaseControlsMenu(props: V2CaseControlsMenuProps) {
             return (
               <button
                 aria-pressed={active}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors ${active ? "border-[#504d47] bg-[#504d47] text-white" : "border-[#d6d2c9] bg-[#faf9f6] text-[#625f59] hover:bg-[#ece9e2]"}`}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors ${active ? "border-[#504d47] bg-[#504d47] text-white" : "border-gray-300 bg-white text-gray-600 hover:bg-[#ece9e2]"}`}
                 key={tab.value}
                 onClick={() => props.onStatusChange(active ? "All" : tab.value)}
                 type="button"
@@ -176,7 +176,7 @@ export function V2CaseControlsMenu(props: V2CaseControlsMenuProps) {
       </div>
 
       {props.showAdvanced && (
-        <div className="border-b border-[#dedbd3] bg-[#faf9f6] px-4 py-3">
+        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
             <DateControl label="Start date" value={props.dateRange.start} onChange={(start) => props.onDateRangeChange({ ...props.dateRange, start })} />
             <DateControl label="End date" value={props.dateRange.end} onChange={(end) => props.onDateRangeChange({ ...props.dateRange, end })} min={props.dateRange.start} />
