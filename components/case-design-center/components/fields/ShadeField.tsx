@@ -11,6 +11,7 @@ export function ShadeField({
   submitted = false,
   required = false,
   isActive = false,
+  className = "",
 }: {
   label: string;
   value: string;
@@ -20,6 +21,7 @@ export function ShadeField({
   required?: boolean;
   /** Highlight when this field is the one open in the shade picker */
   isActive?: boolean;
+  className?: string;
 }) {
   const id = useId();
   const displayShade = shade || "";
@@ -42,7 +44,7 @@ export function ShadeField({
         : "text-[#7f7f7f]";
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${borderColor} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${isActive ? "hover:bg-[#f0f7fc]" : ""}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 w-full overflow-hidden ${borderColor} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${isActive ? "hover:bg-[#f0f7fc]" : ""} ${className}`}
       onClick={onClick}
       aria-current={isActive ? "true" : undefined}
     >
@@ -53,7 +55,7 @@ export function ShadeField({
         <span className={`text-lg leading-tight truncate flex-1 min-w-0 ${isActive ? "text-[#1162A8] font-medium" : "text-[#000000]"}`}>
           {value}
         </span>
-        <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
           <g clipPath={`url(#clip_${id})`}>
             <g filter={`url(#filter_${id})`}>
               <path d="M28.8176 61.509V163.357H8.68442V61.509C8.68442 56.6451 11.9051 52.5737 16.2553 51.4237V34.3611L21.2467 34.4543V51.4393C25.5969 52.5892 28.8176 56.6606 28.8176 61.5246V61.509Z" fill="#8F8C88" />
