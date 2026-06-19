@@ -167,6 +167,9 @@ export interface SlipCreationProduct {
   advance_fields?: SlipCreationAdvanceField[];
   implant_details?: SlipCreationImplantDetail[];
   abutment_details?: SlipCreationAbutmentDetail[];
+  is_splinted?: "Yes" | "No";
+  /** Comma-separated tooth numbers per connected splint group, e.g. `["4,5,6", "10,11"]`. */
+  splinted_teeth?: string[];
 }
 
 export interface SlipCreationSlip {

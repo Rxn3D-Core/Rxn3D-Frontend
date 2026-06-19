@@ -70,6 +70,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
   );
 
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
+  const caseSummaryNotesRef = useRef("");
   const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(true);
   const [caseReady, setCaseReady] = useState(false);
   const [incompleteFieldLabel, setIncompleteFieldLabel] = useState<string | null>(null);
@@ -257,6 +258,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         snapshots,
         sourceSlipLocationId: locationId,
         labCustomerId: labCustomerId ?? undefined,
+        caseSummaryNotes: caseSummaryNotesRef.current,
       });
       const res = await postAddStageToSlip(sourceSlipId, payload);
       if (!res.success) {
@@ -432,6 +434,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
                 preloadInitialSlipState
                 addStageContext={addStageContext ?? undefined}
                 slipCollectorRef={slipCollectorRef}
+                caseSummaryNotesRef={caseSummaryNotesRef}
                 confirmDetailsChecked={confirmDetailsChecked}
                 onAnyModalOpenChange={setIsAnyModalOpen}
                 rushCasesEnabled={rushCasesEnabled}

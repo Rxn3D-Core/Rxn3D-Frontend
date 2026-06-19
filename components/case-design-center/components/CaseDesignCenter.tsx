@@ -47,6 +47,7 @@ import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
+import { canSkipExtractionToothSelection } from "../utils/extractionHelpers";
 import {
   findOppositeArchProductDonor,
   resolveProductStagesForDisplay,
@@ -76,6 +77,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   });
   const maxillaryImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
   const mandibularImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
+  const maxillarySplintLinksRef = useRef<Record<string, number[]>>({});
+  const mandibularSplintLinksRef = useRef<Record<string, number[]>>({});
   const [maxillaryImplantDetailPeer, setMaxillaryImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
   >({});
@@ -165,6 +168,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // activating a different product card does not flicker maxillaryHasRemovables off/on,
   // which would cascade into maxillaryRemovablesImpressionDone = false and hide the opposing accordion.
   const initialProductIsNonFixed = !hasRetentionOptions(state.initialProductDetails);
+  // When tooth selection is optional for the card-0 product, there is nothing the
+  // user is required to select on the chart — either because the only extraction is
+  // the default (e.g. orthodontics "Teeth in mouth") or because every non-default
+  // extraction is optional (e.g. night guard with optional "Missing tooth"). The
+  // default extraction applies to all teeth. Such a product must count as "placed"
+  // without an explicit tooth selection, and the "select a tooth to proceed" gate
+  // must not apply.
+  const card0ExtractionSelectionOptional = canSkipExtractionToothSelection(
+    state.initialProductDetails?.extractions
+  );
   const maxillaryHasRemovables = hasSelectionOnlyProductForArch("maxillary") ||
     (initialProductIsNonFixed && (props.initialArch === "maxillary" || props.initialArch === "both") && !!props.selectedProductId);
   const mandibularHasRemovables = hasSelectionOnlyProductForArch("mandibular") ||
@@ -212,10 +225,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     (props.initialArch === "mandibular" || props.initialArch === "both");
 
   const maxillaryHasRemovablesTeeth =
-    maxillaryHasRemovables && state.maxillaryTeeth.length > 0;
+    maxillaryHasRemovables &&
+    (state.maxillaryTeeth.length > 0 ||
+      (maxillaryHasRemovablesCard0 && card0ExtractionSelectionOptional));
 
   const mandibularHasRemovablesTeeth =
-    mandibularHasRemovables && state.mandibularTeeth.length > 0;
+    mandibularHasRemovables &&
+    (state.mandibularTeeth.length > 0 ||
+      (mandibularHasRemovablesCard0 && card0ExtractionSelectionOptional));
 
   // Count teeth with real extraction codes (not TIM) — mirrors the red-label condition in the panels.
   // Used to disable the + Product buttons when the user hasn't selected any teeth yet.
@@ -1090,29 +1107,47 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // ── Removable restoration: pre-assign sentinel tooth so accordion shows immediately ──
   // When a removables product is active and no teeth have been assigned yet, assign the
   // sentinel tooth to card 0 so the accordion renders without requiring the user to click teeth.
-  useEffect(() => {
-    if (props.initialArch === "mandibular") return;
-    if (
-      state.activeProductIsRemovablesMaxillary &&
-      props.selectedProductId &&
-      !state.getToothProduct("maxillary", MAXILLARY_SENTINEL)
-    ) {
-      state.setToothProductCard("maxillary", MAXILLARY_SENTINEL, 0);
-      state.fetchAndAssignProduct("maxillary", MAXILLARY_SENTINEL, props.selectedProductId);
-    }
-  }, [state.activeProductIsRemovablesMaxillary, props.selectedProductId, props.initialArch]);
+  //
+  // Gate on the SAME flag the card-0 accordion render uses (`*HasRemovablesCard0`) rather than
+  // `activeProductIsRemovables*`. The latter additionally requires `activeProductCardId === 0`,
+  // so when another card is active the sentinel was never assigned and the card silently failed
+  // to render. Removables with a non-TIM default mask this (they auto-select all teeth), but
+  // TIM-default products (orthodontics, sport/night guards) never auto-select, so the card-0
+  // accordion never appeared. Fall back to the initial product id when no explicit id is set.
+  const card0RemovableProductId = props.selectedProductId ?? state.initialProductDetails?.id;
+  // Assign the sentinel tooth to card 0 so the accordion renders without the user
+  // clicking teeth. When the initial product details are already loaded, assign them
+  // synchronously (so the card appears immediately, not after the async fetch resolves),
+  // then call fetchAndAssignProduct to enrich (stage/addons/impressions). This makes
+  // TIM-default products (orthodontics, sport/night guards) render their card exactly
+  // like removables, which always have a product on card 0.
+  const assignCard0Sentinel = useCallback(
+    (arch: "maxillary" | "mandibular", sentinel: number) => {
+      if (card0RemovableProductId == null) return;
+      if (state.getToothProduct(arch, sentinel)) return;
+      state.setToothProductCard(arch, sentinel, 0);
+      if (state.initialProductDetails) {
+        state.setToothProduct(arch, sentinel, state.initialProductDetails);
+      }
+      state.fetchAndAssignProduct(arch, sentinel, card0RemovableProductId);
+    },
+    [
+      card0RemovableProductId,
+      state.getToothProduct,
+      state.setToothProductCard,
+      state.setToothProduct,
+      state.fetchAndAssignProduct,
+      state.initialProductDetails,
+    ]
+  );
 
   useEffect(() => {
-    if (props.initialArch === "maxillary") return;
-    if (
-      state.activeProductIsRemovablesMandibular &&
-      props.selectedProductId &&
-      !state.getToothProduct("mandibular", MANDIBULAR_SENTINEL)
-    ) {
-      state.setToothProductCard("mandibular", MANDIBULAR_SENTINEL, 0);
-      state.fetchAndAssignProduct("mandibular", MANDIBULAR_SENTINEL, props.selectedProductId);
-    }
-  }, [state.activeProductIsRemovablesMandibular, props.selectedProductId, props.initialArch]);
+    if (maxillaryHasRemovablesCard0) assignCard0Sentinel("maxillary", MAXILLARY_SENTINEL);
+  }, [maxillaryHasRemovablesCard0, assignCard0Sentinel]);
+
+  useEffect(() => {
+    if (mandibularHasRemovablesCard0) assignCard0Sentinel("mandibular", MANDIBULAR_SENTINEL);
+  }, [mandibularHasRemovablesCard0, assignCard0Sentinel]);
 
   // ── Catch-up: assign product to card 0 teeth that have retention types but no product ──
   // This handles cases where teeth were clicked before the product was ready, or rapid clicks
@@ -1165,9 +1200,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const showProductDetails = props.caseSubmitted || productFieldsVisible;
 
   const maxillaryRemovableBlocked =
-    maxillaryHasRemovablesCard0 && maxillaryRemovableTeethSelected === 0;
+    maxillaryHasRemovablesCard0 &&
+    maxillaryRemovableTeethSelected === 0 &&
+    !card0ExtractionSelectionOptional;
   const mandibularRemovableBlocked =
-    mandibularHasRemovablesCard0 && mandibularRemovableTeethSelected === 0;
+    mandibularHasRemovablesCard0 &&
+    mandibularRemovableTeethSelected === 0 &&
+    !card0ExtractionSelectionOptional;
 
   const maxillarySideReady =
     hasMaxillaryProducts &&
@@ -1304,6 +1343,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     props,
     maxillaryImplantDetail: maxillaryImplantDetailRef.current,
     mandibularImplantDetail: mandibularImplantDetailRef.current,
+    maxillarySplintLinksRef,
+    mandibularSplintLinksRef,
   });
 
   const inlineAddProductArch = props.inlineAddProductArch ?? null;
@@ -1382,6 +1423,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           initialProductDetailsPending={state.initialProductDetailsPending}
           retentionOptions={state.initialProductDetails?.retention_options}
           card0Extractions={state.initialProductDetails?.extractions ?? []}
+          card0InitialProduct={state.initialProductDetails}
           handleSelectRetentionType={state.handleSelectRetentionType}
           handleMaxillaryToothDeselect={state.handleMaxillaryToothDeselect}
           // Shade
@@ -1468,6 +1510,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             maxillaryImplantDetailRef.current = detail;
             setMaxillaryImplantDetailPeer(detail);
           }}
+          onSplintLinksChange={(linksByKey) => {
+            maxillarySplintLinksRef.current = linksByKey;
+          }}
           peerImplantDetailByTooth={mandibularImplantDetailPeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
@@ -1528,6 +1573,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           initialProductDetailsPending={state.initialProductDetailsPending}
           retentionOptions={state.initialProductDetails?.retention_options}
           card0Extractions={state.initialProductDetails?.extractions ?? []}
+          card0InitialProduct={state.initialProductDetails}
           handleSelectRetentionType={state.handleSelectRetentionType}
           handleMandibularToothDeselect={state.handleMandibularToothDeselect}
           // Shade
@@ -1611,6 +1657,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             mandibularImplantDetailRef.current = detail;
             setMandibularImplantDetailPeer(detail);
           }}
+          onSplintLinksChange={(linksByKey) => {
+            mandibularSplintLinksRef.current = linksByKey;
+          }}
           peerImplantDetailByTooth={maxillaryImplantDetailPeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
@@ -1648,6 +1697,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
         rushArchSlots={rushArchSlots}
         caseHasAddons={caseHasAddons}
+        onCaseSummaryNotesChange={(text) => {
+          if (props.caseSummaryNotesRef) {
+            props.caseSummaryNotesRef.current = text;
+          }
+        }}
       />
 
       {/* All Modals */}

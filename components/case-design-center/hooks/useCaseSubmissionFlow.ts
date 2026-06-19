@@ -86,6 +86,7 @@ interface UseCaseSubmissionFlowParams {
   router: AppRouterInstance;
   toast: ToastApi;
   slipCollectorRef: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
+  caseSummaryNotesRef?: React.MutableRefObject<string>;
   completedLab: WizardLabShape | null;
   completedDoctor: WizardDoctorShape | null;
   completedPatientName: string;
@@ -101,6 +102,7 @@ export function useCaseSubmissionFlow({
   router,
   toast,
   slipCollectorRef,
+  caseSummaryNotesRef,
   completedLab,
   completedDoctor,
   completedPatientName,
@@ -143,6 +145,7 @@ export function useCaseSubmissionFlow({
       gender: completedGender,
       age: completedAge,
       labCustomerId: labCustomerId ?? undefined,
+      caseSummaryNotes: caseSummaryNotesRef?.current,
     });
 
     setSubmissionError(null);
@@ -205,6 +208,7 @@ export function useCaseSubmissionFlow({
   }, [
     submissionState,
     slipCollectorRef,
+    caseSummaryNotesRef,
     completedLab?.id,
     completedDoctor?.id,
     completedPatientName,

@@ -149,6 +149,21 @@ export function getSelectionFieldChain(
   });
 }
 
+/** First incomplete step in a removable selection chain — used to auto-open the active field. */
+export function getNextSelectionFieldStep(
+  chain: readonly string[],
+  arch: Arch,
+  toothNumber: number,
+  isFieldCompleted: (arch: Arch, toothNumber: number, step: FieldStep) => boolean
+): string | null {
+  for (const step of chain) {
+    if (!isFieldCompleted(arch, toothNumber, step as FieldStep)) {
+      return step;
+    }
+  }
+  return null;
+}
+
 /** Key format: "maxillary_4" or "mandibular_20" */
 function toothKey(arch: Arch, toothNumber: number) {
   return `${arch}_${toothNumber}`;

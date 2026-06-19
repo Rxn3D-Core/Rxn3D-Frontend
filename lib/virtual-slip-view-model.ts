@@ -1,5 +1,9 @@
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
+import {
+  isFixedRestorationProduct,
+  resolveProductForRetentionCheck,
+} from "@/components/case-design-center/utils/categoryHelpers";
 
 /**
  * Display-oriented view model for the redesigned (view-only) virtual slip page.
@@ -81,6 +85,10 @@ import {
 import { hasDisplayValue } from "./virtual-slip-display";
 import { parseSlipProductNotes } from "./parse-slip-product-notes";
 import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates";
+import {
+  isSplintedSlipProduct,
+  parseSplintedTeethToLinks,
+} from "@/components/case-design-center/utils/splintHelpers";
 
 export type { ExtractionDisplayVM, OpposingArchVM } from "./virtual-slip-extraction-display";
 
@@ -103,6 +111,8 @@ export interface ArchVM {
   opposingImpression: string;
   /** Opposing-arch chart + impressions (CDC opposing accordion), when configured. */
   opposing: import("./virtual-slip-extraction-display").OpposingArchVM | null;
+  /** Lower tooth number per splinted adjacent pair for read-only chart connectors. */
+  splintedLinks?: number[];
 }
 
 export interface VirtualSlipHeaderVM {
@@ -421,10 +431,10 @@ function buildProduct(apiProduct: any): ProductVM {
     product?.subcategory?.category?.name,
     product?.category_name,
   );
-  const isRemovable = categoryName.toLowerCase().includes("removable");
+  const isNonFixed = !isFixedRestorationProduct(resolveProductForRetentionCheck(apiProduct));
   const implants = buildImplants(apiProduct);
-  const isImplant = !isRemovable && implants.length > 0;
-  const isFixed = !isRemovable;
+  const isImplant = !isNonFixed && implants.length > 0;
+  const isFixed = !isNonFixed;
 
   const teeth = parseTeeth(apiProduct?.teeth_selection ?? apiProduct?.teeth);
   const extractionDisplay = buildExtractionDisplayFromSlipProduct(apiProduct);
@@ -619,14 +629,8 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     return null;
   };
 
-  const isFixedSlipProduct = (product: any): boolean => {
-    const categoryName = firstStr(
-      product?.category?.name,
-      product?.product?.subcategory?.category?.name,
-      product?.product?.category_name,
-    );
-    return !categoryName.toLowerCase().includes("removable");
-  };
+  const isFixedSlipProduct = (product: any): boolean =>
+    isFixedRestorationProduct(resolveProductForRetentionCheck(product));
 
   const isRemovableSlipProduct = (product: any): boolean => !isFixedSlipProduct(product);
 
@@ -749,6 +753,14 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
   const opposingOnly = archProducts.length === 0 && opposing != null;
   const opposingColumn = opposingOnly ? opposing : null;
 
+  const splintedLinks = new Set<number>();
+  for (const product of archProducts) {
+    if (!isSplintedSlipProduct(product)) continue;
+    for (const link of parseSplintedTeethToLinks(product?.splinted_teeth)) {
+      splintedLinks.add(link);
+    }
+  }
+
   return {
     arch: opposingColumn?.arch ?? arch,
     teeth: opposingColumn?.teeth ?? teeth,
@@ -758,6 +770,9 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     products: productVMs,
     opposingImpression: opposing?.impression ?? "",
     opposing,
+    ...(splintedLinks.size > 0
+      ? { splintedLinks: Array.from(splintedLinks).sort((a, b) => a - b) }
+      : {}),
   };
 }
 

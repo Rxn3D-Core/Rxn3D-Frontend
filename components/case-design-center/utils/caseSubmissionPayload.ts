@@ -24,6 +24,11 @@ import {
   prefetchImplantCatalogsForSnapshots,
   resolveMaterialId,
 } from "./slipPayloadMappers";
+import { formatSplintGroupsForApi } from "./splintHelpers";
+import {
+  buildSlipLevelNotes,
+  clearProductNotesWhenUsingCaseSummary,
+} from "./caseSummaryNotesPayload";
 
 interface BuildCaseSubmissionPayloadParams {
   snapshots: SlipProductSnapshot[];
@@ -36,6 +41,8 @@ interface BuildCaseSubmissionPayloadParams {
   age?: string;
   /** Lab customer id for implant prefetch (`/slip/product/implants`) */
   labCustomerId?: number;
+  /** Case Summary Notes textarea content (auto-generated or user-edited). */
+  caseSummaryNotes?: string;
 }
 
 function parseShadeDisplayName(raw: string): string {
@@ -291,6 +298,11 @@ export function snapshotToProduct(
   const material_id = resolveMaterialId(product, snap.fieldValues);
   const variation_id = resolveVariationId(product, productTeeth.length);
   const rush = normalizeRush(snap.rush);
+  const isSplintedProduct = product?.is_splinted === "Yes";
+  const splinted_teeth =
+    isSplintedProduct && snap.splintLinks?.length
+      ? formatSplintGroupsForApi(productTeeth, snap.splintLinks)
+      : [];
 
   const teeth_selection = buildTeethSelection(
     product,
@@ -331,6 +343,8 @@ export function snapshotToProduct(
       : {}),
     ...(tooth_chart.length > 0 ? { tooth_chart } : {}),
     rush,
+    ...(isSplintedProduct ? { is_splinted: "Yes" as const } : {}),
+    ...(splinted_teeth.length > 0 ? { splinted_teeth } : {}),
   };
 
   if (isFixed) {
@@ -521,6 +535,7 @@ export async function buildCaseSubmissionPayloadAsync(
     gender,
     age,
     labCustomerId,
+    caseSummaryNotes,
   } = params;
 
   const filteredSnapshots = snapshots.filter(
@@ -541,6 +556,7 @@ export async function buildCaseSubmissionPayloadAsync(
 
   const slipProductGroups = groupProductsIntoSlips(products);
   const orderedProducts = slipProductGroups.flat();
+  clearProductNotesWhenUsingCaseSummary(orderedProducts, caseSummaryNotes);
 
   const multipartFiles: SlipCreationMultipartFile[] = [];
   orderedProducts.forEach((product, productIndex) => {
@@ -560,13 +576,10 @@ export async function buildCaseSubmissionPayloadAsync(
   const labId = role === "lab_admin" ? customerId : completedLabId ?? 0;
   const officeId = role === "lab_admin" ? completedLabId ?? 0 : customerId;
 
-  const slips = slipProductGroups.map((slipProducts) => ({
+  const slips = slipProductGroups.map((slipProducts, slipIndex) => ({
     status: "In Progress" as const,
     products: slipProducts,
-    notes: slipProducts
-      .map((p) => p.notes)
-      .filter((note): note is string => Boolean(note))
-      .map((note) => ({ note })),
+    notes: buildSlipLevelNotes(slipProducts, caseSummaryNotes, slipIndex),
   }));
 
   if (process.env.NODE_ENV === "development") {
@@ -606,6 +619,8 @@ export function buildCaseSubmissionPayload(
   const labId = params.role === "lab_admin" ? params.customerId : params.completedLabId ?? 0;
   const officeId =
     params.role === "lab_admin" ? params.completedLabId ?? 0 : params.customerId;
+  const orderedProducts = slipProductGroups.flat();
+  clearProductNotesWhenUsingCaseSummary(orderedProducts, params.caseSummaryNotes);
 
   return {
     case: {
@@ -617,13 +632,10 @@ export function buildCaseSubmissionPayload(
       ...(params.age ? { age: Number(params.age) } : {}),
       case_status: "In Progress",
     },
-    slips: slipProductGroups.map((slipProducts) => ({
+    slips: slipProductGroups.map((slipProducts, slipIndex) => ({
       status: "In Progress",
       products: slipProducts,
-      notes: slipProducts
-        .map((p) => p.notes)
-        .filter((note): note is string => Boolean(note))
-        .map((note) => ({ note })),
+      notes: buildSlipLevelNotes(slipProducts, params.caseSummaryNotes, slipIndex),
     })),
   };
 }

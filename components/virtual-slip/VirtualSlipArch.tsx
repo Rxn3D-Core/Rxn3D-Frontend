@@ -19,6 +19,7 @@ export function VirtualSlipArch({ data }: { data: ArchVM }) {
           teeth={data.teeth}
           selectedTeeth={[]}
           extractionDisplay={data.extractionDisplay}
+          splintedLinks={data.splintedLinks}
         />
         {data.opposing && (
           <VirtualSlipOpposingSection opposing={data.opposing} />
@@ -32,9 +33,10 @@ export function VirtualSlipArch({ data }: { data: ArchVM }) {
       <VirtualSlipToothChart
         arch={data.arch}
         teeth={data.teeth}
-        selectedTeeth={[]}
+        selectedTeeth={data.selectedTeeth}
         toothChartSelectionsByTooth={data.toothChartSelectionsByTooth}
         extractionDisplay={data.extractionDisplay}
+        splintedLinks={data.splintedLinks}
       />
       {data.opposing && <VirtualSlipOpposingSection opposing={data.opposing} />}
       {data.products.map((product, i) => (

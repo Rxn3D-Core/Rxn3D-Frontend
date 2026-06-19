@@ -41,7 +41,7 @@ import type {
   ProductExtraction,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { getRetentionFieldChain, getSelectionFieldChain } from "../hooks/useToothFieldProgress";
+import { getRetentionFieldChain, getSelectionFieldChain, getNextSelectionFieldStep } from "../hooks/useToothFieldProgress";
 import { shadeGuideOptions as defaultShadeGuideOptions } from "../constants";
 import {
   isNonRetentionCategory,
@@ -78,6 +78,8 @@ import {
 } from "../utils/addonDisplayHelpers";
 import {
   isSingleDefaultOnlyExtractionList,
+  isExtractionSelectionOptional,
+  hasConfiguredExtractions,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
@@ -122,6 +124,7 @@ import {
   removableHeaderTitleClass,
   removableHeaderToothClass,
 } from "../case-design-inter-font";
+import { resolveRemovableEstDaysText } from "../utils/removableEstDays";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import {
   getRemovableOrangeHeaderTeeth,
@@ -150,7 +153,11 @@ import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
 import { StageHistoryBlock } from "./StageHistoryBlock";
 import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { MANDIBULAR_SENTINEL } from "../utils/opposingImpressionReadiness";
-import { addedProductSlotId } from "../utils/productAccordionFocus";
+import {
+  addedProductSlotId,
+  archAllowsAccordionCollapse,
+  countFixedCard0Groups,
+} from "../utils/productAccordionFocus";
 import {
   getPreferredLabGumShade,
   getPreferredLabTeethShade,
@@ -716,6 +723,9 @@ interface MaxillaryPanelProps {
   maxillaryHasRemovablesCard0?: boolean;
   /** Extractions from the initial card 0 product — used as fallback when no teeth are selected yet */
   card0Extractions?: ProductExtraction[];
+  /** Full initial card 0 product details — fallback so the removable/ortho card renders
+   *  before any tooth has the product assigned (TIM-default products select no teeth). */
+  card0InitialProduct?: ProductApiData | null;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
   /** Impression selections by key (productId_arch_impressionValue → qty) */
@@ -739,6 +749,8 @@ interface MaxillaryPanelProps {
   onCheckedTeethChange?: (teeth: number[]) => void;
   /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
+  /** Called whenever splint link state changes (so CaseDesignCenter can include it in the slip snapshot). */
+  onSplintLinksChange?: (splintLinksByKey: Record<string, number[]>) => void;
   /** Opposite-arch implant details for mirroring when the same product is on both sides. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
@@ -976,6 +988,7 @@ export function MaxillaryPanel({
   maxillaryHasFixedCard0 = false,
   maxillaryHasRemovablesCard0 = false,
   card0Extractions = [],
+  card0InitialProduct = null,
   removablesImpressionDone = false,
   noOpposingNeeded = {},
   selectedImpressions = { maxillary: [], mandibular: [] },
@@ -989,6 +1002,7 @@ export function MaxillaryPanel({
   selectAllOpposingTeeth,
   onCheckedTeethChange,
   onImplantDetailChange,
+  onSplintLinksChange,
   peerImplantDetailByTooth,
   onBackToCategories,
   onShowSelectTeethToReplaceChange,
@@ -1021,7 +1035,22 @@ export function MaxillaryPanel({
       )
     : 0;
 
-  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && (
+  const activeRemovableExtractionsForHint = (() => {
+    if (!activeProductIsRemovables) return undefined;
+    if (activeProductCardId !== 0) {
+      return addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "maxillary")
+        ?.product?.extractions;
+    }
+    if (card0Extractions?.length) return card0Extractions;
+    const card0Tooth = MAXILLARY_ALL_TEETH.find((tn) => getToothProductCard("maxillary", tn) === 0);
+    return card0Tooth
+      ? getToothProduct("maxillary", card0Tooth)?.extractions
+      : card0InitialProduct?.extractions;
+  })();
+  const skipsRemovableToothSelectionHint =
+    activeProductIsRemovables && !hasConfiguredExtractions(activeRemovableExtractionsForHint);
+
+  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && !skipsRemovableToothSelectionHint && (
     teethCount === 0 || isSelectionModeActive
   );
 
@@ -1352,17 +1381,46 @@ export function MaxillaryPanel({
   /** Per-product extractions/status when multiple products share one arch (incl. fixed + removable). */
   const useMaxillaryArchSharedRemovable = false;
 
+  const maxillaryFixedCard0GroupCount = useMemo(
+    () =>
+      maxillaryHasFixedCard0
+        ? countFixedCard0Groups(
+            "maxillary",
+            maxillaryRetentionTypes as Record<string, string[]>,
+            getToothProductCard,
+            getToothProduct
+          )
+        : 0,
+    [maxillaryHasFixedCard0, maxillaryRetentionTypes, getToothProductCard, getToothProduct]
+  );
+
+  const allowAccordionCollapse = archAllowsAccordionCollapse("maxillary", addedProducts, {
+    hasRemovablesCard0: maxillaryHasRemovablesCard0,
+    fixedCard0GroupCount: maxillaryFixedCard0GroupCount,
+  });
+
+  const isCardAccordionExpanded = useCallback(
+    (slotId: string) => !allowAccordionCollapse || isAccordionExpanded(slotId),
+    [allowAccordionCollapse, isAccordionExpanded]
+  );
+
+  const isCardAccordionInteractionEnabled = useCallback(
+    (slotId: string) => !allowAccordionCollapse || isAccordionEnabled(slotId),
+    [allowAccordionCollapse, isAccordionEnabled]
+  );
+
   /** Expanded accordion that owns chart + tooth-status box interactions. */
   const isCardActiveForToothStatus = (cardId: number) => {
     if (activeProductCardId !== cardId) return false;
     if (cardId === 0) {
       if (maxillaryHasFixedCard0 && !maxillaryHasRemovablesCard0) return true;
-      return isAccordionExpanded("removable0");
+      return isCardAccordionExpanded("removable0");
     }
-    return isAccordionExpanded(addedProductSlotId(cardId));
+    return isCardAccordionExpanded(addedProductSlotId(cardId));
   };
 
   const handleAddedRemovableAccordionToggle = (ap: AddedProduct) => {
+    if (!allowAccordionCollapse) return;
     const slotId = addedProductSlotId(ap.id);
     if (!isAccordionEnabled(slotId)) return;
     if (!isAccordionExpanded(slotId)) {
@@ -1374,6 +1432,7 @@ export function MaxillaryPanel({
   };
 
   const handleAddedProductAccordionToggle = (ap: AddedProduct) => {
+    if (!allowAccordionCollapse) return;
     const slotId = addedProductSlotId(ap.id);
     if (!isAccordionEnabled(slotId)) return;
     if (!isAccordionExpanded(slotId)) {
@@ -1390,6 +1449,7 @@ export function MaxillaryPanel({
   };
 
   const handleCard0RemovableAccordionToggle = () => {
+    if (!allowAccordionCollapse) return;
     if (!isAccordionEnabled("removable0")) return;
     toggleAccordionFocus("removable0", 0);
     setActiveFixedGroupProductId(null);
@@ -1458,6 +1518,9 @@ export function MaxillaryPanel({
   // connected adjacent pair (e.g. `6` connects 6 & 7). The product key is derived
   // from the tooth itself so the chart, toggle and per-card summary always agree.
   const [splintLinksByKey, setSplintLinksByKey] = useState<Record<string, number[]>>({});
+  useEffect(() => {
+    onSplintLinksChange?.(splintLinksByKey);
+  }, [splintLinksByKey, onSplintLinksChange]);
   const splintKeyForMaxillaryTooth = useCallback(
     (tooth: number): string => {
       const card = getToothProductCard("maxillary", tooth);
@@ -1544,7 +1607,9 @@ export function MaxillaryPanel({
   });
 
   const ownArchToothChartEnabled =
-    isOwnArchToothChartEnabled("maxillary", activeAccordionKey) || forceOwnArchChartEnabled;
+    !allowAccordionCollapse ||
+    isOwnArchToothChartEnabled("maxillary", activeAccordionKey) ||
+    forceOwnArchChartEnabled;
   const opposingToothChartEnabled = !!opposingProductData;
   const toothChartInteractionEnabled = ownArchToothChartEnabled || opposingToothChartEnabled;
 
@@ -1644,6 +1709,7 @@ export function MaxillaryPanel({
           ? maxillaryMergedExtractions
           : ((activeExtractions?.length ? activeExtractions : card0Extractions) as ProductExtraction[])
       );
+      if (!hasConfiguredExtractions(hintExtractions)) return null;
       const hintAckCardId = useMaxillaryArchSharedRemovable
         ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
         : activeProductCardId !== 0 ? activeProductCardId : 0;
@@ -1823,6 +1889,7 @@ export function MaxillaryPanel({
                             : card0Extractions;
                       }
                       if (isSingleDefaultOnlyExtractionList(exts)) return;
+                      if (!hasConfiguredExtractions(exts)) return;
                       if (canUseToothForActiveProduct && !canUseToothForActiveProduct("maxillary", toothNumber)) {
                         return;
                       }
@@ -2305,12 +2372,14 @@ export function MaxillaryPanel({
                   ) ||
                   "";
                 const apStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
-                const apDays = apStageObj?.days_to_process;
-                const apEstDaysText = apDays != null
-                  ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
-                  : "10 work days after submission";
+                const apEstDaysText = resolveRemovableEstDaysText(cardProduct, apStageVal);
+                const apLabelOnlyHeader =
+                  isApRemovables &&
+                  !hasConfiguredExtractions(
+                    useMaxillaryArchSharedRemovable ? maxillaryMergedExtractions : apProduct?.extractions
+                  );
                 const apSlotId = addedProductSlotId(ap.id);
-                const isExpanded = isAccordionExpanded(apSlotId);
+                const isExpanded = apLabelOnlyHeader || isCardAccordionExpanded(apSlotId);
 
                 return (
                   <ProductAccordionCard
@@ -2318,7 +2387,7 @@ export function MaxillaryPanel({
                     slotId={slotId}
                     arch="maxillary"
                     isExpanded={isExpanded}
-                    interactionEnabled={isAccordionEnabled(apSlotId)}
+                    interactionEnabled={isCardAccordionInteractionEnabled(apSlotId)}
                     isCurrentlyActive={
                       isExpanded &&
                       (isApRemovables
@@ -2361,7 +2430,10 @@ export function MaxillaryPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
-                          onPlusClick={() => {
+                          onPlusClick={
+                            apLabelOnlyHeader
+                              ? undefined
+                              : () => {
                             setActiveExtractionCode(null);
                             // Re-activating product selection resets Done so the button re-appears
                             const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
@@ -2372,9 +2444,10 @@ export function MaxillaryPanel({
                               handleAddedRemovableAccordionToggle(ap);
                             }
                           }}
+                          labelOnlyHeader={apLabelOnlyHeader}
                           isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
                           isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
-                          expandEnabled={isAccordionEnabled(apSlotId)}
+                          expandEnabled={allowAccordionCollapse && isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
                             productName: cardProductName,
@@ -2450,7 +2523,14 @@ export function MaxillaryPanel({
                               ? maxillaryMergedExtractions
                               : removableCardExtractions
                             ).length > 0 &&
-                            maxillaryTeeth.length > 0 ? (
+                            // Selected teeth, or selection optional (default + optional-only) so
+                            // the user can click Done without selecting (e.g. night guard).
+                            (maxillaryTeeth.length > 0 ||
+                              isExtractionSelectionOptional(
+                                useMaxillaryArchSharedRemovable
+                                  ? maxillaryMergedExtractions
+                                  : removableCardExtractions
+                              )) ? (
                               <ToothStatusBoxes
                                 extractions={
                                   useMaxillaryArchSharedRemovable
@@ -2546,7 +2626,7 @@ export function MaxillaryPanel({
                           }}
                           isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
                           isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
-                          expandEnabled={isAccordionEnabled(apSlotId)}
+                          expandEnabled={allowAccordionCollapse && isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
                           toothDisplay={cardToothDisplay}
@@ -3265,18 +3345,19 @@ export function MaxillaryPanel({
                 );
                 const showFixedRetentionDone =
                   hasRetentionOptions(selectedProduct) && !caseSubmitted;
-                const card0FixedExpanded = isAccordionExpanded(slotId);
+                const card0FixedExpanded = isCardAccordionExpanded(slotId);
                 return (
                   <ProductAccordionCard
                     key={`prep-pontic-group-${groupKey}`}
                     slotId={slotId}
                     arch="maxillary"
                     isExpanded={card0FixedExpanded}
-                    interactionEnabled={isAccordionEnabled(slotId)}
+                    interactionEnabled={isCardAccordionInteractionEnabled(slotId)}
                     isCurrentlyActive={
                       activeFixedGroupProductId === selectedProduct?.id && card0FixedExpanded
                     }
                     onToggle={() => {
+                      if (!allowAccordionCollapse) return;
                       if (!isAccordionEnabled(slotId)) return;
                       if (card0FixedExpanded) {
                         setShadeSelectionState({ arch: null, fieldType: null, productId: null });
@@ -3327,6 +3408,7 @@ export function MaxillaryPanel({
                         isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
                         isExtractionActive={activeProductCardId === 0 && activeExtractionCode !== null}
                         onToggleExpand={() => {
+                          if (!allowAccordionCollapse) return;
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
                             setShadeSelectionState({ arch: null, fieldType: null, productId: null });
@@ -3334,7 +3416,7 @@ export function MaxillaryPanel({
                           toggleAccordionFocus(slotId, 0);
                           setActiveFixedGroupProductId(selectedProduct?.id ?? null);
                         }}
-                        expandEnabled={isAccordionEnabled(slotId)}
+                        expandEnabled={allowAccordionCollapse && isAccordionEnabled(slotId)}
                         productImageUrl={productImage}
                         productName={productName}
                         toothDisplay={toothNumbersDisplay}
@@ -3424,7 +3506,7 @@ export function MaxillaryPanel({
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
                         arch="maxillary"
                         toothNumber={hasRetentionOptions(selectedProduct) ? groupStageToothNumber : firstToothNumber}
-                        isExpanded={isAccordionExpanded(slotId)}
+                        isExpanded={isCardAccordionExpanded(slotId)}
                         isStageVisible={hasRetentionOptions(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("maxillary", firstToothNumber, "stage")}
                         isStageEmpty={hasRetentionOptions(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("maxillary", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`maxillary_prep_${firstToothNumber}`] || getFieldValue("maxillary", firstToothNumber, "stage"))}
                         onOpenStage={handleOpenStageModal}
@@ -3436,7 +3518,7 @@ export function MaxillaryPanel({
                         <AutoOpenShadeGuideIfEmpty
                           arch="maxillary"
                           productId={_fixedShadeProductId}
-                          isExpanded={isAccordionExpanded(slotId)}
+                          isExpanded={isCardAccordionExpanded(slotId)}
                           isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
                           stumpShadeEmpty={_needsStumpShade && !getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")}
                           toothShadeEmpty={_needsToothShade && !getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade")}
@@ -3468,7 +3550,7 @@ export function MaxillaryPanel({
                     {card0ShowFixedFields && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="maxillary"
-                        isExpanded={isAccordionExpanded(slotId)}
+                        isExpanded={isCardAccordionExpanded(slotId)}
                         firstToothNumber={groupStageToothNumber}
                         groupStageToothNumber={groupStageToothNumber}
                         groupStageProductIdFixed={groupStageProductIdFixed}
@@ -3522,7 +3604,7 @@ export function MaxillaryPanel({
                         setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
                         implantDetailByTooth={implantDetailByTooth}
                         setImplantDetailByTooth={setImplantDetailByTooth}
-                        isExpanded={isAccordionExpanded(slotId)}
+                        isExpanded={isCardAccordionExpanded(slotId)}
                         isFieldVisible={isFieldVisible}
                         isFieldCompleted={isFieldCompleted}
                         getFieldValue={getFieldValue}
@@ -3557,10 +3639,15 @@ export function MaxillaryPanel({
             {showDetails && maxillaryHasRemovablesCard0 && (() => {
               const SLOT_ID = "removable0";
               // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
-              const cardTeeth = MAXILLARY_ALL_TEETH.filter(tn => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0);
+              const realCardTeeth = MAXILLARY_ALL_TEETH.filter(tn => getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0);
+              // Fallback to the sentinel tooth + initial product details so the card renders
+              // immediately for TIM-default removable/ortho products: they select no teeth, and
+              // the async per-tooth product assignment may not have landed yet.
+              const cardTeeth = realCardTeeth.length > 0 ? realCardTeeth : (card0InitialProduct ? [MAXILLARY_ALL_TEETH[0]] : []);
               if (cardTeeth.length === 0) return null;
-              const card0Extractions = cardTeeth.flatMap((tn) => getToothProduct("maxillary", tn)?.extractions ?? []);
-              const cardProduct = getToothProduct("maxillary", cardTeeth[0]);
+              const getCardToothProduct = (tn: number) => getToothProduct("maxillary", tn) ?? card0InitialProduct;
+              const card0Extractions = cardTeeth.flatMap((tn) => getCardToothProduct(tn)?.extractions ?? []);
+              const cardProduct = getCardToothProduct(cardTeeth[0]);
               const cardIsFullDenture = isFullDentureProduct(card0Extractions);
               const cardIsSingleDefaultOnly = isSingleDefaultOnlyExtractionList(
                 cardProduct?.extractions ?? card0Extractions
@@ -3598,11 +3685,7 @@ export function MaxillaryPanel({
               const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
               const stageDisplayName = parseStageDisplayName(stageVal);
-              const remCard0StageObj = cardProduct?.stages?.find((s) => s.name === stageDisplayName);
-              const remCard0Days = remCard0StageObj?.days_to_process;
-              const estDays = remCard0Days != null
-                ? `${remCard0Days} work day${remCard0Days === 1 ? "" : "s"} after submission`
-                : "10 work days after submission";
+              const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName);
               const hasRushedRemovables = isProductRushed(
                 rushedProducts,
                 "maxillary",
@@ -3614,23 +3697,27 @@ export function MaxillaryPanel({
               // Compute extractions for this removable product
               const cardExtractionsSeen = new Set<number>();
               const cardExtractions = cardTeeth.flatMap((tn) => {
-                const product = getToothProduct("maxillary", tn);
+                const product = getCardToothProduct(tn);
                 return product?.extractions ?? [];
               }).filter((e) => {
                 if (cardExtractionsSeen.has(e.extraction_id)) return false;
                 cardExtractionsSeen.add(e.extraction_id);
                 return true;
               });
+              const card0LabelOnlyHeader = !hasConfiguredExtractions(
+                useMaxillaryArchSharedRemovable ? maxillaryMergedExtractions : cardExtractions
+              );
+              const card0Expanded = card0LabelOnlyHeader || isCardAccordionExpanded(SLOT_ID);
 
               return (
                 <ProductAccordionCard
                   key="initial-removables-maxillary"
                   slotId={SLOT_ID}
                   arch="maxillary"
-                  isExpanded={isAccordionExpanded(SLOT_ID)}
-                  interactionEnabled={isAccordionEnabled(SLOT_ID)}
+                  isExpanded={card0Expanded}
+                  interactionEnabled={isCardAccordionInteractionEnabled(SLOT_ID)}
                   isCurrentlyActive={
-                    isCurrentlyActiveProduct && isAccordionExpanded(SLOT_ID)
+                    isCurrentlyActiveProduct && card0Expanded
                   }
                   onToggle={handleCard0RemovableAccordionToggle}
                   productName={cardProductName}
@@ -3664,11 +3751,14 @@ export function MaxillaryPanel({
                   caseSubmitted={caseSubmitted}
                   customHeader={
                     <RestorationAccordionHeader
-                      isExpanded={isAccordionExpanded(SLOT_ID)}
+                      isExpanded={card0Expanded}
                       caseSubmitted={caseSubmitted}
                       hasRush={!!hasRushedRemovables}
                       onToggleExpand={handleCard0RemovableAccordionToggle}
-                      onPlusClick={() => {
+                      onPlusClick={
+                        card0LabelOnlyHeader
+                          ? undefined
+                          : () => {
                         setActiveExtractionCode(null);
                         // Re-activating product selection resets Done so the button re-appears
                         const ackCardId = useMaxillaryArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
@@ -3679,8 +3769,9 @@ export function MaxillaryPanel({
                           handleCard0RemovableAccordionToggle();
                         }
                       }}
+                      labelOnlyHeader={card0LabelOnlyHeader}
                       isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
-                      expandEnabled={isAccordionEnabled(SLOT_ID)}
+                      expandEnabled={allowAccordionCollapse && isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({
                         productName: cardProductName,
@@ -3727,7 +3818,7 @@ export function MaxillaryPanel({
                         if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("maxillary");
                       }}
                       isCurrentlyActive={
-                        isCurrentlyActiveProduct && isAccordionExpanded(SLOT_ID)
+                        isCurrentlyActiveProduct && card0Expanded
                       }
                       confirmDetailsChecked={confirmDetailsChecked}
                       showHeaderContent={shouldShowRemovableHeaderContent({
@@ -3762,7 +3853,15 @@ export function MaxillaryPanel({
                             ? maxillaryMergedExtractions
                             : cardExtractions
                         ) &&
-                        maxillaryTeeth.length > 0 ? (
+                        // Show the extraction boxes + Done button once teeth are selected,
+                        // or immediately when selection is optional (default + optional-only,
+                        // e.g. night guard) so the user can click Done without selecting.
+                        (maxillaryTeeth.length > 0 ||
+                          isExtractionSelectionOptional(
+                            useMaxillaryArchSharedRemovable
+                              ? maxillaryMergedExtractions
+                              : cardExtractions
+                          )) ? (
                           <>
                           {/* "Select teeth for reference" hint — directly above the status boxes. */}
                           {maxillaryToothHint && maxillaryToothHint.kind === "reference" && (
@@ -3843,7 +3942,7 @@ export function MaxillaryPanel({
                 >
                   {(() => {
                     const repTn = cardTeeth[0];
-                    const toothProduct = getToothProduct("maxillary", repTn);
+                    const toothProduct = getCardToothProduct(repTn);
                     const advFields = toothProduct?.advance_fields;
                     const removableChain = getSelectionFieldChain(toothProduct);
                     const isF = (step: string) =>
@@ -3890,7 +3989,7 @@ export function MaxillaryPanel({
                             productId={productKey}
                             arch="maxillary"
                             toothNumber={repTn}
-                            isExpanded={isAccordionExpanded(SLOT_ID) && card0ShowRemovableFields}
+                            isExpanded={card0Expanded && card0ShowRemovableFields}
                             isStageVisible={isF("stage")}
                             isStageEmpty={!stageVal}
                             onOpenStage={handleOpenStageModal}
@@ -3898,8 +3997,17 @@ export function MaxillaryPanel({
                           />
                         )}
                         <AutoOpenImpressionIfEmpty
-                          isExpanded={isAccordionExpanded(SLOT_ID) && card0ShowRemovableFields}
-                          isImpressionVisible={isF("impression") && removableImplantDetailReady}
+                          isExpanded={card0Expanded && card0ShowRemovableFields}
+                          isImpressionVisible={
+                            getNextSelectionFieldStep(
+                              removableChain,
+                              "maxillary",
+                              repTn,
+                              (a, t, s) => isFieldCompleted(a, t, s)
+                            ) === "impression" &&
+                            isF("impression") &&
+                            removableImplantDetailReady
+                          }
                           isImpressionEmpty={
                             !isFComplete("impression") &&
                             !archHasActiveImpressionSelections(

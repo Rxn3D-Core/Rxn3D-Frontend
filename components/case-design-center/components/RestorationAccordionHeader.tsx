@@ -63,6 +63,11 @@ export interface RestorationAccordionHeaderProps {
   isExtractionActive?: boolean;
   /** Custom tooltip label for the plus icon (e.g. "Click tooth to mark as Will extract on delivery") */
   plusTooltipLabel?: string;
+  /**
+   * No extractions configured: show product name + est days only — no fieldset box,
+   * plus icon, or expand chevron.
+   */
+  labelOnlyHeader?: boolean;
 }
 
 /**
@@ -100,6 +105,7 @@ export function RestorationAccordionHeader({
   isProductSelectionActive = false,
   isExtractionActive = false,
   plusTooltipLabel,
+  labelOnlyHeader = false,
 }: RestorationAccordionHeaderProps) {
   const showStageBadge =
     isDisplayableStageValue(stageName) &&
@@ -121,20 +127,72 @@ export function RestorationAccordionHeader({
           onDelete?.();
         }}
       />
-      <AccordionHeaderActions
-        isExpanded={isExpanded}
-        caseSubmitted={caseSubmitted}
-        showExtractionsDone={false}
-        extractionsAcknowledged={extractionsAcknowledged}
-        onExtractionsAcknowledgedChange={onExtractionsAcknowledgedChange}
-        showRetentionDone={false}
-        retentionDoneAcknowledged={retentionDoneAcknowledged}
-        onRetentionDoneChange={onRetentionDoneChange}
-        onToggleExpand={onToggleExpand}
-        expandEnabled={expandEnabled}
-      />
+      {!labelOnlyHeader && (
+        <AccordionHeaderActions
+          isExpanded={isExpanded}
+          caseSubmitted={caseSubmitted}
+          showExtractionsDone={false}
+          extractionsAcknowledged={extractionsAcknowledged}
+          onExtractionsAcknowledgedChange={onExtractionsAcknowledgedChange}
+          showRetentionDone={false}
+          retentionDoneAcknowledged={retentionDoneAcknowledged}
+          onRetentionDoneChange={onRetentionDoneChange}
+          onToggleExpand={onToggleExpand}
+          expandEnabled={expandEnabled}
+        />
+      )}
+      {labelOnlyHeader ? (
+        <div
+          className="flex items-stretch gap-[10px] px-[8px] pt-[14px] pb-[8px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ProductImagePreview
+            imageUrl={productImageUrl}
+            altText={productName}
+            containerClassName={productAccordionLargeImageContainerClass}
+            imgClassName="w-full h-full object-contain"
+            fallback={
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-[10px] text-gray-400">No img</span>
+              </div>
+            }
+          />
+          <div className="flex-1 min-w-0 flex flex-col gap-[2px] justify-center">
+            {showHeaderContent && (
+              <>
+                <p className={`${removableHeaderTitleClass} text-[#555555]`}>
+                  {productName}
+                  {hasRush && (
+                    <RushIcon className="inline w-[14px] h-[14px] ml-1 text-[#CF0202]" />
+                  )}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <EstDaysLabel
+                    rushed={hasRush}
+                    text={hasRush ? "5 work days after submission" : estDaysText}
+                  />
+                  {canDelete && !caseSubmitted && onDelete ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDeleteConfirm(true);
+                      }}
+                      className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
+                      title="Remove this product"
+                      aria-label="Remove this product"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
       <div
-        className="flex items-stretch gap-[10px] px-[8px] pt-[14px]"
+        className="flex items-stretch gap-[10px] px-[8px] pt-[14px] pb-[8px]"
         onClick={(e) => e.stopPropagation()}
       >
         <ProductImagePreview
@@ -211,7 +269,9 @@ export function RestorationAccordionHeader({
                   <p className={`${removableHeaderToothClass} text-[#666666]`}>{toothDisplay}</p>
                 ) : null}
               </fieldset>
-              {middleContent}
+              {middleContent ? (
+                <div className="mt-2 mb-2 w-full">{middleContent}</div>
+              ) : null}
               <div className="flex justify-center items-center gap-2 w-full">
                 <EstDaysLabel
                   rushed={hasRush}
@@ -257,6 +317,7 @@ export function RestorationAccordionHeader({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   isSingleDefaultOnlyExtractionList,
+  isExtractionSelectionOptional,
+  canSkipExtractionToothSelection,
   shouldAutoSelectArchForDefaultExtraction,
   isOverlayExtractionCode,
   toothHasTimBaseExtraction,
@@ -20,6 +22,73 @@ test("single default extraction list still identifies a TIM-only list", () => {
   ]);
 
   assert.equal(result, true);
+});
+
+test("isExtractionSelectionOptional: single default (orthodontics) is optional", () => {
+  assert.equal(
+    isExtractionSelectionOptional([
+      { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", status: "Active" },
+    ]),
+    true
+  );
+});
+
+test("isExtractionSelectionOptional: default + optional missing tooth (night guard) is optional", () => {
+  assert.equal(
+    isExtractionSelectionOptional([
+      { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", is_optional: "No", status: "Active" },
+      { name: "Missing tooth", code: "MT1", is_default: "No", is_optional: "Yes", is_required: "No", status: "Active" },
+    ]),
+    true
+  );
+});
+
+test("isExtractionSelectionOptional: required non-default (partial denture) is NOT optional", () => {
+  assert.equal(
+    isExtractionSelectionOptional([
+      { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", status: "Active" },
+      { name: "Missing teeth", code: "MT", is_default: "No", is_required: "Yes", status: "Active" },
+    ]),
+    false
+  );
+});
+
+test("isExtractionSelectionOptional: no default extraction is NOT optional", () => {
+  assert.equal(
+    isExtractionSelectionOptional([
+      { name: "Missing teeth", code: "MT", is_default: "No", is_optional: "Yes", status: "Active" },
+    ]),
+    false
+  );
+});
+
+test("isExtractionSelectionOptional: empty list is NOT optional", () => {
+  assert.equal(isExtractionSelectionOptional([]), false);
+});
+
+test("canSkipExtractionToothSelection: empty list skips chart selection", () => {
+  assert.equal(canSkipExtractionToothSelection([]), true);
+  assert.equal(canSkipExtractionToothSelection(undefined), true);
+});
+
+test("canSkipExtractionToothSelection: required non-default still requires selection", () => {
+  assert.equal(
+    canSkipExtractionToothSelection([
+      { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", status: "Active" },
+      { name: "Missing teeth", code: "MT", is_default: "No", is_required: "Yes", status: "Active" },
+    ]),
+    false
+  );
+});
+
+test("canSkipExtractionToothSelection: default + optional skips selection", () => {
+  assert.equal(
+    canSkipExtractionToothSelection([
+      { name: "Teeth in mouth", code: "TIM1", is_default: "Yes", is_tim: "Yes", status: "Active" },
+      { name: "Missing tooth", code: "MT1", is_default: "No", is_optional: "Yes", status: "Active" },
+    ]),
+    true
+  );
 });
 
 test("does not auto-select the arch for a TIM default extraction", () => {

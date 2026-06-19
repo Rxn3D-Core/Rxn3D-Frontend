@@ -90,6 +90,7 @@ export function EditSlipFlow({ slipId }: Props) {
   );
 
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
+  const caseSummaryNotesRef = useRef("");
   const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(true);
   const [caseReady, setCaseReady] = useState(false);
   const [incompleteFieldLabel, setIncompleteFieldLabel] = useState<string | null>(null);
@@ -227,6 +228,7 @@ export function EditSlipFlow({ slipId }: Props) {
         casepanId: casepanMeta.id,
         casepanNumber: casepanMeta.number ?? undefined,
         labCustomerId: labCustomerId ?? undefined,
+        caseSummaryNotes: caseSummaryNotesRef.current,
       });
 
       const res = await putEditSlip(slipId, payload, multipartFiles);
@@ -382,6 +384,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 initialSlipState={initialSlipState}
                 preloadInitialSlipState
                 slipCollectorRef={slipCollectorRef}
+                caseSummaryNotesRef={caseSummaryNotesRef}
                 confirmDetailsChecked={confirmDetailsChecked}
                 onAnyModalOpenChange={setIsAnyModalOpen}
                 rushCasesEnabled={rushCasesEnabled}

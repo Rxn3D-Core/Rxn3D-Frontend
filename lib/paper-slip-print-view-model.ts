@@ -1,4 +1,8 @@
 import { buildOpposingArchVM } from "./virtual-slip-extraction-display.ts";
+import {
+  isSplintedSlipProduct,
+  parseSplintedTeethToLinks,
+} from "@/components/case-design-center/utils/splintHelpers";
 
 export type PaperSlipArch = "maxillary" | "mandibular";
 export type PaperSlipArchMode = "extraction" | "retention" | "default";
@@ -69,6 +73,8 @@ export interface PaperSlipArchVM {
   productCallouts: PaperSlipCallout[];
   callouts: PaperSlipCallout[];
   detailRows: PaperSlipDetailRow[];
+  /** Lower tooth number per splinted adjacent pair (read-only chart connectors). */
+  splintedLinks?: number[];
 }
 
 export interface PaperSlipPrintHeaderVM {
@@ -870,6 +876,14 @@ function buildArchVM(arch: PaperSlipArch, products: any[]): PaperSlipArchVM | nu
     mode === "retention" &&
     detailRows.some((row) => row.kind === "implant_retention");
 
+  const splintedLinks = new Set<number>();
+  for (const product of archProducts) {
+    if (!isSplintedSlipProduct(product)) continue;
+    for (const link of parseSplintedTeethToLinks(product?.splinted_teeth)) {
+      splintedLinks.add(link);
+    }
+  }
+
   return {
     arch,
     mode,
@@ -881,6 +895,9 @@ function buildArchVM(arch: PaperSlipArch, products: any[]): PaperSlipArchVM | nu
     productCallouts,
     callouts: buildCallouts(mode, extractionVisuals, retentionVisuals, allMissing),
     detailRows,
+    ...(splintedLinks.size > 0
+      ? { splintedLinks: Array.from(splintedLinks).sort((a, b) => a - b) }
+      : {}),
   };
 }
 

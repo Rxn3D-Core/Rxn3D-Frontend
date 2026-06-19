@@ -306,7 +306,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
                 />
               ) : (
                 <Image 
-                  src="/images/rxn3d-logo.png" 
+                  src="/images/rxn3d-logo.svg" 
                   alt="RXN3D" 
                   width={160} 
                   height={48} 

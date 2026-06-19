@@ -66,6 +66,11 @@ export interface SlipProductSnapshot {
    * Each entry carries addon_id and qty for payload submission.
    */
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  /**
+   * Active splint links for this product card (lower tooth number per adjacent pair).
+   * Only present when the catalog product has `is_splinted === "Yes"`.
+   */
+  splintLinks?: number[];
 }
 
 export interface CaseDesignProps {
@@ -126,6 +131,11 @@ export interface CaseDesignProps {
    * the current product snapshots needed to build the slip payload.
    */
   slipCollectorRef?: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
+  /**
+   * When provided, CaseDesignCenter writes the current Case Summary Notes textarea
+   * content here so submit flows can send WYSIWYG notes to the API.
+   */
+  caseSummaryNotesRef?: React.MutableRefObject<string>;
   /**
    * Pre-built state from the virtual slip API response.
    * When provided alongside caseSubmitted=true, hydrates all panels on first mount
@@ -257,6 +267,8 @@ export interface NotesProps {
   selectedStages: Record<string, string>;
   /** Get display text for impression */
   getImpressionDisplayText: (productId: string, arch: Arch, toothNumber?: number) => string;
+  /** Fired when the displayed case summary text changes (auto-generated or user-edited). */
+  onNotesChange?: (text: string) => void;
   /** Implant inclusions for right1 and right2 */
   right1Inclusion: string;
   right2Inclusion: string;

@@ -65,6 +65,9 @@ export interface LibraryProductApi {
   updated_at: string
   subcategory?: LibraryProductSubcategoryApi
   customer?: Record<string, unknown> | null
+  /** Drives fixed vs removables slip routing in the wizard. */
+  has_retention?: string | boolean | null
+  retention_options?: unknown[]
 }
 
 export interface LibraryProductsApiResponse {
@@ -94,6 +97,8 @@ export interface WizardProductShape {
   id: number
   name: string
   img: string
+  has_retention?: string | boolean | null
+  retention_options?: unknown[]
   /** Per-arch images for removable restoration hover popover. Populated from API when available. */
   arch_images: ArchImages
   /** Whether to use jaw_photos as arch popover images instead of arch_images */
@@ -285,6 +290,8 @@ export function useLibraryProducts(options: {
         lower: p.jaw_photos?.lower ?? null,
         both: p.jaw_photos?.both ?? null,
       },
+      has_retention: p.has_retention,
+      retention_options: p.retention_options,
     }))
 
   return {
