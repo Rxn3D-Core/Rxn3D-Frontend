@@ -101,10 +101,12 @@ test("getV2PaginationPages returns a stable five-page window", () => {
 });
 
 test("v2RowActionStripClass is hidden until row hover or focus", () => {
-  assert.match(v2RowActionStripClass, /opacity-0/);
-  assert.match(v2RowActionStripClass, /group-hover:opacity-100/);
-  assert.match(v2RowActionStripClass, /group-focus-within:opacity-100/);
-  assert.match(v2RowActionStripClass, /pointer-events-none/);
-  assert.match(v2RowActionStripClass, /group-hover:pointer-events-auto/);
-  assert.match(v2RowActionStripClass, /group-focus-within:pointer-events-auto/);
+  const actionStripClass = v2RowActionStripClass();
+
+  assert.match(actionStripClass, /opacity-0/);
+  assert.match(actionStripClass, /group-hover:opacity-100/);
+  assert.match(actionStripClass, /group-focus-within:opacity-100/);
+  assert.match(actionStripClass, /pointer-events-none/);
+  assert.match(actionStripClass, /group-hover:pointer-events-auto/);
+  assert.match(actionStripClass, /group-focus-within:pointer-events-auto/);
 });
