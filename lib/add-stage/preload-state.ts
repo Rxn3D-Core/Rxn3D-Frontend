@@ -3,6 +3,10 @@ import type {
   VirtualSlipInitialState,
 } from "@/components/case-design-center/types";
 import {
+  isFixedRestorationProduct,
+  resolveProductForRetentionCheck,
+} from "@/components/case-design-center/utils/categoryHelpers";
+import {
   buildVirtualSlipInitialState,
   determineInitialArch,
   parseProductTeeth,
@@ -14,16 +18,8 @@ function archFromType(type: string | null | undefined): "maxillary" | "mandibula
   return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
 }
 
-function isRemovableCategory(apiProduct: Record<string, unknown>): boolean {
-  const product = (apiProduct.product ?? {}) as Record<string, unknown>;
-  const categoryName = String(
-    (apiProduct.category as { name?: string } | undefined)?.name ??
-      (product.subcategory as { category?: { name?: string } } | undefined)?.category
-        ?.name ??
-      product.category_name ??
-      ""
-  ).toLowerCase();
-  return categoryName.includes("removable");
+function isNonFixedSlipProduct(apiProduct: Record<string, unknown>): boolean {
+  return !isFixedRestorationProduct(resolveProductForRetentionCheck(apiProduct));
 }
 
 /**
@@ -56,7 +52,7 @@ export function buildAddStagePreload(
     const repTooth = teeth[0];
     if (repTooth == null) continue;
 
-    const removable = isRemovableCategory(apiProduct);
+    const removable = isNonFixedSlipProduct(apiProduct);
     const stageKey = removable
       ? `${arch}_prep_${repTooth}`
       : `${arch}_fixed_${repTooth}`;

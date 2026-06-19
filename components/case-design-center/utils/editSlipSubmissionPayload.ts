@@ -7,6 +7,10 @@ import {
 } from "./slipPayloadMappers";
 import { snapshotToProduct } from "./caseSubmissionPayload";
 import {
+  buildSlipLevelNotes,
+  clearProductNotesWhenUsingCaseSummary,
+} from "./caseSummaryNotesPayload";
+import {
   buildBaselineEditSlipProducts,
   findBaselineProductForPrepared,
   mergeEditSlipProductWithBaseline,
@@ -32,6 +36,7 @@ export interface BuildEditSlipPayloadParams {
   casepanId?: number | null;
   casepanNumber?: string | null;
   labCustomerId?: number;
+  caseSummaryNotes?: string;
 }
 
 function normalizeSlipProductType(type: string | null | undefined): "Upper" | "Lower" | null {
@@ -97,6 +102,7 @@ export async function buildEditSlipSubmissionPayloadAsync(
     casepanId,
     casepanNumber,
     labCustomerId,
+    caseSummaryNotes,
   } = params;
 
   const baselineProducts = buildBaselineEditSlipProducts(apiProducts);
@@ -142,10 +148,9 @@ export async function buildEditSlipSubmissionPayloadAsync(
           return existingId ? { ...baseline, id: existingId } : baseline;
         });
 
-  const slipNotes = products
-    .map((p) => p.notes)
-    .filter((note): note is string => Boolean(note))
-    .map((note) => ({ note }));
+  clearProductNotesWhenUsingCaseSummary(products, caseSummaryNotes);
+
+  const slipNotes = buildSlipLevelNotes(products, caseSummaryNotes, 0);
 
   const payload: EditSlipPayload = {
     ...(locationId ? { location_id: locationId } : {}),

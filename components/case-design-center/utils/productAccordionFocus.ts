@@ -1,4 +1,4 @@
-import type { AddedProduct, Arch } from "../types";
+import type { AddedProduct, Arch, ProductApiData } from "../types";
 
 /** Stable key for the single expanded product accordion (one arch at a time). */
 export function productAccordionKey(arch: Arch, slotId: string): string {
@@ -52,4 +52,53 @@ export function isOwnArchToothChartEnabled(
   activeAccordionKey: string
 ): boolean {
   return archFromActiveAccordionKey(activeAccordionKey) === panelArch;
+}
+
+/** Distinct card-0 fixed prep/pontic/implant product groups on an arch. */
+export function countFixedCard0Groups(
+  arch: Arch,
+  retentionTypes: Record<string, string[]>,
+  getToothProductCard: (arch: Arch, toothNumber: number) => number,
+  getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null
+): number {
+  const groupKeys = new Set<string>();
+  for (const [toothNum, types] of Object.entries(retentionTypes)) {
+    const hasPrepPontic = types.some(
+      (t) => t === "Prep" || t === "Pontic" || t === "Implant"
+    );
+    if (!hasPrepPontic) continue;
+    const tn = Number(toothNum);
+    if (getToothProductCard(arch, tn) !== 0) continue;
+    const product = getToothProduct(arch, tn);
+    groupKeys.add(product?.id ? String(product.id) : "no_product");
+  }
+  return groupKeys.size;
+}
+
+/** Total product accordion cards rendered on one arch (card 0 + added products). */
+export function archProductAccordionCount(
+  arch: Arch,
+  addedProducts: AddedProduct[] | undefined,
+  options: {
+    hasRemovablesCard0: boolean;
+    fixedCard0GroupCount: number;
+  }
+): number {
+  const added = (addedProducts ?? []).filter((p) => p.arch === arch).length;
+  const card0 =
+    (options.hasRemovablesCard0 ? 1 : 0) +
+    (options.fixedCard0GroupCount > 0 ? options.fixedCard0GroupCount : 0);
+  return card0 + added;
+}
+
+/** When false, the sole product accordion on an arch stays open (no collapse chevron). */
+export function archAllowsAccordionCollapse(
+  arch: Arch,
+  addedProducts: AddedProduct[] | undefined,
+  options: {
+    hasRemovablesCard0: boolean;
+    fixedCard0GroupCount: number;
+  }
+): boolean {
+  return archProductAccordionCount(arch, addedProducts, options) > 1;
 }

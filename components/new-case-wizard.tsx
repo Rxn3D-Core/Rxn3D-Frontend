@@ -8,6 +8,7 @@ import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { useLibraryCategories } from "@/hooks/use-library-categories";
 import { useLibraryProducts, useLibraryProductSearch, useSubcategoryProductCounts, type LibraryProductApi } from "@/hooks/use-library-products";
+import { hasRetentionOptions } from "@/components/case-design-center/utils/categoryHelpers";
 import { useDebounce } from "@/lib/performance-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -1540,7 +1541,7 @@ function StepMaterial({
   gender,
   isLoading,
   error,
-  isRemovableRestoration,
+  isNonFixedProduct,
   forceArch,
   onPatientNameChange,
   onGenderChange,
@@ -1565,7 +1566,7 @@ function StepMaterial({
   age?: string;
   isLoading?: boolean;
   error?: Error | null;
-  isRemovableRestoration?: boolean;
+  isNonFixedProduct?: boolean;
   forceArch?: "maxillary" | "mandibular";
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
@@ -1619,13 +1620,13 @@ function StepMaterial({
     if (
       products.length === 1 &&
       !selected &&
-      (!isRemovableRestoration || forceArch) &&
+      (!isNonFixedProduct || forceArch) &&
       !isLoading
     ) {
       const only = products[0];
       onSelect(String(only.id), forceArch);
     }
-  }, [products, selected, isRemovableRestoration, forceArch, isLoading, onSelect]);
+  }, [products, selected, isNonFixedProduct, forceArch, isLoading, onSelect]);
 
   useEffect(() => {
     if (products.length <= 1 && archPopoverProductId) {
@@ -1638,8 +1639,8 @@ function StepMaterial({
     setArchPopoverProductId(initialArchPopoverProductId);
   }, [initialArchPopoverProductId, isLoading]);
 
-  const shouldAutoSelectSingle = products.length === 1 && (!isRemovableRestoration || forceArch);
-  const shouldAskArchOnly = products.length === 1 && isRemovableRestoration && !forceArch && !isLoading;
+  const shouldAutoSelectSingle = products.length === 1 && (!isNonFixedProduct || forceArch);
+  const shouldAskArchOnly = products.length === 1 && isNonFixedProduct && !forceArch && !isLoading;
 
   if (error) {
     return (
@@ -1733,7 +1734,7 @@ function StepMaterial({
                 <button
                   ref={(el) => { cardRefs.current[prodId] = el; }}
                   onClick={() => {
-                    if (!isRemovableRestoration || forceArch) {
+                    if (!isNonFixedProduct || forceArch) {
                       onSelect(prodId, forceArch);
                     } else {
                       if (archPopoverProductId === prodId) {
@@ -2198,10 +2199,10 @@ export default function NewCaseWizard({
       setShouldAutoAdvanceProducts(false);
       setProductSearch("");
 
-      const isRemovable = categoryName.toLowerCase().includes("removable");
+      const needsArchSelection = !hasRetentionOptions(product);
       const productId = String(product.id);
 
-      if (isRemovable && !forceArch) {
+      if (needsArchSelection && !forceArch) {
         setSelectedMaterial(productId);
         setPendingArchProductId(productId);
         setStep(6);
@@ -2231,11 +2232,11 @@ export default function NewCaseWizard({
     if (!shouldAutoAdvanceProducts) return;
 
     const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-    const isRemovable = selectedCategoryName.toLowerCase().includes("removable");
 
     if (productsAsWizard.length === 1) {
       const only = productsAsWizard[0];
-      if (isRemovable && !forceArch && !selectedArch) {
+      const needsArchSelection = !hasRetentionOptions(only);
+      if (needsArchSelection && !forceArch && !selectedArch) {
         setArchPopoverSubId(selectedSubProduct);
       } else {
         finalizeSelection(String(only.id), forceArch ?? selectedArch);
@@ -2515,7 +2516,10 @@ export default function NewCaseWizard({
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
           const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-          const isRemovable = selectedCategoryName.toLowerCase().includes("removable");
+          const activeProduct =
+            productsAsWizard.find((p) => String(p.id) === String(selectedMaterial)) ??
+            productsAsWizard[0];
+          const isNonFixedProduct = activeProduct ? !hasRetentionOptions(activeProduct) : false;
           return (
             <StepMaterial
               categoryName={selectedCategoryName}
@@ -2526,7 +2530,7 @@ export default function NewCaseWizard({
               selected={selectedMaterial}
               isLoading={productsLoading}
               error={productsError}
-              isRemovableRestoration={isRemovable}
+              isNonFixedProduct={isNonFixedProduct}
               forceArch={forceArch ?? selectedArch}
               onBack={() => {
                 setShouldAutoAdvanceProducts(false);

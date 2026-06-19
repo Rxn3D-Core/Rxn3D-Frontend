@@ -1,4 +1,5 @@
 import type { SavedProduct, Product, ProductCategoryApi } from "@/app/case-design-center/sections/types"
+import { hasRetentionOptions } from "@/components/case-design-center/utils/categoryHelpers"
 import { formatTeethNumbers, parseTeethNumbers } from "./teeth-formatting"
 import { formatAdvanceFields } from "./case-design-helpers"
 
@@ -321,12 +322,10 @@ export const generateCaseNotes = (savedProducts: SavedProduct[]): string => {
     maxillaryProducts.forEach((product, index) => {
       if (index > 0) notes += "\n"
 
-      const categoryName = product.category.toLowerCase()
-      const isFixedRestoration = categoryName.includes("fixed") || (!categoryName.includes("removable") && !categoryName.includes("orthodontic"))
-      const isRemovable = categoryName.includes("removable")
-      const isOrthodontic = categoryName.includes("orthodontic") || categoryName.includes("ortho")
+      const productDetailsForType = product.productDetails ?? product.product
+      const isFixed = hasRetentionOptions(productDetailsForType)
 
-      if (isFixedRestoration) {
+      if (isFixed) {
         const teeth = formatTeethNumbers(product.maxillaryTeeth)
         const productName = product.product.name || "restoration"
         const stage = product.maxillaryStage || "finish"
@@ -379,7 +378,7 @@ export const generateCaseNotes = (savedProducts: SavedProduct[]): string => {
 
         const gapText = gap ? `, gap: ${gap}` : ""
         notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}${gapText}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
-      } else if (isRemovable) {
+      } else {
         const teeth = formatTeethNumbers(product.maxillaryTeeth)
         const productName = product.product.name || "removable restoration"
         const grade = product.maxillaryMaterial || "Premium"
@@ -406,11 +405,6 @@ export const generateCaseNotes = (savedProducts: SavedProduct[]): string => {
         const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
 
         notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
-      } else if (isOrthodontic) {
-        const productName = product.product.name || "orthodontic appliance"
-        const instructions = product.maxillaryNotes || "Standard specifications"
-
-        notes += `Fabricate a ${productName} with the following details: ${instructions}`
       }
     })
 
@@ -424,12 +418,10 @@ export const generateCaseNotes = (savedProducts: SavedProduct[]): string => {
     mandibularProducts.forEach((product, index) => {
       if (index > 0) notes += "\n"
 
-      const categoryName = product.category.toLowerCase()
-      const isFixedRestoration = categoryName.includes("fixed") || (!categoryName.includes("removable") && !categoryName.includes("orthodontic"))
-      const isRemovable = categoryName.includes("removable")
-      const isOrthodontic = categoryName.includes("orthodontic") || categoryName.includes("ortho")
+      const productDetailsForType = product.productDetails ?? product.product
+      const isFixed = hasRetentionOptions(productDetailsForType)
 
-      if (isFixedRestoration) {
+      if (isFixed) {
         const teeth = formatTeethNumbers(product.mandibularTeeth)
         const productName = product.product.name || "restoration"
         const stage = product.mandibularStage || "finish"
@@ -481,7 +473,7 @@ export const generateCaseNotes = (savedProducts: SavedProduct[]): string => {
 
         const gapText = gap ? `, gap: ${gap}` : ""
         notes += ` Design specifications: ${ponticDesign}, ${embrasure}, ${contourPonticType}, ${proximalContact}, ${occlusalContact}${gapText}. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
-      } else if (isRemovable) {
+      } else {
         const teeth = formatTeethNumbers(product.mandibularTeeth)
         const productName = product.product.name || "removable restoration"
         const grade = product.mandibularMaterial || "Premium"
@@ -508,11 +500,6 @@ export const generateCaseNotes = (savedProducts: SavedProduct[]): string => {
         const advanceFieldsSection = advanceFieldsText ? ` Advanced fields: ${advanceFieldsText}.` : ""
 
         notes += `Fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression: ${impressionText}. Add-ons ${addOns}.${advanceFieldsSection}`
-      } else if (isOrthodontic) {
-        const productName = product.product.name || "orthodontic appliance"
-        const instructions = product.maxillaryNotes || "Standard specifications"
-
-        notes += `Fabricate a ${productName} with the following details: ${instructions}`
       }
     })
   }

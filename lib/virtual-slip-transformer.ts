@@ -14,6 +14,10 @@ import {
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage";
 import {
+  isFixedRestorationProduct,
+  resolveProductForRetentionCheck,
+} from "@/components/case-design-center/utils/categoryHelpers";
+import {
   buildGroupedExtractionsChartDisplay,
   mergeArchExtractionDisplays,
   mergePreloadExtractionDisplaysForArch,
@@ -99,13 +103,8 @@ function archFromType(type: string | null | undefined): "maxillary" | "mandibula
   return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
 }
 
-function isRemovableApiProduct(apiProduct: any): boolean {
-  const categoryName: string =
-    apiProduct?.category?.name ??
-    apiProduct?.product?.subcategory?.category?.name ??
-    apiProduct?.product?.category_name ??
-    "";
-  return categoryName.toLowerCase().includes("removable");
+function isNonFixedApiProduct(apiProduct: any): boolean {
+  return !isFixedRestorationProduct(resolveProductForRetentionCheck(apiProduct));
 }
 
 /**
@@ -165,7 +164,7 @@ function hydrateArchExtractionMapsFromSlipProducts(
     }
 
     for (const apiProduct of archProducts) {
-      if (!isRemovableApiProduct(apiProduct)) continue;
+      if (!isNonFixedApiProduct(apiProduct)) continue;
       const teeth = parseProductTeeth(apiProduct);
       for (const tn of teeth) {
         if (claspList.includes(tn)) continue;
@@ -283,14 +282,9 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
 
     // ── Retention types (Prep for fixed, none for removables) ──────────────
     // Category is at the slip-product level (apiProduct.category.name), not inside the product object
-    const categoryName: string =
-      apiProduct.category?.name ??
-      productData?.subcategory?.category?.name ??
-      productData?.category_name ??
-      "";
-    const isRemovable = categoryName.toLowerCase().includes("removable");
+    const isNonFixed = isNonFixedApiProduct(apiProduct);
 
-    if (!isRemovable) {
+    if (!isNonFixed) {
       const retentionTypesMap = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes;
 
       // Build a per-tooth retention map from the API retentions array.
@@ -361,7 +355,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     // `${productId}_${arch}_${fieldType}` where productId for added products
     // is the tooth-based key like "prep_4" (for removables) or "fixed_4" (for fixed)
     if (repTooth !== null) {
-      const productIdKey = isRemovable ? `prep_${repTooth}` : `fixed_${repTooth}`;
+      const productIdKey = isNonFixed ? `prep_${repTooth}` : `fixed_${repTooth}`;
 
       if (teethShadeName) {
         selectedShades[`${productIdKey}_${arch}_tooth_shade`] = teethShadeName;
@@ -375,7 +369,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
 
       // ── Stage selections ─────────────────────────────────────────────────
       if (stageName) {
-        const stageKey = isRemovable ? `${arch}_prep_${repTooth}` : `${arch}_fixed_${repTooth}`;
+        const stageKey = isNonFixed ? `${arch}_prep_${repTooth}` : `${arch}_fixed_${repTooth}`;
         selectedStages[stageKey] = stageName;
       }
 
@@ -387,7 +381,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       const completed: string[] = [];
       const values: Record<string, string> = {};
 
-      if (!isRemovable) {
+      if (!isNonFixed) {
         // Fixed restoration: unlock the entire chain so all fields render in read-only mode.
         // Values are populated only where data exists; steps without data still show as empty.
         const FIXED_CHAIN = [
@@ -460,7 +454,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     // We match saved values to field definitions by ID, then resolve which step key
     // (fixed_contact_icons, fixed_margin, etc.) owns each field using the same name-matchers
     // as getAdvanceFieldsForStep in FixedRestorationFields.tsx.
-    if (!isRemovable && repTooth !== null &&
+    if (!isNonFixed && repTooth !== null &&
         Array.isArray(apiProduct.advance_fields) && apiProduct.advance_fields.length > 0 &&
         Array.isArray(apiProduct.product?.advance_fields)) {
       const productFieldDefs: Array<{ id: number; name: string; options?: Array<{ id: number; name: string }> }> =

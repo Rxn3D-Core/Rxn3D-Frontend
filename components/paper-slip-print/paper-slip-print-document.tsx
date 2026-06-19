@@ -9,6 +9,7 @@ import type {
   PaperSlipPrintableSlipVM,
 } from "@/lib/paper-slip-print-view-model";
 import { getPaperSlipCalloutVisual } from "@/lib/paper-slip-callout-layout";
+import { truncateTextToMaxLines } from "@/lib/paper-slip-notes-display";
 import { VirtualSlipToothChart } from "@/components/virtual-slip/VirtualSlipToothChart";
 
 // Canonical row order down the center column of the detail grid, matching the
@@ -222,6 +223,7 @@ function PaperSlipArchColumn({
               selectedTeeth={arch.selectedTeeth}
               teeth={arch.teeth}
               toothChartSelectionsByTooth={arch.toothChartSelectionsByTooth}
+              splintedLinks={arch.splintedLinks}
             />
           </div>
           {arch.productCallouts.length > 0 ? (
@@ -325,8 +327,11 @@ function PaperSlipNotes({ slip }: { slip: PaperSlipPrintableSlipVM }) {
       className={`min-h-0 shrink overflow-hidden rounded-[14px] px-5 py-4 text-[14px] leading-6 text-[#2f3542] ${toneClass}`}
     >
       {slip.notes.map((note, index) => (
-        <p key={`${slip.slipId}-note-${index}`} className={index > 0 ? "mt-1" : ""}>
-          {note}
+        <p
+          key={`${slip.slipId}-note-${index}`}
+          className={`whitespace-pre-line ${index > 0 ? "mt-1" : ""}`}
+        >
+          {truncateTextToMaxLines(note, 4)}
         </p>
       ))}
     </section>

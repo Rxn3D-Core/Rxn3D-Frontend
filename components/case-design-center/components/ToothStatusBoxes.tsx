@@ -233,7 +233,9 @@ export function ToothStatusBoxes({
   return (
     <div
       className={`flex w-full flex-col ${
-        compact ? "items-start gap-2 py-0" : "items-center justify-center gap-4 py-2"
+        compact
+          ? "items-start gap-2 py-0"
+          : `items-center justify-center gap-4 ${acknowledged ? "pt-2 pb-0" : "py-2"}`
       }`}
     >
       {/* Horizontally centered row of extraction options */}

@@ -18,7 +18,7 @@ export function OnboardingLayout({ children, currentStep, totalSteps, title, sub
       <header className="py-6 px-8 border-b bg-white shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <Image src="/rxn3d-logo.png" alt="Logo" width={40} height={40} className="h-10 w-auto" />
+            <Image src="/rxn3d-logo.svg" alt="Logo" width={40} height={40} className="h-10 w-auto" />
             <span className="font-semibold text-xl text-gray-800">Rxn3d</span>
           </div>
           <div className="text-sm text-gray-500">

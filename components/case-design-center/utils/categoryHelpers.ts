@@ -33,8 +33,36 @@ export function isNonRetentionCategory(product: ProductForCategoryCheck): boolea
   return !hasRetentionOptions(product);
 }
 
+/** Fixed restoration slip flow (retention chart, shades, etc.). */
+export function isFixedRestorationProduct(product: unknown): boolean {
+  return hasRetentionOptions(resolveProductForRetentionCheck(product));
+}
+
+/** Removables slip flow — also used for ortho (same UI and code path). */
+export function isNonFixedRestorationProduct(product: unknown): boolean {
+  return !isFixedRestorationProduct(product);
+}
+
+/** @deprecated Use isNonFixedRestorationProduct — ortho shares the removables flow. */
 export function isOrthodonticsCategory(product: ProductForCategoryCheck): boolean {
   return isNonRetentionCategory(product);
+}
+
+/** Unwrap slip line items / nested API payloads before checking retention. */
+export function resolveProductForRetentionCheck(source: unknown): ProductForCategoryCheck {
+  if (!source || typeof source !== "object") return null;
+  const record = source as Record<string, unknown>;
+  const nested = record.product;
+  if (nested && typeof nested === "object") {
+    const p = nested as AnyProduct;
+    if (
+      p.has_retention != null ||
+      (Array.isArray(p.retention_options) && p.retention_options.length > 0)
+    ) {
+      return p;
+    }
+  }
+  return source as ProductForCategoryCheck;
 }
 
 /** Get the normalized category name from a product's nested subcategory */

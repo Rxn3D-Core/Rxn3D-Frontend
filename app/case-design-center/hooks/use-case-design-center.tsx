@@ -21,6 +21,10 @@ import {
 import type { Doctor, Lab, PatientData, Product, SavedProduct } from "../sections/types"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
+import {
+  hasRetentionOptions,
+  isNonRetentionCategory,
+} from "@/components/case-design-center/utils/categoryHelpers"
 
 export function useCaseDesignCenter() {
   const router = useRouter()
@@ -289,19 +293,8 @@ export function useCaseDesignCenter() {
   ]
 
   // Helper function to get field order based on category
-  const getFieldOrder = (category: string): string[] => {
-    // Handle undefined or null category
-    if (!category) {
-      return ["product_material", "retention", "stage"]
-    }
-
-    const categoryLower = category.toLowerCase()
-    const isFixedRestoration = categoryLower.includes("fixed")
-    const isRemovableOrOrtho = categoryLower.includes("removable") ||
-      categoryLower.includes("orthodontic") ||
-      categoryLower.includes("ortho")
-
-    if (isFixedRestoration) {
+  const getFieldOrder = (product: { retention_options?: unknown[]; has_retention?: string | boolean | null } | null | undefined): string[] => {
+    if (hasRetentionOptions(product)) {
       return [
         "product_material",
         "retention",
@@ -318,8 +311,8 @@ export function useCaseDesignCenter() {
         "impressions",
         "add_ons"
       ]
-    } else if (isRemovableOrOrtho) {
-      return [
+    }
+    return [
         "product_material",
         "implant",
         "grade",
@@ -328,10 +321,7 @@ export function useCaseDesignCenter() {
         "gum_shade",
         "impression",
         "advance_fields"
-      ]
-    }
-    // Default order (fallback)
-    return ["product_material", "retention", "stage"]
+    ]
   }
 
   // Products belong to labs — office profiles pass selected lab id; lab profiles pass customerId
@@ -942,7 +932,7 @@ export function useCaseDesignCenter() {
     productDetails: any,
     archType: "maxillary" | "mandibular"
   ): boolean => {
-    const fieldOrder = getFieldOrder(savedProduct.category)
+    const fieldOrder = getFieldOrder(productDetails ?? savedProduct.productDetails ?? savedProduct.product)
     const currentFieldIndex = fieldOrder.indexOf(fieldName)
 
     // If field is not in the order, don't show it
@@ -1225,13 +1215,8 @@ export function useCaseDesignCenter() {
       }
     }
 
-    // For removable/ortho products, retention, stumpShade, and toothShade fields are not used
-    const categoryLowerCheck = (selectedCategory || "").toLowerCase()
-    const isRemovableOrOrthoCategory = categoryLowerCheck.includes("removable") ||
-      categoryLowerCheck.includes("orthodontic") ||
-      categoryLowerCheck.includes("ortho")
-
-    if (isRemovableOrOrthoCategory) {
+    // Non-fixed products (removables + ortho): retention, stumpShade, and toothShade are not required
+    if (isNonRetentionCategory(productDetails)) {
       return hasMaterial && hasRequiredAdvanceFields
     }
 
@@ -4055,14 +4040,8 @@ export function useCaseDesignCenter() {
     || ""
 
   // Check if selected category is Fixed Restoration
-  const isFixedRestoration = selectedCategory?.toLowerCase().includes("fixed") || false
-  // Check if selected category is Orthodontics or Removable Restoration (extraction should only show for these).
-  // Use effective category so retention popover is hidden for removables even when user reached product via search (selectedCategory null).
-  const isOrthodonticsOrRemovable =
-    effectiveCategoryName?.toLowerCase().includes("orthodontic") ||
-    effectiveCategoryName?.toLowerCase().includes("ortho") ||
-    effectiveCategoryName?.toLowerCase().includes("removable") ||
-    false
+  const isFixedRestoration = hasRetentionOptions(productDetails)
+  const isNonFixedProduct = isNonRetentionCategory(productDetails)
 
   // Helper function to check if product has implant retention option
   const hasImplantRetentionOption = (productDetails: any): boolean => {
@@ -4152,12 +4131,12 @@ export function useCaseDesignCenter() {
 
   const handleProductSelect = async (product: Product, event?: React.MouseEvent<HTMLDivElement>) => {
     // Check if category is "removable restoration" and subcategory is "complete denture"
-    const isRemovableRestoration = selectedCategory?.toLowerCase().includes("removable") || false
+    const isNonFixedProductSelection = !hasRetentionOptions(product as any)
     const isCompleteDenture = selectedSubcategory?.toLowerCase().includes("complete denture") ||
       selectedSubcategory?.toLowerCase().includes("complete dentures") || false
 
     // If conditions are met, show popover instead of directly selecting
-    if (isRemovableRestoration && isCompleteDenture) {
+    if (isNonFixedProductSelection && isCompleteDenture) {
       setPendingProductForArchSelection(product)
       // Get the position of the clicked element for popover positioning
       if (event?.currentTarget) {
@@ -4906,12 +4885,10 @@ export function useCaseDesignCenter() {
       maxillaryProducts.forEach((product, index) => {
         if (index > 0) notes += "\n"
 
-        const categoryName = product.category.toLowerCase()
-        const isFixedRestoration = categoryName.includes("fixed") || (!categoryName.includes("removable") && !categoryName.includes("orthodontic"))
-        const isRemovable = categoryName.includes("removable")
-        const isOrthodontic = categoryName.includes("orthodontic") || categoryName.includes("ortho")
+        const productDetailsForType = product.productDetails ?? product.product
+        const isFixed = hasRetentionOptions(productDetailsForType)
 
-        if (isFixedRestoration) {
+        if (isFixed) {
           const teeth = formatTeethNumbers(product.maxillaryTeeth)
           const productName = product.product.name || "restoration"
           const stage = product.maxillaryStage || "finish"
@@ -4952,7 +4929,7 @@ export function useCaseDesignCenter() {
             : "none"
 
           notes += ` For design, please open virtual slip. Impression used: ${impressionText}. Add-ons requested: ${addOns}.`
-        } else if (isRemovable) {
+        } else {
           const teeth = formatTeethNumbers(product.maxillaryTeeth)
           const productName = product.product.name || "removable restoration"
           const grade = product.maxillaryMaterial || "Premium"
@@ -4975,11 +4952,6 @@ export function useCaseDesignCenter() {
             : "none"
 
           notes += `Please fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression is ${impressionText}. Add-ons include: ${addOns}.`
-        } else if (isOrthodontic) {
-          const productName = product.product.name || "orthodontic appliance"
-          const instructions = product.maxillaryImplantDetails || "Standard specifications"
-
-          notes += `Maxillary: Please fabricate a ${productName} with the following details: ${instructions}.`
         }
       })
 
@@ -4993,12 +4965,10 @@ export function useCaseDesignCenter() {
       mandibularProducts.forEach((product, index) => {
         if (index > 0) notes += "\n"
 
-        const categoryName = product.category.toLowerCase()
-        const isFixedRestoration = categoryName.includes("fixed") || (!categoryName.includes("removable") && !categoryName.includes("orthodontic"))
-        const isRemovable = categoryName.includes("removable")
-        const isOrthodontic = categoryName.includes("orthodontic") || categoryName.includes("ortho")
+        const productDetailsForType = product.productDetails ?? product.product
+        const isFixed = hasRetentionOptions(productDetailsForType)
 
-        if (isFixedRestoration) {
+        if (isFixed) {
           const teeth = formatTeethNumbers(product.mandibularTeeth)
           const productName = product.product.name || "restoration"
           const stage = product.mandibularStage || "finish"
@@ -5039,7 +5009,7 @@ export function useCaseDesignCenter() {
             : "none"
 
           notes += ` For design, please open virtual slip. Impression used: ${impressionText}. Add-ons requested: ${addOns}.`
-        } else if (isRemovable) {
+        } else {
           const teeth = formatTeethNumbers(product.mandibularTeeth)
           const productName = product.product.name || "removable restoration"
           const grade = product.mandibularMaterial || "Premium"
@@ -5062,11 +5032,6 @@ export function useCaseDesignCenter() {
             : "none"
 
           notes += `Please fabricate a ${grade} ${productName} replacing teeth ${teeth}, in the ${stage} stage. Use ${teethShade} denture teeth with ${gumShade} gingiva. Impression is ${impressionText}. Add-ons include: ${addOns}.`
-        } else if (isOrthodontic) {
-          const productName = product.product.name || "orthodontic appliance"
-          const instructions = product.mandibularImplantDetails || "Standard specifications"
-
-          notes += `Mandibular: Please fabricate a ${productName} with the following details: ${instructions}.`
         }
       })
     }
@@ -7373,7 +7338,7 @@ export function useCaseDesignCenter() {
     }
 
     // For Removable/Ortho: clicking a selected tooth re-opens the status popover; clicking unselected adds + opens popover
-    if (isOrthodonticsOrRemovable) {
+    if (isNonFixedProduct) {
       if (isAlreadySelected) {
         setToothStatusPopoverState({ arch: 'maxillary', toothNumber })
         return
@@ -7454,7 +7419,7 @@ export function useCaseDesignCenter() {
     }
 
     // For Removable/Ortho: clicking a selected tooth re-opens the status popover; clicking unselected adds + opens popover
-    if (isOrthodonticsOrRemovable) {
+    if (isNonFixedProduct) {
       if (isAlreadySelected) {
         setToothStatusPopoverState({ arch: 'mandibular', toothNumber })
         return
@@ -7798,7 +7763,9 @@ export function useCaseDesignCenter() {
       setArchSelectionPopoverAnchor,
       handleArchSelection,
       isFixedRestoration,
-      isOrthodonticsOrRemovable,
+      isNonFixedProduct,
+      /** @deprecated Use isNonFixedProduct */
+      isOrthodonticsOrRemovable: isNonFixedProduct,
       missingTeethCardClicked,
       setMissingTeethCardClicked,
       handleMissingTeethCardClick,
@@ -7958,7 +7925,9 @@ export function useCaseDesignCenter() {
       setImplantPopoverState,
       handleMissingTeethCardClick,
       productDetails,
-      isOrthodonticsOrRemovable,
+      isNonFixedProduct,
+      /** @deprecated Use isNonFixedProduct */
+      isOrthodonticsOrRemovable: isNonFixedProduct,
       setMaxillaryTeeth,
       setOpenAccordionMaxillary,
       setOpenAccordionMandibular,
@@ -8097,7 +8066,9 @@ export function useCaseDesignCenter() {
       handleSelectToothStatus,
       implantPopoverState,
       productDetails,
-      isOrthodonticsOrRemovable,
+      isNonFixedProduct,
+      /** @deprecated Use isNonFixedProduct */
+      isOrthodonticsOrRemovable: isNonFixedProduct,
       isSubmitting,
       confirmDetailsChecked,
       showSubmitPopover,

@@ -28,6 +28,7 @@ export default function Page() {
   const { toast } = useToast();
   const router = useRouter();
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
+  const caseSummaryNotesRef = useRef("");
 
   const {
     wizardComplete,
@@ -100,6 +101,7 @@ export default function Page() {
     router,
     toast,
     slipCollectorRef,
+    caseSummaryNotesRef,
     completedLab,
     completedDoctor,
     completedPatientName,
@@ -206,6 +208,7 @@ export default function Page() {
               onProductsChange={setAddedProducts}
               initialArch={initialArch}
               slipCollectorRef={slipCollectorRef}
+              caseSummaryNotesRef={caseSummaryNotesRef}
               confirmDetailsChecked={confirmDetailsChecked}
               onAnyModalOpenChange={setIsAnyModalOpen}
               rushCasesEnabled={rushCasesEnabled}

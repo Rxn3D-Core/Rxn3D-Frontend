@@ -51,7 +51,7 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
   const selectedProductForMaxillary = ctx.selectedProductForMaxillary ?? null
   const missingTeethCardClicked = ctx.missingTeethCardClicked ?? false
   const productDetails = ctx.productDetails ?? null
-  const isOrthodonticsOrRemovable = ctx.isOrthodonticsOrRemovable ?? false
+  const isNonFixedProduct = ctx.isNonFixedProduct ?? ctx.isOrthodonticsOrRemovable ?? false
   const handleMissingTeethCardClick = ctx.handleMissingTeethCardClick
   const setMaxillaryTeeth = ctx.setMaxillaryTeeth
   const setOpenAccordionMaxillaryState = ctx.setOpenAccordionMaxillary
@@ -62,13 +62,13 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
 
   // Derive available extraction types from productDetails for removable/ortho products
   const availableExtractionTypes = React.useMemo(() => {
-    if (!isOrthodonticsOrRemovable || !productDetails) return []
+    if (!isNonFixedProduct || !productDetails) return []
     const extractions = productDetails.extractions || productDetails.data?.extractions || []
     if (!Array.isArray(extractions)) return []
     return extractions
       .filter((e: any) => e.status === 'Active' && (e.is_default === 'Yes' || e.is_required === 'Yes' || e.is_optional === 'Yes'))
       .map((e: any) => ({ name: e.name, color: e.color || '#D3D3D3', code: e.code, id: e.id }))
-  }, [isOrthodonticsOrRemovable, productDetails])
+  }, [isNonFixedProduct, productDetails])
 
   if (!showMaxillaryChart) return null
 
@@ -139,7 +139,7 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
             onToothClick={handleMaxillaryToothToggle}
             className="max-w-full"
             retentionTypesByTooth={maxillaryRetentionTypes}
-            showRetentionPopover={!isOrthodonticsOrRemovable && retentionPopoverState.arch === "maxillary"}
+            showRetentionPopover={!isNonFixedProduct && retentionPopoverState.arch === "maxillary"}
             retentionPopoverTooth={retentionPopoverState.toothNumber}
             onSelectRetentionType={(tooth, type) => handleSelectRetentionType?.("maxillary", tooth, type)}
             onClosePopover={() => {
@@ -148,7 +148,7 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
             }}
             onDeselectTooth={handleMaxillaryToothDeselect}
             retentionOptions={productDetails?.retention_options}
-            showToothStatusPopover={isOrthodonticsOrRemovable && toothStatusPopoverState.arch === "maxillary"}
+            showToothStatusPopover={isNonFixedProduct && toothStatusPopoverState.arch === "maxillary"}
             toothStatusPopoverTooth={toothStatusPopoverState.toothNumber}
             availableExtractionTypes={availableExtractionTypes}
             toothStatusByTooth={maxillaryToothStatuses}
@@ -161,7 +161,7 @@ export function MaxillarySection({ sectionRef, children }: MaxillarySectionProps
         selectedProductForMaxillary &&
         !missingTeethCardClicked &&
         productDetails &&
-        isOrthodonticsOrRemovable &&
+        isNonFixedProduct &&
         (() => {
           const hasExtractionData =
             (productDetails.extractions && Array.isArray(productDetails.extractions) && productDetails.extractions.length > 0) ||

@@ -19,6 +19,8 @@ export type ExtractionLike = {
   code?: string | null;
   is_default?: string;
   is_tim?: string;
+  is_optional?: string;
+  is_required?: string;
   overlay?: string;
 };
 
@@ -106,6 +108,57 @@ export function isSingleDefaultOnlyExtractionList(
   const active = (extractions ?? []).filter(isActiveExtractionRow);
   if (active.length !== 1) return false;
   return String(active[0].is_default ?? "").trim().toLowerCase() === "yes";
+}
+
+function isDefaultExtractionRow(e: ExtractionLike): boolean {
+  return String(e.is_default ?? "").trim().toLowerCase() === "yes";
+}
+
+/** A non-default extraction the user is not required to apply. */
+function isOptionalNonDefaultRow(e: ExtractionLike): boolean {
+  if (String(e.is_optional ?? "").trim().toLowerCase() === "yes") return true;
+  // Anything not explicitly marked required counts as optional.
+  return String(e.is_required ?? "").trim().toLowerCase() !== "yes";
+}
+
+/**
+ * True when the product has a default extraction and every other active
+ * extraction is optional — so the user can proceed (click "Done") without
+ * selecting any teeth, and the default extraction applies to all teeth.
+ *
+ * Covers:
+ *  - single-default-only lists (e.g. orthodontics "Teeth in mouth")
+ *  - default + optional lists (e.g. night guard with optional "Missing tooth")
+ *
+ * Returns false when any non-default extraction is required (e.g. a partial
+ * denture whose "Missing teeth" must be selected before proceeding).
+ */
+/** True when the product defines at least one active extraction row in the library. */
+export function hasConfiguredExtractions(
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+): boolean {
+  return (extractions ?? []).some(isActiveExtractionRow);
+}
+
+export function isExtractionSelectionOptional(
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+): boolean {
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  if (active.length === 0) return false;
+  if (!active.some(isDefaultExtractionRow)) return false;
+  return active.filter((e) => !isDefaultExtractionRow(e)).every(isOptionalNonDefaultRow);
+}
+
+/**
+ * True when the user does not need to pick teeth/extractions on the chart before
+ * grade / stage / impression fields — either no extractions are configured on the
+ * product, or every configured extraction is optional relative to the default.
+ */
+export function canSkipExtractionToothSelection(
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+): boolean {
+  if (!hasConfiguredExtractions(extractions)) return true;
+  return isExtractionSelectionOptional(extractions);
 }
 
 /** Stable key for per-card "done picking extractions" acknowledgement state. */

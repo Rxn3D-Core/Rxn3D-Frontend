@@ -50,6 +50,10 @@ export function CaseSummaryNotes(props: NotesProps) {
   const noteText = manualOverride ?? dynamicNoteText;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  useEffect(() => {
+    props.onNotesChange?.(noteText);
+  }, [noteText, props.onNotesChange]);
+
   const syncTextareaHeight = useCallback(() => {
     const el = textareaRef.current;
     if (!el || expanded) return;

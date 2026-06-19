@@ -4,6 +4,10 @@ import {
   prefetchImplantCatalogsForSnapshots,
 } from "./slipPayloadMappers";
 import { snapshotToProduct } from "./caseSubmissionPayload";
+import {
+  buildSlipLevelNotes,
+  clearProductNotesWhenUsingCaseSummary,
+} from "./caseSummaryNotesPayload";
 import type { AddStageToSlipPayload } from "@/lib/api/slip-add-stage";
 
 export interface BuildAddStagePayloadParams {
@@ -11,12 +15,13 @@ export interface BuildAddStagePayloadParams {
   sourceSlipLocationId?: number | null;
   labCustomerId?: number;
   createdBy?: number;
+  caseSummaryNotes?: string;
 }
 
 export async function buildAddStageSubmissionPayloadAsync(
   params: BuildAddStagePayloadParams
 ): Promise<AddStageToSlipPayload> {
-  const { snapshots, sourceSlipLocationId, labCustomerId, createdBy } = params;
+  const { snapshots, sourceSlipLocationId, labCustomerId, createdBy, caseSummaryNotes } = params;
 
   const filteredSnapshots = snapshots.filter(
     (s) => s.teethNumbers.length > 0 || s.productId > 0
@@ -40,22 +45,22 @@ export async function buildAddStageSubmissionPayloadAsync(
     product.advance_fields = jsonFields;
   });
 
+  clearProductNotesWhenUsingCaseSummary(products, caseSummaryNotes);
+  const slipNotes = buildSlipLevelNotes(products, caseSummaryNotes, 0);
+
   const userId =
     createdBy ??
     (typeof window !== "undefined"
       ? Number(localStorage.getItem("userId")) || undefined
       : undefined);
 
-  const slipNotes = products
-    .map((p) => p.notes)
-    .filter((note): note is string => Boolean(note))
-    .map((note) => ({ note }));
+  const slipNotesFromProducts = slipNotes;
 
   return {
     ...(sourceSlipLocationId ? { location_id: sourceSlipLocationId } : {}),
     status: "In Progress",
     ...(userId ? { created_by: userId } : {}),
     products,
-    ...(slipNotes.length > 0 ? { notes: slipNotes } : {}),
+    ...(slipNotesFromProducts.length > 0 ? { notes: slipNotesFromProducts } : {}),
   };
 }

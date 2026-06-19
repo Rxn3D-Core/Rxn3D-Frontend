@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import type React from "react";
 import {
   hasRetentionOptions,
   parseStageFieldValue,
@@ -15,6 +16,7 @@ import {
   buildExtractionScopeTeeth,
   resolveProductTeethForSlipSubmit,
 } from "../utils/removableToothDisplay";
+import { splintKeyForProductCard } from "../utils/splintHelpers";
 import { useCaseDesignState } from "./useCaseDesignState";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 
@@ -25,6 +27,8 @@ interface UseSlipProductCollectorParams {
   props: CaseDesignProps;
   maxillaryImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData>;
   mandibularImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData>;
+  maxillarySplintLinksRef: React.MutableRefObject<Record<string, number[]>>;
+  mandibularSplintLinksRef: React.MutableRefObject<Record<string, number[]>>;
 }
 
 export function useSlipProductCollector({
@@ -32,6 +36,8 @@ export function useSlipProductCollector({
   props,
   maxillaryImplantDetail,
   mandibularImplantDetail,
+  maxillarySplintLinksRef,
+  mandibularSplintLinksRef,
 }: UseSlipProductCollectorParams) {
   const collectSlipProducts = useCallback((): SlipProductSnapshot[] => {
     const MAXILLARY_ALL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
@@ -282,6 +288,16 @@ export function useSlipProductCollector({
         }
         const hasImplantDetail = Object.keys(relevantImplantDetail).length > 0;
 
+        const splintLinksByKey =
+          arch === "maxillary"
+            ? maxillarySplintLinksRef.current
+            : mandibularSplintLinksRef.current;
+        const splintKey = splintKeyForProductCard(cardId, productId);
+        const splintLinks =
+          productForSubmit?.is_splinted === "Yes" || productApiData?.is_splinted === "Yes"
+            ? splintLinksByKey[splintKey] ?? []
+            : [];
+
         snapshots.push({
           type,
           productId,
@@ -305,6 +321,7 @@ export function useSlipProductCollector({
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
           ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
           selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
+          ...(splintLinks.length > 0 ? { splintLinks } : {}),
         });
       });
     };
@@ -315,7 +332,9 @@ export function useSlipProductCollector({
     return snapshots;
   }, [
     mandibularImplantDetail,
+    mandibularSplintLinksRef,
     maxillaryImplantDetail,
+    maxillarySplintLinksRef,
     props.addedProducts,
     props.selectedProductId,
     state.getFieldValue,
