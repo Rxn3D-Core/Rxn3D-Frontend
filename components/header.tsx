@@ -850,7 +850,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       <header className="sticky top-0 z-40 w-full border-b bg-white/95 backdrop-blur-sm shadow-sm dark:bg-gray-900/95 dark:border-gray-800">
         <div className=" mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           {/* Main Header Row */}
-          <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-2 sm:py-2.5 md:py-3">
+          <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-1">
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
               <HeaderWaffleLauncher />
@@ -860,7 +860,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 width={195}
                 height={76}
                 priority
-                className="h-8 sm:h-9 md:h-10 w-auto object-contain flex-shrink-0"
+                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
               />
               {!isSuperAdmin && canCreateSlip && (
                 <Button
@@ -938,7 +938,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                       <CustomerLogo
                         customerId={customerId}
                         alt="Company Logo"
-                        className="h-8 sm:h-10 md:h-12 lg:h-14 w-auto object-contain max-w-[200px] sm:max-w-[250px] md:max-w-[300px]"
+                        className="h-10 sm:h-14 md:h-16 lg:h-[72px] w-auto object-contain max-w-[240px] sm:max-w-[280px] md:max-w-[320px] lg:max-w-[360px]"
                       />
                     ) : null
                   })()}
