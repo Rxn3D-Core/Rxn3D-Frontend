@@ -17,11 +17,11 @@ test("V2_STATUS_TABS defines the compact table statuses", () => {
   ]);
 });
 
-test("countVisibleV2Columns groups patient/slip and pan/product columns", () => {
+test("countVisibleV2Columns groups patient/slipNumber and pan/product columns", () => {
   assert.equal(
     countVisibleV2Columns({
-      patient: true,
-      slip: true,
+      patient: false,
+      slipNumber: true,
       office: true,
       pan: true,
       product: true,

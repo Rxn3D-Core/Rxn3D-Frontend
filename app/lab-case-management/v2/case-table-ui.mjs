@@ -6,7 +6,7 @@ export const V2_STATUS_TABS = [
 ];
 
 export function countVisibleV2Columns(columns) {
-  const groupedPatientSlip = columns.patient || columns.slip;
+  const groupedPatientSlip = columns.patient || columns.slipNumber;
   const groupedPanProduct = columns.pan || columns.product;
   const standaloneColumns = [
     columns.office,
