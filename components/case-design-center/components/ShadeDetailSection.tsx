@@ -71,18 +71,24 @@ export function ShadeDetailSection({
   const legendLabel = firstMissing ? `Select ${firstMissing.name.toLowerCase()}` : "Shade Detail";
 
   return (
-    <fieldset className={`border rounded-[7.7px] p-0 bg-white mt-3 ${borderColor}`}>
+    <fieldset className={`border rounded-[7.7px] p-0 bg-white mt-3 min-w-0 ${borderColor}`}>
       <legend className={`text-[12.8px] px-1 leading-none ml-2 ${legendColor}`}>
         {legendLabel}
       </legend>
-      <div className="p-2.5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="p-2.5 min-w-0">
+        <div
+          className="grid gap-3 min-w-0"
+          style={{
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 168px), 1fr))",
+          }}
+        >
           {fields.map((field) => {
             const fieldType = getShadeFieldType(field);
             const shadeCode = getSelectedShade(productShadeId, arch, fieldType, field.id);
             return (
               <ShadeField
                 key={field.id}
+                className="min-w-0"
                 label={field.name}
                 // Guide name as main text, shade code only on the tooth SVG
                 value={shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}

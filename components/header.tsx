@@ -53,6 +53,11 @@ import { User as UserIcon } from "lucide-react"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
+import { cn } from "@/lib/utils"
+
+/** Brand gradient used on primary header actions (#2AA6DE → #82298D → #C9539F). */
+const HEADER_ACTION_BUTTON_CLASS =
+  "border-none bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -865,7 +870,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {!isSuperAdmin && canCreateSlip && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  className={HEADER_ACTION_BUTTON_CLASS}
                   onClick={() => {
                     clearSlipCreationStorage();
                     clearCaseDesignCenterStateMutation.mutate();
@@ -878,7 +883,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {!isOfficeAdmin && canCreateOffice && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  className={HEADER_ACTION_BUTTON_CLASS}
                   onClick={() => setShowNewOfficeModal(true)}
                 >
                   <span>{t("header.newOffice", "New Office")}</span>
@@ -887,7 +892,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {isSuperAdmin && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  className={HEADER_ACTION_BUTTON_CLASS}
                   onClick={() => setShowNewLabModal(true)}
                 >
                   <span>{t("header.newLab", "New Lab")}</span>
@@ -896,7 +901,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {!isSuperAdmin && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md relative"
+                  className={cn(HEADER_ACTION_BUTTON_CLASS, "relative")}
                   onClick={openScanner}
                   aria-label={t("header.openScanner", "Open QR code scanner")}
                 >
@@ -905,7 +910,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                   {scanHistory.length > 0 && (
                     <Badge
                       variant="secondary"
-                      className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#1162a8] font-semibold rounded-full"
+                      className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#82298D] font-semibold rounded-full"
                     >
                       {scanHistory.length}
                     </Badge>
@@ -1002,14 +1007,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
+                    className="h-10 w-10 sm:h-11 sm:w-11 md:h-12 md:w-12 lg:h-14 lg:w-14 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage
                         src={getUserAvatar(getUserProfileImageUrl(user) || null)}
                         alt={user?.first_name || t("header.user")}
                       />
-                      <AvatarFallback className="bg-[#1162a8] text-white font-medium text-xs sm:text-sm">
+                      <AvatarFallback className="bg-[#1162a8] text-white font-medium text-sm sm:text-base">
                         {getInitials(user?.first_name || "")}
                       </AvatarFallback>
                     </Avatar>
