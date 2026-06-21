@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import NewCaseWizard from "@/components/new-case-wizard";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import type { SlipProductSnapshot } from "./types";
-import { TopBar } from "./components/TopBar";
 import { PatientHeader } from "./components/PatientHeader";
 import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
@@ -131,12 +130,6 @@ export default function Page() {
   return (
     <div className={`${caseDesignInter.className} flex h-screen bg-white overflow-hidden`}>
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
-        <TopBar
-          selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
-          onEditClick={handleTopBarEditLab}
-          caseSubmitted={caseSubmitted}
-        />
-
         {!wizardComplete && (
           <NewCaseWizard
             key={wizardKey}
@@ -173,7 +166,9 @@ export default function Page() {
               onPatientNameChange={setCompletedPatientName}
               onGenderChange={setCompletedGender}
               onAgeChange={setCompletedAge}
-              compactLayout={wizardComplete && !caseSubmitted}
+              labLogoUrl={completedLab?.logo}
+              labName={completedLab?.name}
+              onEditLab={handleTopBarEditLab}
             />
             <CaseDesignCenter
               // Remount with fresh product configuration when the user goes back and

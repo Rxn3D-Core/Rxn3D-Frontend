@@ -203,6 +203,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
   const guidedBothArchSlipCreation =
     !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId;
+  // Guided visibility gating: do both arches' tooth selections first, then reveal upper
+  // fields, then lower fields.
+  const guidedHideMaxillaryCard0Fields =
+    guidedBothArchSlipCreation &&
+    (state.guidedBothArchPhase === "upper-selection" ||
+      state.guidedBothArchPhase === "lower-selection");
+  const guidedHideMandibularCard0Fields =
+    guidedBothArchSlipCreation && state.guidedBothArchPhase !== "lower-fields";
   // Show accordion when card 0 initial product is Removable/Ortho — show immediately once product is selected,
   // no need to wait for teeth to be assigned (the accordion lets the user select teeth).
   // Gate each panel to its own arch so the opposite panel doesn't show a duplicate card 0 accordion
@@ -1382,6 +1390,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MaxillaryPanel
           activeAccordionKey={state.activeAccordionKey}
           forceOwnArchChartEnabled={false}
+          guidedHideCard0Fields={guidedHideMaxillaryCard0Fields}
           initialProductName={state.initialProductDetails?.name}
           isAccordionExpanded={(slotId) => state.isAccordionExpanded("maxillary", slotId)}
           isAccordionEnabled={(slotId) => state.isAccordionEnabled("maxillary", slotId)}
@@ -1528,6 +1537,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <MandibularPanel
           activeAccordionKey={state.activeAccordionKey}
           forceOwnArchChartEnabled={false}
+          guidedHideCard0Fields={guidedHideMandibularCard0Fields}
           initialProductName={state.initialProductDetails?.name}
           isAccordionExpanded={(slotId) => state.isAccordionExpanded("mandibular", slotId)}
           isAccordionEnabled={(slotId) => state.isAccordionEnabled("mandibular", slotId)}
@@ -1537,10 +1547,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onExtractionsDone={() => state.handleArchExtractionsDone("mandibular")}
           onRetentionDone={() => state.handleArchRetentionDone("mandibular")}
           showMandibular={
-            state.showMandibular ||
-            (guidedBothArchSlipCreation &&
-              (state.guidedBothArchPhase === "lower-selection" ||
-                state.guidedBothArchPhase === "lower-fields")) ||
+            // Guided both-arch creation: keep the lower chart hidden until the upper tooth
+            // selection is done (phase advances past upper-selection); after that it stays
+            // visible through the remaining phases. Ignore the default state.showMandibular
+            // here so both arches don't appear up front.
+            (guidedBothArchSlipCreation
+              ? state.guidedBothArchPhase !== "upper-selection"
+              : state.showMandibular) ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
             (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular)
           }

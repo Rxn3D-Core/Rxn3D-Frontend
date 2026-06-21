@@ -776,6 +776,8 @@ interface MandibularPanelProps {
   activeAccordionKey: string;
   /** Force this arch's tooth chart interactive even when it doesn't own the active accordion (initial fixed "both" flow). */
   forceOwnArchChartEnabled?: boolean;
+  /** Guided both-arch flow: hide this arch's card-0 field content until its fields phase is reached (chart/selection stay visible). */
+  guidedHideCard0Fields?: boolean;
   /** Initial (card 0) product name — used for the "Select teeth to replace with …" hint before any teeth are assigned. */
   initialProductName?: string;
   isAccordionExpanded: (slotId: string) => boolean;
@@ -899,6 +901,7 @@ function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; has
 export function MandibularPanel({
   activeAccordionKey,
   forceOwnArchChartEnabled = false,
+  guidedHideCard0Fields = false,
   initialProductName,
   isAccordionExpanded,
   isAccordionEnabled,
@@ -3328,6 +3331,11 @@ export function MandibularPanel({
                   selectedProduct,
                   caseSubmitted
                 );
+                // Guided both-arch flow: keep the "Done" acknowledgement (card0ShowFixedFields)
+                // intact for the header, but suppress the field *content* until this arch's
+                // fields phase is reached.
+                const card0ShowFixedFieldsContent =
+                  card0ShowFixedFields && !guidedHideCard0Fields;
                 const showFixedRetentionDone =
                   hasRetentionOptions(selectedProduct) && !caseSubmitted;
                 const card0FixedExpanded = isCardAccordionExpanded(slotId);
@@ -3447,7 +3455,7 @@ export function MandibularPanel({
                       />
                     }
                   >
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
                       <AutoOpenFirstFixedFieldAfterRetentionDone
                         retentionFieldsVisible={card0ShowFixedFields}
                         isExpanded={card0FixedExpanded}
@@ -3480,7 +3488,7 @@ export function MandibularPanel({
                         fixedShadesComplete={fixedShadesComplete}
                       />
                     )}
-                    {card0ShowFixedFields && !isSingleStageNoStages(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
                         arch="mandibular"
@@ -3492,7 +3500,7 @@ export function MandibularPanel({
                         caseSubmitted={caseSubmitted}
                       />
                     )}
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
                       <>
                         <AutoOpenShadeGuideIfEmpty
                           arch="mandibular"
@@ -3526,7 +3534,7 @@ export function MandibularPanel({
                       </>
                     )}
 
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) ? (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="mandibular"
                         isExpanded={isCardAccordionExpanded(slotId)}
@@ -3571,7 +3579,7 @@ export function MandibularPanel({
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
-                    ) : card0ShowFixedFields ? (
+                    ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
                         arch="mandibular"
                         firstToothNumber={firstToothNumber}
@@ -3955,6 +3963,11 @@ export function MandibularPanel({
                     const card0ShowRemovableFields = useMandibularArchSharedRemovable
                       ? mandibularArchExtractionsReady
                       : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                    // Guided both-arch flow: suppress card-0 field content until this arch's
+                    // fields phase (chart + teeth selection above remain visible).
+                    if (guidedHideCard0Fields) {
+                      return null;
+                    }
                     if (
                       !card0ShowRemovableFields &&
                       !useMandibularArchSharedRemovable &&

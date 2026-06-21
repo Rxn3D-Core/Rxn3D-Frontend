@@ -143,7 +143,7 @@ export function RestorationAccordionHeader({
       )}
       {labelOnlyHeader ? (
         <div
-          className="flex items-stretch gap-[10px] px-[8px] pt-[14px] pb-[8px]"
+          className="flex items-stretch gap-[10px] px-[8px]"
           onClick={(e) => e.stopPropagation()}
         >
           <ProductImagePreview
@@ -178,11 +178,11 @@ export function RestorationAccordionHeader({
                         e.stopPropagation();
                         setShowDeleteConfirm(true);
                       }}
-                      className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
+                      className="hideen inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
                       title="Remove this product"
                       aria-label="Remove this product"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 className="hidden" size={18} />
                     </button>
                   ) : null}
                 </div>
@@ -192,7 +192,7 @@ export function RestorationAccordionHeader({
         </div>
       ) : (
       <div
-        className="flex items-stretch gap-[10px] px-[8px] pt-[14px] pb-[8px]"
+        className="flex items-stretch gap-[10px] px-[8px]"
         onClick={(e) => e.stopPropagation()}
       >
         <ProductImagePreview
@@ -270,7 +270,7 @@ export function RestorationAccordionHeader({
                 ) : null}
               </fieldset>
               {middleContent ? (
-                <div className="mt-2 mb-2 w-full">{middleContent}</div>
+                <div className="w-full">{middleContent}</div>
               ) : null}
               <div className="flex justify-center items-center gap-2 w-full">
                 <EstDaysLabel
@@ -284,11 +284,11 @@ export function RestorationAccordionHeader({
                       e.stopPropagation();
                       setShowDeleteConfirm(true);
                     }}
-                    className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
+                    className="hideen inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
                     title="Remove this product"
                     aria-label="Remove this product"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 className="hidden" size={18} />
                   </button>
                 ) : null}
               </div>
@@ -305,7 +305,7 @@ export function RestorationAccordionHeader({
                 </div>
               ) : null}
               {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
-                <div className="w-full flex justify-center mt-2 py-2 overflow-visible" onClick={(e) => e.stopPropagation()}>
+                <div className="w-full flex justify-center py-1 overflow-visible" onClick={(e) => e.stopPropagation()}>
                   <DoneTransitionButton onComplete={() => onRetentionDoneChange(true)} />
                 </div>
               )}

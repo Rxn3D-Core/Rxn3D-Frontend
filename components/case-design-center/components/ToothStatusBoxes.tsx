@@ -232,13 +232,13 @@ export function ToothStatusBoxes({
       className={`flex w-full flex-col ${
         compact
           ? "items-start gap-2 py-0"
-          : `items-center justify-center gap-4 ${acknowledged ? "pt-2 pb-0" : "py-2"}`
+          : `items-center justify-center ${acknowledged ? "pt-2 pb-0" : "py-0"}`
       }`}
     >
       {/* Horizontally centered row of extraction options */}
       <div
         className={`flex flex-wrap items-center ${
-          compact ? "justify-start gap-3" : "justify-center gap-6"
+          compact ? "justify-start gap-3" : "justify-center gap-x-6 gap-y-2"
         }`}
       >
         {activeExtractions.map((extraction) => {
@@ -430,7 +430,7 @@ export function ToothStatusBoxes({
 
       {/* Done button centered below options when not yet acknowledged */}
       {!acknowledged && onAcknowledgedChange && (
-        <div className="w-full flex justify-center mt-2 py-2 overflow-visible">
+        <div className="w-full flex justify-center py-1 overflow-visible">
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
       )}

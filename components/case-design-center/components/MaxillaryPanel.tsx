@@ -687,6 +687,8 @@ interface MaxillaryPanelProps {
   activeAccordionKey: string;
   /** Force this arch's tooth chart interactive even when it doesn't own the active accordion (initial fixed "both" flow). */
   forceOwnArchChartEnabled?: boolean;
+  /** Guided both-arch flow: hide this arch's card-0 field content until its fields phase is reached (chart/selection stay visible). */
+  guidedHideCard0Fields?: boolean;
   /** Initial (card 0) product name — used for the "Select teeth to replace with …" hint before any teeth are assigned. */
   initialProductName?: string;
   /** Global single-active accordion (this arch). */
@@ -962,6 +964,7 @@ export function MaxillaryPanel({
   setActiveProductCardId,
   activeAccordionKey,
   forceOwnArchChartEnabled = false,
+  guidedHideCard0Fields = false,
   initialProductName,
   isAccordionExpanded,
   isAccordionEnabled,
@@ -3359,6 +3362,11 @@ export function MaxillaryPanel({
                   selectedProduct,
                   caseSubmitted
                 );
+                // Guided both-arch flow: keep the "Done" acknowledgement (card0ShowFixedFields)
+                // intact for the header, but suppress the field *content* until this arch's
+                // fields phase is reached.
+                const card0ShowFixedFieldsContent =
+                  card0ShowFixedFields && !guidedHideCard0Fields;
                 const showFixedRetentionDone =
                   hasRetentionOptions(selectedProduct) && !caseSubmitted;
                 const card0FixedExpanded = isCardAccordionExpanded(slotId);
@@ -3484,7 +3492,7 @@ export function MaxillaryPanel({
                       />
                     }
                   >
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
                       <AutoOpenFirstFixedFieldAfterRetentionDone
                         retentionFieldsVisible={card0ShowFixedFields}
                         isExpanded={card0FixedExpanded}
@@ -3517,7 +3525,7 @@ export function MaxillaryPanel({
                         fixedShadesComplete={fixedShadesComplete}
                       />
                     )}
-                    {card0ShowFixedFields && !isSingleStageNoStages(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `maxillary_prep_${firstToothNumber}`}
                         arch="maxillary"
@@ -3529,7 +3537,7 @@ export function MaxillaryPanel({
                         caseSubmitted={caseSubmitted}
                       />
                     )}
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
                       <>
                         <AutoOpenShadeGuideIfEmpty
                           arch="maxillary"
@@ -3563,7 +3571,7 @@ export function MaxillaryPanel({
                       </>
                     )}
 
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) ? (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="maxillary"
                         isExpanded={isCardAccordionExpanded(slotId)}
@@ -3608,7 +3616,7 @@ export function MaxillaryPanel({
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
-                    ) : card0ShowFixedFields ? (
+                    ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
                         arch="maxillary"
                         firstToothNumber={firstToothNumber}
@@ -3991,6 +3999,11 @@ export function MaxillaryPanel({
                     const card0ShowRemovableFields = useMaxillaryArchSharedRemovable
                       ? maxillaryArchExtractionsReady
                       : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                    // Guided both-arch flow: suppress card-0 field content until this arch's
+                    // fields phase (chart + teeth selection above remain visible).
+                    if (guidedHideCard0Fields) {
+                      return null;
+                    }
                     if (
                       !card0ShowRemovableFields &&
                       !useMaxillaryArchSharedRemovable &&

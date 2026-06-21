@@ -192,7 +192,7 @@ export function SavedProductAccordionItems({ arch }: SavedProductAccordionItemsP
                           </span>
                         </div>
                       )}
-                      <span
+                      <span className="hidden"
                         style={{
                           fontFamily: "Verdana",
                           fontStyle: "normal",

@@ -529,14 +529,34 @@ export function useCaseDesignState(props: CaseDesignProps) {
     const chain = hasRetentionOptions(product)
       ? getRetentionFieldChain(product.advance_fields, product)
       : getSelectionFieldChain(product);
-    if (chain.length === 0) return false;
-    return chain.every((step) =>
+    // Optional steps (add-ons) don't block completion — the user normally never opens
+    // that modal, so requiring them would stall the upper→lower-fields phase transition.
+    const requiredChain = chain.filter(
+      (step) => step !== "addons" && step !== "fixed_addons"
+    );
+    if (requiredChain.length === 0) return false;
+    const impressionStep = requiredChain.includes("fixed_impression")
+      ? ("fixed_impression" as FieldStep)
+      : requiredChain.includes("impression")
+      ? ("impression" as FieldStep)
+      : null;
+    // User-requested behavior: once upper impression is selected/completed,
+    // treat upper card-0 fields as complete so lower-side fields can appear.
+    if (impressionStep) {
+      return toothFieldProgress.isFieldCompleted(
+        "maxillary",
+        repTooth,
+        impressionStep
+      );
+    }
+    return requiredChain.every((step) =>
       toothFieldProgress.isFieldCompleted("maxillary", repTooth, step as FieldStep)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     guidedBothArches,
     findCard0RepTooth,
+    toothFieldProgress.completedFields,
     toothFieldProgress.fieldValues,
     toothFieldProgress.toothProducts,
     toothFieldProgress.toothProductCardMap,
