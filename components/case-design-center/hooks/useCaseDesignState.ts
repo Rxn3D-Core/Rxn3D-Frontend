@@ -535,21 +535,15 @@ export function useCaseDesignState(props: CaseDesignProps) {
       (step) => step !== "addons" && step !== "fixed_addons"
     );
     if (requiredChain.length === 0) return false;
-    const impressionStep = requiredChain.includes("fixed_impression")
-      ? ("fixed_impression" as FieldStep)
+    const impressionStep: FieldStep | null = requiredChain.includes("fixed_impression")
+      ? "fixed_impression"
       : requiredChain.includes("impression")
-      ? ("impression" as FieldStep)
+      ? "impression"
       : null;
     // User-requested behavior: once upper impression is selected/completed,
     // treat upper card-0 fields as complete so lower-side fields can appear.
-    if (impressionStep) {
-      return toothFieldProgress.isFieldCompleted(
-        "maxillary",
-        repTooth,
-        impressionStep
-      );
-    }
-    return requiredChain.every((step) =>
+    const completionChain = impressionStep ? [impressionStep] : requiredChain;
+    return completionChain.every((step) =>
       toothFieldProgress.isFieldCompleted("maxillary", repTooth, step as FieldStep)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
