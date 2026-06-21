@@ -783,6 +783,8 @@ interface MandibularPanelProps {
   toggleAccordionFocus: (slotId: string, cardId?: number) => void;
   /** Fired once when the card-0 extraction setup is acknowledged ("Done"). Drives the guided cross-arch flow. */
   onExtractionsDone?: () => void;
+  /** Guided both-arch flow: fixed retention "Done" on card 0. */
+  onRetentionDone?: () => void;
   getToothProductCard: (arch: Arch, toothNumber: number) => number;
 
   // Tooth field progress (Prep/Pontic step-by-step)
@@ -902,6 +904,7 @@ export function MandibularPanel({
   isAccordionEnabled,
   toggleAccordionFocus,
   onExtractionsDone,
+  onRetentionDone,
   showMandibular,
   setShowMandibular,
   showDetails,
@@ -1098,6 +1101,19 @@ export function MandibularPanel({
     }
     prevCard0AckedRef.current = card0ExtractionsAcked;
   }, [card0ExtractionsAcked, onExtractionsDone]);
+
+  const card0FixedRetentionAcked =
+    !caseSubmitted &&
+    !!card0InitialProduct &&
+    hasRetentionOptions(card0InitialProduct) &&
+    isFixedRetentionSetupComplete(card0InitialProduct, caseSubmitted);
+  const prevCard0FixedRetentionAckedRef = useRef(card0FixedRetentionAcked);
+  useEffect(() => {
+    if (card0FixedRetentionAcked && !prevCard0FixedRetentionAckedRef.current) {
+      onRetentionDone?.();
+    }
+    prevCard0FixedRetentionAckedRef.current = card0FixedRetentionAcked;
+  }, [card0FixedRetentionAcked, onRetentionDone]);
 
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
   const [toothStatusPopoverExtractions, setToothStatusPopoverExtractions] = useState<ProductExtraction[]>([]);

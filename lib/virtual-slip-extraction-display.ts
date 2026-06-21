@@ -271,21 +271,28 @@ function finalizeProductTeethChartDisplay(
       delete toothExtractionMap[toothNumber];
     }
 
-    const timImageUrl = timRow?.code
-      ? imageUrlForToothFromCatalogRow(timRow, toothNumber) ??
-        extractionImagesByCode[timRow.code]?.[toothNumber] ??
-        null
-      : null;
+    // Prefer the TIM catalog image; otherwise fall back to the per-tooth
+    // `selected_tooth_image_url` carried by `slip_product_teeth_selections`.
+    // Removable products often have a TIM catalog row with no images array (or no
+    // TIM catalog row at all), so the selected-teeth image is the only source for
+    // their chart images — without this fallback the product teeth render blank.
+    const timImageUrl =
+      (timRow?.code
+        ? imageUrlForToothFromCatalogRow(timRow, toothNumber) ??
+          extractionImagesByCode[timRow.code]?.[toothNumber] ??
+          null
+        : null) ?? imageUrlFromSlipTeethSelections(apiProduct, toothNumber);
 
-    if (timRow?.code && timImageUrl) {
+    if (timImageUrl) {
+      const timCode = registerPreloadTimCode(extractionsByCode, timRow);
       extractionImagesByCode = {
         ...extractionImagesByCode,
-        [timRow.code]: {
-          ...(extractionImagesByCode[timRow.code] ?? {}),
+        [timCode]: {
+          ...(extractionImagesByCode[timCode] ?? {}),
           [toothNumber]: timImageUrl,
         },
       };
-      toothExtractionMap[toothNumber] = timRow.code;
+      toothExtractionMap[toothNumber] = timCode;
     }
   }
 
@@ -1656,6 +1663,36 @@ export function scopeArchChartExtractionDisplay(
     (acc, apiProduct) =>
       finalizeProductTeethChartDisplay(acc, apiProduct, catalogFromProduct(apiProduct)),
     display,
+  );
+}
+
+/**
+ * Build read-only arch tooth-chart overlay from two separate slip-details layers:
+ * 1. Tooth chart rows (`extractions[]`, `slip_product_teeth_selections`, retention rows)
+ * 2. `tooth_chart_preload` (authoritative per-tooth image overrides)
+ *
+ * Sources stay separate in the API; this merges them for full chart coverage.
+ */
+export function buildArchChartExtractionDisplayFromSlipProducts(
+  archProducts: any[],
+  arch: "maxillary" | "mandibular",
+): ExtractionDisplayVM {
+  if (!Array.isArray(archProducts) || archProducts.length === 0) {
+    return { ...EMPTY_DISPLAY };
+  }
+
+  let toothChartDisplay = mergeArchExtractionDisplays(
+    archProducts.map(buildExtractionDisplayFromSlipProduct),
+  );
+  toothChartDisplay = scopeArchChartExtractionDisplay(toothChartDisplay, archProducts);
+
+  const preloadDisplay = mergePreloadExtractionDisplaysForArch(archProducts, arch);
+  if (!preloadDisplay) return toothChartDisplay;
+
+  return overlayToothChartPreloadOnArchDisplay(
+    toothChartDisplay,
+    preloadDisplay,
+    archProducts,
   );
 }
 
