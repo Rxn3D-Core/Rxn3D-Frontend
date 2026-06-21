@@ -203,14 +203,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
   const guidedBothArchSlipCreation =
     !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId;
+  const guidedBothArchPhase = state.guidedBothArchPhase;
+  const guidedSelectionPhase =
+    guidedBothArchPhase === "upper-selection" ||
+    guidedBothArchPhase === "lower-selection";
   // Guided visibility gating: do both arches' tooth selections first, then reveal upper
   // fields, then lower fields.
   const guidedHideMaxillaryCard0Fields =
-    guidedBothArchSlipCreation &&
-    (state.guidedBothArchPhase === "upper-selection" ||
-      state.guidedBothArchPhase === "lower-selection");
+    guidedBothArchSlipCreation && guidedSelectionPhase;
   const guidedHideMandibularCard0Fields =
-    guidedBothArchSlipCreation && state.guidedBothArchPhase !== "lower-fields";
+    guidedBothArchSlipCreation && guidedBothArchPhase !== "lower-fields";
   // Show accordion when card 0 initial product is Removable/Ortho — show immediately once product is selected,
   // no need to wait for teeth to be assigned (the accordion lets the user select teeth).
   // Gate each panel to its own arch so the opposite panel doesn't show a duplicate card 0 accordion
@@ -1552,7 +1554,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             // visible through the remaining phases. Ignore the default state.showMandibular
             // here so both arches don't appear up front.
             (guidedBothArchSlipCreation
-              ? state.guidedBothArchPhase !== "upper-selection"
+              ? guidedBothArchPhase !== "upper-selection"
               : state.showMandibular) ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
             (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular)
