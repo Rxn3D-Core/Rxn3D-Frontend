@@ -70,16 +70,13 @@ export interface ProductVM {
 import { formatFieldValueForNote } from "@/components/case-design-center/utils/caseNoteBuilder";
 import type { ExtractionDisplayVM } from "./virtual-slip-extraction-display";
 import {
+  buildArchChartExtractionDisplayFromSlipProducts,
   buildExtractionDisplayFromSlipProduct,
-  buildGroupedExtractionsChartDisplay,
   buildOpposingArchVM,
   extractionChipTeethFromSlipProduct,
   formatOpposingImpressions,
   hasExtractionChartOverlay,
   isGroupedSlipExtractions,
-  mergeArchExtractionDisplays,
-  mergePreloadExtractionDisplaysForArch,
-  overlayPreloadExtractionsOnChartDisplay,
   productHasOpposingImpression,
 } from "./virtual-slip-extraction-display";
 import { hasDisplayValue } from "./virtual-slip-display";
@@ -593,19 +590,11 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
   const productVMs = archProducts.map(buildProduct);
 
-  // Top arch chart: grouped extractions only (MT / WEOD / clasps), not product teeth_selection.
-  let extractionDisplay = mergeArchExtractionDisplays(
-    archProducts.map(buildGroupedExtractionsChartDisplay),
+  // Arch chart: tooth-chart rows + preload (separate API layers, merged for full coverage).
+  const extractionDisplay = buildArchChartExtractionDisplayFromSlipProducts(
+    archProducts,
+    arch,
   );
-
-  const preloadDisplay = mergePreloadExtractionDisplaysForArch(archProducts, arch);
-  if (preloadDisplay) {
-    extractionDisplay = overlayPreloadExtractionsOnChartDisplay(
-      extractionDisplay,
-      preloadDisplay,
-      archProducts,
-    );
-  }
   const useExtractionOverlay = hasExtractionChartOverlay(extractionDisplay);
 
   // Aggregate per-tooth statuses across all products in this arch.

@@ -36,9 +36,9 @@ interface VirtualSlipToothChartProps {
  * Read-only dental chart. Reuses the exact same anatomical teeth SVG components
  * used in the slip-creation Case Design Center, driven from the view model's
  * per-tooth statuses. Rendered non-interactive (no click handlers) and wrapped
- * in `pointer-events-none`. The arch chart is driven by grouped extractions (MT /
- * WEOD / clasps). Product `teeth_selection` and catalog images appear in the
- * product summary below, not on this chart.
+ * in `pointer-events-none`. The arch chart merges two separate slip-details layers:
+ * tooth-chart rows (extractions, selections, retention) plus `tooth_chart_preload`
+ * image overrides. Fixed retention images may also come from `toothChartSelectionsByTooth`.
  */
 export function VirtualSlipToothChart({
   arch,

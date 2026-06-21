@@ -54,6 +54,18 @@ export function isOwnArchToothChartEnabled(
   return archFromActiveAccordionKey(activeAccordionKey) === panelArch;
 }
 
+/** Guided slip-creation phases when initialArch is "both" (one arch active at a time). */
+export type GuidedBothArchPhase =
+  | "upper-selection"
+  | "lower-selection"
+  | "upper-fields"
+  | "lower-fields";
+
+export function guidedPhaseAllowsArch(phase: GuidedBothArchPhase, arch: Arch): boolean {
+  if (phase === "upper-selection" || phase === "upper-fields") return arch === "maxillary";
+  return arch === "mandibular";
+}
+
 /** Distinct card-0 fixed prep/pontic/implant product groups on an arch. */
 export function countFixedCard0Groups(
   arch: Arch,

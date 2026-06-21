@@ -56,7 +56,9 @@ import {
   addedProductSlotId,
   defaultActiveAccordionKey,
   firstPreloadedAccordionFocus,
+  guidedPhaseAllowsArch,
   productAccordionKey,
+  type GuidedBothArchPhase,
 } from "../utils/productAccordionFocus";
 import { buildShadeSelectionKey } from "../utils/shadeGuideAdvanceFields";
 import {
@@ -316,6 +318,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
       : defaultActiveAccordionKey(props.initialArch)
   );
 
+  /** Both-arch slip creation: upper selection → lower selection → upper fields → lower fields. */
+  const guidedBothArches = props.initialArch === "both" && !props.caseSubmitted;
+  const [guidedBothArchPhase, setGuidedBothArchPhase] =
+    useState<GuidedBothArchPhase>("upper-selection");
+  const crossArchFlowRef = useRef({
+    upperDoneJumped: false,
+    lowerDoneJumped: false,
+    upperFieldsDoneJumped: false,
+  });
+
+  const isGuidedArchInteractive = useCallback(
+    (arch: Arch) => {
+      if (!guidedBothArches) return true;
+      return guidedPhaseAllowsArch(guidedBothArchPhase, arch);
+    },
+    [guidedBothArches, guidedBothArchPhase]
+  );
+
   const syncAddedExpanded = useCallback(
     (arch: Arch | null, productId: number | null) => {
       products.setOnlyExpandedAddedProduct(arch, productId);
@@ -348,6 +368,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const toggleAccordionFocus = useCallback(
     (arch: Arch, slotId: string, cardId?: number) => {
+      if (guidedBothArches && !guidedPhaseAllowsArch(guidedBothArchPhase, arch)) {
+        return;
+      }
       const key = productAccordionKey(arch, slotId);
       if (activeAccordionKey === key) {
         setActiveAccordionKey("");
@@ -356,7 +379,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       }
       focusAccordion(arch, slotId, cardId);
     },
-    [activeAccordionKey, focusAccordion, syncAddedExpanded]
+    [activeAccordionKey, focusAccordion, guidedBothArches, guidedBothArchPhase, syncAddedExpanded]
   );
 
   const isAccordionExpanded = useCallback(
@@ -367,6 +390,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const isAccordionEnabled = useCallback(
     (arch: Arch, slotId: string) => {
       const key = productAccordionKey(arch, slotId);
+      if (
+        guidedBothArches &&
+        !guidedPhaseAllowsArch(guidedBothArchPhase, arch)
+      ) {
+        return false;
+      }
       if (!activeAccordionKey || activeAccordionKey === key) return true;
       // Card 0 fixed uses fixed0_* while default focus is still removable0 (no removable on arch).
       if (
@@ -377,7 +406,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       }
       return false;
     },
-    [activeAccordionKey]
+    [activeAccordionKey, guidedBothArches, guidedBothArchPhase]
   );
 
   const preloadAccordionFocusDoneRef = useRef(false);
@@ -411,15 +440,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const implants = useImplantState();
   const toothFieldProgress = useToothFieldProgress();
 
-  // ── Guided cross-arch flow (both arches, one product per arch) ──────────────
-  // When the same product is configured on both arches, walk the user through:
-  //   1. Upper teeth/extractions → Done  →  jump to Lower teeth/extractions
-  //   2. Lower teeth/extractions → Done (first time)  →  jump back to Upper fields
-  //   3. Upper last field completed  →  jump to Lower (fields)
-  // Each jump fires once. Only applies to the both-arches removable case.
-  const guidedBothArches = props.initialArch === "both";
-  const crossArchFlowRef = useRef({ upperDoneJumped: false, lowerDoneJumped: false, upperFieldsDoneJumped: false });
-
+  // ── Guided cross-arch flow (both arches, card 0 — all product categories) ──
+  //   1. Upper tooth/status selection → Done → lower selection
+  //   2. Lower selection → Done → upper fields
+  //   3. Upper fields complete → lower fields
   const focusArchCard0 = useCallback(
     (arch: Arch) => {
       focusAccordion(arch, "removable0", 0);
@@ -427,56 +451,105 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [focusAccordion]
   );
 
-  // Steps 1 & 2 — fired by a panel when its card-0 extraction setup is acknowledged ("Done").
-  const handleArchExtractionsDone = useCallback(
+  const advanceGuidedSelectionDone = useCallback(
     (arch: Arch) => {
       if (!guidedBothArches) return;
       if (arch === "maxillary") {
         if (crossArchFlowRef.current.upperDoneJumped) return;
         crossArchFlowRef.current.upperDoneJumped = true;
-        focusArchCard0("mandibular"); // → lower teeth/extraction selection
+        setGuidedBothArchPhase("lower-selection");
+        focusArchCard0("mandibular");
       } else {
         if (crossArchFlowRef.current.lowerDoneJumped) return;
         crossArchFlowRef.current.lowerDoneJumped = true;
-        focusArchCard0("maxillary"); // → back to upper (fields; extractions already Done)
+        setGuidedBothArchPhase("upper-fields");
+        focusArchCard0("maxillary");
       }
     },
     [guidedBothArches, focusArchCard0]
   );
 
-  // Step 3 — upper card-0 product's field chain fully complete → jump to lower (fields).
+  const handleArchExtractionsDone = useCallback(
+    (arch: Arch) => {
+      advanceGuidedSelectionDone(arch);
+    },
+    [advanceGuidedSelectionDone]
+  );
+
+  const handleArchRetentionDone = useCallback(
+    (arch: Arch) => {
+      advanceGuidedSelectionDone(arch);
+    },
+    [advanceGuidedSelectionDone]
+  );
+
+  const findCard0RepTooth = useCallback(
+    (arch: Arch): number | null => {
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const selectedTeeth =
+        arch === "maxillary" ? teeth.maxillaryTeeth : (teeth.mandibularTeeth ?? []);
+      const fromSelected = selectedTeeth
+        .filter(
+          (tn) =>
+            toothFieldProgress.getToothProductCard(arch, tn) === 0 &&
+            toothFieldProgress.getToothProduct(arch, tn)
+        )
+        .sort((a, b) => a - b)[0];
+      if (fromSelected != null) return fromSelected;
+
+      const retentionTypes =
+        arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes ?? {};
+      for (const tn of allTeeth) {
+        const types = retentionTypes[tn];
+        if (!types?.length) continue;
+        if (toothFieldProgress.getToothProductCard(arch, tn) !== 0) continue;
+        if (!toothFieldProgress.getToothProduct(arch, tn)) continue;
+        return tn;
+      }
+      return null;
+    },
+    [
+      MAXILLARY_ALL,
+      MANDIBULAR_ALL,
+      teeth.maxillaryTeeth,
+      teeth.mandibularTeeth,
+      teeth.maxillaryRetentionTypes,
+      teeth.mandibularRetentionTypes,
+      toothFieldProgress.getToothProduct,
+      toothFieldProgress.getToothProductCard,
+    ]
+  );
+
   const upperCard0FieldsComplete = useMemo(() => {
     if (!guidedBothArches) return false;
-    const repTooth = teeth.maxillaryTeeth
-      .filter(
-        (tn) =>
-          toothFieldProgress.getToothProductCard("maxillary", tn) === 0 &&
-          toothFieldProgress.getToothProduct("maxillary", tn)
-      )
-      .sort((a, b) => a - b)[0];
+    const repTooth = findCard0RepTooth("maxillary");
     if (repTooth == null) return false;
     const product = toothFieldProgress.getToothProduct("maxillary", repTooth);
-    if (!product || hasRetentionOptions(product)) return false; // removable card-0 only
-    const chain = getSelectionFieldChain(product);
+    if (!product) return false;
+    const chain = hasRetentionOptions(product)
+      ? getRetentionFieldChain(product.advance_fields, product)
+      : getSelectionFieldChain(product);
     if (chain.length === 0) return false;
-    return chain.every((step) => toothFieldProgress.isFieldCompleted("maxillary", repTooth, step));
-    // toothFieldProgress.fieldValues changes whenever a field is completed — drives recompute.
+    return chain.every((step) =>
+      toothFieldProgress.isFieldCompleted("maxillary", repTooth, step as FieldStep)
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     guidedBothArches,
-    teeth.maxillaryTeeth,
+    findCard0RepTooth,
     toothFieldProgress.fieldValues,
     toothFieldProgress.toothProducts,
     toothFieldProgress.toothProductCardMap,
+    teeth.maxillaryRetentionTypes,
   ]);
 
   useEffect(() => {
     if (!guidedBothArches) return;
     if (!upperCard0FieldsComplete) return;
     if (crossArchFlowRef.current.upperFieldsDoneJumped) return;
-    // Only after the user has gone Upper→Lower→Upper (selection round-trip complete).
     if (!crossArchFlowRef.current.lowerDoneJumped) return;
     crossArchFlowRef.current.upperFieldsDoneJumped = true;
+    setGuidedBothArchPhase("lower-fields");
     focusArchCard0("mandibular");
   }, [guidedBothArches, upperCard0FieldsComplete, focusArchCard0]);
 
@@ -1916,6 +1989,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const handleToothExtractionToggle = useCallback(
     (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
+      if (!isGuidedArchInteractive(arch)) return;
       if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
       teeth.handleToothExtractionToggle(arch, toothNumber, extractionCode, extractions);
     },
@@ -1923,6 +1997,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   );
 
   const handleMaxillaryToothClick = (toothNumber: number) => {
+    if (!isGuidedArchInteractive("maxillary")) return;
     if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
@@ -1932,6 +2007,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   };
 
   const handleMandibularToothClick = (toothNumber: number) => {
+    if (!isGuidedArchInteractive("mandibular")) return;
     if (!canModifyToothForActiveProduct("mandibular", toothNumber)) return;
     const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
     teeth.handleMandibularToothClick(toothNumber);
@@ -1942,6 +2018,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const selectAllMaxillaryTeeth = useCallback(
     (toothNumbers: number[]) => {
+      if (!isGuidedArchInteractive("maxillary")) return;
       const { allowed, blocked } = filterTeethAvailableForActiveProduct(
         "maxillary",
         toothNumbers,
@@ -1961,6 +2038,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [
       assignToothToActiveProduct,
       isActiveNonRetentionProduct,
+      isGuidedArchInteractive,
       notifyToothOwnershipConflict,
       teeth,
       toothOwnershipContext,
@@ -1969,6 +2047,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const selectAllMandibularTeeth = useCallback(
     (toothNumbers: number[]) => {
+      if (!isGuidedArchInteractive("mandibular")) return;
       const { allowed, blocked } = filterTeethAvailableForActiveProduct(
         "mandibular",
         toothNumbers,
@@ -1988,6 +2067,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [
       assignToothToActiveProduct,
       isActiveNonRetentionProduct,
+      isGuidedArchInteractive,
       notifyToothOwnershipConflict,
       teeth,
       toothOwnershipContext,
@@ -1998,6 +2078,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // Also handles tooth ownership transfer when a tooth already belongs to another product card.
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
+    if (!isGuidedArchInteractive(arch)) return;
     const currentTypes = arch === "maxillary"
       ? teeth.maxillaryRetentionTypes[toothNumber]
       : teeth.mandibularRetentionTypes[toothNumber];
@@ -2006,18 +2087,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Block before the retention-selection flow starts (before toggling popover choice).
     if (!isDeselecting && (type === "Prep" || type === "Pontic" || type === "Implant")) {
       if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
-      // Initial Fixed Restoration without jaw-specific selection (show_jaw_photo !== "Yes"):
-      // both charts start active so the user can begin on either side. The first arch they
-      // select on becomes the active flow — lock the active accordion to it so the other
-      // arch goes inactive.
-      if (
-        activeProductCardId === 0 &&
-        hasRetentionOptions(initialProductDetails) &&
-        initialProductDetails?.show_jaw_photo !== "Yes"
-      ) {
-        const desiredKey = productAccordionKey(arch, "removable0");
-        if (activeAccordionKey !== desiredKey) focusAccordion(arch, "removable0");
-      }
+      // Both-arch guided flow: always upper selection first — do not switch active arch on first click.
     }
 
     originalHandleSelectRetentionType(arch, toothNumber, type);
@@ -2485,6 +2555,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     toggleAccordionFocus,
     focusAccordion,
     handleArchExtractionsDone,
+    handleArchRetentionDone,
+    guidedBothArches,
+    guidedBothArchPhase,
     // Expansion
     expandedCard,
     setExpandedCard,
