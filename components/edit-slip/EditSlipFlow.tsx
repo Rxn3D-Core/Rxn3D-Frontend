@@ -25,7 +25,6 @@ import {
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { CaseSubmissionOverlays } from "@/components/case-design-center/components/CaseSubmissionOverlays";
 import { CaseDesignCenter } from "@/components/case-design-center/components/CaseDesignCenter";
-import { TopBar } from "@/components/case-design-center/components/TopBar";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
@@ -273,16 +272,6 @@ export function EditSlipFlow({ slipId }: Props) {
   return (
     <div className={`${caseDesignInter.className} flex h-screen bg-white overflow-hidden`}>
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
-        <TopBar
-          selectedLab={
-            wizard.completedLab
-              ? { logo: wizard.completedLab.logo, name: wizard.completedLab.name }
-              : null
-          }
-          onEditClick={wizard.handleTopBarEditLab}
-          caseSubmitted={false}
-        />
-
         {!wizard.wizardComplete && (
           <NewCaseWizard
             key={wizard.wizardKey}
@@ -351,7 +340,9 @@ export function EditSlipFlow({ slipId }: Props) {
               onAgeChange={wizard.setCompletedAge}
               createdByName={createdByMeta.name}
               createdByImageUrl={createdByMeta.imageUrl}
-              compactLayout
+              labLogoUrl={wizard.completedLab?.logo}
+              labName={wizard.completedLab?.name}
+              onEditLab={wizard.handleTopBarEditLab}
             />
 
             {initialSlipState && (

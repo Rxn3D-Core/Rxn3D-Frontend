@@ -44,7 +44,7 @@ export function removableProductTitleBoxClassName({
 export function EstDaysLabel({ rushed, text }: { rushed: boolean; text: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] ${
+      className={`hidden inline-flex items-center gap-1 font-[Verdana] text-[11px] sm:text-[13px] leading-tight tracking-[-0.02em] ${
         rushed ? "text-[#CF0202] font-medium" : "text-[#B4B0B0]"
       }`}
       title="Estimated turnaround in lab working days (Monday–Friday, excluding holidays) after submission."

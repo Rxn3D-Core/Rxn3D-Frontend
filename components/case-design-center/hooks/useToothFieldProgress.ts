@@ -450,9 +450,10 @@ export function useToothFieldProgress() {
     migrateToothProgress,
     getToothProductCard,
     setToothProductCard,
-    // Raw state — exposed so consumers (e.g. CaseSummaryNotes) can include them
-    // in useMemo deps to trigger re-computation when field values change.
+    // Raw state — exposed so consumers can include them in useMemo deps.
+    // Note: completedFields can change without fieldValues changing.
     fieldValues,
+    completedFields,
     toothProducts,
     toothProductCardMap,
     // Raw setters — exposed for read-only hydration (virtual slip page).

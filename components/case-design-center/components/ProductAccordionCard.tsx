@@ -207,7 +207,7 @@ export function ProductAccordionCard({
         {/* Body */}
         {isExpanded && children && (
           <div
-            className={`bg-white space-y-3 min-w-0 overflow-x-hidden${customHeader ? " pt-3" : ""}${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+            className={`bg-white space-y-3 min-w-0 overflow-x-hidden${customHeader ? " pt-1" : ""}${caseSubmitted ? " pointer-events-none select-none" : ""}`}
           >
             {children}
           </div>
