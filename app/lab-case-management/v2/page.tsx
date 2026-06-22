@@ -37,6 +37,7 @@ import { slipCanSendBackToOffice } from "@/lib/slip-location"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { openPaperSlipPrintTab } from "@/lib/paper-slip-print-tab"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
 
@@ -556,7 +557,7 @@ export default function LabSlipPage() {
         return;
       }
 
-      router.push(printRoute);
+      openPaperSlipPrintTab(printRoute);
     } catch (err: any) {
       toast({
         title: "Failed to open paper slip",
@@ -1064,6 +1065,7 @@ export default function LabSlipPage() {
             onPrintDriverLabel: handlePrintDriverLabel,
             onPrintStatement: handlePrintStatement,
             onCallLog: handleCallLogClick,
+            onAddOns: handleAddOnsClick,
             onAttachment: handleAttachmentClick,
             onCopy: (row) => void handleCopyCaseIdentifier(row),
             onEdit: handleEditCase,
@@ -1089,7 +1091,7 @@ export default function LabSlipPage() {
           visibleColumns={visibleColumns}
         />
 
-        {/* Archive Confirm Dialog */}
+{/* Archive Confirm Dialog */}
         <Dialog open={archiveConfirm !== null} onOpenChange={v => { if (!v) closeArchive() }}>
           <DialogContent>
             <DialogHeader>

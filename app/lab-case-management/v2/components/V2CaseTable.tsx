@@ -8,8 +8,10 @@ import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingSta
 
 import { countVisibleV2Columns } from "../case-table-ui.mjs"
 import type { V2CaseRowData, V2RowActions, V2VisibleColumns } from "../case-table-types"
-import { FlaskConical } from "lucide-react"
 import { CalendarIcon, LabLocationIcon } from "./V2CaseIcons"
+
+const monoFilter = "grayscale(1) brightness(0.7) contrast(0.6) opacity(0.65)"
+const VS = "/icons/virtual-slip-center"
 import { V2CaseRowActions } from "./V2CaseRowActions"
 
 export type V2CaseTableProps = {
@@ -107,9 +109,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
                     type="button"
                     onClick={(event) => { event.stopPropagation(); isReadyToSendLocation(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row) }}
                   >
-                    {isReadyToSendLocation(row)
-                      ? <FlaskConical className="h-4 w-4 shrink-0" />
-                      : <LabLocationIcon className="h-4 w-4 shrink-0" />}
+                    {locationIcon(row.locationId)}
                     <span>{row.location || "Unknown"}</span>
                   </button>
                 </td>
@@ -117,7 +117,7 @@ export function V2CaseTable(props: V2CaseTableProps) {
               {props.visibleColumns.due && (
                 <td className="px-3 py-2.5 align-top text-right">
                   <button className="inline-flex items-center gap-1.5 rounded text-xs font-medium text-[#4f4c47] hover:text-[#1f1e1b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]" type="button" onClick={(event) => { event.stopPropagation(); props.rowActions.onChangeDueDate(row) }}>
-                    <CalendarIcon className="h-4 w-4 text-[#77736b]" />
+                    <CalendarIcon className="h-5 w-5 opacity-60" />
                     {formatDueDate(row.dueDate)}
                   </button>
                 </td>
@@ -153,6 +153,15 @@ function StatusPill({ status }: { status: string }) {
   if (isSlipCaseCancelled(status)) return <SlipListingStatusBadge tone="cancelled">Cancelled</SlipListingStatusBadge>
   if (isSlipCaseFinished(status)) return <SlipListingStatusBadge tone="finished">Done</SlipListingStatusBadge>
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
+}
+
+function locationIcon(locationId?: number) {
+  const imgProps = { style: { width: 20, height: 20, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
+  if (locationId === 1 || locationId === 4) return <img src={`${VS}/pick-up.svg`} {...imgProps} />
+  if (locationId === 2 || locationId === 5) return <img src={`${VS}/drop-off.svg`} {...imgProps} />
+  if (locationId === 3) return <img src={`${VS}/ready-to-send.svg`} {...imgProps} />
+  if (locationId === 6) return <img src={`${VS}/in-office.png`} {...imgProps} />
+  return <LabLocationIcon className="h-5 w-5 shrink-0 opacity-60" />
 }
 
 function isReadyToSendLocation(row: V2CaseRowData) {

@@ -1,6 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
+import { Columns } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -20,7 +21,6 @@ import {
   CancelledIcon,
   DoneIcon,
   HoldIcon,
-  MoreIcon,
   ProgressIcon,
 } from "./V2CaseIcons"
 
@@ -106,7 +106,7 @@ export function V2CaseControlsMenu(props: V2CaseControlsMenuProps) {
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                 type="button"
               >
-                <MoreIcon className="h-[18px] w-[18px]" />
+                <Columns className="h-[18px] w-[18px]" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-80 border-gray-200 bg-white p-3 shadow-xl">
