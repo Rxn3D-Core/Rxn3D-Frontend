@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import tailwindConfig from "../../../tailwind.config.js";
+
 import {
   V2_STATUS_TABS,
   countVisibleV2Columns,
@@ -109,4 +111,11 @@ test("v2RowActionStripClass is hidden until row hover or focus", () => {
   assert.match(actionStripClass, /pointer-events-none/);
   assert.match(actionStripClass, /group-hover:pointer-events-auto/);
   assert.match(actionStripClass, /group-focus-within:pointer-events-auto/);
+});
+
+test("Tailwind scans app mjs helpers that contain UI class names", () => {
+  assert.ok(
+    tailwindConfig.content.some((pattern) => pattern.includes("mjs")),
+    "Tailwind content paths must include .mjs files",
+  );
 });

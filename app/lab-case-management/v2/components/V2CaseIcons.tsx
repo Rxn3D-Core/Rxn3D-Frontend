@@ -126,11 +126,65 @@ export function CalendarIcon({ className }: V2CaseIconProps) {
   )
 }
 
+export function AddOnsIcon({ className }: V2CaseIconProps) {
+  return (
+    <SvgIcon className={className}>
+      <path d="M8 2.25v11.5M2.25 8h11.5" />
+      <circle cx="8" cy="8" r="5.75" />
+    </SvgIcon>
+  )
+}
+
 export function LabLocationIcon({ className }: V2CaseIconProps) {
   return (
     <SvgIcon className={className}>
       <path d="M13 6.5c0 3.7-5 7.25-5 7.25S3 10.2 3 6.5a5 5 0 0 1 10 0Z" />
       <path d="M5.75 8.25v-3.5h4.5v3.5M7.25 4.75v3.5m1.5-3.5v3.5" />
+    </SvgIcon>
+  )
+}
+
+export function PickUpIcon({ className }: V2CaseIconProps) {
+  return (
+    <SvgIcon className={className}>
+      <rect x="1.5" y="9" width="9" height="5" rx="1" />
+      <path d="M10.5 11h2.25l1.75 2H10.5V11Z" />
+      <circle cx="4" cy="14" r="1.25" />
+      <circle cx="11.5" cy="14" r="1.25" />
+      <path d="M5.5 9V5.5M5.5 5.5 3.75 7.25M5.5 5.5l1.75 1.75" />
+    </SvgIcon>
+  )
+}
+
+export function DropOffIcon({ className }: V2CaseIconProps) {
+  return (
+    <SvgIcon className={className}>
+      <rect x="1.5" y="9" width="9" height="5" rx="1" />
+      <path d="M10.5 11h2.25l1.75 2H10.5V11Z" />
+      <circle cx="4" cy="14" r="1.25" />
+      <circle cx="11.5" cy="14" r="1.25" />
+      <path d="M5.5 3v3.5M5.5 6.5 3.75 4.75M5.5 6.5l1.75-1.75" />
+    </SvgIcon>
+  )
+}
+
+export function ReadyToSendIcon({ className }: V2CaseIconProps) {
+  return (
+    <SvgIcon className={className}>
+      <path d="M2.5 9.5a5.5 5.5 0 0 1 5.5-5.5h3.5" />
+      <path d="M9 2.25 11.75 4 9 5.75" />
+      <path d="M13.5 9.5a5.5 5.5 0 0 1-5.5 5.5H4.5" />
+      <path d="M7 11.75 4.25 13.5l2.75 1.75" />
+    </SvgIcon>
+  )
+}
+
+export function InOfficeIcon({ className }: V2CaseIconProps) {
+  return (
+    <SvgIcon className={className}>
+      <path d="M2.5 14V6.5L8 2.5l5.5 4V14" />
+      <path d="M6 14v-4h4v4" />
+      <path d="M2.5 14h11" />
     </SvgIcon>
   )
 }

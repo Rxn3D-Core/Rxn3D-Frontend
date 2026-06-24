@@ -66,6 +66,7 @@ export interface V2RowActions {
   onPrintDriverLabel: (row: V2CaseRowData) => void | Promise<void>
   onPrintStatement: (row: V2CaseRowData) => void | Promise<void>
   onCallLog: (row: V2CaseRowData) => void
+  onAddOns: (row: V2CaseRowData) => void
   onAttachment: (row: V2CaseRowData) => void
   onCopy: (row: V2CaseRowData) => void
   onEdit: (row: V2CaseRowData) => void

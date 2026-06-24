@@ -142,11 +142,13 @@ export function PaperSlipPrintPageShell({
 
       const html = printRootRef.current?.innerHTML ?? "";
       if (window.opener) {
-        // ponytail: send rendered HTML to opener, opener handles print + cleanup
+        // desktop: send HTML to opener tab, opener calls window.print(), this tab closes
         window.opener.postMessage({ type: "PAPER_SLIP_PRINT_READY", html }, window.location.origin);
         window.close();
       } else {
-        window.print();
+        // mobile/tablet or popup-blocked fallback: print in this tab then close
+        if (typeof window.print === "function") window.print();
+        window.close();
       }
     };
 
@@ -180,7 +182,7 @@ export function PaperSlipPrintPageShell({
   }
 
   return (
-    // ponytail: invisible until printed so browser shows print dialog directly; print media ignores visibility
+    // ponytail: invisible until print fires; print media ignores visibility
     <div ref={printRootRef} className={printed ? undefined : "invisible"}>
       {showPrintButton ? (
         <div className="fixed right-6 top-6 z-50 print:hidden">
