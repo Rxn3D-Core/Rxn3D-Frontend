@@ -68,9 +68,15 @@ export interface SlipProductSnapshot {
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
   /**
    * Active splint links for this product card (lower tooth number per adjacent pair).
-   * Only present when the catalog product has `is_splinted === "Yes"`.
+   * Includes auto-derived (Rule S1) links combined with the user's manual overlay.
    */
   splintLinks?: number[];
+  /**
+   * Wing-retainer groups for this product (pontic + empty abutment neighbor),
+   * pre-formatted as comma-separated tooth numbers per connected run (same shape
+   * as `splinted_teeth`). Derived from the arch-wide retention map.
+   */
+  wingGroups?: string[];
 }
 
 export interface CaseDesignProps {

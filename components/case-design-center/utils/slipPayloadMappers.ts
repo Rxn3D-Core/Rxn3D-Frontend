@@ -23,6 +23,10 @@ import {
   parseRetentionMechanismSelection,
 } from "./retentionMechanismTypes";
 import type { RetentionOptionItem } from "@/components/retention-type-popover";
+import {
+  retentionOptionMatchesChartType,
+  type RetentionChartType,
+} from "./retentionOptionChartType.ts";
 
 export type RushUiState = Record<string, unknown> | null | undefined;
 
@@ -110,17 +114,10 @@ function findRetentionOptionForChartType(
   chartType: string
 ): NonNullable<ProductApiData["retention_options"]>[number] | undefined {
   const options = product.retention_options ?? [];
-  return options.find((opt) => {
-    const candidates = [
-      opt.tooth_chart_type,
-      opt.name,
-      opt.lab_retention_option?.tooth_chart_type,
-      opt.lab_retention_option?.name,
-      opt.retention_option?.tooth_chart_type,
-      opt.retention_option?.name,
-    ];
-    return candidates.some((c) => c === chartType);
-  });
+  const normalizedChartType = chartType as RetentionChartType;
+  return options.find((opt) =>
+    retentionOptionMatchesChartType(opt as RetentionOptionItem, normalizedChartType)
+  );
 }
 
 function resolveRetentionOptionId(

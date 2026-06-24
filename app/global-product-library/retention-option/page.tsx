@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
+import { Search, Edit, TrashIcon, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useLanguage } from "@/contexts/language-context"
@@ -167,12 +167,6 @@ export default function RetentionOptionPage() {
     setShowCreateModal(true)
   }
 
-  function handleCopy(option: any): void {
-    setIsCopyingOption(true)
-    setEditOption(option)
-    setShowCreateModal(true)
-  }
-
   const handleDelete = (optionId: number) => {
     setDeleteOptionId(optionId)
     setShowDeleteModal(true)
@@ -239,17 +233,6 @@ export default function RetentionOptionPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <Button
-              onClick={() => {
-                setEditOption(null)
-                setIsCopyingOption(false)
-                setShowCreateModal(true)
-              }}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t("Add Retention option")}
-            </Button>
             <Button
               onClick={() => setShowLinkRetentionTypeModal(true)}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -429,12 +412,6 @@ export default function RetentionOptionPage() {
                           onClick={() => handleEdit(option)}
                         >
                           <Edit className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                          onClick={() => handleCopy(option)}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
                         </button>
                         <button
                           className="text-gray-400 hover:text-red-600 transition-colors p-0.5"

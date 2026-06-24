@@ -99,7 +99,14 @@ import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
 } from "../utils/resolveAddedCardProduct";
-import { formatSplintGroups } from "../utils/splintHelpers";
+import {
+  formatSplintGroups,
+  deriveAutoSplintLinks,
+  deriveWingTeeth,
+  combineSplintLinks,
+  toggleSplintOverlay,
+  type SplintOverlay,
+} from "../utils/splintHelpers";
 import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
@@ -1532,14 +1539,11 @@ export function MaxillaryPanel({
     return maxillaryTeeth;
   })();
 
-  // ── Splint (connect adjacent teeth of a single product) ──────────────────
-  // Links are stored per product instance. A link is the lower tooth number of a
-  // connected adjacent pair (e.g. `6` connects 6 & 7). The product key is derived
-  // from the tooth itself so the chart, toggle and per-card summary always agree.
-  const [splintLinksByKey, setSplintLinksByKey] = useState<Record<string, number[]>>({});
-  useEffect(() => {
-    onSplintLinksChange?.(splintLinksByKey);
-  }, [splintLinksByKey, onSplintLinksChange]);
+  // ── Splint (auto from retention types + manual overlay) + Wing retainers ──
+  // Splint links are the lower tooth number of a connected adjacent pair (e.g. `6`
+  // connects 6 & 7), scoped per product instance. Auto links (Rule S1) are derived
+  // from retention types; the user's manual add/remove edits are kept as an overlay
+  // and combined per SPLINT_RECOMPUTE_MODE.
   const splintKeyForMaxillaryTooth = useCallback(
     (tooth: number): string => {
       const card = getToothProductCard("maxillary", tooth);
@@ -1549,13 +1553,53 @@ export function MaxillaryPanel({
     },
     [getToothProductCard, getToothProduct]
   );
+  // A tooth counts as "assigned" for splint/wing purposes once it has a retention
+  // type chosen (fixed) or a tooth status assigned (removable) — not on mere click.
+  const isMaxillaryToothAssigned = (tn: number): boolean => {
+    const rt = maxillaryRetentionTypes[tn];
+    if (rt && rt.length > 0) return true;
+    const code = maxillaryToothExtractionMap[tn];
+    return !!code && code !== "TIM";
+  };
+  // Auto-splint links (Rule S1) per product key, derived from retention types.
+  const autoSplintLinksByKey = useMemo(() => {
+    const teethByKey: Record<string, number[]> = {};
+    for (const tn of maxillaryTeeth) {
+      if (!(maxillaryRetentionTypes[tn]?.length)) continue;
+      const key = splintKeyForMaxillaryTooth(tn);
+      (teethByKey[key] ??= []).push(tn);
+    }
+    const byKey: Record<string, number[]> = {};
+    for (const [key, teeth] of Object.entries(teethByKey)) {
+      byKey[key] = deriveAutoSplintLinks(teeth, maxillaryRetentionTypes);
+    }
+    return byKey;
+  }, [maxillaryTeeth, maxillaryRetentionTypes, splintKeyForMaxillaryTooth]);
+  // Manual overlay: user adds/removes on top of the auto links, kept per product key.
+  const [splintOverlayByKey, setSplintOverlayByKey] = useState<Record<string, SplintOverlay>>({});
+  // Effective links = auto combined with the manual overlay (per recompute mode).
+  const effectiveSplintLinksByKey = useMemo(() => {
+    const keys = new Set([
+      ...Object.keys(autoSplintLinksByKey),
+      ...Object.keys(splintOverlayByKey),
+    ]);
+    const out: Record<string, number[]> = {};
+    for (const key of keys) {
+      const links = combineSplintLinks(autoSplintLinksByKey[key] ?? [], splintOverlayByKey[key]);
+      if (links.length > 0) out[key] = links;
+    }
+    return out;
+  }, [autoSplintLinksByKey, splintOverlayByKey]);
+  useEffect(() => {
+    onSplintLinksChange?.(effectiveSplintLinksByKey);
+  }, [effectiveSplintLinksByKey, onSplintLinksChange]);
   const maxillarySplintSummaryFor = useCallback(
     (teeth: number[]): string => {
       if (teeth.length === 0) return "";
       const key = splintKeyForMaxillaryTooth(teeth[0]);
-      return formatSplintGroups(teeth, splintLinksByKey[key] ?? []);
+      return formatSplintGroups(teeth, effectiveSplintLinksByKey[key] ?? []);
     },
-    [splintKeyForMaxillaryTooth, splintLinksByKey]
+    [splintKeyForMaxillaryTooth, effectiveSplintLinksByKey]
   );
   const activeMaxillaryProduct = (() => {
     const rep = activeCardMaxillaryTeeth[0];
@@ -1576,35 +1620,36 @@ export function MaxillaryPanel({
   const handleToggleMaxillarySplint = useCallback(
     (lower: number) => {
       const key = splintKeyForMaxillaryTooth(lower);
-      setSplintLinksByKey((prev) => {
-        const cur = prev[key] ?? [];
-        const next = cur.includes(lower)
-          ? cur.filter((l) => l !== lower)
-          : [...cur, lower].sort((a, b) => a - b);
-        return { ...prev, [key]: next };
-      });
+      const auto = autoSplintLinksByKey[key] ?? [];
+      setSplintOverlayByKey((prev) => ({
+        ...prev,
+        [key]: toggleSplintOverlay(prev[key], auto, lower),
+      }));
     },
-    [splintKeyForMaxillaryTooth]
+    [splintKeyForMaxillaryTooth, autoSplintLinksByKey]
   );
-  // Drop any stored splint link once either of its teeth is deselected or reassigned
-  // to a different product — so it never resurrects on re-select or leaks on submit.
+  // Drop overlay edits once either tooth of the pair is deselected or reassigned to a
+  // different product — so manual edits never resurrect on re-select or leak on submit.
   const maxillaryAssignmentSig = maxillaryTeeth
     .map((tn) => `${tn}:${getToothProduct("maxillary", tn)?.id ?? ""}`)
     .join(",");
   useEffect(() => {
-    setSplintLinksByKey((prev) => {
+    setSplintOverlayByKey((prev) => {
       let changed = false;
-      const next: Record<string, number[]> = {};
-      for (const [key, links] of Object.entries(prev)) {
-        const kept = links.filter((lower) => {
+      const next: Record<string, SplintOverlay> = {};
+      for (const [key, ov] of Object.entries(prev)) {
+        const validPair = (lower: number): boolean => {
           if (!maxillaryTeeth.includes(lower) || !maxillaryTeeth.includes(lower + 1)) return false;
           const pa = getToothProduct("maxillary", lower)?.id;
           const pb = getToothProduct("maxillary", lower + 1)?.id;
           if (pa == null || pa !== pb) return false;
           return splintKeyForMaxillaryTooth(lower) === key;
-        });
-        if (kept.length !== links.length) changed = true;
-        if (kept.length > 0) next[key] = kept;
+        };
+        const added = ov.added.filter(validPair);
+        const removed = ov.removed.filter(validPair);
+        if (added.length !== ov.added.length || removed.length !== ov.removed.length) changed = true;
+        if (added.length > 0 || removed.length > 0) next[key] = { added, removed };
+        else changed = true;
       }
       return changed ? next : prev;
     });
@@ -1632,20 +1677,15 @@ export function MaxillaryPanel({
   const opposingToothChartEnabled = !!opposingProductData;
   const toothChartInteractionEnabled = ownArchToothChartEnabled || opposingToothChartEnabled;
 
+  // Splinting is retention-driven (auto S1 + manual S2): editable for any active fixed
+  // restoration product, not just catalog products flagged `is_splinted`.
+  const activeMaxillaryProductHasRetention = activeMaxillaryProduct?.has_retention === "Yes";
   const maxillarySplintEnabled =
-    activeMaxillaryProductIsSplinted &&
+    (activeMaxillaryProductIsSplinted || activeMaxillaryProductHasRetention) &&
     ownArchToothChartEnabled &&
     !caseSubmitted &&
     !opposingProductData &&
     activeCardMaxillaryTeeth.length >= 2;
-  // A tooth counts as "selected for the product" once it has a retention type chosen
-  // from the popover (fixed) or a tooth status assigned (removable) — not on mere click.
-  const isMaxillaryToothAssigned = (tn: number): boolean => {
-    const rt = maxillaryRetentionTypes[tn];
-    if (rt && rt.length > 0) return true;
-    const code = maxillaryToothExtractionMap[tn];
-    return !!code && code !== "TIM";
-  };
   // Eligible gaps: adjacent (consecutive) teeth that belong to the same product and
   // are both fully assigned (retention/status selected).
   const maxillarySplintableLinks = (() => {
@@ -1661,23 +1701,19 @@ export function MaxillaryPanel({
     }
     return out;
   })();
-  // Splinted (connected) gaps across ALL selected teeth on this arch. Computed over the
-  // whole arch (not just the active card) and independently of `maxillarySplintEnabled`
-  // so existing splints stay visible when the accordion is collapsed OR the other arch
-  // is active (read-only there; editable when this product is active).
-  const maxillarySplintedLinks = (() => {
-    const sorted = [...maxillaryTeeth].sort((a, b) => a - b);
+  // Effective splinted gaps across ALL selected teeth on this arch (auto + manual).
+  // Computed over the whole arch so existing splints stay visible when the accordion
+  // is collapsed OR the other arch is active.
+  const maxillarySplintedLinks = useMemo(() => {
     const out: number[] = [];
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i + 1] !== sorted[i] + 1) continue;
-      const pa = getToothProduct("maxillary", sorted[i])?.id;
-      const pb = getToothProduct("maxillary", sorted[i + 1])?.id;
-      if (pa == null || pa !== pb) continue;
-      const key = splintKeyForMaxillaryTooth(sorted[i]);
-      if ((splintLinksByKey[key] ?? []).includes(sorted[i])) out.push(sorted[i]);
-    }
-    return out;
-  })();
+    for (const links of Object.values(effectiveSplintLinksByKey)) out.push(...links);
+    return [...new Set(out)].sort((a, b) => a - b);
+  }, [effectiveSplintLinksByKey]);
+  // Wing retainers: empty arch neighbors of any pontic (Maryland / cantilever).
+  const maxillaryWingTeeth = useMemo(
+    () => deriveWingTeeth(maxillaryRetentionTypes, MAXILLARY_ALL_TEETH),
+    [maxillaryRetentionTypes]
+  );
 
   const activeMaxillaryRetentionOptions = (() => {
     if (activeProductCardId !== 0) {
@@ -1826,6 +1862,7 @@ export function MaxillaryPanel({
                   splintableLinks={maxillarySplintableLinks}
                   splintedLinks={maxillarySplintedLinks}
                   onToggleSplintLink={handleToggleMaxillarySplint}
+                  wingTeeth={maxillaryWingTeeth}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;
@@ -2476,11 +2513,7 @@ export function MaxillaryPanel({
                             hasVariationMatch: removableHasVariationMatch,
                           })}
                           toothDisplay={cardToothDisplay}
-                          splintSummary={
-                            apProduct?.is_splinted === "Yes"
-                              ? maxillarySplintSummaryFor(assignedTeeth)
-                              : ""
-                          }
+                          splintSummary={maxillarySplintSummaryFor(assignedTeeth)}
                           categoryName={cardCategoryName}
                           subcategoryName={cardSubcategoryName}
                           stageName={
@@ -2649,11 +2682,7 @@ export function MaxillaryPanel({
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
                           toothDisplay={cardToothDisplay}
-                          splintSummary={
-                            apProduct?.is_splinted === "Yes"
-                              ? maxillarySplintSummaryFor(assignedTeeth)
-                              : ""
-                          }
+                          splintSummary={maxillarySplintSummaryFor(assignedTeeth)}
                           categoryName={cardCategoryName}
                           subcategoryName={cardSubcategoryName}
                           stageName={
@@ -3444,11 +3473,7 @@ export function MaxillaryPanel({
                         productImageUrl={productImage}
                         productName={productName}
                         toothDisplay={toothNumbersDisplay}
-                        splintSummary={
-                          selectedProduct?.is_splinted === "Yes"
-                            ? maxillarySplintSummaryFor(toothNumbers)
-                            : ""
-                        }
+                        splintSummary={maxillarySplintSummaryFor(toothNumbers)}
                         categoryName={categoryName}
                         subcategoryName={subcategoryName}
                         stageName={
@@ -3805,11 +3830,7 @@ export function MaxillaryPanel({
                         hasVariationMatch,
                       })}
                       toothDisplay={cardToothDisplay}
-                      splintSummary={
-                        cardProduct?.is_splinted === "Yes"
-                          ? maxillarySplintSummaryFor(card0AssignedTeeth)
-                          : ""
-                      }
+                      splintSummary={maxillarySplintSummaryFor(card0AssignedTeeth)}
                       categoryName={cardProduct?.subcategory?.category?.name}
                       subcategoryName={cardProduct?.subcategory?.name}
                       stageName={

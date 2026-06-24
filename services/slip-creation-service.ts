@@ -170,6 +170,8 @@ export interface SlipCreationProduct {
   is_splinted?: "Yes" | "No";
   /** Comma-separated tooth numbers per connected splint group, e.g. `["4,5,6", "10,11"]`. */
   splinted_teeth?: string[];
+  /** Comma-separated wing-retainer groups (pontic + empty abutment neighbor), same shape as `splinted_teeth`. */
+  wing_teeth?: string[];
 }
 
 export interface SlipCreationSlip {

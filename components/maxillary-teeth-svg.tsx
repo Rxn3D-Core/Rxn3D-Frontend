@@ -127,6 +127,8 @@ interface MaxillaryTeethSVGProps {
   splintedLinks?: number[]
   /** Toggle a splint link between tooth `lower` and `lower + 1`. */
   onToggleSplintLink?: (lower: number) => void
+  /** Empty neighbor teeth that should show a wing retainer icon (derived from pontics). */
+  wingTeeth?: number[]
 }
 
 export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
@@ -166,6 +168,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   splintableLinks,
   splintedLinks = [],
   onToggleSplintLink,
+  wingTeeth = [],
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -725,6 +728,26 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     return nodes
   }
 
+  // Wing retainer indicator: a derived (non-interactive) gray filled circle drawn on
+  // the empty neighbor of a pontic (Maryland / cantilever wing retainer).
+  const renderWings = () => {
+    if (!wingTeeth || wingTeeth.length === 0) return null
+    return wingTeeth.map((wing) => {
+      const pos = circlePositions[wing]
+      if (!pos) return null
+      return (
+        <circle
+          key={`wing-${wing}`}
+          cx={pos.cx}
+          cy={pos.cy + 22}
+          r="10"
+          fill="#8A8A8A"
+          style={{ pointerEvents: 'none' }}
+        />
+      )
+    })
+  }
+
   return (
     <>
       {/* Retention Type Popover - using portal to avoid nesting issues */}
@@ -1161,6 +1184,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
           )}
           {/* Splint diamonds between adjacent selected teeth (rendered on top) */}
           {renderSplintDiamonds()}
+          {/* Wing retainer icons on empty neighbors of pontics (rendered on top) */}
+          {renderWings()}
         </svg>
       </div>
       {hoveredTooth !== null && !disabled && toothHoverTooltip && mousePos && ReactDOM.createPortal(

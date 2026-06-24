@@ -298,11 +298,14 @@ export function snapshotToProduct(
   const material_id = resolveMaterialId(product, snap.fieldValues);
   const variation_id = resolveVariationId(product, productTeeth.length);
   const rush = normalizeRush(snap.rush);
-  const isSplintedProduct = product?.is_splinted === "Yes";
-  const splinted_teeth =
-    isSplintedProduct && snap.splintLinks?.length
-      ? formatSplintGroupsForApi(productTeeth, snap.splintLinks)
-      : [];
+  // Splinting is retention-driven (auto Rule S1 + manual): emit whenever the panel
+  // produced effective splint links, or the catalog product is flagged splinted.
+  const splinted_teeth = snap.splintLinks?.length
+    ? formatSplintGroupsForApi(productTeeth, snap.splintLinks)
+    : [];
+  const isSplintedProduct =
+    product?.is_splinted === "Yes" || splinted_teeth.length > 0;
+  const wing_teeth = snap.wingGroups ?? [];
 
   const teeth_selection = buildTeethSelection(
     product,
@@ -345,6 +348,7 @@ export function snapshotToProduct(
     rush,
     ...(isSplintedProduct ? { is_splinted: "Yes" as const } : {}),
     ...(splinted_teeth.length > 0 ? { splinted_teeth } : {}),
+    ...(wing_teeth.length > 0 ? { wing_teeth } : {}),
   };
 
   if (isFixed) {
