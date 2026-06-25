@@ -103,6 +103,8 @@ interface MaxillaryTeethSVGProps {
   retentionOptions?: RetentionOptionItem[]
   /** Per-tooth retention options (e.g. from getToothProduct); preferred over retentionOptions for chart overlays. */
   getRetentionOptionsForTooth?: (toothNumber: number) => RetentionOptionItem[] | undefined
+  /** Whether Pontic may be offered for a tooth (false until the product has an abutment). */
+  canSelectPontic?: (toothNumber: number) => boolean
   /** When true, renders a checkbox below each tooth that has an extraction status. */
   showCheckboxes?: boolean
   /** Called whenever the set of checked teeth changes. */
@@ -169,6 +171,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   splintedLinks = [],
   onToggleSplintLink,
   wingTeeth = [],
+  canSelectPontic,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -770,6 +773,7 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                 }
                 onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
                 selectedType={selectedType || undefined}
+                allowPontic={canSelectPontic ? canSelectPontic(retentionPopoverTooth) : true}
                 onClose={onClosePopover}
                 onDeselectTooth={() => {
                   if (retentionPopoverTooth !== null) {

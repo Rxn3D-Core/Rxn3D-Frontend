@@ -1563,6 +1563,8 @@ export function MaxillaryPanel({
     return !!code && code !== "TIM";
   };
   // Auto-splint links (Rule S1) per product key, derived from retention types.
+  // Only for products flagged `is_splinted === "Yes"` — if a product is not splintable,
+  // no auto-splint (and no connector) even when the pontic+abutment rule would match.
   const autoSplintLinksByKey = useMemo(() => {
     const teethByKey: Record<string, number[]> = {};
     for (const tn of maxillaryTeeth) {
@@ -1572,10 +1574,11 @@ export function MaxillaryPanel({
     }
     const byKey: Record<string, number[]> = {};
     for (const [key, teeth] of Object.entries(teethByKey)) {
-      byKey[key] = deriveAutoSplintLinks(teeth, maxillaryRetentionTypes);
+      const isSplinted = getToothProduct("maxillary", teeth[0])?.is_splinted === "Yes";
+      byKey[key] = isSplinted ? deriveAutoSplintLinks(teeth, maxillaryRetentionTypes) : [];
     }
     return byKey;
-  }, [maxillaryTeeth, maxillaryRetentionTypes, splintKeyForMaxillaryTooth]);
+  }, [maxillaryTeeth, maxillaryRetentionTypes, splintKeyForMaxillaryTooth, getToothProduct]);
   // Manual overlay: user adds/removes on top of the auto links, kept per product key.
   const [splintOverlayByKey, setSplintOverlayByKey] = useState<Record<string, SplintOverlay>>({});
   // Effective links = auto combined with the manual overlay (per recompute mode).
@@ -1678,11 +1681,10 @@ export function MaxillaryPanel({
   const opposingToothChartEnabled = !!opposingProductData;
   const toothChartInteractionEnabled = ownArchToothChartEnabled || opposingToothChartEnabled;
 
-  // Splinting is retention-driven (auto S1 + manual S2): editable for any active fixed
-  // restoration product, not just catalog products flagged `is_splinted`.
-  const activeMaxillaryProductHasRetention = activeMaxillaryProduct?.has_retention === "Yes";
+  // Splint UI (auto S1 + manual S2) is only available for products flagged splintable.
+  // When `is_splinted` is "No", no connector or auto-splint shows even if rules match.
   const maxillarySplintEnabled =
-    (activeMaxillaryProductIsSplinted || activeMaxillaryProductHasRetention) &&
+    activeMaxillaryProductIsSplinted &&
     ownArchToothChartEnabled &&
     !caseSubmitted &&
     !opposingProductData &&
@@ -1714,6 +1716,23 @@ export function MaxillaryPanel({
   const maxillaryWingTeeth = useMemo(
     () => deriveWingTeeth(maxillaryRetentionTypes, MAXILLARY_ALL_TEETH),
     [maxillaryRetentionTypes]
+  );
+  // Pontic is offered only once the tooth's product already has an abutment tooth
+  // (Prep/Implant) other than this one — a pontic needs support first.
+  const canSelectMaxillaryPontic = useCallback(
+    (toothNumber: number): boolean => {
+      const card = getToothProductCard("maxillary", toothNumber);
+      const productId = getToothProduct("maxillary", toothNumber)?.id;
+      return MAXILLARY_ALL_TEETH.some((tn) => {
+        if (tn === toothNumber) return false;
+        if (getToothProductCard("maxillary", tn) !== card) return false;
+        const pid = getToothProduct("maxillary", tn)?.id;
+        if (productId != null && pid != null && pid !== productId) return false;
+        const types = maxillaryRetentionTypes[tn] ?? [];
+        return types.includes("Prep") || types.includes("Implant");
+      });
+    },
+    [getToothProductCard, getToothProduct, maxillaryRetentionTypes]
   );
 
   const activeMaxillaryRetentionOptions = (() => {
@@ -1864,6 +1883,7 @@ export function MaxillaryPanel({
                   splintedLinks={maxillarySplintedLinks}
                   onToggleSplintLink={handleToggleMaxillarySplint}
                   wingTeeth={maxillaryWingTeeth}
+                  canSelectPontic={canSelectMaxillaryPontic}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;

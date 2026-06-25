@@ -62,6 +62,12 @@ interface RetentionTypePopoverProps {
   retentionOptions?: RetentionOptionItem[]
   arrowOffsetX?: number | null
   arrowDirection?: 'down' | 'up'
+  /**
+   * When false, Pontic options are hidden (a pontic needs an abutment first). Ignored
+   * when the product has no abutment (Prep/Implant) options at all — then Pontic stays
+   * available. Defaults to true.
+   */
+  allowPontic?: boolean
 }
 
 function getOptionName(opt: RetentionOptionItem): string {
@@ -85,21 +91,35 @@ function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
 
 function buildRetentionPopoverOptions(
   retentionOptions: RetentionOptionItem[] | undefined,
-  toothNumber: number
+  toothNumber: number,
+  allowPontic: boolean
 ): Array<{ id: number; toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
   if (!retentionOptions?.length) return []
 
-  // Show every active retention option from the product (no whitelist, no
-  // collapsing by category) so the popover is fully driven by product data.
-  return [...retentionOptions]
+  // Every active retention option from the product (fully data-driven).
+  const mapped = [...retentionOptions]
     .filter((opt) => (opt.status || 'Active') === 'Active')
-    .sort((a, b) => (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER))
     .map((opt) => ({
       id: opt.id,
       toothChartType: resolveRetentionOptionChartTypeOrDefault(opt),
       name: getOptionName(opt),
       imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
+      sequence: opt.sequence ?? Number.MAX_SAFE_INTEGER,
     }))
+
+  // A Pontic needs an abutment first: hide Pontic options until the product has one,
+  // but only when the product actually offers abutment (Prep/Implant) options.
+  const hasAbutmentOption = mapped.some((o) => o.toothChartType !== 'Pontic')
+  const visible =
+    allowPontic || !hasAbutmentOption
+      ? mapped
+      : mapped.filter((o) => o.toothChartType !== 'Pontic')
+
+  // Order: abutment options (Prep/Implant) first, Pontic last; then by sequence.
+  const rank = (t: RetentionChartType) => (t === 'Pontic' ? 1 : 0)
+  return visible
+    .sort((a, b) => rank(a.toothChartType) - rank(b.toothChartType) || a.sequence - b.sequence)
+    .map(({ sequence: _sequence, ...opt }) => opt)
 }
 
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
@@ -111,6 +131,7 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   retentionOptions,
   arrowOffsetX = null,
   arrowDirection = 'down',
+  allowPontic = true,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -128,9 +149,21 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   }, [onClose])
 
   const options = useMemo(
-    () => buildRetentionPopoverOptions(retentionOptions, toothNumber),
-    [retentionOptions, toothNumber]
+    () => buildRetentionPopoverOptions(retentionOptions, toothNumber, allowPontic),
+    [retentionOptions, toothNumber, allowPontic]
   )
+
+  // Single selectable option → auto-select it and skip the popover. Only when the
+  // tooth has no selection yet (don't re-toggle an existing choice on edit/re-open).
+  const autoSelectedRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (selectedType) return
+    if (options.length !== 1) return
+    if (autoSelectedRef.current === toothNumber) return
+    autoSelectedRef.current = toothNumber
+    onSelectRetentionType(options[0].toothChartType)
+    onClose?.()
+  }, [options, selectedType, toothNumber, onSelectRetentionType, onClose])
 
   // The chart stores/renders by category, so highlight the first option matching
   // the selected category (the representative the chart draws), not every variant.
