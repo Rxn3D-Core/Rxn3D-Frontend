@@ -76,12 +76,14 @@ export const DEFAULT_RETENTION_RULES: RetentionRules = {
   },
   W1: {
     id: "W1",
-    label: "Wing on empty neighbor",
-    description: "A Pontic's immediate arch neighbor that is empty shows a wing retainer.",
+    label: "Wing on unsupported pontic's empty neighbor",
+    description:
+      "A wing shows on a Pontic's empty arch neighbor ONLY when the pontic is otherwise " +
+      "unsupported — its connected unit has no Prep/Implant (a true Maryland / unsupported pontic).",
     examples: [
       "14 Pontic, 13 & 15 empty → wings [\"13,14,15\"]",
       "1 Pontic (arch end), 2 empty → wings [\"1,2\"]",
-      "13 Prep – 14 Pontic, 15 empty (hybrid) → splint [\"13,14\"] + wing [\"14,15\"]",
+      "11 Pontic – 12 Pontic alone, 10 & 13 empty → wings [\"10,11\"] and [\"12,13\"] (no abutment in unit)",
     ],
     enabled: true,
   },
@@ -91,7 +93,8 @@ export const DEFAULT_RETENTION_RULES: RetentionRules = {
     description:
       "A wing is never assigned as a tooth role; it is purely derived from the chart state each render.",
     examples: [
-      "13 empty – 14 Pontic – 15 empty, then user sets 13 Prep → splint [\"13,14\"], wing [\"14,15\"] (15 still empty)",
+      "14 Pontic, 13 & 15 empty → wings on 13 & 15; once the user sets 13 Prep, the unit gains an " +
+        "abutment so BOTH wings drop (14 is now supported)",
     ],
     enabled: true,
   },
@@ -99,8 +102,11 @@ export const DEFAULT_RETENTION_RULES: RetentionRules = {
     id: "W3",
     label: "Hide wing when not applicable",
     description:
-      "No wing when the neighbor is Prep/Implant/Pontic (a splint case) or there is no neighbor (arch end).",
+      "No wing when the neighbor is Prep/Implant/Pontic (a splint case), when there is no neighbor " +
+      "(arch end), or when the pontic's unit already contains a Prep/Implant abutment (supported).",
     examples: [
+      "10 Prep – 11 Pontic, 12 empty → no wing on 12 (11 supported by Prep)",
+      "13 Prep – 14 Pontic – 15 Pontic, 16 empty → no wing on 16 (unit supported through the chain)",
       "13 Prep – 14 Pontic – 15 Implant → no wings (both neighbors filled)",
     ],
     enabled: true,

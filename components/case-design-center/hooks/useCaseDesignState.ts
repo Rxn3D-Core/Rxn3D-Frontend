@@ -2331,22 +2331,22 @@ export function useCaseDesignState(props: CaseDesignProps) {
           }
         }
 
+        const emptyShadeState = {
+          arch: null,
+          fieldType: null,
+          productId: null,
+          advanceFieldId: null,
+          advanceFieldLabel: null,
+          fillMode: null,
+          storageToothNumber: null,
+        } as const;
+
         if (
           shouldUseAccordionOnlyFixedShades(product?.advance_fields) &&
           selectedAdvanceFieldId != null
         ) {
-          const emptyState = {
-            arch: null,
-            fieldType: null,
-            productId: null,
-            advanceFieldId: null,
-            advanceFieldLabel: null,
-            fillMode: null,
-            storageToothNumber: null,
-          } as const;
-
           if (shades.shadeSelectionState.fillMode === "edit") {
-            shades.setShadeSelectionState(emptyState);
+            shades.setShadeSelectionState(emptyShadeState);
           } else {
             const nextMissing = shadeGuideFields.find((field) => {
               const ft = getShadeFieldType(field);
@@ -2367,9 +2367,13 @@ export function useCaseDesignState(props: CaseDesignProps) {
                 storageToothNumber: toothNumber,
               });
             } else {
-              shades.setShadeSelectionState(emptyState);
+              shades.setShadeSelectionState(emptyShadeState);
             }
           }
+        } else {
+          // Legacy fixed shade (single teeth/stump shade, no named shade-guide fields):
+          // close the picker so focus releases from Teeth Shade and the next field shows.
+          shades.setShadeSelectionState(emptyShadeState);
         }
 
         if (product?.id) {

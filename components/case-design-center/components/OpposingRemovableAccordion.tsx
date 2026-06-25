@@ -82,7 +82,8 @@ function hasAdvanceField(
   }
   const alwaysShow = ["fixed_stage", "fixed_impression", "stage"];
   if (alwaysShow.includes(step)) return true;
-  if (step === "fixed_stump_shade" && (product?.has_teeth_shade === "Yes" || product?.has_gum_shade === "Yes")) {
+  // Stump shade is gated on gum shade only — a teeth-shade-only product must not show it.
+  if (step === "fixed_stump_shade" && product?.has_gum_shade === "Yes") {
     return true;
   }
   if (step === "fixed_shade_trio" && product?.has_teeth_shade === "Yes") return true;

@@ -82,8 +82,10 @@ const FIXED_STEP_ADVANCE_FIELD_PATTERNS: Record<string, (name: string) => boolea
  * Build the fixed-field chain for a specific product, skipping steps whose
  * corresponding advance_fields are not returned by the API.
  * Steps with no pattern (stage, impression, addons, notes) are always included.
- * Shade steps (fixed_stump_shade, fixed_shade_trio) are also included when the
- * product's has_teeth_shade or has_gum_shade flag is "Yes", regardless of advance_fields.
+ * Shade steps are included by their own flag regardless of advance_fields:
+ * fixed_stump_shade (gum/die-stump shade) when has_gum_shade is "Yes", and
+ * fixed_shade_trio (tooth shade) when has_teeth_shade is "Yes". A teeth-shade-only
+ * product must NOT pull in the stump-shade step (it can never be completed).
  */
 export function getRetentionFieldChain(
   advanceFields: ProductAdvanceField[] | undefined,
@@ -99,7 +101,7 @@ export function getRetentionFieldChain(
     return FIXED_FIELD_STEPS.filter((step) => {
       if (step === "fixed_stage" && shouldSkipStageSelection(product)) return false;
       if (step === "fixed_addons" && !productSupportsAddons(product)) return false;
-      if (step === "fixed_stump_shade") return hasTeethShadeFlag || hasGumShadeFlag;
+      if (step === "fixed_stump_shade") return hasGumShadeFlag;
       if (step === "fixed_shade_trio") return hasTeethShadeFlag;
       return !FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
     });
@@ -111,8 +113,10 @@ export function getRetentionFieldChain(
     if (step === "fixed_stage" && shouldSkipStageSelection(product)) return false;
     const pattern = FIXED_STEP_ADVANCE_FIELD_PATTERNS[step];
     if (!pattern) return true; // no gate — always show (stage, impression, addons, notes)
-    // Shade steps: include if advance_fields match OR has_* flag is set
-    if (step === "fixed_stump_shade") return normalizedNames.some(pattern) || hasTeethShadeFlag || hasGumShadeFlag;
+    // Shade steps: include if advance_fields match OR the matching has_* flag is set.
+    // Stump shade is gated on gum shade only (not teeth shade) so a teeth-shade-only
+    // product does not require an uncompletable stump-shade step.
+    if (step === "fixed_stump_shade") return normalizedNames.some(pattern) || hasGumShadeFlag;
     if (step === "fixed_shade_trio") return normalizedNames.some(pattern) || hasTeethShadeFlag;
     return normalizedNames.some(pattern);
   });

@@ -819,8 +819,9 @@ function hasAdvanceField(
   const alwaysShow = ["fixed_stage", "fixed_impression", "stage"];
   if (alwaysShow.includes(step)) return true;
 
-  // Shade steps: show when has_* flag is set, regardless of advance_fields
-  if (step === "fixed_stump_shade" && (product?.has_teeth_shade === "Yes" || product?.has_gum_shade === "Yes")) return true;
+  // Shade steps: show when the matching has_* flag is set, regardless of advance_fields.
+  // Stump shade is gated on gum shade only — a teeth-shade-only product must not show it.
+  if (step === "fixed_stump_shade" && product?.has_gum_shade === "Yes") return true;
   if (step === "fixed_shade_trio" && product?.has_teeth_shade === "Yes") return true;
 
   if (!advanceFields || advanceFields.length === 0) return true;

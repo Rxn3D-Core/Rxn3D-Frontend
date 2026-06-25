@@ -79,10 +79,25 @@ test("deriveWingTeeth: empty neighbor of a pontic is a wing position", () => {
 
 test("deriveWingTeeth: prep/implant/pontic neighbor is NOT a wing", () => {
   const arch = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-  // 13 Prep (splint side), 15 empty (wing side).
-  assert.deepEqual(deriveWingTeeth({ 13: "Prep", 14: "Pontic" }, arch), [15]);
   // Both neighbors filled → no wings.
   assert.deepEqual(deriveWingTeeth({ 13: "Prep", 14: "Pontic", 15: "Implant" }, arch), []);
+});
+
+test("deriveWingTeeth: supported pontic gets NO wing on its empty side (unit-level)", () => {
+  const arch = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  // 10 Prep – 11 Pontic, 12 empty → 11 supported by the Prep → no wing on 12.
+  assert.deepEqual(deriveWingTeeth({ 10: "Prep", 11: "Pontic" }, arch), []);
+  // 13 Prep – 14 Pontic – 15 Pontic, 16 empty → unit has Prep at 13 → no wing on 16.
+  assert.deepEqual(
+    deriveWingTeeth({ 13: "Prep", 14: "Pontic", 15: "Pontic" }, arch),
+    []
+  );
+});
+
+test("deriveWingTeeth: pure-pontic span with no abutment still wings", () => {
+  const arch = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  // 11 Pontic – 12 Pontic, 10 & 13 empty, no abutment anywhere → wings on 10 & 13.
+  assert.deepEqual(deriveWingTeeth({ 11: "Pontic", 12: "Pontic" }, arch), [10, 13]);
 });
 
 test("deriveWingTeeth: arch end has no neighbor", () => {
@@ -98,9 +113,10 @@ test("formatWingGroupsForApi: pontic with two empty neighbors → one connected 
   assert.deepEqual(formatWingGroupsForApi({ 14: "Pontic" }, arch), ["13,14,15"]);
 });
 
-test("formatWingGroupsForApi: cantilever wing on one side", () => {
+test("formatWingGroupsForApi: supported pontic emits no wing group", () => {
   const arch = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-  assert.deepEqual(formatWingGroupsForApi({ 13: "Prep", 14: "Pontic" }, arch), ["14,15"]);
+  // 13 Prep – 14 Pontic: 14 is supported → no wing group.
+  assert.deepEqual(formatWingGroupsForApi({ 13: "Prep", 14: "Pontic" }, arch), []);
 });
 
 test("combineSplintLinks: preserve-manual keeps adds and removes", () => {

@@ -200,9 +200,32 @@ export function deriveAutoSplintLinks(
 }
 
 /**
- * Wing retainer positions (Rule W1–W3): a Pontic's immediate arch neighbor that is
- * **empty** (no role) is a wing position. A Prep/Implant/Pontic neighbor is a splint
- * case (W3), and a non-existent neighbor (arch end) yields nothing (W3).
+ * True when the connected unit containing `tooth` already has a real abutment
+ * (Prep or Implant). The "unit" is the maximal run of adjacent (consecutive-number)
+ * teeth that all carry a role. A supported pontic does not need a wing.
+ */
+function unitHasAbutment(roleByTooth: RetentionRoleByTooth, tooth: number): boolean {
+  const isAbutment = (t: number): boolean => {
+    const r = roleForTooth(roleByTooth, t);
+    return r === "Prep" || r === "Implant";
+  };
+  const isRoled = (t: number): boolean => roleForTooth(roleByTooth, t) !== null;
+  if (isAbutment(tooth)) return true;
+  for (let t = tooth - 1; isRoled(t); t--) if (isAbutment(t)) return true;
+  for (let t = tooth + 1; isRoled(t); t++) if (isAbutment(t)) return true;
+  return false;
+}
+
+/**
+ * Wing retainer positions (Rule W1–W3): a wing appears on a Pontic's **empty** arch
+ * neighbor ONLY when the pontic is otherwise unsupported — i.e. its connected unit
+ * contains no Prep/Implant (a true Maryland / unsupported-pontic case).
+ *
+ * - W1: an unsupported pontic's empty neighbor → wing.
+ * - W3: no wing when the neighbor is Prep/Implant/Pontic, when there is no neighbor
+ *   (arch end), or when the pontic's unit already has a Prep/Implant abutment
+ *   (e.g. `10 Prep – 11 Pontic` → no wing on 12; `13 Prep – 14 Pontic – 15 Pontic`
+ *   → no wing on 16, supported through the splinted chain).
  *
  * `archTeeth` bounds valid tooth numbers for the arch (e.g. 1..16). `ponticTeeth`
  * optionally restricts which pontics generate wings (for per-product scoping).
@@ -221,6 +244,8 @@ export function deriveWingTeeth(
   for (const tooth of archTeeth) {
     if (roleForTooth(roleByTooth, tooth) !== "Pontic") continue;
     if (ponticFilter && !ponticFilter.has(tooth)) continue;
+    // Supported pontic (unit already has a Prep/Implant abutment) → no wing.
+    if (unitHasAbutment(roleByTooth, tooth)) continue;
     for (const neighbor of [tooth - 1, tooth + 1]) {
       if (!archSet.has(neighbor)) continue;
       if (roleForTooth(roleByTooth, neighbor) === null) wings.add(neighbor);
