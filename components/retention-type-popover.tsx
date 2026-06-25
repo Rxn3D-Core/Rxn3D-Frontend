@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { resolveRetentionOptionImageUrl } from '@/components/case-design-center/utils/retentionOptionImage'
+import {
+  resolveRetentionOptionChartTypeOrDefault,
+  type RetentionChartType,
+} from '@/components/case-design-center/utils/retentionOptionChartType'
 
 export interface RetentionOptionToothImage {
   tooth_number: number
@@ -49,17 +53,6 @@ export interface RetentionOptionItem {
   }>
 }
 
-type RetentionChartType = 'Implant' | 'Prep' | 'Pontic'
-
-const NAME_TO_RETENTION_TYPE: Record<string, RetentionChartType> = {
-  Implant: 'Implant',
-  Prepped: 'Prep',
-  Prep: 'Prep',
-  Pontic: 'Pontic',
-}
-
-const RETENTION_CHART_TYPES: RetentionChartType[] = ['Implant', 'Prep', 'Pontic']
-
 interface RetentionTypePopoverProps {
   toothNumber: number
   onSelectRetentionType: (type: RetentionChartType) => void
@@ -73,37 +66,6 @@ interface RetentionTypePopoverProps {
 
 function getOptionName(opt: RetentionOptionItem): string {
   return opt.name || opt.retention_option?.name || opt.lab_retention_option?.name || 'Unknown'
-}
-
-function getOptionHasImplant(opt: RetentionOptionItem): boolean {
-  const raw =
-    opt.has_implant ??
-    opt.retention_option?.has_implant ??
-    opt.lab_retention_option?.has_implant
-  return raw === 'Yes'
-}
-
-/**
- * Resolve which tooth-chart category a retention option renders as.
- * Priority: explicit `tooth_chart_type` from the API → otherwise derive from
- * `has_implant` (Yes → Implant, No → Prep). Always returns a category so that
- * every active retention option from the product is shown in the popover.
- */
-function getRetentionChartType(opt: RetentionOptionItem): RetentionChartType {
-  const rawType =
-    opt.tooth_chart_type ||
-    opt.retention_option?.tooth_chart_type ||
-    opt.lab_retention_option?.tooth_chart_type
-
-  if (rawType) {
-    const mapped = NAME_TO_RETENTION_TYPE[rawType]
-    if (mapped) return mapped
-    if (RETENTION_CHART_TYPES.includes(rawType as RetentionChartType)) {
-      return rawType as RetentionChartType
-    }
-  }
-
-  return getOptionHasImplant(opt) ? 'Implant' : 'Prep'
 }
 
 function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
@@ -134,7 +96,7 @@ function buildRetentionPopoverOptions(
     .sort((a, b) => (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER))
     .map((opt) => ({
       id: opt.id,
-      toothChartType: getRetentionChartType(opt),
+      toothChartType: resolveRetentionOptionChartTypeOrDefault(opt),
       name: getOptionName(opt),
       imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
     }))

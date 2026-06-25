@@ -94,6 +94,23 @@ test("buildRetentionOptions emits per-tooth retention_option_id", () => {
   assert.deepEqual(rows, [{ retention_option_id: 55, teeth_number: 8 }]);
 });
 
+test("buildRetentionOptions resolves pontic by selector_shape", () => {
+  const product = {
+    has_retention: "Yes",
+    retention_options: [
+      {
+        id: 2,
+        retention_option_id: 77,
+        name: "Custom pontic",
+        selector_shape: "Pontic",
+        has_implant: "No",
+      },
+    ],
+  };
+  const rows = buildRetentionOptions(product, { 10: ["Pontic"] }, [10]);
+  assert.deepEqual(rows, [{ retention_option_id: 77, teeth_number: 10 }]);
+});
+
 test("buildRetentions emits multiple mechanisms from comma-separated field", () => {
   const product = {
     has_retention: "Yes",

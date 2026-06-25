@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Edit, TrashIcon, Package, Link as LinkIcon, MoreVertical, ArrowUpDown } from 'lucide-react'
 import { CreateRetentionModal } from "@/components/product-management/create-retention-modal"
 import { LinkRetentionOptionModal } from "@/components/product-management/link-retention-option-modal"
 import { LinkRetentionModal } from "@/components/product-management/link-retention-modal"
@@ -135,11 +135,6 @@ export default function RetentionPage() {
     setShowDeleteModal(true)
   }
 
-  function handleCopy(retention: any): void {
-    setEditRetention(retention)
-    setShowCreateModal(true)
-  }
-
   const handleBulkDelete = () => {
     setDeleteRetentionId(null)
     setShowDeleteModal(true)
@@ -197,13 +192,6 @@ export default function RetentionPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <Button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t("Add Retention Type")}
-            </Button>
             <Button
               onClick={() => setShowLinkRetentionOptionModal(true)}
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -364,12 +352,6 @@ export default function RetentionPage() {
                           onClick={() => handleEdit(retention)}
                         >
                           <Edit className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                          onClick={() => handleCopy(retention)}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
                         </button>
                         <button
                           className="text-gray-400 hover:text-red-600 transition-colors p-0.5"

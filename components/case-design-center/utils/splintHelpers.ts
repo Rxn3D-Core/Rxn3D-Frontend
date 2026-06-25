@@ -8,6 +8,19 @@
  * Adjacency is purely numeric (the arch midline is not treated as a break), and a
  * link is only eligible when BOTH teeth of the pair belong to the same product.
  */
+import {
+  DEFAULT_RETENTION_RULES,
+  type RetentionRules,
+} from "./RetentionOptionsRules.ts";
+
+// Re-export the rule catalog so existing importers of splintHelpers keep working;
+// the catalog itself lives in RetentionOptionsRules.ts (easy to find).
+export {
+  DEFAULT_RETENTION_RULES,
+  type RetentionRules,
+  type RetentionRuleMeta,
+  type SplintRuleS1,
+} from "./RetentionOptionsRules.ts";
 
 /** Returns sorted ascending copy of the given teeth. */
 function sortedTeeth(teeth: number[]): number[] {
@@ -125,4 +138,217 @@ export function isSplintedSlipProduct(apiProduct: unknown): boolean {
     product?: { is_splinted?: string };
   };
   return row.is_splinted === "Yes" || row.product?.is_splinted === "Yes";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Auto-splint + Wing retainer derivation (from retention types)      */
+/* ------------------------------------------------------------------ */
+
+/** Per-tooth fixed retention role driving auto-splint and wing rules. */
+export type RetentionRole = "Implant" | "Prep" | "Pontic";
+
+/** Per-tooth retention role map. Stored as an array per tooth (popover allows one). */
+export type RetentionRoleByTooth = Record<
+  number,
+  RetentionRole | RetentionRole[] | string | string[] | null | undefined
+>;
+
+/** Resolve a single role for a tooth (first entry when stored as an array). */
+export function roleForTooth(
+  roleByTooth: RetentionRoleByTooth,
+  tooth: number
+): RetentionRole | null {
+  const raw = roleByTooth[tooth];
+  const value = Array.isArray(raw) ? (raw.length > 0 ? raw[0] : null) : raw ?? null;
+  if (value === "Implant" || value === "Prep" || value === "Pontic") return value;
+  return null;
+}
+
+/**
+ * Rule S1/S2/S3 — auto-splint links derived from retention roles + the rule catalog.
+ *
+ * A splint link (lower tooth of an adjacent consecutive pair) is created when the
+ * two teeth are adjacent, both carry a role, and one is a Pontic whose neighbor's
+ * role is in `S1.supportRoles`.
+ *
+ * - S1: `#13 Prep – #14 Pontic – #15 Prep` → links `13, 14` (chains into `13-14-15`).
+ * - S2: all Prep/Implant, no Pontic → no auto links (independent single crowns).
+ * - S3: a lone tooth → no auto links (no adjacent pair).
+ *
+ * When `S1.enabled` is false, no auto-splint links are produced.
+ */
+export function deriveAutoSplintLinks(
+  teeth: number[],
+  roleByTooth: RetentionRoleByTooth,
+  rules: RetentionRules = DEFAULT_RETENTION_RULES
+): number[] {
+  if (!rules.S1.enabled) return [];
+  const support = new Set<RetentionRole>(rules.S1.supportRoles);
+  const sorted = sortedTeeth(teeth);
+  const links: number[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const lower = sorted[i];
+    if (sorted[i + 1] !== lower + 1) continue;
+    const a = roleForTooth(roleByTooth, lower);
+    const b = roleForTooth(roleByTooth, lower + 1);
+    if (!a || !b) continue;
+    if ((a === "Pontic" && support.has(b)) || (b === "Pontic" && support.has(a))) {
+      links.push(lower);
+    }
+  }
+  return links;
+}
+
+/**
+ * True when the connected unit containing `tooth` already has a real abutment
+ * (Prep or Implant). The "unit" is the maximal run of adjacent (consecutive-number)
+ * teeth that all carry a role. A supported pontic does not need a wing.
+ */
+function unitHasAbutment(roleByTooth: RetentionRoleByTooth, tooth: number): boolean {
+  const isAbutment = (t: number): boolean => {
+    const r = roleForTooth(roleByTooth, t);
+    return r === "Prep" || r === "Implant";
+  };
+  const isRoled = (t: number): boolean => roleForTooth(roleByTooth, t) !== null;
+  if (isAbutment(tooth)) return true;
+  for (let t = tooth - 1; isRoled(t); t--) if (isAbutment(t)) return true;
+  for (let t = tooth + 1; isRoled(t); t++) if (isAbutment(t)) return true;
+  return false;
+}
+
+/**
+ * Wing retainer positions (Rule W1–W3): a wing appears on a Pontic's **empty** arch
+ * neighbor ONLY when the pontic is otherwise unsupported — i.e. its connected unit
+ * contains no Prep/Implant (a true Maryland / unsupported-pontic case).
+ *
+ * - W1: an unsupported pontic's empty neighbor → wing.
+ * - W3: no wing when the neighbor is Prep/Implant/Pontic, when there is no neighbor
+ *   (arch end), or when the pontic's unit already has a Prep/Implant abutment
+ *   (e.g. `10 Prep – 11 Pontic` → no wing on 12; `13 Prep – 14 Pontic – 15 Pontic`
+ *   → no wing on 16, supported through the splinted chain).
+ *
+ * `archTeeth` bounds valid tooth numbers for the arch (e.g. 1..16). `ponticTeeth`
+ * optionally restricts which pontics generate wings (for per-product scoping).
+ * When `W1.enabled` is false, no wings are produced.
+ */
+export function deriveWingTeeth(
+  roleByTooth: RetentionRoleByTooth,
+  archTeeth: number[],
+  ponticTeeth?: number[],
+  rules: RetentionRules = DEFAULT_RETENTION_RULES
+): number[] {
+  if (!rules.W1.enabled) return [];
+  const archSet = new Set(archTeeth);
+  const ponticFilter = ponticTeeth ? new Set(ponticTeeth) : null;
+  const wings = new Set<number>();
+  for (const tooth of archTeeth) {
+    if (roleForTooth(roleByTooth, tooth) !== "Pontic") continue;
+    if (ponticFilter && !ponticFilter.has(tooth)) continue;
+    // Supported pontic (unit already has a Prep/Implant abutment) → no wing.
+    if (unitHasAbutment(roleByTooth, tooth)) continue;
+    for (const neighbor of [tooth - 1, tooth + 1]) {
+      if (!archSet.has(neighbor)) continue;
+      if (roleForTooth(roleByTooth, neighbor) === null) wings.add(neighbor);
+    }
+  }
+  return [...wings].sort((a, b) => a - b);
+}
+
+/**
+ * API payload groups for wings: each pontic+wing pair joined, merged into connected
+ * runs the same way as `splinted_teeth` (e.g. a pontic at 14 with empty 13 & 15 →
+ * `["13,14,15"]`). Same input shape as splinted teeth.
+ */
+export function formatWingGroupsForApi(
+  roleByTooth: RetentionRoleByTooth,
+  archTeeth: number[],
+  ponticTeeth?: number[],
+  rules: RetentionRules = DEFAULT_RETENTION_RULES
+): string[] {
+  const wings = deriveWingTeeth(roleByTooth, archTeeth, ponticTeeth, rules);
+  if (wings.length === 0) return [];
+  // Teeth that participate in a wing unit: each wing plus the pontic it attaches to.
+  const unitTeeth = new Set<number>(wings);
+  const links: number[] = [];
+  for (const wing of wings) {
+    for (const pontic of [wing - 1, wing + 1]) {
+      if (roleForTooth(roleByTooth, pontic) === "Pontic") {
+        unitTeeth.add(pontic);
+        links.push(Math.min(wing, pontic));
+      }
+    }
+  }
+  return formatSplintGroupsForApi([...unitTeeth], links);
+}
+
+/** Switch for how auto-splint and manual edits combine on recompute. */
+export type SplintRecomputeMode = "preserve-manual" | "recompute-wins";
+
+/**
+ * Hybrid behavior flag (see feature spec). `preserve-manual` keeps the user's
+ * manual add/remove edits when retention types change; `recompute-wins` discards
+ * them and re-derives splint groups purely from retention roles.
+ */
+export const SPLINT_RECOMPUTE_MODE: SplintRecomputeMode = "preserve-manual";
+
+/** Manual overlay on top of auto-derived splint links, scoped to one product. */
+export interface SplintOverlay {
+  /** Links the user added on gaps auto-splint did not connect. */
+  added: number[];
+  /** Auto links the user explicitly broke. */
+  removed: number[];
+}
+
+export const EMPTY_SPLINT_OVERLAY: SplintOverlay = { added: [], removed: [] };
+
+/**
+ * Effective splint links = auto-derived links combined with the user's manual
+ * overlay, per `SPLINT_RECOMPUTE_MODE`.
+ */
+export function combineSplintLinks(
+  autoLinks: number[],
+  overlay: SplintOverlay | undefined,
+  mode: SplintRecomputeMode = SPLINT_RECOMPUTE_MODE
+): number[] {
+  if (mode === "recompute-wins" || !overlay) {
+    return [...new Set(autoLinks)].sort((a, b) => a - b);
+  }
+  const removed = new Set(overlay.removed);
+  const result = new Set(autoLinks.filter((l) => !removed.has(l)));
+  for (const l of overlay.added) result.add(l);
+  return [...result].sort((a, b) => a - b);
+}
+
+/**
+ * Toggle a splint link in the manual overlay relative to the current auto links.
+ * Toggling an auto link off records a removal; toggling it back on clears that
+ * removal. Toggling a non-auto link on records an addition; off clears it.
+ */
+export function toggleSplintOverlay(
+  overlay: SplintOverlay | undefined,
+  autoLinks: number[],
+  lower: number
+): SplintOverlay {
+  const base: SplintOverlay = overlay
+    ? { added: [...overlay.added], removed: [...overlay.removed] }
+    : { added: [], removed: [] };
+  const isAuto = autoLinks.includes(lower);
+  const currentlyOn = combineSplintLinks(autoLinks, base).includes(lower);
+
+  if (isAuto) {
+    if (currentlyOn) {
+      if (!base.removed.includes(lower)) base.removed.push(lower);
+    } else {
+      base.removed = base.removed.filter((l) => l !== lower);
+    }
+  } else {
+    if (currentlyOn) {
+      base.added = base.added.filter((l) => l !== lower);
+    } else {
+      if (!base.added.includes(lower)) base.added.push(lower);
+    }
+  }
+  base.added.sort((a, b) => a - b);
+  base.removed.sort((a, b) => a - b);
+  return base;
 }

@@ -16,7 +16,7 @@ import {
   buildExtractionScopeTeeth,
   resolveProductTeethForSlipSubmit,
 } from "../utils/removableToothDisplay";
-import { splintKeyForProductCard } from "../utils/splintHelpers";
+import { splintKeyForProductCard, formatWingGroupsForApi } from "../utils/splintHelpers";
 import { useCaseDesignState } from "./useCaseDesignState";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 
@@ -293,9 +293,22 @@ export function useSlipProductCollector({
             ? maxillarySplintLinksRef.current
             : mandibularSplintLinksRef.current;
         const splintKey = splintKeyForProductCard(cardId, productId);
-        const splintLinks =
-          productForSubmit?.is_splinted === "Yes" || productApiData?.is_splinted === "Yes"
-            ? splintLinksByKey[splintKey] ?? []
+        // Effective splint links (auto-derived + manual overlay) come from the panel.
+        const splintLinks = splintLinksByKey[splintKey] ?? [];
+
+        // Wing retainers (Maryland / cantilever): derived from this product's pontics
+        // whose arch neighbor is empty. Uses the arch-wide retention map so a neighbor
+        // owned by another product is not mistaken for an empty (wing) position.
+        const archRetentionTypes =
+          arch === "maxillary"
+            ? state.maxillaryRetentionTypes
+            : state.mandibularRetentionTypes ?? {};
+        const productPonticTeeth = productTeeth.filter(
+          (tn) => (archRetentionTypes?.[tn] ?? [])[0] === "Pontic"
+        );
+        const wingGroups =
+          productPonticTeeth.length > 0
+            ? formatWingGroupsForApi(archRetentionTypes ?? {}, allTeeth, productPonticTeeth)
             : [];
 
         snapshots.push({
@@ -322,6 +335,7 @@ export function useSlipProductCollector({
           ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
           selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
           ...(splintLinks.length > 0 ? { splintLinks } : {}),
+          ...(wingGroups.length > 0 ? { wingGroups } : {}),
         });
       });
     };

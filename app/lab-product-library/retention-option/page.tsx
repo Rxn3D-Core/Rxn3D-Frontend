@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Edit, TrashIcon, Copy, Plus, Package, Link as LinkIcon, MoreVertical, ArrowUpDown, Info } from 'lucide-react'
+import { Search, Edit, TrashIcon, Package, Link as LinkIcon, MoreVertical, ArrowUpDown, Info } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { useLanguage } from "@/contexts/language-context"
@@ -19,6 +19,8 @@ import { getRetentionOptions, updateRetentionOptionStatus, deleteRetentionOption
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
+import { getPrimaryRole } from "@/lib/get-primary-role"
+import { normalizeRoleSlug } from "@/lib/role-utils"
 
 type SortField = "name" | "code" | "status" | "linked_retention"
 type SortDirection = "asc" | "desc"
@@ -107,6 +109,8 @@ export default function RetentionOptionPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
   const customerId = getCustomerId(user)
+  const primaryRole = normalizeRoleSlug(getPrimaryRole(user))
+  const canManageRetentionOptions = primaryRole !== "lab_admin"
 
   // Debounce search input
   useEffect(() => {
@@ -205,6 +209,7 @@ export default function RetentionOptionPage() {
   const { toast } = useToast()
 
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
+    if (!canManageRetentionOptions) return
     try {
       const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active'
       await updateRetentionOptionStatus(id, newStatus, customerId ?? undefined)
@@ -226,18 +231,14 @@ export default function RetentionOptionPage() {
   }
 
   function handleEdit(option: any): void {
+    if (!canManageRetentionOptions) return
     setIsCopyingOption(false)
     setEditOption(option)
     setShowCreateModal(true)
   }
 
-  function handleCopy(option: any): void {
-    setIsCopyingOption(true)
-    setEditOption(option)
-    setShowCreateModal(true)
-  }
-
   const handleDelete = (optionId: number) => {
+    if (!canManageRetentionOptions) return
     setDeleteOptionId(optionId)
     setShowDeleteModal(true)
   }
@@ -303,38 +304,31 @@ export default function RetentionOptionPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <Button
-              onClick={() => {
-                setEditOption(null)
-                setIsCopyingOption(false)
-                setShowCreateModal(true)
-              }}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t("Add Retention option")}
-            </Button>
-            <Button
-              onClick={() => setShowLinkRetentionTypeModal(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <LinkIcon className="h-4 w-4 mr-2" />
-              {t("Link Retention type")}
-            </Button>
-            <Button
-              onClick={() => setShowLinkProductsModal(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <LinkIcon className="h-4 w-4 mr-2" />
-              {t("Link Product")}
-            </Button>
-            <Button
-              onClick={() => setShowLinkRetentionModal(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
-              <LinkIcon className="h-4 w-4 mr-2" />
-              {t("Link Retention")}
-            </Button>
+            {canManageRetentionOptions ? (
+              <>
+                <Button
+                  onClick={() => setShowLinkRetentionTypeModal(true)}
+                  className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+                >
+                  <LinkIcon className="h-4 w-4 mr-2" />
+                  {t("Link Retention type")}
+                </Button>
+                <Button
+                  onClick={() => setShowLinkProductsModal(true)}
+                  className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+                >
+                  <LinkIcon className="h-4 w-4 mr-2" />
+                  {t("Link Product")}
+                </Button>
+                <Button
+                  onClick={() => setShowLinkRetentionModal(true)}
+                  className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+                >
+                  <LinkIcon className="h-4 w-4 mr-2" />
+                  {t("Link Retention")}
+                </Button>
+              </>
+            ) : null}
 
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -371,11 +365,13 @@ export default function RetentionOptionPage() {
             <TableHeader>
               <TableRow className="bg-gray-50/80 hover:bg-gray-50">
                 <TableHead className="w-10 pl-4 py-2">
-                  <Checkbox
-                    checked={isAllSelected}
-                    onCheckedChange={handleSelectAll}
-                    className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
-                  />
+                  {canManageRetentionOptions ? (
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
+                    />
+                  ) : null}
                 </TableHead>
                 <TableHead
                   className="font-semibold text-gray-900 py-2 px-2 cursor-pointer hover:text-[#1162a8] transition-colors"
@@ -431,11 +427,13 @@ export default function RetentionOptionPage() {
                 retentionOptions.map((option, index) => (
                   <TableRow key={option.id} className={`border-b border-gray-100 hover:bg-gray-50/50 transition-colors ${index === 0 ? "bg-blue-50/30" : ""}`}>
                     <TableCell className="pl-4 py-2">
-                      <Checkbox
-                        checked={selectedOptions.includes(option.id.toString())}
-                        onCheckedChange={(checked) => handleSelectOption(option.id.toString(), checked as boolean)}
-                        className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
-                      />
+                      {canManageRetentionOptions ? (
+                        <Checkbox
+                          checked={selectedOptions.includes(option.id.toString())}
+                          onCheckedChange={(checked) => handleSelectOption(option.id.toString(), checked as boolean)}
+                          className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4"
+                        />
+                      ) : null}
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <div className="flex items-center gap-1.5">
@@ -515,39 +513,45 @@ export default function RetentionOptionPage() {
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors ${
                           option.status === "Active"
                             ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
                             : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
-                        }`}
-                        onClick={() => handleStatusToggle(option.id, option.status)}
+                        } ${canManageRetentionOptions ? "cursor-pointer" : "cursor-default"}`}
+                        onClick={
+                          canManageRetentionOptions
+                            ? () => handleStatusToggle(option.id, option.status)
+                            : undefined
+                        }
                       >
                         {option.status}
                       </span>
                     </TableCell>
                     <TableCell className="py-2 px-2 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                          onClick={() => handleEdit(option)}
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
-                          onClick={() => handleCopy(option)}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          className="text-gray-400 hover:text-red-600 transition-colors p-0.5"
-                          onClick={() => handleDelete(option.id)}
-                        >
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </button>
-                        <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
-                          <MoreVertical className="h-3.5 w-3.5" />
-                        </button>
+                        {canManageRetentionOptions ? (
+                          <>
+                            <button
+                              className="text-gray-400 hover:text-[#1162a8] transition-colors p-0.5"
+                              onClick={() => handleEdit(option)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              className="text-gray-400 hover:text-red-600 transition-colors p-0.5"
+                              onClick={() => handleDelete(option.id)}
+                            >
+                              <TrashIcon className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        ) : null}
+                        {canManageRetentionOptions ? (
+                          <button className="text-gray-400 hover:text-gray-600 transition-colors p-0.5">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">View only</span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

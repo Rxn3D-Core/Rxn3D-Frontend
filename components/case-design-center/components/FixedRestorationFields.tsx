@@ -133,9 +133,10 @@ export function hasAdvanceField(
   const hasTeethShadeFlag = product?.has_teeth_shade === "Yes";
   const hasGumShadeFlag = product?.has_gum_shade === "Yes";
 
-  // Shade steps: show when has_* flag is set, regardless of advance_fields
+  // Shade steps: show when the matching has_* flag is set, regardless of advance_fields.
+  // Stump shade is gated on gum shade only — a teeth-shade-only product must not show it.
   if (step === "fixed_stump_shade") {
-    if (hasTeethShadeFlag || hasGumShadeFlag) return true;
+    if (hasGumShadeFlag) return true;
   }
   if (step === "fixed_shade_trio") {
     if (hasTeethShadeFlag) return true;
@@ -800,7 +801,9 @@ export function RetentionProductFields({
         )}
       </div>
 
-      {showFixedStage && !isSingleShadeEdit && (() => {
+      {/* Standalone Stage: named-shade path only. In the legacy path Stage is rendered
+          in the stage+shade grid below, so gating here avoids a duplicate Stage field. */}
+      {showFixedStage && !isSingleShadeEdit && usesNamedShadeGuideFields && (() => {
         const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
         const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
         const showStageGreen = isStageComplete && !caseSubmitted;
@@ -854,8 +857,14 @@ export function RetentionProductFields({
         const hasGumFlag = selectedProduct?.has_gum_shade === "Yes";
 
         let stumpShadeFields: { label: string; shadeType: "stump_shade" | "tooth_shade"; isGumShade: boolean }[] = [];
-        if (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", af, selectedProduct)) {
-          // First try to find matching entries in advance_fields
+        // Teeth shade is gated on fixed_shade_trio, gum/stump shade on fixed_stump_shade —
+        // decoupled so a teeth-shade-only product still renders its Teeth Shade field
+        // (it used to be built only under the fixed_stump_shade gate).
+        const wantsTeethShade = isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", af, selectedProduct);
+        const wantsGumShade = isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", af, selectedProduct);
+        if (wantsTeethShade || wantsGumShade) {
+          // First try to find matching entries in advance_fields (filtered to the shade
+          // types actually wanted), then fall back to has_* flags.
           const fromAf = af
             .filter((f) => {
               const n = (f.name || "").toLowerCase();
@@ -869,15 +878,16 @@ export function RetentionProductFields({
               const isGumShade = n.includes("gum") || n.includes("stump");
               const shadeType: "stump_shade" | "tooth_shade" = isGumShade ? "stump_shade" : "tooth_shade";
               return { label: f.name, shadeType, isGumShade };
-            });
+            })
+            .filter((f) => (f.isGumShade ? wantsGumShade : wantsTeethShade));
 
           if (fromAf.length > 0) {
             // Teeth shade first, gum shade second
             stumpShadeFields = [...fromAf].sort((a, b) => (a.isGumShade ? 1 : 0) - (b.isGumShade ? 1 : 0));
           } else {
             // No advance_fields match — fall back to has_* flags (teeth first)
-            if (hasTeethFlag) stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
-            if (hasGumFlag) stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
+            if (wantsTeethShade && hasTeethFlag) stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
+            if (wantsGumShade && hasGumFlag) stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
           }
         }
 
@@ -955,7 +965,10 @@ export function RetentionProductFields({
                 label={label}
                 value={shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
                 shade={shadeCode}
-                onClick={() => handleShadeFieldClick(arch, shadeType, fixedShadeProductId)}
+                // Pass storageToothNumber so the shade selection completes the field step
+                // (fixed_shade_trio) — without it the handler bails and the next field
+                // never reveals for fixed_p_{id} products.
+                onClick={() => handleShadeFieldClick(arch, shadeType, fixedShadeProductId, { storageToothNumber: firstToothNumber })}
                 submitted={caseSubmitted}
                 required
               />
