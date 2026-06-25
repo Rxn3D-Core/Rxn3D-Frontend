@@ -1541,10 +1541,11 @@ export function MandibularPanel({
     }
     const byKey: Record<string, number[]> = {};
     for (const [key, teeth] of Object.entries(teethByKey)) {
-      byKey[key] = deriveAutoSplintLinks(teeth, mandibularRetentionTypes);
+      const isSplinted = getToothProduct("mandibular", teeth[0])?.is_splinted === "Yes";
+      byKey[key] = isSplinted ? deriveAutoSplintLinks(teeth, mandibularRetentionTypes) : [];
     }
     return byKey;
-  }, [mandibularTeeth, mandibularRetentionTypes, splintKeyForMandibularTooth]);
+  }, [mandibularTeeth, mandibularRetentionTypes, splintKeyForMandibularTooth, getToothProduct]);
   const [splintOverlayByKey, setSplintOverlayByKey] = useState<Record<string, SplintOverlay>>({});
   const effectiveSplintLinksByKey = useMemo(() => {
     const keys = new Set([
@@ -1644,11 +1645,10 @@ export function MandibularPanel({
   const opposingToothChartEnabled = !!opposingProductData;
   const toothChartInteractionEnabled = ownArchToothChartEnabled || opposingToothChartEnabled;
 
-  // Splinting is retention-driven (auto S1 + manual S2): editable for any active fixed
-  // restoration product, not just catalog products flagged `is_splinted`.
-  const activeMandibularProductHasRetention = activeMandibularProduct?.has_retention === "Yes";
+  // Splint UI (auto S1 + manual S2) is only available for products flagged splintable.
+  // When `is_splinted` is "No", no connector or auto-splint shows even if rules match.
   const mandibularSplintEnabled =
-    (activeMandibularProductIsSplinted || activeMandibularProductHasRetention) &&
+    activeMandibularProductIsSplinted &&
     ownArchToothChartEnabled &&
     !caseSubmitted &&
     !opposingProductData &&
@@ -1676,6 +1676,23 @@ export function MandibularPanel({
   const mandibularWingTeeth = useMemo(
     () => deriveWingTeeth(mandibularRetentionTypes, MANDIBULAR_ALL_TEETH),
     [mandibularRetentionTypes]
+  );
+  // Pontic is offered only once the tooth's product already has an abutment tooth
+  // (Prep/Implant) other than this one — a pontic needs support first.
+  const canSelectMandibularPontic = useCallback(
+    (toothNumber: number): boolean => {
+      const card = getToothProductCard("mandibular", toothNumber);
+      const productId = getToothProduct("mandibular", toothNumber)?.id;
+      return MANDIBULAR_ALL_TEETH.some((tn) => {
+        if (tn === toothNumber) return false;
+        if (getToothProductCard("mandibular", tn) !== card) return false;
+        const pid = getToothProduct("mandibular", tn)?.id;
+        if (productId != null && pid != null && pid !== productId) return false;
+        const types = mandibularRetentionTypes[tn] ?? [];
+        return types.includes("Prep") || types.includes("Implant");
+      });
+    },
+    [getToothProductCard, getToothProduct, mandibularRetentionTypes]
   );
 
   const activeMandibularRetentionOptions = (() => {
@@ -1818,6 +1835,7 @@ export function MandibularPanel({
                   splintedLinks={mandibularSplintedLinks}
                   onToggleSplintLink={handleToggleMandibularSplint}
                   wingTeeth={mandibularWingTeeth}
+                  canSelectPontic={canSelectMandibularPontic}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;
