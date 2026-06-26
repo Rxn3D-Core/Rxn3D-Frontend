@@ -110,6 +110,8 @@ export interface ArchVM {
   opposing: import("./virtual-slip-extraction-display").OpposingArchVM | null;
   /** Lower tooth number per splinted adjacent pair for read-only chart connectors. */
   splintedLinks?: number[];
+  /** Wing-retainer tooth numbers (empty abutment neighbors) for read-only chart circles. */
+  wingTeeth?: number[];
 }
 
 export interface VirtualSlipHeaderVM {
@@ -750,6 +752,19 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     }
   }
 
+  // Wing-retainer circles: parse each product's `wing_teeth` ("13,15"). Independent
+  // of is_splinted (wings are not part of splinting).
+  const wingTeeth = new Set<number>();
+  for (const product of archProducts) {
+    const raw = (product as { wing_teeth?: string | string[] })?.wing_teeth;
+    const parts = Array.isArray(raw) ? raw.join(",") : raw;
+    if (typeof parts !== "string") continue;
+    for (const part of parts.split(",")) {
+      const n = Number(part.trim());
+      if (Number.isFinite(n) && n > 0) wingTeeth.add(n);
+    }
+  }
+
   return {
     arch: opposingColumn?.arch ?? arch,
     teeth: opposingColumn?.teeth ?? teeth,
@@ -761,6 +776,9 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
     opposing,
     ...(splintedLinks.size > 0
       ? { splintedLinks: Array.from(splintedLinks).sort((a, b) => a - b) }
+      : {}),
+    ...(wingTeeth.size > 0
+      ? { wingTeeth: Array.from(wingTeeth).sort((a, b) => a - b) }
       : {}),
   };
 }

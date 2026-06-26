@@ -72,11 +72,11 @@ export interface SlipProductSnapshot {
    */
   splintLinks?: number[];
   /**
-   * Wing-retainer groups for this product (pontic + empty abutment neighbor),
-   * pre-formatted as comma-separated tooth numbers per connected run (same shape
-   * as `splinted_teeth`). Derived from the arch-wide retention map.
+   * Wing-retainer teeth for this product — the empty abutment neighbors of the
+   * product's pontics (NOT the pontic), as a comma-separated string (e.g. "13,15").
+   * Derived from the arch-wide retention map.
    */
-  wingGroups?: string[];
+  wingTeeth?: string;
 }
 
 export interface CaseDesignProps {
