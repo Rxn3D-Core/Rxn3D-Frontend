@@ -11,7 +11,15 @@ const ClientLayout = dynamic(() => import("@/app/client-layout").then(mod => ({ 
 })
 
 // Routes that don't need ClientLayout (and its framer-motion dependency)
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/onboarding"]
+const PUBLIC_ROUTES = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/setup-account",
+  "/onboarding",
+  "/statement-preview",
+  "/user-invitations",
+]
 
 /**
  * Internal component that uses usePathname
@@ -40,4 +48,3 @@ export function ConditionalClientLayout({ children }: { children: React.ReactNod
     </Suspense>
   )
 }
-

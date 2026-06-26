@@ -1,29 +1,54 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { Input } from "@/components/ui/input"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Calendar, Filter, Columns, MoreVertical, Paperclip, ChevronDown, Check, Trash2, Eye, Copy, Phone, Printer, Download, Plus, X } from "lucide-react"
+import { Filter, Columns, MoreVertical, ChevronDown, Trash2, Eye, Copy, Phone, Printer, Download, X } from "lucide-react"
 import { format } from "date-fns"
 import { useOfficeSlipContext } from "@/contexts/office-slip-context"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
-import ChangeDateModal from "@/components/change-date-modal"
-import DriverHistoryModal from "@/components/driver-history-modal"
 import AddOnsModal from "@/components/add-ons-modal"
+import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
-import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
+import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
+import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
+import {
+  SLIP_LISTING_ICON_HOVER_CLASS,
+  SLIP_LISTING_ICON_SIZE_CLASS,
+  slipListingIconButtonClass,
+} from "@/components/slip-listing/slip-listing-icon-hover"
+import { cn } from "@/lib/utils"
+import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
+import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
+import {
+  SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON,
+  SlipListingViewSlipLink,
+} from "@/components/slip-listing/SlipListingViewSlipLink"
+import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
+import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
+import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
+import {
+  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/slip-listing-filter-select"
+import Link from "next/link"
+import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { resolveListingCustomerId } from "@/lib/customer-scope"
 
 function buildApiUrl(pathOrUrl: string): string {
   if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
@@ -37,31 +62,31 @@ function buildApiUrl(pathOrUrl: string): string {
   return new URL(pathOrUrl, base.endsWith("/") ? base : `${base}/`).toString()
 }
 
+/** Virtual-slip icon asset folders — same glyphs used on the virtual slip page. */
+const VS_CENTER_ICONS = "/icons/virtual-slip-center"
 
 export default function SlipPage() {
   const { slips, loading, error, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { toast } = useToast()
-  const router = useRouter()
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [search, setSearch] = useState("")
-  const [office, setOffice] = useState("All")
   const [status, setStatus] = useState("All")
   const [location, setLocation] = useState(() => searchParams.get("location") || "All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [showLabConnect, setShowLabConnect] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [showColumnsDialog, setShowColumnsDialog] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState({
     timestamp: true,
-    office: true,
     patient: true,
-    pan: true,
     product: true,
     status: true,
     location: true,
     attachment: true,
+    viewSlip: true,
     due: true,
     actions: true,
   })
@@ -73,22 +98,19 @@ export default function SlipPage() {
   const [patientSearch, setPatientSearch] = useState("")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
+  const [stageFilter, setStageFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
-  const [showChangeDateModal, setShowChangeDateModal] = useState(false)
-  const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<any>(null)
-  const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
-  const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<any>(null)
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
   const [selectedSlipForAddOns, setSelectedSlipForAddOns] = useState<any>(null)
+  // Per-product add-on catalog inputs (same as the virtual slip add-ons popup).
+  const [addonInputs, setAddonInputs] = useState<VirtualSlipAddonInputs | null>(null)
   const [showCallLogModal, setShowCallLogModal] = useState(false)
   const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<any>(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [selectedSlipForPrint, setSelectedSlipForPrint] = useState<any>(null)
-  const [showPrintDriverTags, setShowPrintDriverTags] = useState(false)
-  const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<any>(null)
   const [selectedSlipForStatement, setSelectedSlipForStatement] = useState<any>(null)
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
@@ -97,11 +119,7 @@ export default function SlipPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Get customer ID from localStorage
-        const userStr = localStorage.getItem('user')
-        const user = userStr ? JSON.parse(userStr) : null
-        const customerId = user?.customers?.[0]?.id
-        
+        const customerId = resolveListingCustomerId()
         if (customerId) {
           await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
         }
@@ -114,7 +132,6 @@ export default function SlipPage() {
   }, [fetchOfficeSlips, currentPage, itemsPerPage])
 
   // Get unique values for filter dropdowns
-  const allOffices = Array.from(new Set(slips.map((s) => s.officeCode)))
   const allStatuses = Array.from(new Set(slips.map((s) => s.status)))
   const allLocations = Array.from(new Set(slips.map((s) => s.location)))
   const allDoctors = Array.from(new Set(slips.map((s) => s.doctorName || "Unknown")))
@@ -124,17 +141,21 @@ export default function SlipPage() {
   // Filtering
   const filteredSlips = useMemo(() => {
     let result = slips
-    if (search) result = result.filter((s) =>
-      s.patient.toLowerCase().includes(search.toLowerCase())
-      || s.officeCode.toLowerCase().includes(search.toLowerCase())
-      || s.product.toLowerCase().includes(search.toLowerCase())
-    )
-    if (office !== "All") result = result.filter((s) => s.officeCode === office)
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter((s) =>
+        s.patient.toLowerCase().includes(q)
+        || s.product.toLowerCase().includes(q)
+        || (s.doctorName?.toLowerCase().includes(q) ?? false)
+        || (s.caseNumber?.toLowerCase().includes(q) ?? false)
+        || (s.slipNumber?.toLowerCase().includes(q) ?? false)
+      )
+    }
     if (status !== "All") result = result.filter((s) => s.status === status)
     if (location !== "All") result = result.filter((s) => s.location === location)
     if (showWithAttachments) result = result.filter((s) => s.attachment)
     return result
-  }, [slips, search, office, status, location, showWithAttachments])
+  }, [slips, search, status, location, showWithAttachments])
 
   // Paging - use filtered slips for display, but API handles pagination
   const slipsPage = filteredSlips
@@ -172,9 +193,7 @@ export default function SlipPage() {
 
   const handleAttachmentsUploaded = async () => {
     try {
-      const userStr = localStorage.getItem("user")
-      const user = userStr ? JSON.parse(userStr) : null
-      const customerId = user?.customers?.[0]?.id
+      const customerId = resolveListingCustomerId()
       if (customerId) {
         await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
       }
@@ -183,19 +202,29 @@ export default function SlipPage() {
     }
   }
 
-  const handleDateIconClick = (slip: any) => {
-    setSelectedSlipForDateChange(slip)
-    setShowChangeDateModal(true)
-  }
-
-  const handleLocationIconClick = (slip: any) => {
-    setSelectedSlipForDriverHistory(slip)
-    setShowDriverHistoryModal(true)
-  }
-
   const handleAddOnsClick = (slip: any) => {
     setSelectedSlipForAddOns(slip)
     setShowAddOnsModal(true)
+    setAddonInputs(null)
+    const slipId = slip?.id
+    if (!slipId) return
+    void (async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+        const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
+        const res = await fetch(url.toString(), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (res.status === 401) {
+          window.location.href = "/login"
+          return
+        }
+        const json = await res.json()
+        setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
+      } catch {
+        setAddonInputs(null)
+      }
+    })()
   }
 
 
@@ -305,37 +334,6 @@ export default function SlipPage() {
     })()
   }
 
-  const handleRowClick = (slip: any, event: React.MouseEvent) => {
-    const target = event.target as HTMLElement
-    const isInteractiveElement = target.closest('button, a, svg, input, [role="button"]')
-    
-    if (!isInteractiveElement) {
-      window.open(`/virtual-slip-v2/${slip.id}`, '_blank')
-    }
-  }
-
-  const getChangeDateHistory = (slipId: number) => {
-    return [
-      {
-        id: 1,
-        slip_id: slipId,
-        user: "John Smith",
-        date: "2024-01-15 10:30 AM",
-        oldDate: "2024-01-20",
-        newDate: "2024-01-25",
-        delivery_date: "2024-01-25",
-        delivery_time: "10:00",
-        formatted_delivery_date: "January 25, 2024",
-        formatted_delivery_time: "10:00 AM",
-        reason: "Patient requested schedule change due to vacation",
-        notes: "Patient requested schedule change due to vacation",
-        created_at: "2024-01-15 10:30 AM",
-        updated_at: "2024-01-15 10:30 AM",
-        created_by: { id: 1, name: "John Smith", email: "john@example.com" }
-      }
-    ]
-  }
-
   // Show loading state
   if (loading) {
     return (
@@ -378,21 +376,13 @@ export default function SlipPage() {
       <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
         <Input
           className="w-72 bg-white border-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500"
-          placeholder="Search by patient, office, doctor, case..."
+          placeholder="Search by patient, doctor, case..."
           value={search}
           onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && filteredSlips.length === 1) router.push(buildVirtualSlipV2Path(filteredSlips[0].id)) }}
         />
-        <Select value={office} onValueChange={setOffice}>
-          <SelectTrigger className="w-40 bg-white border-gray-300">
-            <SelectValue placeholder="All offices" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All offices</SelectItem>
-            {allOffices.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-40 bg-white border-gray-300">
+          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="All status" />
           </SelectTrigger>
           <SelectContent>
@@ -401,7 +391,7 @@ export default function SlipPage() {
           </SelectContent>
         </Select>
         <Select value={location} onValueChange={setLocation}>
-          <SelectTrigger className="w-40 bg-white border-gray-300">
+          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
             <SelectValue placeholder="All location" />
           </SelectTrigger>
           <SelectContent>
@@ -425,17 +415,16 @@ export default function SlipPage() {
                 {Object.entries(visibleColumns).map(([key, val]) => {
                   const labels = {
                     timestamp: "Time Stamp",
-                    office: "Office Code",
                     patient: "Patient",
-                    pan: "Pan",
                     product: "Product",
                     status: "Status",
                     location: "Location",
                     attachment: "Attachment",
+                    viewSlip: "View Slip",
                     due: "Due Date",
                     actions: "Actions"
                   }
-                  const isRequired = key === 'actions' || key === 'office' || key === 'patient' || key === 'pan'
+                  const isRequired = key === 'actions' || key === 'patient'
                   return (
                     <label key={key} className="flex items-center justify-between cursor-pointer">
                       <div className="flex items-center gap-3">
@@ -498,6 +487,7 @@ export default function SlipPage() {
                 setPatientSearch("")
                 setProductType("All")
                 setDoctorFilter("All")
+                setStageFilter("All")
                 setUserFilter("All")
               }}
             >
@@ -506,15 +496,15 @@ export default function SlipPage() {
           </div>
 
           {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
             <div className="flex items-center gap-2">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal text-xs"
+                    className="group w-full justify-start text-left font-normal text-xs"
                   >
-                    <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                    <SlipListingCalendarIcon className="mr-2" />
                     {dateRange.start ? (
                       format(dateRange.start, "PPP")
                     ) : (
@@ -538,9 +528,9 @@ export default function SlipPage() {
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal text-xs"
+                    className="group w-full justify-start text-left font-normal text-xs"
                   >
-                    <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+                    <SlipListingCalendarIcon className="mr-2" />
                     {dateRange.end ? (
                       format(dateRange.end, "PPP")
                     ) : (
@@ -571,7 +561,7 @@ export default function SlipPage() {
               className="text-xs"
             />
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -579,17 +569,8 @@ export default function SlipPage() {
                 {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={office} onValueChange={setOffice}>
-              <SelectTrigger className="text-xs">
-                <SelectValue placeholder="All Offices/Lab" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Offices/Lab</SelectItem>
-                {allOffices.filter(o => o).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </SelectContent>
-            </Select>
             <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All users" />
               </SelectTrigger>
               <SelectContent>
@@ -600,9 +581,9 @@ export default function SlipPage() {
           </div>
 
           {/* Second Row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Select value={productType} onValueChange={setProductType}>
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All product type" />
               </SelectTrigger>
               <SelectContent>
@@ -610,16 +591,16 @@ export default function SlipPage() {
                 {allProductTypes.filter(p => p).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value="All Stages" onValueChange={() => { }}>
-              <SelectTrigger className="text-xs">
+            <Select value={stageFilter} onValueChange={setStageFilter}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Stages" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="All">All Stages</SelectItem>
               </SelectContent>
             </Select>
-            <Select value="All Doctors" onValueChange={setDoctorFilter}>
-              <SelectTrigger className="text-xs">
+            <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Doctors" />
               </SelectTrigger>
               <SelectContent>
@@ -627,20 +608,12 @@ export default function SlipPage() {
                 {allDoctors.filter(d => d).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value="All Office & Lab" onValueChange={() => { }}>
-              <SelectTrigger className="text-xs">
-                <SelectValue placeholder="All Office & Lab" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Office & Lab</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Third Row - Toggles */}
           <div className="flex items-center gap-6 mt-3">
-            <Select value="All Location" onValueChange={setLocation}>
-              <SelectTrigger className="w-40 text-xs">
+            <Select value={location} onValueChange={setLocation}>
+              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
                 <SelectValue placeholder="All Location" />
               </SelectTrigger>
               <SelectContent>
@@ -662,7 +635,7 @@ export default function SlipPage() {
               </div>
               Show only cases with attachments
             </label>
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex items-center gap-2 text-xs hidden">
               <div className="relative">
                 <input
                   type="checkbox"
@@ -684,12 +657,8 @@ export default function SlipPage() {
       {selected.length > 0 && (
         <div className="sticky top-20 z-20 flex flex-wrap gap-2 items-center px-4 py-3 mb-2 rounded-lg bg-blue-50 border border-blue-200 animate-fade-in">
           <span className="font-semibold text-blue-700 mr-3">Bulk actions:</span>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Check className="h-4 w-4" />Pick up</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Driver label</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Paper slip</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100" onClick={() => selected.length === 1 ? handlePrintStatement(slipsPage.find((s) => s.id === selected[0])) : undefined}><Printer className="h-4 w-4" />Print Statement</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Plus className="h-4 w-4" />Send back to office</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><ChevronDown className="h-4 w-4" />Rush case</Button>
           <Button variant="ghost" size="sm" className="flex gap-1 text-red-600 hover:bg-red-50" onClick={() => setArchiveConfirm(-1)}><Trash2 className="h-4 w-4" />Archive case</Button>
         </div>
       )}
@@ -699,7 +668,7 @@ export default function SlipPage() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-4 py-3 w-12">
+              <th className="px-4 py-1.5 w-12">
                 <Checkbox
                   checked={!!allOnPageSelected}
                   onCheckedChange={(checked) => handleSelectAllPage()}
@@ -707,22 +676,53 @@ export default function SlipPage() {
                   className="border-gray-400"
                 />
               </th>
-              {visibleColumns.timestamp && <th className="px-4 py-3 text-left font-medium text-gray-700">Timestamp</th>}
-              {visibleColumns.office && <th className="px-4 py-3 text-left font-medium text-gray-700">Office Code</th>}
-              {visibleColumns.patient && <th className="px-4 py-3 text-left font-medium text-gray-700">Patient</th>}
-              {visibleColumns.pan && <th className="px-4 py-3 text-left font-medium text-gray-700">Pan</th>}
-              {visibleColumns.product && <th className="px-4 py-3 text-left font-medium text-gray-700">Product</th>}
-              {visibleColumns.status && <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>}
-              {visibleColumns.location && <th className="px-4 py-3 text-left font-medium text-gray-700">Location</th>}
-              {visibleColumns.attachment && <th className="px-4 py-3 text-left font-medium text-gray-700">Attachment</th>}
-              {visibleColumns.due && <th className="px-4 py-3 text-left font-medium text-gray-700">Due date</th>}
-              {visibleColumns.actions && <th className="px-4 py-3 text-left font-medium text-gray-700">Actions</th>}
+              {visibleColumns.timestamp && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
+              {visibleColumns.patient && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Patient</th>}
+              {visibleColumns.product && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Product</th>}
+              {visibleColumns.status && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Status</th>}
+              {visibleColumns.location && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Location</th>}
+              {visibleColumns.attachment && (
+                <th className="px-4 py-1.5 text-center align-middle font-medium text-gray-700" scope="col" aria-label="Attachment">
+                  <div className="flex h-[30px] items-center justify-center">
+                    <SlipListingVsIcon
+                      src={`${VS_CENTER_ICONS}/attachments.svg`}
+                      hover={false}
+                    />
+                  </div>
+                </th>
+              )}
+              {visibleColumns.viewSlip && (
+                <th className="px-4 py-1.5 text-center align-middle font-medium text-gray-700" scope="col" aria-label="View virtual slip">
+                  <div className="flex h-[30px] items-center justify-center">
+                    <SlipListingVsIcon
+                      src={SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON}
+                      hover={false}
+                    />
+                  </div>
+                </th>
+              )}
+              {visibleColumns.due && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Due date</th>}
+              {visibleColumns.actions && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {slipsPage.length === 0 ? (
               <tr>
-                <td colSpan={12} className="py-8 text-center text-gray-500">
+                <td
+                  colSpan={
+                    1 +
+                    (visibleColumns.timestamp ? 1 : 0) +
+                    (visibleColumns.patient ? 1 : 0) +
+                    (visibleColumns.product ? 1 : 0) +
+                    (visibleColumns.status ? 1 : 0) +
+                    (visibleColumns.location ? 1 : 0) +
+                    (visibleColumns.attachment ? 1 : 0) +
+                    (visibleColumns.viewSlip ? 1 : 0) +
+                    (visibleColumns.due ? 1 : 0) +
+                    (visibleColumns.actions ? 1 : 0)
+                  }
+                  className="py-8 text-center text-gray-500"
+                >
                   No slips found for selected filters.
                 </td>
               </tr>
@@ -730,13 +730,12 @@ export default function SlipPage() {
               slipsPage.map((row, idx) => (
                 <tr
                   key={row.id}
-                  className={`transition-all duration-150 cursor-pointer ${selected.includes(row.id)
-                    ? "bg-blue-50 border-l-4 border-blue-500"
-                    : "hover:bg-gray-50"}`}
-                  onClick={(e) => handleRowClick(row, e)}
-                  title="Click to view virtual slip"
+                  className={slipListingRowClassName({
+                    selected: selected.includes(row.id),
+                    rush: row.rush,
+                  })}
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-1.5">
                     <Checkbox
                       checked={selected.includes(row.id)}
                       onCheckedChange={() =>
@@ -747,154 +746,122 @@ export default function SlipPage() {
                       className="border-gray-400"
                     />
                   </td>
-                  {visibleColumns.timestamp && <td className="px-4 py-3 whitespace-nowrap text-gray-600">   <span className="inline-flex items-center gap-2 text-black">
-                    <svg width="22" height="23" viewBox="0 0 22 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M8.21875 3.70044H4.71875C3.75225 3.70044 2.96875 4.52125 2.96875 5.53377V9.20044C2.96875 10.213 3.75225 11.0338 4.71875 11.0338H8.21875C9.18525 11.0338 9.96875 10.213 9.96875 9.20044V5.53377C9.96875 4.52125 9.18525 3.70044 8.21875 3.70044Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M6.46875 11.0337V14.7004C6.46875 15.1866 6.65312 15.6529 6.98131 15.9967C7.3095 16.3405 7.75462 16.5337 8.21875 16.5337H11.7188" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M16.9688 12.8672H13.4688C12.5023 12.8672 11.7188 13.688 11.7188 14.7005V18.3672C11.7188 19.3797 12.5023 20.2005 13.4688 20.2005H16.9688C17.9352 20.2005 18.7188 19.3797 18.7188 18.3672V14.7005C18.7188 13.688 17.9352 12.8672 16.9688 12.8672Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-
-                    <span className="text-sm">{row.createdAt}</span>
-                  </span>
-                  </td>}
-                  {visibleColumns.office && <td className="px-4 py-3 font-medium text-gray-900">{row.officeCode}</td>}
-                  {visibleColumns.patient && <td className="px-4 py-3 text-gray-900">{row.patient}</td>}
-                  {visibleColumns.pan &&
-                    <td className="px-4 py-3">
-                      <span className={`inline-block w-12 text-center py-1 rounded text-white font-mono text-xs ${row.panColor}`}>{row.pan}</span>
-                    </td>}
-                  {visibleColumns.product && <td className="px-4 py-3 text-gray-900">{row.product}</td>}
+                  {visibleColumns.timestamp && (
+                    <td className="px-3 py-1 whitespace-nowrap text-base text-black">
+                      {row.createdAt}
+                    </td>
+                  )}
+                  {visibleColumns.patient && (
+                    <td className="px-4 py-1.5 text-gray-900">
+                      <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
+                        {formatSlipListingPatientName(row.patient)}
+                      </SlipListingVirtualSlipLink>
+                    </td>
+                  )}
+                  {visibleColumns.product && (
+                    <td className="px-4 py-1.5 text-gray-900">
+                      <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
+                        {row.product}
+                      </SlipListingVirtualSlipLink>
+                    </td>
+                  )}
                   {visibleColumns.status &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <div className="flex gap-2 items-center">
                         {row.rush && (
-                          <Badge className="bg-red-600 text-white font-medium px-2 py-1 text-xs">
+                          <SlipListingStatusBadge tone="rush" size="comfortable" className="border-0">
                             <svg width="12" height="14" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
                               <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             Rush
-                          </Badge>
+                          </SlipListingStatusBadge>
                         )}
                         {row.status === "In Progress" && (
-                          <Badge className="bg-green-100 text-green-800 border border-green-200 font-medium px-2 py-1 text-xs">In Progress</Badge>
+                          <SlipListingStatusBadge tone="in-progress" size="comfortable">In Progress</SlipListingStatusBadge>
                         )}
                         {row.status === "On Hold" && (
-                          <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200 font-medium px-2 py-1 text-xs">On Hold</Badge>
+                          <SlipListingStatusBadge tone="on-hold" size="comfortable">On Hold</SlipListingStatusBadge>
                         )}
-                        {row.status === "Cancelled" && (
-                          <Badge className="bg-gray-100 text-gray-600 border border-gray-200 font-medium px-2 py-1 text-xs">Cancelled</Badge>
+                        {isSlipCaseCancelled(row.status) && (
+                          <SlipListingStatusBadge tone="cancelled" size="comfortable">Cancelled</SlipListingStatusBadge>
+                        )}
+                        {isSlipCaseFinished(row.status) && (
+                          <SlipListingStatusBadge tone="finished" size="comfortable">Finished</SlipListingStatusBadge>
                         )}
                       </div>
                     </td>}
                   {visibleColumns.location &&
-                    <td className="px-4 py-3">
-                      {row.location && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleLocationIconClick(row)
-                          }}
-                          className={`inline-flex items-center gap-2 hover:bg-gray-100 p-1 rounded transition-colors ${
-                            (row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
-                            (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup")))
-                              ? "text-green-700" 
-                              : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
-                                (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery")))
-                              ? "text-red-600"
-                              : "text-blue-600"
-                          }`}
-                          title="View driver history"
-                        >
-                          {(row.location && (row.location.toLowerCase().includes("pick up") || row.location.toLowerCase().includes("pickup"))) ||
-                           (row.status && (row.status.toLowerCase().includes("pick up") || row.status.toLowerCase().includes("pickup"))) ? (
-                            <svg width="22" height="32" viewBox="0 0 22 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                            <g clipPath="url(#clip0_4629_86001)">
-                              <path d="M8.30094 7.06323H2.50094C1.51235 7.06323 0.710938 7.86464 0.710938 8.85323V15.8032C0.710938 16.7918 1.51235 17.5932 2.50094 17.5932H8.30094C9.28953 17.5932 10.0909 16.7918 10.0909 15.8032V8.85323C10.0909 7.86464 9.28953 7.06323 8.30094 7.06323Z" stroke="#119933" strokeMiterlimit="10" />
-                              <path d="M5.40164 18.1333L1.68164 22.5233H9.13164L5.40164 18.1333Z" stroke="#119933" strokeMiterlimit="10" />
-                              <path d="M5.40039 22.5232V31.3832" stroke="#119933" strokeMiterlimit="10" />
-                              <path d="M17.7718 6.65321C19.2519 6.65321 20.4518 5.45334 20.4518 3.97321C20.4518 2.49309 19.2519 1.29321 17.7718 1.29321C16.2917 1.29321 15.0918 2.49309 15.0918 3.97321C15.0918 5.45334 16.2917 6.65321 17.7718 6.65321Z" stroke="#119933" strokeMiterlimit="10" />
-                              <path d="M12.0504 14.7832L17.2004 8.82324H18.6804C19.0704 8.82324 19.4304 9.01324 19.6904 9.34324L20.3904 10.2432C20.6604 10.5932 20.8104 11.0232 20.8104 11.4632V18.9032L15.3504 24.9932V28.7332C15.3504 29.5032 15.1404 30.2732 14.6904 30.8632C14.6104 30.9632 14.5404 31.0432 14.4804 31.0832C14.2004 31.2632 13.4904 31.2232 13.1904 31.0832C13.1304 31.0532 13.0504 30.9932 12.9604 30.9132C12.4604 30.4332 12.2004 29.7132 12.2004 28.9732V25.2132L17.0504 19.1232L16.8604 14.1832L13.8704 17.7532H5.40039" stroke="#119933" strokeMiterlimit="10" />
-                              <path d="M21.2214 21.1633V28.3733C21.2214 29.1433 21.0514 29.9133 20.6914 30.5033C20.6314 30.6033 20.5714 30.6833 20.5214 30.7233C20.3014 30.9033 19.7214 30.8633 19.4814 30.7233C19.4314 30.6933 19.3714 30.6333 19.3014 30.5533C18.9014 30.0733 18.6914 29.3533 18.6914 28.6133V24.8533" stroke="#119933" strokeMiterlimit="10" />
-                            </g>
-                            <defs>
-                              <clipPath id="clip0_4629_86001">
-                                <rect width="21.51" height="30.91" fill="white" transform="translate(0.210938 0.793213)" />
-                              </clipPath>
-                            </defs>
-                          </svg>
-                          ) : (row.location && (row.location.toLowerCase().includes("route") || row.location.toLowerCase().includes("delivery"))) ||
-                                (row.status && (row.status.toLowerCase().includes("route") || row.status.toLowerCase().includes("delivery"))) ? (
-                            <svg width="23" height="32" viewBox="0 0 23 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                            <path d="M8.84977 18.0735H3.04977C2.06118 18.0735 1.25977 18.8749 1.25977 19.8635V26.8135C1.25977 27.8021 2.06118 28.6035 3.04977 28.6035H8.84977C9.83836 28.6035 10.6398 27.8021 10.6398 26.8135V19.8635C10.6398 18.8749 9.83836 18.0735 8.84977 18.0735Z" stroke="#CF0202" strokeMiterlimit="10" />
-                            <path d="M5.95383 17.3179L9.67383 12.9279L2.22383 12.9279L5.95383 17.3179Z" stroke="#CF0202" strokeMiterlimit="10" />
-                            <path d="M5.95312 12.928L5.95312 4.06798" stroke="#CF0202" strokeMiterlimit="10" />
-                            <path d="M18.3206 6.74794C19.8007 6.74794 21.0006 5.54806 21.0006 4.06794C21.0006 2.58782 19.8007 1.38794 18.3206 1.38794C16.8405 1.38794 15.6406 2.58782 15.6406 4.06794C15.6406 5.54806 16.8405 6.74794 18.3206 6.74794Z" stroke="#CF0202" strokeMiterlimit="10" />
-                            <path d="M12.5992 14.878L17.7492 8.91797H19.2292C19.6192 8.91797 19.9792 9.10797 20.2392 9.43797L20.9392 10.338C21.2092 10.688 21.3592 11.118 21.3592 11.558V18.998L15.8992 25.088V28.828C15.8992 29.598 15.6892 30.368 15.2392 30.958C15.1592 31.058 15.0892 31.138 15.0292 31.178C14.7492 31.358 14.0392 31.318 13.7392 31.178C13.6792 31.148 13.5992 31.088 13.5092 31.008C13.0092 30.528 12.7492 29.808 12.7492 29.068V25.308L17.5992 19.218L17.4092 14.278L14.4192 17.848H5.94922" stroke="#CF0202" strokeMiterlimit="10" />
-                            <path d="M21.7702 21.2581V28.4681C21.7702 29.2381 21.6002 30.0081 21.2402 30.5981C21.1802 30.6981 21.1202 30.7781 21.0702 30.8181C20.8502 30.9981 20.2702 30.9581 20.0302 30.8181C19.9802 30.7881 19.9202 30.7281 19.8502 30.6481C19.4502 30.1681 19.2402 29.4481 19.2402 28.7081V24.9481" stroke="#CF0202" strokeMiterlimit="10" />
-                          </svg>
-                          ) : (
-                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                              <path d="M10 1.66669C5.875 1.66669 2.5 5.04169 2.5 9.16669C2.5 13.2917 5.875 16.6667 10 16.6667C14.125 16.6667 17.5 13.2917 17.5 9.16669C17.5 5.04169 14.125 1.66669 10 1.66669ZM10 12.5C8.625 12.5 7.5 11.375 7.5 10C7.5 8.625 8.625 7.5 10 7.5C11.375 7.5 12.5 8.625 12.5 10C12.5 11.375 11.375 12.5 10 12.5Z" fill="#1162A8"/>
-                            </svg>
-                          )}
-
-                          <span className="text-sm">{row.location}</span>
-                        </button>
-                      )}
+                    <td className="px-4 py-1.5 text-sm text-gray-700">
+                      {row.location}
                     </td>}
                   {visibleColumns.attachment &&
-                    <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleAttachmentClick(row)
-                        }}
-                        className="hover:bg-gray-100 p-1 rounded transition-colors"
-                        title={row.attachment ? "View attachments" : "Add attachments"}
-                      >
-                      {row.attachment
-                        ? <Paperclip className="h-4 w-4 text-blue-600 inline-block" />
-                        : <Paperclip className="h-4 w-4 text-gray-300 inline-block" />}
-                      </button>
+                    <td className="px-4 py-1.5 text-center align-middle">
+                      <div className="flex h-[30px] items-center justify-center">
+                        {row.attachment ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleAttachmentClick(row)
+                            }}
+                            className={slipListingIconButtonClass(
+                              "h-[30px] w-[30px] items-center justify-center p-0"
+                            )}
+                            title="View attachments"
+                          >
+                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>}
+                  {visibleColumns.viewSlip &&
+                    <td className="px-4 py-1.5 text-center align-middle">
+                      <div className="flex h-[30px] items-center justify-center">
+                        <SlipListingViewSlipLink slipId={row.id} />
+                      </div>
                     </td>}
                   {visibleColumns.due &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDateIconClick(row)
-                          }}
-                          className="hover:bg-gray-100 p-1 rounded transition-colors"
-                          title="Change due date"
-                        >
-                          <svg width="19" height="19" viewBox="0 0 19 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="cursor-pointer">
-                          <path d="M5.12109 2.55518V4.24268M12.9961 2.55518V4.24268M2.30859 14.3677V5.93018C2.30859 5.48262 2.48638 5.0534 2.80285 4.73693C3.11932 4.42047 3.54854 4.24268 3.99609 4.24268H14.1211C14.5686 4.24268 14.9979 4.42047 15.3143 4.73693C15.6308 5.0534 15.8086 5.48262 15.8086 5.93018V14.3677M2.30859 14.3677C2.30859 14.8152 2.48638 15.2445 2.80285 15.5609C3.11932 15.8774 3.54854 16.0552 3.99609 16.0552H14.1211C14.5686 16.0552 14.9979 15.8774 15.3143 15.5609C15.6308 15.2445 15.8086 14.8152 15.8086 14.3677M2.30859 14.3677V8.74268C2.30859 8.29512 2.48638 7.8659 2.80285 7.54943C3.11932 7.23297 3.54854 7.05518 3.99609 7.05518H14.1211C14.5686 7.05518 14.9979 7.23297 15.3143 7.54943C15.6308 7.8659 15.8086 8.29512 15.8086 8.74268V14.3677M9.05859 9.86768H9.06459V9.87368H9.05859V9.86768ZM9.05859 11.5552H9.06459V11.5612H9.05859V11.5552ZM9.05859 13.2427H9.06459V13.2487H9.05859V13.2427ZM7.37109 11.5552H7.37709V11.5612H7.37109V11.5552ZM7.37109 13.2427H7.37709V13.2487H7.37109V13.2427ZM5.68359 11.5552H5.68959V11.5612H5.68359V11.5552ZM5.68359 13.2427H5.68959V13.2487H5.68359V13.2427ZM10.7461 9.86768H10.7521V9.87368H10.7461V9.86768ZM10.7461 11.5552H10.7521V11.5612H10.7461V11.5552ZM10.7461 13.2427H10.7521V13.2487H10.7461V13.2427ZM12.4336 9.86768H12.4396V9.87368H12.4336V9.86768ZM12.4336 11.5552H12.4396V11.5612H12.4336V11.5552Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        </button>
-
-                        <span className="text-gray-900">{row.dueDate}</span>
+                        <SlipListingDueDateLabel dueDate={row.dueDate} />
                         {row.rush && <span className="text-red-500">
                           <svg width="12" height="14" viewBox="0 0 16 19" fill="none">
                             <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 8.41504L8.71094 8.41504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         </span>}
-                        {row.overdue && <Badge className="bg-red-100 text-red-700 text-xs px-2 py-1">Overdue</Badge>}
+                        {row.overdue && <SlipListingStatusBadge tone="overdue" size="comfortable">Overdue</SlipListingStatusBadge>}
                       </div>
                     </td>}
                   {visibleColumns.actions &&
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <Popover open={menuRow === row.id} onOpenChange={open => setMenuRow(open ? row.id : null)}>
                         <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100">
-                            <MoreVertical className="h-4 w-4 text-gray-500" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(
+                              slipListingIconButtonClass("h-[30px] w-[30px] p-0"),
+                              "hover:bg-gray-100"
+                            )}
+                          >
+                            <MoreVertical
+                              className={cn(
+                                SLIP_LISTING_ICON_SIZE_CLASS,
+                                "text-gray-500",
+                                SLIP_LISTING_ICON_HOVER_CLASS
+                              )}
+                            />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
                           <div className="py-1 divide-y divide-gray-100">
-                            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
+                            <Link
+                              href={buildVirtualSlipV2Path(row.id)}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
+                              onClick={() => setMenuRow(null)}
+                            >
                               <Eye className="h-4 w-4" />View Case
-                            </button>
+                            </Link>
                             <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
                               <Copy className="h-4 w-4" />Duplicate
                             </button>
@@ -922,17 +889,17 @@ export default function SlipPage() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mt-4">
+      <div className="flex items-center justify-between mt-2">
         <div className="text-sm text-gray-600">
-          Showing {(currentPage - 1) * (pagination?.per_page || 20) + 1}
+          Showing {(currentPage - 1) * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE) + 1}
           -
-          {Math.min(currentPage * (pagination?.per_page || 20), pagination?.total || 0)}
+          {Math.min(currentPage * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE), pagination?.total || 0)}
           {" "}of {pagination?.total || 0} entries
         </div>
         <div className="flex gap-2 items-center">
           <span className="text-sm text-gray-600 mr-2">Show</span>
           <Select value={String(itemsPerPage)} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-            <SelectTrigger className="w-20 bg-white border-gray-300">
+            <SelectTrigger className="h-8 w-20 bg-white border-gray-300">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -982,13 +949,12 @@ export default function SlipPage() {
             {Object.entries(visibleColumns).map(([key, val]) => {
               const labels = {
                 timestamp: "Time Stamp",
-                office: "Office Code",
                 patient: "Patient",
-                pan: "Pan",
                 product: "Product",
                 status: "Status",
                 location: "Location",
                 attachment: "Attachment",
+                viewSlip: "View Slip",
                 due: "Due Date",
                 actions: "Actions"
               }
@@ -1035,59 +1001,43 @@ export default function SlipPage() {
       </Dialog>
 
       {/* File Attachment Modal */}
-      <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent className="max-w-[1000px] w-[95vw] max-h-[min(750px,85vh)] p-0 overflow-hidden">
-          {selectedSlipForAttachment && (
-            <FileAttachmentModalContent
-              setShowAttachModal={setShowAttachModal}
-              isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
-              slipId={selectedSlipForAttachment.id}
-              doctorName={selectedSlipForAttachment.doctorName}
-              patientName={selectedSlipForAttachment.patientName}
-              onAttachmentsUploaded={handleAttachmentsUploaded}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Change Date Modal */}
-      {selectedSlipForDateChange && (
-        <ChangeDateModal
-          open={showChangeDateModal}
-          onClose={() => {
-            setShowChangeDateModal(false)
-            setSelectedSlipForDateChange(null)
-          }}
-          patient={selectedSlipForDateChange.patient}
-          stage={selectedSlipForDateChange.product || "Unknown Stage"}
-          currentDate={new Date().toLocaleDateString()}
-          deliveryDate={selectedSlipForDateChange.dueDate}
-          deliveryTime="10:00"
-          slipId={selectedSlipForDateChange.id}
-          history={getChangeDateHistory(selectedSlipForDateChange.id)}
-          onSave={() => {}}
-        />
+      {showAttachModal && selectedSlipForAttachment && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-white"
+          style={{ width: "100vw", height: "100vh" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="File Attachments"
+        >
+          <FileAttachmentModalContent
+            setShowAttachModal={setShowAttachModal}
+            isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
+            slipId={selectedSlipForAttachment.id}
+            doctorName={selectedSlipForAttachment.doctorName}
+            patientName={selectedSlipForAttachment.patientName}
+            onAttachmentsUploaded={handleAttachmentsUploaded}
+          />
+        </div>,
+        document.body
       )}
-
-      {/* Driver History Modal */}
-      <DriverHistoryModal
-        isOpen={showDriverHistoryModal}
-        onClose={() => setShowDriverHistoryModal(false)}
-        slip={selectedSlipForDriverHistory}
-      />
 
       {/* Add Ons Modal */}
       <AddOnsModal
         isOpen={showAddOnsModal}
-        onClose={() => setShowAddOnsModal(false)}
+        onClose={() => {
+          setShowAddOnsModal(false)
+          setAddonInputs(null)
+        }}
         onAddAddOns={() => {}}
         labId={0}
         productId=""
         arch="maxillary"
+        products={addonInputs?.addonProducts ?? []}
+        archSlots={addonInputs?.addonArchSlots ?? []}
         slipId={selectedSlipForAddOns?.id}
         onSlipAddonsSaved={() => {
-          const customerId = localStorage.getItem("customerId")
-          if (customerId) void fetchOfficeSlips(Number(customerId), currentPage, itemsPerPage)
+          const customerId = resolveListingCustomerId()
+          if (customerId) void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
         }}
       />
 
@@ -1135,22 +1085,6 @@ export default function SlipPage() {
         }
       />
 
-      {/* Print Driver Tags Modal */}
-      <PrintDriverTagsModal
-        isOpen={showPrintDriverTags}
-        slip={selectedSlipForDriverTags}
-        onClose={() => setShowPrintDriverTags(false)}
-        onRegularPrint={async (slip, allSlots) => {
-          if (slip) {
-            // Handle regular print
-          }
-        }}
-        onGenerateLabels={async (slip, selectedSlots) => {
-          if (slip) {
-            // Handle generate labels
-          }
-        }}
-      />
     </div>
   )
 }

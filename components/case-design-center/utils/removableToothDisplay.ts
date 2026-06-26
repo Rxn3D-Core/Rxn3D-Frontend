@@ -157,6 +157,30 @@ export function getRemovableOrangeHeaderTeeth({
 }
 
 /** All teeth that belong on this product card for extraction / tooth_chart payload. */
+/**
+ * Teeth in scope for removable `ToothStatusBoxes` (matches virtual-slip / slip submit).
+ * Includes product `teeth_selection`, clasps, and any arch tooth with a status code.
+ */
+export function resolveRemovableStatusBoxSelectedTeeth({
+  cardTeeth,
+  toothExtractionMap,
+  claspTeeth,
+  archTeeth,
+  useAllArchTeeth = false,
+}: {
+  cardTeeth: number[];
+  toothExtractionMap: Record<number, string>;
+  claspTeeth: number[];
+  archTeeth: number[];
+  /** Full-denture / arch-shared removable: every arch tooth may carry a status. */
+  useAllArchTeeth?: boolean;
+}): number[] {
+  if (useAllArchTeeth) {
+    return getSortedUniqueTeeth(archTeeth);
+  }
+  return buildExtractionScopeTeeth(cardTeeth, toothExtractionMap, claspTeeth, archTeeth);
+}
+
 export function buildExtractionScopeTeeth(
   cardTeeth: number[],
   toothExtractionMap: Record<number, string>,

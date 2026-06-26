@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Paperclip, Zap, Trash2, Calendar, Check, ClipboardList, Clipboard, GitFork, X, Maximize2, ChevronDown, FileText, Pencil, Save, Settings } from "lucide-react"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { createPortal } from "react-dom"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import Image from "next/image"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
@@ -3641,33 +3641,38 @@ export default function CSDSection({
                         </Button>
 
                         {/* Attach Files button */}
-                        <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" className="bg-white h-10 px-4 text-sm font-medium border-gray-300 hover:bg-gray-50" disabled={isCaseSubmitted}>
-                              <Paperclip className="w-4 h-4 mr-2" />
-                              Attach Files ({(() => {
-                                let count = 0
-                                if (typeof window !== "undefined") {
-                                  try {
-                                    const cacheStr = window.localStorage.getItem("caseDesignCache")
-                                    if (cacheStr) {
-                                      const cache = JSON.parse(cacheStr)
-                                      if (Array.isArray(cache.attachments)) count = cache.attachments.length
-                                    }
-                                  } catch {}
+                        <Button variant="outline" className="bg-white h-10 px-4 text-sm font-medium border-gray-300 hover:bg-gray-50" disabled={isCaseSubmitted} onClick={() => setShowAttachModal(true)}>
+                          <Paperclip className="w-4 h-4 mr-2" />
+                          Attach Files ({(() => {
+                            let count = 0
+                            if (typeof window !== "undefined") {
+                              try {
+                                const cacheStr = window.localStorage.getItem("caseDesignCache")
+                                if (cacheStr) {
+                                  const cache = JSON.parse(cacheStr)
+                                  if (Array.isArray(cache.attachments)) count = cache.attachments.length
                                 }
-                                return count
-                              })()} uploads)
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-[1000px] w-[95vw] max-h-[min(750px,85vh)] p-0">
+                              } catch {}
+                            }
+                            return count
+                          })()} uploads)
+                        </Button>
+                        {showAttachModal && typeof document !== "undefined" && createPortal(
+                          <div
+                            className="fixed inset-0 z-[9999] bg-white"
+                            style={{ width: "100vw", height: "100vh" }}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="File Attachments"
+                          >
                             <FileAttachmentModalContent
                               setShowAttachModal={setShowAttachModal}
                               isCaseSubmitted={isCaseSubmitted}
                               slipId={slipId ? Number(slipId) : undefined}
                             />
-                          </DialogContent>
-                        </Dialog>
+                          </div>,
+                          document.body
+                        )}
 
                         {/* Request Rush button */}
                         {rushRequests[product.id] ? (

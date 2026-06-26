@@ -12,24 +12,34 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
+import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
+import { getActiveCustomerId } from "@/lib/customer-scope"
 import { Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // Form schema based on the API examples
-const createUserSchema = z.object({
-  first_name: z.string().min(1, "First name is required"),
-  last_name: z.string().min(1, "Last name is required"),
-  email: z.string().email("Please enter a valid email address"),
-  phone: z.string().min(1, "Phone number is required"),
-  work_number: z.string().optional(),
-  role: z.string().min(1, "Please select a role"),
-  is_doctor: z.boolean().default(false),
-  status: z.string().default("Pending"),
-  department_ids: z.array(z.number()).optional(),
-  license_number: z.string().optional(),
-  signature: z.any().optional(),
-  avatar: z.any().optional(),
-})
+const createUserSchema = z
+  .object({
+    first_name: z.string().min(1, "First name is required"),
+    last_name: z.string().min(1, "Last name is required"),
+    email: z.string().email("Please enter a valid email address"),
+    phone: z.string().min(1, "Phone number is required"),
+    work_number: z.string().optional(),
+    role: z.string().min(1, "Please select a role"),
+    is_doctor: z.boolean().default(false),
+    status: z.string().default("Pending"),
+    department_ids: z.array(z.number()).optional(),
+    license_number: z.string().optional(),
+    signature: z.any().optional(),
+    avatar: z.any().optional(),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    password_confirmation: z.string().min(1, "Confirm password is required"),
+  })
+  .refine((data) => data.password === data.password_confirmation, {
+    message: "Passwords do not match",
+    path: ["password_confirmation"],
+  })
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>
 
@@ -61,9 +71,12 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
 
   // Get auth context
   const authContext = useAuth()
+  const canManagePermissions = authContext.hasAnyPermission?.(["manage_users", "edit_user"]) ?? false
+  const activeCustomerId = getActiveCustomerId()
 
   // Check if auth context is properly initialized
   if (!authContext?.createUser) {
@@ -98,6 +111,8 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       license_number: "",
       signature: null,
       avatar: null,
+      password: "",
+      password_confirmation: "",
     },
     mode: "onChange",
   })
@@ -105,6 +120,13 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   // Watch for changes to trigger validation
   const licenseNumber = form.watch("license_number")
   const isDoctor = form.watch("is_doctor")
+  const selectedRole = form.watch("role")
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedPermissions([])
+    }
+  }, [isOpen, selectedRole])
   const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
   const isLabCustomer = customerType === "lab"
 
@@ -138,8 +160,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
     }
   }, [licenseNumber, signatureFile, isDoctor, form])
 
-  const selectedRole = form.watch("role")
-  
   // Helper function to determine validation state
   const getValidationState = (fieldName: keyof CreateUserFormValues, isRequired: boolean = false): "default" | "valid" | "warning" | "error" => {
     const value = form.watch(fieldName)
@@ -384,19 +404,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
         return
       }
     }
-    if (isLabCustomer && selectedDepartments.length === 0) {
-      form.setError("department_ids", {
-        type: "manual",
-        message: "At least one department is required for lab users",
-      })
-      toast({
-        title: "Validation Error",
-        description: "Please select at least one department for lab users.",
-        variant: "destructive",
-      })
-      return
-    }
-
     setIsSubmitting(true)
     try {
       const customerId = localStorage.getItem("customerId")
@@ -414,6 +421,8 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       formData.append('role', data.role)
       formData.append('is_doctor', data.is_doctor ? "1" : "0")
       formData.append('status', "Pending")
+      formData.append('password', data.password)
+      formData.append('password_confirmation', data.password_confirmation)
       
       // Add department_ids only for lab customers
       if (isLabCustomer && selectedDepartments.length > 0) {
@@ -437,7 +446,16 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
         formData.append('avatar', avatarFile)
       }
 
-      await authContext.createUser(formData)
+      const createResult = await authContext.createUser(formData)
+      const newUserId =
+        createResult?.data?.id ??
+        createResult?.data?.user?.id ??
+        createResult?.user?.id ??
+        createResult?.id
+
+      if (canManagePermissions && newUserId) {
+        await persistUserDirectPermissions(Number(newUserId), selectedPermissions, activeCustomerId)
+      }
 
       toast({
         title: "Success",
@@ -647,6 +665,56 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
               </div>
             </div>
 
+            {/* Account Security */}
+            <div className="space-y-3 pb-3 border-b border-gray-100">
+              <h3 className="text-xs font-semibold text-gray-900">Account Security</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          label="Password *"
+                          placeholder="Enter password"
+                          revealToggle
+                          validationState={getValidationState("password", true)}
+                          errorMessage={form.formState.errors.password?.message as string}
+                          className="h-12"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="password_confirmation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          label="Confirm Password *"
+                          placeholder="Re-enter password"
+                          revealToggle
+                          validationState={getValidationState("password_confirmation", true)}
+                          errorMessage={form.formState.errors.password_confirmation?.message as string}
+                          className="h-12"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
             {/* Role & Permissions Section */}
             <div className="space-y-3 pb-3 border-b border-gray-100">
               <h3 className="text-xs font-semibold text-gray-900">Role & Permissions</h3>
@@ -704,11 +772,11 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
 
             {isLabCustomer && (
               <div className="space-y-3 pb-3 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-900">Departments *</h3>
+                <h3 className="text-xs font-semibold text-gray-900">Departments</h3>
                 {isLoadingDepartments ? (
                   <div className="text-xs text-gray-500">Loading departments...</div>
                 ) : departments.length === 0 ? (
-                  <div className="text-xs text-red-500">No departments found for this lab customer.</div>
+                  <div className="text-xs text-gray-500">No departments available for this lab customer.</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {departments.map((department) => (
@@ -821,6 +889,19 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                     )}
                   />
                 </div>
+              </div>
+            )}
+
+            {canManagePermissions && selectedRole && (
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-semibold">Permissions</h4>
+                <PermissionAssignmentPanel
+                  key={`${selectedRole}-${activeCustomerId ?? "none"}`}
+                  customerId={activeCustomerId ?? undefined}
+                  role={selectedRole}
+                  selected={selectedPermissions}
+                  onChange={setSelectedPermissions}
+                />
               </div>
             )}
             </div>

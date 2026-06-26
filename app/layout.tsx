@@ -11,11 +11,25 @@ import ReactQueryProvider from '@/components/ReactQueryProvider'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
-import { Inter } from "next/font/google"
+import { Inter, Island_Moments, WindSong } from "next/font/google"
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+})
+
+const islandMoments = Island_Moments({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-island-moments",
+  display: "swap",
+})
+
+const windSong = WindSong({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-windsong",
   display: "swap",
 })
 
@@ -49,7 +63,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={inter.variable}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${islandMoments.variable} ${windSong.variable}`}>
       <body className="min-h-[100dvh] bg-background font-sans antialiased" suppressHydrationWarning>
         <ReactQueryProvider>
           <RouteAwareProviders>

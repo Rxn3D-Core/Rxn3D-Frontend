@@ -488,6 +488,7 @@ export function AddLabProductModal({
     enable_auto_billing: "Yes",
     auto_billing_days: 31,
     is_single_stage: "No",
+    is_splinted: "No",
     link_all_addons: "No",
     apply_retention_mechanism: "Yes",
     has_implant: "No",
@@ -559,8 +560,6 @@ export function AddLabProductModal({
   const watchedAddonsSlip = useWatch({ control, name: "addons" }) || []
   const watchedRetentionsSlip = useWatch({ control, name: "retentions" }) || []
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
-  // Track whether any grade is set as default (used for Next button validation)
-  const hasDefaultGrade = watchedGrades.some((g: any) => g.is_default === "Yes")
   // Serialized key for stages to ensure useMemo recomputes when price/days change
   const stagesValidationKey = watchedStages.map((s: any) => `${s.stage_id}:${s.economy_price || s.standard_price || 0}:${s.days || 0}`).join(",")
 
@@ -730,9 +729,9 @@ export function AddLabProductModal({
       return areStagesPriced
     }
     
-    // For grades tab: if grades section is on, require at least one grade selected with a default set
+    // For grades tab: if grades section is on, require at least one grade selected
     if (activeTab === "grades" && sections.grades) {
-      if (watchedGrades.length === 0 || !hasDefaultGrade) return false
+      if (watchedGrades.length === 0) return false
     }
 
     if (activeTab === "impressions" && sections.impressions) {
@@ -840,7 +839,6 @@ export function AddLabProductModal({
     watchedMaxDays,
     hasCurrentStepErrors,
     areStagesPriced,
-    hasDefaultGrade,
     watchedGrades.length,
     sections.grades,
     sections.impressions,
@@ -875,21 +873,12 @@ export function AddLabProductModal({
       }
     }
 
-    // Validate grades tab: if grades section is on, require at least one grade with a default set
+    // Validate grades tab: if grades section is on, require at least one grade selected
     if (activeTab === "grades" && sections.grades) {
       if (watchedGrades.length === 0) {
         toast({
           title: "Validation Error",
           description: "Please select at least one grade before proceeding.",
-          variant: "destructive",
-        })
-        return
-      }
-      const hasDefault = watchedGrades.some((g) => g.is_default === "Yes")
-      if (!hasDefault) {
-        toast({
-          title: "Validation Error",
-          description: "Please set a default grade before proceeding.",
           variant: "destructive",
         })
         return
@@ -1440,7 +1429,7 @@ export function AddLabProductModal({
           grade_id: g.grade_id ?? g.id,
           sequence: g.sequence ?? idx + 1,
           status: g.status || (g.is_default === "Yes" ? "Active" : "Inactive"),
-          is_default: g.is_default === "Yes" ? "Yes" : (idx === 0 ? "Yes" : "No"),
+          is_default: g.is_default === "Yes" ? "Yes" : "No",
           price: g.price ?? "",
         }))
       }
@@ -1571,6 +1560,7 @@ export function AddLabProductModal({
         enable_auto_billing: editingProduct.enable_auto_billing || "Yes",
         auto_billing_days: editingProduct.auto_billing_days || 31,
         is_single_stage: editingProduct.is_single_stage || "No",
+        is_splinted: editingProduct.is_splinted || "No",
         link_all_addons: editingProduct.link_all_addons || "No",
         apply_retention_mechanism: editingProduct.apply_retention_mechanism || "No",
         retention_type: editingProduct.retention_type,
@@ -2412,7 +2402,7 @@ export function AddLabProductModal({
   // Map tab IDs to their corresponding form fields
   const getSectionFields = (tabId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
+      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "is_splinted", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
       variation: ["enable_tooth_count_variation", "tooth_count_variations"],
       grades: ["grades", "has_grade_based_pricing", "default_grade_id"],
       stages: ["stages"],

@@ -63,12 +63,22 @@ export interface BillingConfigPlan {
   badge_label?: string
   display_order?: number
   preview_bg_color?: string
+  active_labs_count?: number
   feature_limits?: BillingConfigPlanPayload["feature_limits"]
   pricing?: BillingConfigPlanPayload["pricing"]
   trial?: BillingConfigPlanPayload["trial"]
   overage_policy?: BillingConfigPlanPayload["overage_policy"]
   module_ids?: number[]
   enforcement?: BillingConfigPlanPayload["enforcement"]
+}
+
+export interface PlanSubscriber {
+  id: number
+  name: string
+  email: string
+  status: string
+  subscription_status: string
+  current_period_end: string | null
 }
 
 export async function listBillingConfigPlans(): Promise<BillingConfigPlan[]> {
@@ -88,5 +98,10 @@ export async function updateBillingConfigPlan(id: number, payload: BillingConfig
 
 export async function deleteBillingConfigPlan(id: number): Promise<void> {
   await apiClient.delete(`/billing-config/plans/${id}`)
+}
+
+export async function listPlanSubscribers(planId: number): Promise<PlanSubscriber[]> {
+  const response = await apiClient.get<PlanSubscriber[]>(`/billing-config/plans/${planId}/subscribers`)
+  return Array.isArray(response.data) ? response.data : []
 }
 

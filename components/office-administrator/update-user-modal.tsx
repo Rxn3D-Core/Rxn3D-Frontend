@@ -12,6 +12,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
+import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
+import { getActiveCustomerId } from "@/lib/customer-scope"
+import { normalizeRoleSlug } from "@/lib/role-utils"
+import { USER_STATUSES, normalizeUserStatus, type UserStatus } from "@/lib/user-status"
 
 // Form schema based on the API examples
 const updateUserSchema = z.object({
@@ -32,7 +37,7 @@ interface StaffUser {
   phone: string
   userType: string
   joinDate: string
-  status: "Active" | "Inactive" | "Suspended" | "Archived"
+  status: UserStatus
   avatar?: string
   avatarColor?: string
   role?: string
@@ -46,13 +51,10 @@ interface UpdateUserModalProps {
   user: StaffUser | null
 }
 
-// Mock data - in a real app, these would come from API calls
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "suspended", label: "Suspended" },
-  { value: "archived", label: "Archived" },
-]
+const statusOptions = USER_STATUSES.map((status) => ({
+  value: status,
+  label: status,
+}))
 
 interface Department {
   id: number
@@ -65,11 +67,14 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
   const isLabCustomer = customerType === "lab"
+  const activeCustomerId = getActiveCustomerId()
 
   // Get auth context
   const authContext = useAuth()
+  const canManagePermissions = authContext.hasAnyPermission?.(["manage_users", "edit_user"]) ?? false
 
   // Check if auth context is properly initialized
   if (!authContext?.updateUserDetails) {
@@ -96,7 +101,7 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
       last_name: "",
       phone: "",
       work_number: "",
-      status: "active",
+      status: "Active",
       department_ids: [],
     },
   })
@@ -112,11 +117,12 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
         last_name: lastName || "",
         phone: user.phone || "",
         work_number: user.phone || "", // Default to phone if work_number not available
-        status: user.status.toLowerCase() as "active" | "inactive" | "suspended" | "archived",
+        status: normalizeUserStatus(user.status),
         department_ids: [],
       })
       
       setSelectedDepartments([])
+      setSelectedPermissions([])
       
       if (isLabCustomer) {
         fetchDepartments()
@@ -171,14 +177,6 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
 
   const onSubmit = async (data: UpdateUserFormValues) => {
     if (!user) return
-    if (isLabCustomer && selectedDepartments.length === 0) {
-      form.setError("department_ids", {
-        type: "manual",
-        message: "Please select at least one department for lab users",
-      })
-      return
-    }
-
     setIsSubmitting(true)
     try {
       const payload = {
@@ -186,11 +184,15 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
         last_name: data.last_name,
         phone: data.phone,
         work_number: data.work_number || data.phone,
-        status: statusOptions.find((option) => option.value === data.status)?.label || data.status,
+        status: normalizeUserStatus(data.status),
         ...(isLabCustomer ? { department_ids: selectedDepartments } : {}),
       }
 
       await authContext.updateUserDetails(user.id, payload)
+
+      if (canManagePermissions) {
+        await persistUserDirectPermissions(user.id, selectedPermissions, activeCustomerId)
+      }
 
       toast({
         title: "Success",
@@ -309,7 +311,7 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
 
             {isLabCustomer && (
               <div className="space-y-3">
-                <FormLabel>Departments *</FormLabel>
+                <FormLabel>Departments</FormLabel>
                 {isLoadingDepartments ? (
                   <div className="flex items-center justify-center p-4">
                     <div className="text-sm text-gray-500">Loading departments...</div>
@@ -338,6 +340,20 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
                     {form.formState.errors.department_ids.message}
                   </p>
                 )}
+              </div>
+            )}
+
+            {canManagePermissions && (
+              <div className="space-y-3 border-t pt-4">
+                <h4 className="text-sm font-semibold">Permissions</h4>
+                <PermissionAssignmentPanel
+                  key={`${user.id}-${activeCustomerId ?? "none"}`}
+                  userId={user.id}
+                  customerId={activeCustomerId ?? undefined}
+                  role={normalizeRoleSlug(user.role ?? user.userType)}
+                  selected={selectedPermissions}
+                  onChange={setSelectedPermissions}
+                />
               </div>
             )}
 

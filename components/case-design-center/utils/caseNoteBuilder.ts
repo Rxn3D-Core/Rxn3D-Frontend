@@ -101,10 +101,6 @@ export function formatTeethNumbers(teeth: number[]): string {
 
 export function getProductNoteWorkflow(product: ProductApiData | null): ProductNoteWorkflow {
   if (!product || hasRetentionOptions(product)) return "fixed";
-  const category = getCategoryName(product).toLowerCase();
-  if (category.includes("orthodontic") || /\bortho\b/.test(category)) {
-    return "orthodontic";
-  }
   return "removable";
 }
 
@@ -528,9 +524,7 @@ export function buildOrthodonticProductNote(ctx: ProductNoteContext): string {
 }
 
 export function buildProductNoteFromContext(ctx: ProductNoteContext): string {
-  const workflow = getProductNoteWorkflow(ctx.product);
-  if (workflow === "fixed") return buildFixedProductNote(ctx);
-  if (workflow === "orthodontic") return buildOrthodonticProductNote(ctx);
+  if (getProductNoteWorkflow(ctx.product) === "fixed") return buildFixedProductNote(ctx);
   return buildRemovableProductNote(ctx);
 }
 
@@ -695,18 +689,7 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       const allCardTeeth = allCardToTeeth.get(card) || [repTooth];
 
       const workflow = getProductNoteWorkflow(product);
-      if (workflow === "orthodontic") {
-        groups.push({
-          arch,
-          category: "Orthodontic",
-          cardId: card,
-          productName: product?.name || "Orthodontic",
-          teeth: cardTeeth,
-          note: buildOrthodonticProductNote(
-            contextFromProps(arch, cardTeeth, allCardTeeth, product, repTooth, props),
-          ),
-        });
-      } else if (workflow === "removable" && isNonRetentionCategory(product)) {
+      if (workflow === "removable" && isNonRetentionCategory(product)) {
         groups.push({
           arch,
           category: "Removable",

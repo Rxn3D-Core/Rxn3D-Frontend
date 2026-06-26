@@ -2,6 +2,8 @@ import type React from "react"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PermissionRoute } from "@/components/permission-route"
+import { ROUTE_PERMISSIONS } from "@/lib/route-permissions"
 
 export default function LabProfileLayout({
   children,
@@ -10,6 +12,7 @@ export default function LabProfileLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PermissionRoute permissions={[...ROUTE_PERMISSIONS.businessSettings]}>
       <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
         <DashboardSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -19,6 +22,7 @@ export default function LabProfileLayout({
           </div>
         </div>
       </div>
+      </PermissionRoute>
     </ProtectedRoute>
   )
 } 

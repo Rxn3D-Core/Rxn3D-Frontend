@@ -364,20 +364,24 @@ function findAllSlotsForArch(arch: Arch, params: BuildRushArchSlotsParams): Rush
       const repTooth = cardToRepTooth.get(cardId)!;
       const product = params.getToothProduct(arch, repTooth);
       const isFixed = hasRetentionOptions(product);
-      const stageName = resolveSlotStageName(
-        arch,
-        repTooth,
-        isFixed,
-        product,
-        params.selectedStages,
-        params.getFieldValue
-      );
-      const workDaysToDeliver = resolveSlotWorkDays(product, stageName);
+      const teeth = [...(cardToTeeth.get(cardId) ?? [])].sort((a, b) => a - b);
+
+      // Resolve stage: try repTooth first, then fall back to other teeth on the
+      // same card (handles cases where stage was saved under a non-minimum tooth).
+      let resolvedStageName = resolveSlotStageName(arch, repTooth, isFixed, product, params.selectedStages, params.getFieldValue);
+      if (!resolvedStageName) {
+        for (const t of teeth) {
+          if (t === repTooth) continue;
+          const s = resolveSlotStageName(arch, t, isFixed, product, params.selectedStages, params.getFieldValue);
+          if (s) { resolvedStageName = s; break; }
+        }
+      }
+
+      const workDaysToDeliver = resolveSlotWorkDays(product, resolvedStageName);
       const actualDelivery = addLabWorkingDays(
         params.submissionBaseDate ?? new Date(),
         workDaysToDeliver
       );
-      const teeth = [...(cardToTeeth.get(cardId) ?? [])].sort((a, b) => a - b);
 
       return {
         arch,
@@ -390,7 +394,7 @@ function findAllSlotsForArch(arch: Arch, params: BuildRushArchSlotsParams): Rush
         rushKey: buildRushStorageKey(arch, repTooth, isFixed),
         actualDeliveryDate: format(actualDelivery, "yyyy-MM-dd"),
         workDaysToDeliver,
-        stageName,
+        stageName: resolvedStageName,
         toothNumbersLabel: teeth.map((n) => `#${n}`).join(", "),
       };
     });
@@ -408,8 +412,12 @@ export function rushSlotsShareProduct(slots: RushArchSlot[]): boolean {
   const maxillary = slots.filter((s) => s.arch === "maxillary");
   const mandibular = slots.filter((s) => s.arch === "mandibular");
   if (maxillary.length !== 1 || mandibular.length !== 1) return false;
-  return (
+  const sameProduct =
     maxillary[0].apiProductId > 0 &&
-    maxillary[0].apiProductId === mandibular[0].apiProductId
-  );
+    maxillary[0].apiProductId === mandibular[0].apiProductId;
+  if (!sameProduct) return false;
+  // Only mirror (collapse to one column) when stage also matches.
+  const maxStage = maxillary[0].stageName?.trim() || "";
+  const mandStage = mandibular[0].stageName?.trim() || "";
+  return maxStage === mandStage;
 }

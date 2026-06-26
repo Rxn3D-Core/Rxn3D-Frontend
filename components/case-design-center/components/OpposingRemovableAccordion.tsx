@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode, type MouseEvent } from "react";
+import { useState, useEffect, useRef, type ReactNode, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import type { Arch, ProductApiData, ProductExtraction, ProductGrade, ShadeFieldType } from "../types";
@@ -20,7 +20,7 @@ import {
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
-import { isSingleStageNoStages, shouldSkipStageSelection } from "../utils/categoryHelpers";
+import { isSingleStageNoStages, shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import {
   productHasGrades,
   resolveProductGradesForDisplay,
@@ -31,6 +31,18 @@ import {
   archHasOpposingImpressionSelections,
   resolveOpposingImpressionProductId,
 } from "../utils/opposingImpressionReadiness";
+
+function OpposingImpressionSkippedNotice() {
+  return (
+    <p
+      className="text-sm leading-snug text-[#555555]"
+      style={{ fontFamily: "Verdana, sans-serif" }}
+    >
+      No impression will be sent on this appointment. Please note that opposing scan is{" "}
+      <span className="font-bold text-[#CF0202]">required</span> for this impression.
+    </p>
+  );
+}
 
 function isFullDentureProduct(
   extractions: Array<{ code: string; name: string; status: string }> | undefined
@@ -70,7 +82,8 @@ function hasAdvanceField(
   }
   const alwaysShow = ["fixed_stage", "fixed_impression", "stage"];
   if (alwaysShow.includes(step)) return true;
-  if (step === "fixed_stump_shade" && (product?.has_teeth_shade === "Yes" || product?.has_gum_shade === "Yes")) {
+  // Stump shade is gated on gum shade only — a teeth-shade-only product must not show it.
+  if (step === "fixed_stump_shade" && product?.has_gum_shade === "Yes") {
     return true;
   }
   if (step === "fixed_shade_trio" && product?.has_teeth_shade === "Yes") return true;
@@ -133,13 +146,31 @@ function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = grades.length > 0 ? grades.length : 4;
-  const currentCount = getGradeDiamondCount(currentGradeName, grades);
+  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
+  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
+  // diamond and made them unselectable.
+  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
+  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
+  const currentIndex = sortedGrades.findIndex(
+    (g) => g.name === currentGradeName || g.code === currentGradeName
+  );
+  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName =
     hoverIndex !== null
-      ? grades.find((g) => g.sequence === hoverIndex + 1)?.name || currentGradeName
+      ? sortedGrades[hoverIndex]?.name || currentGradeName
       : currentGradeName;
+
+  // Single grade → auto-select it; don't ask the user to pick.
+  const autoSelectSigRef = useRef<string | null>(null);
+  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
+  useEffect(() => {
+    if (disabled) return;
+    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
+      autoSelectSigRef.current = gradesSignature;
+      onSelect(sortedGrades[0]);
+    }
+  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
   return (
     <PanelDiv
@@ -149,7 +180,7 @@ function GradeHoverSelector({
       <span className="text-[14px] sm:text-lg text-[#000000] min-w-0 truncate">{displayName}</span>
       <div className="ml-auto flex items-center gap-1">
         {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = grades.find((g) => g.sequence === i + 1);
+          const gradeForIndex = sortedGrades[i];
           return (
             <button
               key={i}
@@ -308,7 +339,8 @@ export function OpposingRemovableAccordion({
   const productKey = `${fieldArch}_prep_${fieldRepTn}`;
   const hasRushed = !!rushedProducts[productKey];
   const stageVal = selectedStages[productKey] || getFieldValue(fieldArch, fieldRepTn, "stage");
-  const remStageObj = opposingProductData.stages?.find((s) => s.name === stageVal);
+  const stageDisplayName = parseStageDisplayName(stageVal);
+  const remStageObj = opposingProductData.stages?.find((s) => s.name === stageDisplayName);
   const remDays = remStageObj?.days_to_process;
   const estDays =
     remDays != null
@@ -334,10 +366,13 @@ export function OpposingRemovableAccordion({
     opposingImpressionText ||
     getImpressionDisplayText(impressionModalProductId, opposingArch) ||
     fVal("impression");
+  const hasOpposingImpressionSelected = archHasOpposingImpressionSelections(
+    selectedImpressions,
+    opposingArch
+  );
   const impressionComplete =
     isFComplete("impression") ||
-    (!!impressionDisplay &&
-      archHasOpposingImpressionSelections(selectedImpressions, opposingArch));
+    (!!impressionDisplay && hasOpposingImpressionSelected);
 
   const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;
   const hasOpposingImpressionConfigured = opposingProductData.opposite_impression === "Yes";
@@ -360,7 +395,7 @@ export function OpposingRemovableAccordion({
             />
           </PanelDiv>
           <PanelDiv
-            className={`flex flex-col gap-[9.94px] px-[8px] py-[14px] ${opposingOnlyLayout ? "w-full" : "flex items-stretch gap-[10px]"}`}
+            className={`flex flex-col gap-[9.94px] px-[8px] pt-[14px] ${opposingOnlyLayout ? "w-full" : "flex items-stretch gap-[10px]"}`}
             onClick={(e) => e.stopPropagation()}
           >
             {!opposingOnlyLayout && (
@@ -415,31 +450,34 @@ export function OpposingRemovableAccordion({
                       disableRequiredValidation
                     />
                   )}
-                  {showOpposingImpressionField && (
-                    <fieldset
-                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
-                      onClick={() => {
-                        if (caseSubmitted) return;
-                        handleOpenImpressionModal(
-                          opposingArch,
-                          impressionModalProductId,
-                          opposingRepTn
-                        );
-                      }}
-                    >
-                      <legend
-                        className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                  {showOpposingImpressionField &&
+                    (hasOpposingImpressionSelected ? (
+                      <fieldset
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
+                        onClick={() => {
+                          if (caseSubmitted) return;
+                          handleOpenImpressionModal(
+                            opposingArch,
+                            impressionModalProductId,
+                            opposingRepTn
+                          );
+                        }}
                       >
-                        Impression
-                      </legend>
-                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
-                        {impressionDisplay || "No Opposing"}
-                      </span>
-                      {impressionComplete && !caseSubmitted && (
-                        <Check size={14} className="text-[#34a853] flex-shrink-0" />
-                      )}
-                    </fieldset>
-                  )}
+                        <legend
+                          className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                        >
+                          Impression
+                        </legend>
+                        <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                          {impressionDisplay}
+                        </span>
+                        {impressionComplete && !caseSubmitted && (
+                          <Check size={14} className="text-[#34a853] flex-shrink-0" />
+                        )}
+                      </fieldset>
+                    ) : (
+                      <OpposingImpressionSkippedNotice />
+                    ))}
                 </>
               ) : (
                 shouldShowRemovableHeaderContent({
@@ -633,7 +671,7 @@ export function OpposingRemovableAccordion({
                             >
                               Stage
                             </legend>
-                            <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageValue}</span>
+                            <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{parseStageDisplayName(stageValue)}</span>
                             {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                           </fieldset>
                         );
@@ -746,36 +784,34 @@ export function OpposingRemovableAccordion({
                   </PanelDiv>
                 )}
 
-                {showOpposingImpressionField && (
-                  <fieldset
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
-                    onClick={() => {
-                      if (caseSubmitted) return;
-                      handleOpenImpressionModal(
-                        opposingArch,
-                        impressionModalProductId,
-                        opposingRepTn
-                      );
-                    }}
-                  >
-                    <legend
-                      className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                {showOpposingImpressionField &&
+                  (hasOpposingImpressionSelected ? (
+                    <fieldset
+                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${caseSubmitted ? "" : "cursor-pointer hover:bg-gray-50"} ${impressionComplete && !caseSubmitted ? "border-[#34a853]" : impressionComplete ? "border-[#b4b0b0]" : impressionDisplay ? "border-[#CF0202]" : "border-[#d9d9d9]"}`}
+                      onClick={() => {
+                        if (caseSubmitted) return;
+                        handleOpenImpressionModal(
+                          opposingArch,
+                          impressionModalProductId,
+                          opposingRepTn
+                        );
+                      }}
                     >
-                      Impression
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
-                      {impressionDisplay || "No Opposing"}
-                    </span>
-                    {impressionComplete && !caseSubmitted && (
-                      <Check size={14} className="text-[#34a853] flex-shrink-0" />
-                    )}
-                  </fieldset>
-                )}
-                {!impressionDisplay && showOpposingImpressionField && (
-                  <p className="font-['Verdana'] text-sm text-[#7f7f7f]">
-                    Opposing impression is optional for this product.
-                  </p>
-                )}
+                      <legend
+                        className={`text-sm px-1 leading-none ${impressionComplete && !caseSubmitted ? "text-[#34a853]" : impressionComplete ? "text-[#7f7f7f]" : impressionDisplay ? "text-[#CF0202]" : "text-[#7f7f7f]"}`}
+                      >
+                        Impression
+                      </legend>
+                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+                        {impressionDisplay}
+                      </span>
+                      {impressionComplete && !caseSubmitted && (
+                        <Check size={14} className="text-[#34a853] flex-shrink-0" />
+                      )}
+                    </fieldset>
+                  ) : (
+                    <OpposingImpressionSkippedNotice />
+                  ))}
 
                 {!opposingOnlyLayout && isF("addons") && (() => {
                   const addonsVal = fVal("addons") || "";

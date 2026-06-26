@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { TriangleAlert } from "lucide-react"
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
 import { SubmitSlipButton } from "@/components/submit-slip-button"
 
@@ -160,25 +159,6 @@ export function SlipCreationStepFooter({
                 >
                   Previous
                 </Button>
-              )}
-
-
-              {mode === "submit" && !isAccordionComplete?.() && incompleteFieldLabel && (
-                <div className="flex items-center gap-2">
-                  <TriangleAlert className="h-4 w-4 flex-shrink-0" style={{ color: "#CF0202" }} />
-                  <span
-                    style={{
-                      fontFamily: "Arial",
-                      fontStyle: "normal",
-                      fontWeight: 400,
-                      fontSize: "13px",
-                      color: "#CF0202",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Required: {incompleteFieldLabel}
-                  </span>
-                </div>
               )}
 
               {mode === "submit" && isAccordionComplete?.() && !hasToothStatusValidation && (

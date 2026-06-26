@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import LoginForm from "@/components/login-form"
 import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
+import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function LoginPage() {
   const { user, isLoading, setCustomerId } = useAuth()
@@ -17,6 +18,13 @@ export default function LoginPage() {
       return
     }
 
+    // Honor a safe internal ?redirect= target (e.g. returning to an invitation link)
+    const redirectTarget = new URLSearchParams(window.location.search).get("redirect")
+    if (redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")) {
+      router.replace(redirectTarget)
+      return
+    }
+
     // Only redirect to dashboard if onboarding is complete
     // The auth-context will handle redirecting to onboarding if not complete
     if (isOnboardingComplete) {
@@ -26,31 +34,46 @@ export default function LoginPage() {
       const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
       const customers = user.customers || []
       const hasMultipleLocations = customers.length > 1
+      const landingPath = getPostLoginLandingPath(userRoles)
 
       if (isSuperAdmin || shouldSeeMultiLocation) {
         // Only show multiple-location page if there are multiple locations
         if (hasMultipleLocations) {
           router.replace("/multiple-location")
         } else {
-          // Single location - set it automatically via API and go to dashboard
+          // Single location — set via API only if login flow has not already synced it
           if (customers.length === 1) {
             const singleCustomer = customers[0]
-            setCustomerId(singleCustomer.id).then(() => {
-              localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
-              router.replace("/dashboard")
-            }).catch((error) => {
-              console.error("Failed to set customer ID:", error)
-              // Fallback: still set localStorage and redirect
-              localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
-              localStorage.setItem("customerId", singleCustomer.id.toString())
-              router.replace("/dashboard")
-            })
+            const storedCustomerId = localStorage.getItem("customerId")
+            const alreadySynced =
+              storedCustomerId === String(singleCustomer.id) &&
+              user.customer_id === singleCustomer.id
+
+            if (alreadySynced) {
+              if (!localStorage.getItem("selectedLocation")) {
+                localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+              }
+              router.replace(landingPath)
+              return
+            }
+
+            setCustomerId(singleCustomer.id)
+              .then(() => {
+                localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+                router.replace(landingPath)
+              })
+              .catch((error) => {
+                console.error("Failed to set customer ID:", error)
+                localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
+                localStorage.setItem("customerId", singleCustomer.id.toString())
+                router.replace(landingPath)
+              })
           } else {
-            router.replace("/dashboard")
+            router.replace(landingPath)
           }
         }
       } else {
-        router.replace("/dashboard")
+        router.replace(landingPath)
       }
     }
     // If onboarding is not complete, let auth-context handle the redirect

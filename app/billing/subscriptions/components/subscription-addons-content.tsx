@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 import {
   createAddOnCheckoutSession,
+  deleteCustomerAddOn,
   listBillingCatalogAddOns,
   listCustomerAddOns,
   type CatalogAddOn,
@@ -16,6 +17,7 @@ import {
 type AddOn = {
   key: string
   id: number
+  customerAddOnId: number | null
   name: string
   description: string
   price: number
@@ -75,6 +77,8 @@ export function SubscriptionAddOnsContent() {
   const [resolvedCustomerId, setResolvedCustomerId] = useState<number | null>(null)
   const [isProcessingAddOn, setIsProcessingAddOn] = useState(false)
   const [addOnError, setAddOnError] = useState<string | null>(null)
+  const [isRemovingAddOn, setIsRemovingAddOn] = useState(false)
+  const [removeAddOnError, setRemoveAddOnError] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -115,11 +119,13 @@ export function SubscriptionAddOnsContent() {
 
   const addOns = useMemo(() => {
     const activeStatuses = new Set(["active", "trialing"])
-    const activeAddOnIds = new Set(
-      customerAddOns
-        .filter((item) => activeStatuses.has((item.status || "").toLowerCase()))
-        .map((item) => item.billing_add_on_id)
+    const activeCustomerAddOns = customerAddOns.filter((item) =>
+      activeStatuses.has((item.status || "").toLowerCase())
     )
+    const activeAddOnIdToCustomerAddOnId = new Map(
+      activeCustomerAddOns.map((item) => [item.billing_add_on_id, item.id])
+    )
+    const activeAddOnIds = new Set(activeCustomerAddOns.map((item) => item.billing_add_on_id))
 
     const catalogItems = catalogAddOns
       .filter((item) => item.active !== false || activeAddOnIds.has(item.id))
@@ -129,6 +135,7 @@ export function SubscriptionAddOnsContent() {
         return {
           key: `catalog-${item.id}`,
           id: item.id,
+          customerAddOnId: activeAddOnIdToCustomerAddOnId.get(item.id) ?? null,
           name: item.name,
           description: getAddOnDescription(item),
           price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
@@ -138,8 +145,7 @@ export function SubscriptionAddOnsContent() {
       })
 
     const existingIds = new Set(catalogItems.map((item) => item.id))
-    const purchasedOnlyItems = customerAddOns
-      .filter((item) => activeStatuses.has((item.status || "").toLowerCase()))
+    const purchasedOnlyItems = activeCustomerAddOns
       .filter((item) => item.add_on && !existingIds.has(item.billing_add_on_id))
       .map((item) => {
         const addOn = item.add_on!
@@ -148,6 +154,7 @@ export function SubscriptionAddOnsContent() {
         return {
           key: `customer-${item.id}`,
           id: item.billing_add_on_id,
+          customerAddOnId: item.id,
           name: addOn.name || `Add-on #${item.billing_add_on_id}`,
           description: getAddOnDescription(addOn),
           price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
@@ -201,6 +208,32 @@ export function SubscriptionAddOnsContent() {
       setAddOnError(error?.message || "Failed to start add-on checkout. Please try again.")
     } finally {
       setIsProcessingAddOn(false)
+    }
+  }
+
+  const handleConfirmRemoveAddOn = async () => {
+    if (!removeAddOn?.customerAddOnId) {
+      setRemoveAddOnError("Unable to identify the add-on subscription. Please refresh and try again.")
+      return
+    }
+
+    try {
+      setIsRemovingAddOn(true)
+      setRemoveAddOnError(null)
+
+      await deleteCustomerAddOn(removeAddOn.customerAddOnId)
+
+      setCustomerAddOns((prev) =>
+        prev.map((item) =>
+          item.id === removeAddOn.customerAddOnId ? { ...item, status: "cancelled" } : item
+        )
+      )
+      setRemoveAddOn(null)
+    } catch (error: any) {
+      console.error("Remove add-on error:", error)
+      setRemoveAddOnError(error?.message || "Failed to remove add-on. Please try again.")
+    } finally {
+      setIsRemovingAddOn(false)
     }
   }
 
@@ -353,7 +386,7 @@ export function SubscriptionAddOnsContent() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!removeAddOn} onOpenChange={(open) => !open && setRemoveAddOn(null)}>
+      <Dialog open={!!removeAddOn} onOpenChange={(open) => { if (!open && !isRemovingAddOn) { setRemoveAddOn(null); setRemoveAddOnError(null) } }}>
         <DialogContent showCloseButton={false} className="w-[min(480px,calc(100vw-24px))] max-w-none overflow-hidden rounded-[10px] border-0 bg-white p-0 shadow-2xl">
           {removeAddOn ? (
             <div>
@@ -373,19 +406,26 @@ export function SubscriptionAddOnsContent() {
                   This action cannot be undone.
                 </div>
 
+                {removeAddOnError ? (
+                  <p className="mt-3 text-[12px] leading-[15px] text-[#DC2626]">{removeAddOnError}</p>
+                ) : null}
+
                 <div className="mt-7 flex items-center justify-end gap-4">
                   <button
                     type="button"
-                    onClick={() => setRemoveAddOn(null)}
-                    className="h-9 w-[140px] rounded-[6px] border border-[#666666] bg-white text-[13px] font-medium leading-4 text-[#333333] transition-colors hover:bg-[#F8FAFC]"
+                    onClick={() => { setRemoveAddOn(null); setRemoveAddOnError(null) }}
+                    disabled={isRemovingAddOn}
+                    className="h-9 w-[140px] rounded-[6px] border border-[#666666] bg-white text-[13px] font-medium leading-4 text-[#333333] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Keep Add-on
                   </button>
                   <button
                     type="button"
-                    onClick={() => setRemoveAddOn(null)}
-                    className="h-9 w-[168px] rounded-[6px] bg-[#DC2626] text-[13px] font-semibold leading-4 text-white transition-colors hover:bg-[#BE1F1F]"
+                    onClick={() => void handleConfirmRemoveAddOn()}
+                    disabled={isRemovingAddOn}
+                    className="inline-flex h-9 w-[168px] items-center justify-center gap-2 rounded-[6px] bg-[#DC2626] text-[13px] font-semibold leading-4 text-white transition-colors hover:bg-[#BE1F1F] disabled:cursor-not-allowed disabled:bg-[#EF9999]"
                   >
+                    {isRemovingAddOn ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Remove Add-on
                   </button>
                 </div>

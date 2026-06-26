@@ -19,6 +19,12 @@ import {
   updateSlipAddons,
   type SlipAddonCategory,
 } from "@/lib/api/slip-addons"
+import {
+  catalogAddonsFromProductPayload,
+  flattenProductAddonsToCatalogRows,
+  mergeLinkedAddonsIntoCatalog,
+  type SlipAddonCatalogRow,
+} from "@/lib/slip-product-addon-catalog"
 
 /** A product available in the case for add-on selection */
 export interface AddOnsProduct {
@@ -178,44 +184,6 @@ function categoriesToModalRows(categories: SlipAddonCategory[] | undefined) {
       category: row.category,
       subcategory: row.subcategory,
     }))
-}
-
-type AddonCatalogRow = { addon: ApiAddon; category: string; subcategory: string }
-
-/** Flatten product `addons` from library product details (or lab product add-ons API). */
-function flattenProductAddonsCatalog(
-  productAddons: AddOnsProduct["addons"] | null | undefined,
-  categories: ApiCategory[] = []
-): AddonCatalogRow[] {
-  const flat: AddonCatalogRow[] = []
-  if (productAddons != null && productAddons.length > 0) {
-    for (const a of productAddons) {
-      const status = String(a.status ?? "Active").trim().toLowerCase()
-      if (status === "inactive") continue
-      flat.push({
-        addon: {
-          id: a.addon_id ?? a.id,
-          name: a.name,
-          code: a.code,
-          sequence: a.sequence ?? 0,
-          price:
-            typeof a.price === "string" ? parseFloat(a.price) : (a.price ?? 0),
-          status: a.status ?? "Active",
-        },
-        category: a.category?.name ?? a.subcategory?.name ?? "",
-        subcategory: a.subcategory?.name ?? "",
-      })
-    }
-    return flat
-  }
-  for (const cat of categories) {
-    for (const subcat of cat.subcategories) {
-      for (const addon of subcat.addons) {
-        flat.push({ addon, category: cat.name, subcategory: subcat.name })
-      }
-    }
-  }
-  return flat
 }
 
 export default function AddOnsModal({
@@ -506,34 +474,9 @@ export default function AddOnsModal({
     (
       productAddons: AddOnsProduct["addons"] | null | undefined,
       categories: ApiCategory[]
-    ): { addon: ApiAddon; category: string; subcategory: string }[] => {
-      const flat: { addon: ApiAddon; category: string; subcategory: string }[] = []
-      if (productAddons != null && productAddons.length > 0) {
-        for (const a of productAddons) {
-          flat.push({
-            addon: {
-              id: a.addon_id ?? a.id,
-              name: a.name,
-              code: a.code,
-              sequence: a.sequence ?? 0,
-              price:
-                typeof a.price === "string" ? parseFloat(a.price) : (a.price ?? 0),
-              status: a.status ?? "Active",
-            },
-            category: a.category?.name ?? a.subcategory?.name ?? "",
-            subcategory: a.subcategory?.name ?? "",
-          })
-        }
-        return flat
-      }
-      for (const cat of categories) {
-        for (const subcat of cat.subcategories) {
-          for (const addon of subcat.addons) {
-            flat.push({ addon, category: cat.name, subcategory: subcat.name })
-          }
-        }
-      }
-      return flat
+    ): SlipAddonCatalogRow[] => {
+      const catalogOnly = catalogAddonsFromProductPayload(productAddons) ?? productAddons
+      return flattenProductAddonsToCatalogRows(catalogOnly ?? undefined, categories)
     },
     []
   )
@@ -565,17 +508,19 @@ export default function AddOnsModal({
 
   const fetchSlipProductAddonCatalog = useCallback(
     async (pid: number) => {
-      const preloaded = products.find((p) => p.id === pid)?.addons
-      if (preloaded != null && preloaded.length > 0) {
-        return flattenProductAddonsCatalog(preloaded, [])
+      const preloaded = catalogAddonsFromProductPayload(
+        products.find((p) => p.id === pid)?.addons
+      )
+      if (preloaded) {
+        return flattenProductAddonsToCatalogRows(preloaded, [])
       }
       const details = await fetchProductDetails(pid)
-      const fromDetails = details?.addons as AddOnsProduct["addons"] | undefined
-      if (fromDetails != null && fromDetails.length > 0) {
-        return flattenProductAddonsCatalog(fromDetails, [])
+      const fromDetails = catalogAddonsFromProductPayload(details?.addons)
+      if (fromDetails) {
+        return flattenProductAddonsToCatalogRows(fromDetails, [])
       }
       const categories = await fetchAddonsForProduct(pid)
-      return flattenProductAddonsCatalog(null, categories ?? [])
+      return flattenProductAddonsToCatalogRows(undefined, categories ?? [])
     },
     [products, fetchProductDetails, fetchAddonsForProduct]
   )
@@ -591,7 +536,7 @@ export default function AddOnsModal({
   })
 
   const productCatalogById = useMemo(() => {
-    const map: Record<number, AddonCatalogRow[]> = {}
+    const map: Record<number, SlipAddonCatalogRow[]> = {}
     slipProductIds.forEach((pid, index) => {
       map[pid] = slipProductCatalogQueries[index]?.data ?? []
     })
@@ -599,18 +544,29 @@ export default function AddOnsModal({
   }, [slipProductIds, slipProductCatalogQueries])
 
   const slipSlotAddonsByRushKey = useMemo(() => {
-    if (!isSlipMode || !useSlipSlotColumns) return {} as Record<string, AddonCatalogRow[]>
-    const map: Record<string, AddonCatalogRow[]> = {}
+    if (!isSlipMode || !useSlipSlotColumns) return {} as Record<string, SlipAddonCatalogRow[]>
+    const map: Record<string, SlipAddonCatalogRow[]> = {}
     for (const slot of archSlots) {
-      map[slot.rushKey] = productCatalogById[slot.apiProductId] ?? []
+      const base = productCatalogById[slot.apiProductId] ?? []
+      map[slot.rushKey] = mergeLinkedAddonsIntoCatalog(
+        base,
+        slipLinked?.linked_addons,
+        slot.arch
+      )
     }
     return map
-  }, [isSlipMode, useSlipSlotColumns, archSlots, productCatalogById])
+  }, [
+    isSlipMode,
+    useSlipSlotColumns,
+    archSlots,
+    productCatalogById,
+    slipLinked?.linked_addons,
+  ])
 
   const getSlipArchCatalog = useCallback(
-    (archVal: "maxillary" | "mandibular"): AddonCatalogRow[] => {
+    (archVal: "maxillary" | "mandibular"): SlipAddonCatalogRow[] => {
       if (useSlipSlotColumns) {
-        const rows: AddonCatalogRow[] = []
+        const rows: SlipAddonCatalogRow[] = []
         const seen = new Set<number>()
         for (const slot of archSlots) {
           if (slot.arch !== archVal) continue
@@ -622,12 +578,23 @@ export default function AddOnsModal({
         }
         if (rows.length > 0) return rows
       } else if (slipProductIds.length > 0) {
-        const catalog = productCatalogById[slipProductIds[0]]
-        if (catalog?.length) return catalog
+        const catalog = productCatalogById[slipProductIds[0]] ?? []
+        const merged = mergeLinkedAddonsIntoCatalog(
+          catalog,
+          slipLinked?.linked_addons,
+          archVal
+        )
+        if (merged.length > 0) return merged
       }
-      return archVal === "maxillary"
-        ? slipEligibleMaxillaryCatalog
-        : slipEligibleMandibularCatalog
+      const eligible =
+        archVal === "maxillary"
+          ? slipEligibleMaxillaryCatalog
+          : slipEligibleMandibularCatalog
+      return mergeLinkedAddonsIntoCatalog(
+        eligible,
+        slipLinked?.linked_addons,
+        archVal
+      )
     },
     [
       useSlipSlotColumns,
@@ -635,6 +602,7 @@ export default function AddOnsModal({
       slipSlotAddonsByRushKey,
       slipProductIds,
       productCatalogById,
+      slipLinked?.linked_addons,
       slipEligibleMaxillaryCatalog,
       slipEligibleMandibularCatalog,
     ]

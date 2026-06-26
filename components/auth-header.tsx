@@ -19,7 +19,7 @@ export function AuthHeader({ showSupport = true, customContent, className = "" }
     <header className={`flex justify-between items-center py-4 px-6 border-b border-[#e4e6ef] bg-white ${className}`}>
       <div className="flex items-center">
         <Link href="/">
-          <Image src="/images/rxn3d-logo.png" alt="RXN3D" width={100} height={32} className="h-8 w-auto" />
+          <Image src="/images/rxn3d-logo.svg" alt="RXN3D" width={100} height={32} className="h-8 w-auto" />
         </Link>
       </div>
 

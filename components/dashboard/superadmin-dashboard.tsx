@@ -21,6 +21,7 @@ import { useCustomer } from "@/contexts/customer-context"
 import { useTranslation } from "react-i18next"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 
 export function SuperAdminDashboard() {
   const [showPracticeForm, setShowPracticeForm] = useState(false)
@@ -53,7 +54,7 @@ export function SuperAdminDashboard() {
   const [labs, setLabs] = useState<any[]>([])
   const { isLoading: isSearchLoading, customers, isCustomersLoading, customersError, officeCustomers, labCustomers, fetchCustomers } = useCustomer()
   const { t } = useTranslation()
-  const userRole = user?.roles?.[0] || "superadmin"
+  const userRole = getPrimaryRole(user) || "superadmin"
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)

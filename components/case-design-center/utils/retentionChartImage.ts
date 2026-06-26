@@ -1,24 +1,15 @@
 import type { RetentionOptionItem } from "@/components/retention-type-popover";
+import {
+  normalizeRetentionChartType,
+  retentionOptionMatchesChartType,
+  type RetentionChartType,
+} from "./retentionOptionChartType.ts";
 
-export type RetentionChartType = "Implant" | "Prep" | "Pontic";
+export type { RetentionChartType };
 export type RetentionArch = "maxillary" | "mandibular";
 
 export const MAXILLARY_CHART_TEETH = Array.from({ length: 16 }, (_, i) => i + 1);
 export const MANDIBULAR_CHART_TEETH = Array.from({ length: 16 }, (_, i) => i + 17);
-
-const NAME_TO_RETENTION_TYPE: Record<string, RetentionChartType> = {
-  Implant: "Implant",
-  Prepped: "Prep",
-  Prep: "Prep",
-  Pontic: "Pontic",
-};
-
-function normalizeChartType(raw: string | null | undefined): RetentionChartType | null {
-  if (!raw) return null;
-  if (NAME_TO_RETENTION_TYPE[raw]) return NAME_TO_RETENTION_TYPE[raw];
-  if (raw === "Implant" || raw === "Prep" || raw === "Pontic") return raw;
-  return null;
-}
 
 function nonEmptyUrl(value: string | null | undefined): string | null {
   const trimmed = typeof value === "string" ? value.trim() : "";
@@ -45,15 +36,6 @@ function toothImageFromImagesArray(
   return nonEmptyUrl(match.image_url) ?? nonEmptyUrl(match.image);
 }
 
-function optionChartType(opt: RetentionOptionItem): RetentionChartType | null {
-  const raw =
-    opt.tooth_chart_type ||
-    opt.retention_option?.tooth_chart_type ||
-    opt.lab_retention_option?.tooth_chart_type ||
-    opt.name;
-  return normalizeChartType(raw);
-}
-
 function resolveSelectorShape(opt: RetentionOptionItem): string | null {
   const raw =
     opt.selector_shape ??
@@ -69,7 +51,7 @@ export function getRetentionChartTypeForTooth(
 ): RetentionChartType | null {
   const types = retentionTypesByTooth?.[toothNumber] ?? [];
   if (!types.length) return null;
-  return normalizeChartType(types[0]);
+  return normalizeRetentionChartType(types[0]);
 }
 
 export function findRetentionOptionForChartType(
@@ -79,7 +61,7 @@ export function findRetentionOptionForChartType(
   if (!retentionOptions?.length) return null;
 
   for (const opt of retentionOptions) {
-    if (optionChartType(opt) === chartType) {
+    if (retentionOptionMatchesChartType(opt, chartType)) {
       return opt;
     }
   }

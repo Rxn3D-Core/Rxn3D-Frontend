@@ -15,13 +15,12 @@ import { ProductCategoryProvider } from "@/contexts/product-category-context"
 import { StagesProvider } from "@/contexts/product-stages-context"
 import { GradesProvider } from "@/contexts/product-grades-context"
 import { DriverSlipProvider } from "@/contexts"
-import { CustomerProvider } from "@/contexts/customer-context"
 // Lazy load ModelPreloadProvider to prevent Three.js from loading on login page
 const ModelPreloadProvider = React.lazy(() =>
   import("@/contexts/3d-model-preload-context").then(mod => ({ default: mod.ModelPreloadProvider }))
 )
 // Routes that don't need authenticated providers
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account"]
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/user-invitations"]
 
 /**
  * Internal component that uses usePathname
@@ -43,8 +42,7 @@ function ConditionalProvidersInternal({ children }: { children: React.ReactNode 
       <LabAdminProvider>
         <RegistrationProvider>
           <BusinessSettingsProvider>
-            <CustomerProvider>
-              <LibraryItemsProvider>
+            <LibraryItemsProvider>
                 <ProductCategoryProvider>
                   <StagesProvider>
                     <GradesProvider>
@@ -65,7 +63,6 @@ function ConditionalProvidersInternal({ children }: { children: React.ReactNode 
                   </StagesProvider>
                 </ProductCategoryProvider>
               </LibraryItemsProvider>
-            </CustomerProvider>
           </BusinessSettingsProvider>
         </RegistrationProvider>
       </LabAdminProvider>

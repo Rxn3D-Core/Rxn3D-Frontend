@@ -132,11 +132,9 @@ export const Step2DoctorSelection: React.FC<Step2DoctorSelectionProps> = ({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <img
-                          src="/images/doctor-image.png"
-                          alt="Default Doctor"
-                          className="w-full h-full object-cover"
-                        />
+                        <span className="text-3xl font-semibold text-[#1162a8]">
+                          {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                        </span>
                       )}
                     </div>
                     {/* Selection indicator */}

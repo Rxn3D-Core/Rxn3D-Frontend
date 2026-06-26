@@ -106,6 +106,7 @@ export function AccessibilitySettings() {
     <>
       {/* Trigger button — draggable, desktop only */}
       <div
+        data-accessibility-widget
         className="fixed z-50 hidden md:block cursor-grab active:cursor-grabbing"
         style={{ left: btnPos.x, top: btnPos.y }}
         onMouseDown={btnMouseDown}

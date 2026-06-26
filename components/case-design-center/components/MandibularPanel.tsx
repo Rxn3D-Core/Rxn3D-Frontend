@@ -43,7 +43,7 @@ import type {
   ProductExtraction,
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { getRetentionFieldChain, getSelectionFieldChain } from "../hooks/useToothFieldProgress";
+import { getRetentionFieldChain, getSelectionFieldChain, getNextSelectionFieldStep } from "../hooks/useToothFieldProgress";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { GumShadePicker } from "./GumShadePicker";
 import {
@@ -52,6 +52,7 @@ import {
   isSingleStageNoStages,
   shouldSkipStageSelection,
   isDisplayableStageValue,
+  parseStageDisplayName,
 } from "../utils/categoryHelpers";
 import { isProductRushed, resolveCardRepToothForRush } from "../utils/rushModalContext";
 import {
@@ -68,7 +69,15 @@ import {
 } from "../utils/gradeHelpers";
 import { resolveVariationDisplay } from "../utils/variationHelpers";
 import {
+  FLIPPER_STAYPLATE_SELECTION_HINT,
+  isFlipperOrStayplateProduct,
+  isRemovableToothSelectionFocused,
+  isRemovableToothStatusPopoverEligible,
+} from "../utils/removableSelectionHints";
+import {
   isSingleDefaultOnlyExtractionList,
+  isExtractionSelectionOptional,
+  hasConfiguredExtractions,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
@@ -86,6 +95,14 @@ import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
 } from "../utils/resolveAddedCardProduct";
+import {
+  formatSplintGroups,
+  deriveAutoSplintLinks,
+  deriveWingTeeth,
+  combineSplintLinks,
+  toggleSplintOverlay,
+  type SplintOverlay,
+} from "../utils/splintHelpers";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
 import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
 import {
@@ -116,9 +133,14 @@ import {
   removableHeaderTitleClass,
   removableHeaderToothClass,
 } from "../case-design-inter-font";
+import { resolveRemovableEstDaysText } from "../utils/removableEstDays";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { shouldAddToProductSelectionOnRemovableClick } from "../utils/removableToothClickMode";
-import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
+import {
+  getRemovableOrangeHeaderTeeth,
+  getToothStatusBoxDisplayMap,
+  resolveRemovableStatusBoxSelectedTeeth,
+} from "../utils/removableToothDisplay";
 import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
@@ -129,8 +151,14 @@ import { SelectionProductFields } from "./RemovableRestorationFields";
 import { ProductAccordionCard } from "./ProductAccordionCard";
 import { RestorationAccordionHeader } from "./RestorationAccordionHeader";
 import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
+import { StageHistoryBlock } from "./StageHistoryBlock";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { MAXILLARY_SENTINEL } from "../utils/opposingImpressionReadiness";
-import { addedProductSlotId } from "../utils/productAccordionFocus";
+import {
+  addedProductSlotId,
+  archAllowsAccordionCollapse,
+  countFixedCard0Groups,
+} from "../utils/productAccordionFocus";
 
 import {
   AccordionBadge,
@@ -233,12 +261,30 @@ function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = grades.length > 0 ? grades.length : 4;
-  const currentCount = getGradeDiamondCount(currentGradeName, grades);
+  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
+  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
+  // diamond and made them unselectable.
+  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
+  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
+  const currentIndex = sortedGrades.findIndex(
+    (g) => g.name === currentGradeName || g.code === currentGradeName
+  );
+  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
-    ? (grades.find((g) => g.sequence === hoverIndex + 1)?.name || currentGradeName)
+    ? (sortedGrades[hoverIndex]?.name || currentGradeName)
     : currentGradeName;
+
+  // Single grade → auto-select it; don't ask the user to pick.
+  const autoSelectSigRef = useRef<string | null>(null);
+  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
+  useEffect(() => {
+    if (disabled) return;
+    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
+      autoSelectSigRef.current = gradesSignature;
+      onSelect(sortedGrades[0]);
+    }
+  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
   return (
     <div
@@ -250,7 +296,7 @@ function GradeHoverSelector({
       </span>
       <div className="ml-auto flex items-center gap-1">
         {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = grades.find((g) => g.sequence === i + 1);
+          const gradeForIndex = sortedGrades[i];
           return (
             <button
               key={i}
@@ -285,11 +331,6 @@ function getGradeDiamondCount(gradeName: string, grades?: ProductGrade[]): numbe
   }
   const match = grades.find((g) => g.name === gradeName || g.code === gradeName);
   return match ? match.sequence : 0;
-}
-
-function getDefaultGrade(grades?: ProductGrade[]): ProductGrade | null {
-  if (!grades || grades.length === 0) return null;
-  return grades.find((g) => g.is_default === "Yes" && g.status === "Active") || grades.filter((g) => g.status === "Active").sort((a, b) => a.sequence - b.sequence)[0] || null;
 }
 
 function getActiveGrades(grades?: ProductGrade[]): ProductGrade[] {
@@ -499,7 +540,7 @@ function hasAdvanceField(
   if (alwaysShow.includes(step)) return true;
 
   // Shade steps: show when has_* flag is set, regardless of advance_fields
-  if (step === "fixed_stump_shade" && (product?.has_teeth_shade === "Yes" || product?.has_gum_shade === "Yes")) return true;
+  if (step === "fixed_stump_shade" && product?.has_gum_shade === "Yes") return true;
   if (step === "fixed_shade_trio" && product?.has_teeth_shade === "Yes") return true;
 
   if (!advanceFields || advanceFields.length === 0) return true;
@@ -672,6 +713,8 @@ interface MandibularPanelProps {
   setShowMandibular: (v: boolean) => void;
   showDetails: boolean;
   caseSubmitted?: boolean;
+  /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
+  preloadInitialSlipState?: boolean;
   /** When true, overlays the panel to prevent interaction until maxillary is complete */
   disabled?: boolean;
   /** When true, the other arch is in the add-product flow (distinct message from maxillary-incomplete). */
@@ -738,9 +781,19 @@ interface MandibularPanelProps {
   activeProductCardId: number;
   setActiveProductCardId: (id: number) => void;
   activeAccordionKey: string;
+  /** Force this arch's tooth chart interactive even when it doesn't own the active accordion (initial fixed "both" flow). */
+  forceOwnArchChartEnabled?: boolean;
+  /** Guided both-arch flow: hide this arch's card-0 field content until its fields phase is reached (chart/selection stay visible). */
+  guidedHideCard0Fields?: boolean;
+  /** Initial (card 0) product name — used for the "Select teeth to replace with …" hint before any teeth are assigned. */
+  initialProductName?: string;
   isAccordionExpanded: (slotId: string) => boolean;
   isAccordionEnabled: (slotId: string) => boolean;
   toggleAccordionFocus: (slotId: string, cardId?: number) => void;
+  /** Fired once when the card-0 extraction setup is acknowledged ("Done"). Drives the guided cross-arch flow. */
+  onExtractionsDone?: () => void;
+  /** Guided both-arch flow: fixed retention "Done" on card 0. */
+  onRetentionDone?: () => void;
   getToothProductCard: (arch: Arch, toothNumber: number) => number;
 
   // Tooth field progress (Prep/Pontic step-by-step)
@@ -769,6 +822,9 @@ interface MandibularPanelProps {
   mandibularHasRemovablesCard0?: boolean;
   /** Extractions from the initial card 0 product — used as fallback when no teeth are selected yet */
   card0Extractions?: ProductExtraction[];
+  /** Full initial card 0 product details — fallback so the removable/ortho card renders
+   *  before any tooth has the product assigned (TIM-default products select no teeth). */
+  card0InitialProduct?: ProductApiData | null;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
   noOpposingNeeded?: Record<string, boolean>;
   /** Impression selections by key (productId_arch_impressionValue → qty) */
@@ -796,6 +852,8 @@ interface MandibularPanelProps {
   onCheckedTeethChange?: (teeth: number[]) => void;
   /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
+  /** Called whenever splint link state changes (so CaseDesignCenter can include it in the slip snapshot). */
+  onSplintLinksChange?: (splintLinksByKey: Record<string, number[]>) => void;
   /** Opposite-arch implant details for mirroring when the same product is on both sides. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
@@ -803,6 +861,7 @@ interface MandibularPanelProps {
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
+  addStageStageHistory?: NewStageEligibilityStageRef[];
   /** When true (stage or impression modal is open), disables the teeth SVG. */
   isAnyModalOpen?: boolean;
   /** When true, suppresses auto-open helpers (shade, gum shade, impression) on this panel.
@@ -848,13 +907,19 @@ function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; has
 
 export function MandibularPanel({
   activeAccordionKey,
+  forceOwnArchChartEnabled = false,
+  guidedHideCard0Fields = false,
+  initialProductName,
   isAccordionExpanded,
   isAccordionEnabled,
   toggleAccordionFocus,
+  onExtractionsDone,
+  onRetentionDone,
   showMandibular,
   setShowMandibular,
   showDetails,
   caseSubmitted = false,
+  preloadInitialSlipState = false,
   disabled = false,
   blockedByOppositeAddProduct = false,
   mandibularTeeth,
@@ -867,6 +932,7 @@ export function MandibularPanel({
   initialProductDetailsPending = false,
   retentionOptions,
   card0Extractions = [],
+  card0InitialProduct = null,
   handleSelectRetentionType,
   handleMandibularToothDeselect,
   shadeSelectionState,
@@ -929,10 +995,12 @@ export function MandibularPanel({
   onSelectAllOpposingTeeth,
   onCheckedTeethChange,
   onImplantDetailChange,
+  onSplintLinksChange,
   peerImplantDetailByTooth,
   onBackToCategories,
   onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
+  addStageStageHistory,
   isAnyModalOpen = false,
   suppressAutoOpen = false,
   opposingOnlyLayout = false,
@@ -960,7 +1028,22 @@ export function MandibularPanel({
       )
     : 0;
 
-  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && (
+  const activeRemovableExtractionsForHint = (() => {
+    if (!activeProductIsRemovables) return undefined;
+    if (activeProductCardId !== 0) {
+      return addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "mandibular")
+        ?.product?.extractions;
+    }
+    if (card0Extractions?.length) return card0Extractions;
+    const card0Tooth = MANDIBULAR_ALL_TEETH.find((tn) => getToothProductCard("mandibular", tn) === 0);
+    return card0Tooth
+      ? getToothProduct("mandibular", card0Tooth)?.extractions
+      : card0InitialProduct?.extractions;
+  })();
+  const skipsRemovableToothSelectionHint =
+    activeProductIsRemovables && !hasConfiguredExtractions(activeRemovableExtractionsForHint);
+
+  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && !skipsRemovableToothSelectionHint && (
     teethCount === 0 || isSelectionModeActive
   );
 
@@ -1013,7 +1096,35 @@ export function MandibularPanel({
     setExtractionsSetupComplete,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
-  } = useExtractionsAcknowledged("mandibular");
+  } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState);
+
+  // Guided cross-arch flow: notify the parent once the card-0 extraction setup is
+  // acknowledged ("Done"). Only meaningful when the product actually needs acknowledgement.
+  const card0ExtractionsAcked =
+    !caseSubmitted &&
+    requiresExtractionsAcknowledgement(card0Extractions) &&
+    isExtractionsSetupComplete(card0Extractions, 0, caseSubmitted);
+  const prevCard0AckedRef = useRef(card0ExtractionsAcked);
+  useEffect(() => {
+    if (card0ExtractionsAcked && !prevCard0AckedRef.current) {
+      onExtractionsDone?.();
+    }
+    prevCard0AckedRef.current = card0ExtractionsAcked;
+  }, [card0ExtractionsAcked, onExtractionsDone]);
+
+  const card0FixedRetentionAcked =
+    !caseSubmitted &&
+    !!card0InitialProduct &&
+    hasRetentionOptions(card0InitialProduct) &&
+    isFixedRetentionSetupComplete(card0InitialProduct, caseSubmitted);
+  const prevCard0FixedRetentionAckedRef = useRef(card0FixedRetentionAcked);
+  useEffect(() => {
+    if (card0FixedRetentionAcked && !prevCard0FixedRetentionAckedRef.current) {
+      onRetentionDone?.();
+    }
+    prevCard0FixedRetentionAckedRef.current = card0FixedRetentionAcked;
+  }, [card0FixedRetentionAcked, onRetentionDone]);
+
   const [toothStatusPopoverTooth, setToothStatusPopoverTooth] = useState<number | null>(null);
   const [toothStatusPopoverExtractions, setToothStatusPopoverExtractions] = useState<ProductExtraction[]>([]);
   const [mandibularCheckedTeeth, setMandibularCheckedTeeth] = useState<number[]>([]);
@@ -1098,29 +1209,20 @@ export function MandibularPanel({
       const currentVal = getFieldValue("mandibular", tn, "grade");
       const activeGrades = getActiveGrades(tp.grades);
       const existing = parseGradeDisplayName(currentVal);
+      // Product has grades: clear any prior auto/skip value so the user must pick a grade explicitly.
       if (isGradeFieldValueSkipped(currentVal) && activeGrades.length > 0) {
-        const def = getDefaultGrade(tp.grades);
-        autoGradeApplied.current.add(key);
-        if (def) {
-          completeFieldStep("mandibular", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
-        } else {
-          uncompleteFieldStep("mandibular", tn, "grade");
-        }
+        uncompleteFieldStep("mandibular", tn, "grade");
         continue;
       }
       if (autoGradeApplied.current.has(key)) continue;
       if (currentVal && existing) continue;
       if (currentVal && !isGradeFieldValueSkipped(currentVal)) continue;
+      // Only auto-complete (skip) the grade step when the product has NO grades to choose from.
+      // When grades exist, leave the field incomplete so the user selects one.
       if (activeGrades.length === 0) {
         if (productHasGrades(tp)) continue;
         autoGradeApplied.current.add(key);
         completeFieldStep("mandibular", tn, "grade", JSON.stringify({ skipped: true }));
-      } else if (!existing) {
-        const def = getDefaultGrade(tp.grades);
-        if (def) {
-          autoGradeApplied.current.add(key);
-          completeFieldStep("mandibular", tn, "grade", JSON.stringify({ grade_id: def.grade_id, name: def.name }));
-        }
       }
     }
   }, [getFieldValue, completeFieldStep, uncompleteFieldStep, getToothProduct]);
@@ -1283,19 +1385,48 @@ export function MandibularPanel({
 
   const useMandibularArchSharedRemovable = false;
 
+  const mandibularFixedCard0GroupCount = useMemo(
+    () =>
+      mandibularHasFixedCard0
+        ? countFixedCard0Groups(
+            "mandibular",
+            mandibularRetentionTypes as Record<string, string[]>,
+            getToothProductCard,
+            getToothProduct
+          )
+        : 0,
+    [mandibularHasFixedCard0, mandibularRetentionTypes, getToothProductCard, getToothProduct]
+  );
+
+  const allowAccordionCollapse = archAllowsAccordionCollapse("mandibular", addedProducts, {
+    hasRemovablesCard0: mandibularHasRemovablesCard0,
+    fixedCard0GroupCount: mandibularFixedCard0GroupCount,
+  });
+
+  const isCardAccordionExpanded = useCallback(
+    (slotId: string) => !allowAccordionCollapse || isAccordionExpanded(slotId),
+    [allowAccordionCollapse, isAccordionExpanded]
+  );
+
+  const isCardAccordionInteractionEnabled = useCallback(
+    (slotId: string) => !allowAccordionCollapse || isAccordionEnabled(slotId),
+    [allowAccordionCollapse, isAccordionEnabled]
+  );
+
   const isCardActiveForToothStatus = (cardId: number) => {
     if (activeProductCardId !== cardId) return false;
     if (cardId === 0) {
       if (mandibularHasFixedCard0 && !mandibularHasRemovablesCard0) return true;
-      return isAccordionExpanded("removable0");
+      return isCardAccordionExpanded("removable0");
     }
-    return isAccordionExpanded(addedProductSlotId(cardId));
+    return isCardAccordionExpanded(addedProductSlotId(cardId));
   };
 
   const handleAddedRemovableAccordionToggle = (ap: AddedProduct) => {
+    if (!allowAccordionCollapse) return;
     const slotId = addedProductSlotId(ap.id);
     if (!isAccordionEnabled(slotId)) return;
-    if (!isAccordionExpanded(slotId)) {
+    if (!isCardAccordionExpanded(slotId)) {
       setShadeSelectionState({ arch: null, fieldType: null, productId: null });
     }
     toggleAccordionFocus(slotId, ap.id);
@@ -1304,9 +1435,10 @@ export function MandibularPanel({
   };
 
   const handleAddedProductAccordionToggle = (ap: AddedProduct) => {
+    if (!allowAccordionCollapse) return;
     const slotId = addedProductSlotId(ap.id);
     if (!isAccordionEnabled(slotId)) return;
-    if (!isAccordionExpanded(slotId)) {
+    if (!isCardAccordionExpanded(slotId)) {
       setShadeSelectionState({ arch: null, fieldType: null, productId: null });
     }
     toggleAccordionFocus(slotId, ap.id);
@@ -1320,6 +1452,7 @@ export function MandibularPanel({
   };
 
   const handleCard0RemovableAccordionToggle = () => {
+    if (!allowAccordionCollapse) return;
     if (!isAccordionEnabled("removable0")) return;
     toggleAccordionFocus("removable0", 0);
     setActiveFixedGroupProductId(null);
@@ -1381,6 +1514,117 @@ export function MandibularPanel({
     return mandibularTeeth;
   })();
 
+  // ── Splint (auto from retention types + manual overlay) + Wing retainers ──
+  // Auto links (Rule S1) derive from retention types; the user's manual add/remove
+  // edits are kept as an overlay and combined per SPLINT_RECOMPUTE_MODE.
+  const splintKeyForMandibularTooth = useCallback(
+    (tooth: number): string => {
+      const card = getToothProductCard("mandibular", tooth);
+      if (card !== 0) return `card:${card}`;
+      const pid = getToothProduct("mandibular", tooth)?.id;
+      return pid != null ? `fixed:${pid}` : "card0";
+    },
+    [getToothProductCard, getToothProduct]
+  );
+  const isMandibularToothAssigned = (tn: number): boolean => {
+    const rt = mandibularRetentionTypes[tn];
+    if (rt && rt.length > 0) return true;
+    const code = mandibularToothExtractionMap[tn];
+    return !!code && code !== "TIM";
+  };
+  const autoSplintLinksByKey = useMemo(() => {
+    const teethByKey: Record<string, number[]> = {};
+    for (const tn of mandibularTeeth) {
+      if (!(mandibularRetentionTypes[tn]?.length)) continue;
+      const key = splintKeyForMandibularTooth(tn);
+      (teethByKey[key] ??= []).push(tn);
+    }
+    const byKey: Record<string, number[]> = {};
+    for (const [key, teeth] of Object.entries(teethByKey)) {
+      const isSplinted = getToothProduct("mandibular", teeth[0])?.is_splinted === "Yes";
+      byKey[key] = isSplinted ? deriveAutoSplintLinks(teeth, mandibularRetentionTypes) : [];
+    }
+    return byKey;
+  }, [mandibularTeeth, mandibularRetentionTypes, splintKeyForMandibularTooth, getToothProduct]);
+  const [splintOverlayByKey, setSplintOverlayByKey] = useState<Record<string, SplintOverlay>>({});
+  const effectiveSplintLinksByKey = useMemo(() => {
+    const keys = new Set([
+      ...Object.keys(autoSplintLinksByKey),
+      ...Object.keys(splintOverlayByKey),
+    ]);
+    const out: Record<string, number[]> = {};
+    for (const key of keys) {
+      const links = combineSplintLinks(autoSplintLinksByKey[key] ?? [], splintOverlayByKey[key]);
+      if (links.length > 0) out[key] = links;
+    }
+    return out;
+  }, [autoSplintLinksByKey, splintOverlayByKey]);
+  useEffect(() => {
+    onSplintLinksChange?.(effectiveSplintLinksByKey);
+  }, [effectiveSplintLinksByKey, onSplintLinksChange]);
+  const mandibularSplintSummaryFor = useCallback(
+    (teeth: number[]): string => {
+      if (teeth.length === 0) return "";
+      const key = splintKeyForMandibularTooth(teeth[0]);
+      return formatSplintGroups(teeth, effectiveSplintLinksByKey[key] ?? []);
+    },
+    [splintKeyForMandibularTooth, effectiveSplintLinksByKey]
+  );
+  const activeMandibularProduct = (() => {
+    const rep = activeCardMandibularTeeth[0];
+    if (rep != null) {
+      const p = getToothProduct("mandibular", rep);
+      if (p) return p;
+    }
+    if (activeProductCardId !== 0) {
+      return (
+        getToothProduct("mandibular", -activeProductCardId) ??
+        addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "mandibular")?.product ??
+        null
+      );
+    }
+    return null;
+  })();
+  const activeMandibularProductIsSplinted = activeMandibularProduct?.is_splinted === "Yes";
+  const handleToggleMandibularSplint = useCallback(
+    (lower: number) => {
+      const key = splintKeyForMandibularTooth(lower);
+      const auto = autoSplintLinksByKey[key] ?? [];
+      setSplintOverlayByKey((prev) => ({
+        ...prev,
+        [key]: toggleSplintOverlay(prev[key], auto, lower),
+      }));
+    },
+    [splintKeyForMandibularTooth, autoSplintLinksByKey]
+  );
+  // Drop overlay edits once either tooth of the pair is deselected or reassigned to a
+  // different product — so manual edits never resurrect on re-select or leak on submit.
+  const mandibularAssignmentSig = mandibularTeeth
+    .map((tn) => `${tn}:${getToothProduct("mandibular", tn)?.id ?? ""}`)
+    .join(",");
+  useEffect(() => {
+    setSplintOverlayByKey((prev) => {
+      let changed = false;
+      const next: Record<string, SplintOverlay> = {};
+      for (const [key, ov] of Object.entries(prev)) {
+        const validPair = (lower: number): boolean => {
+          if (!mandibularTeeth.includes(lower) || !mandibularTeeth.includes(lower + 1)) return false;
+          const pa = getToothProduct("mandibular", lower)?.id;
+          const pb = getToothProduct("mandibular", lower + 1)?.id;
+          if (pa == null || pa !== pb) return false;
+          return splintKeyForMandibularTooth(lower) === key;
+        };
+        const added = ov.added.filter(validPair);
+        const removed = ov.removed.filter(validPair);
+        if (added.length !== ov.added.length || removed.length !== ov.removed.length) changed = true;
+        if (added.length > 0 || removed.length > 0) next[key] = { added, removed };
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mandibularAssignmentSig]);
+
   const activeMandibularSvgState = (() => {
     return {
       toothExtractionMap: opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap,
@@ -1394,9 +1638,62 @@ export function MandibularPanel({
     activeFixedGroupProductId,
   });
 
-  const ownArchToothChartEnabled = isOwnArchToothChartEnabled("mandibular", activeAccordionKey);
+  const ownArchToothChartEnabled =
+    !allowAccordionCollapse ||
+    isOwnArchToothChartEnabled("mandibular", activeAccordionKey) ||
+    forceOwnArchChartEnabled;
   const opposingToothChartEnabled = !!opposingProductData;
   const toothChartInteractionEnabled = ownArchToothChartEnabled || opposingToothChartEnabled;
+
+  // Splint UI (auto S1 + manual S2) is only available for products flagged splintable.
+  // When `is_splinted` is "No", no connector or auto-splint shows even if rules match.
+  const mandibularSplintEnabled =
+    activeMandibularProductIsSplinted &&
+    ownArchToothChartEnabled &&
+    !caseSubmitted &&
+    !opposingProductData &&
+    activeCardMandibularTeeth.length >= 2;
+  const mandibularSplintableLinks = (() => {
+    if (!mandibularSplintEnabled) return [] as number[];
+    const sorted = [...activeCardMandibularTeeth].sort((a, b) => a - b);
+    const out: number[] = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (sorted[i + 1] !== sorted[i] + 1) continue;
+      if (!isMandibularToothAssigned(sorted[i]) || !isMandibularToothAssigned(sorted[i + 1])) continue;
+      const pa = getToothProduct("mandibular", sorted[i])?.id;
+      const pb = getToothProduct("mandibular", sorted[i + 1])?.id;
+      if (pa != null && pa === pb) out.push(sorted[i]);
+    }
+    return out;
+  })();
+  // Effective splinted gaps across ALL selected teeth on this arch (auto + manual).
+  const mandibularSplintedLinks = useMemo(() => {
+    const out: number[] = [];
+    for (const links of Object.values(effectiveSplintLinksByKey)) out.push(...links);
+    return [...new Set(out)].sort((a, b) => a - b);
+  }, [effectiveSplintLinksByKey]);
+  // Wing retainers: empty arch neighbors of any pontic (Maryland / cantilever).
+  const mandibularWingTeeth = useMemo(
+    () => deriveWingTeeth(mandibularRetentionTypes, MANDIBULAR_ALL_TEETH),
+    [mandibularRetentionTypes]
+  );
+  // Pontic is offered only once the tooth's product already has an abutment tooth
+  // (Prep/Implant) other than this one — a pontic needs support first.
+  const canSelectMandibularPontic = useCallback(
+    (toothNumber: number): boolean => {
+      const card = getToothProductCard("mandibular", toothNumber);
+      const productId = getToothProduct("mandibular", toothNumber)?.id;
+      return MANDIBULAR_ALL_TEETH.some((tn) => {
+        if (tn === toothNumber) return false;
+        if (getToothProductCard("mandibular", tn) !== card) return false;
+        const pid = getToothProduct("mandibular", tn)?.id;
+        if (productId != null && pid != null && pid !== productId) return false;
+        const types = mandibularRetentionTypes[tn] ?? [];
+        return types.includes("Prep") || types.includes("Implant");
+      });
+    },
+    [getToothProductCard, getToothProduct, mandibularRetentionTypes]
+  );
 
   const activeMandibularRetentionOptions = (() => {
     if (activeProductCardId !== 0) {
@@ -1429,6 +1726,81 @@ export function MandibularPanel({
       : (retentionOptions ?? []);
   })();
 
+  // Tooth-selection hint descriptor for the mandibular chart. Same split as maxillary:
+  // replace/flipper/count above the chart; reference hint above status boxes in the accordion.
+  const mandibularToothHint: { kind: "replace" | "reference" | "flipper" | "count"; text: string; className: string } | null = (() => {
+    if (!showMandibular) return null;
+    if (activeProductIsRemovables) {
+      const activeExtractions = activeProductCardId !== 0
+        ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions
+        : (() => {
+          const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
+          return t ? getToothProduct("mandibular", t)?.extractions : undefined;
+        })();
+      if (isFullDentureProduct(activeExtractions)) return null;
+      const hintExtractions = (
+        useMandibularArchSharedRemovable
+          ? mandibularMergedExtractions
+          : ((activeExtractions?.length ? activeExtractions : card0Extractions) as ProductExtraction[])
+      );
+      if (!hasConfiguredExtractions(hintExtractions)) return null;
+      const hintAckCardId = useMandibularArchSharedRemovable
+        ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
+        : activeProductCardId !== 0 ? activeProductCardId : 0;
+      const baseProductName = activeProductCardId !== 0
+        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "")
+        : (() => {
+            const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
+            return t ? (getToothProduct("mandibular", t)?.name ?? "") : "";
+          })();
+      if (
+        isFlipperOrStayplateProduct(baseProductName) &&
+        isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
+        isRemovableToothSelectionFocused({
+          caseSubmitted, activeProductCardId, confirmDetailsChecked,
+          isCardActive: isCardActiveForToothStatus(activeProductCardId),
+          toothChartInteractionEnabled, teethCount: MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId).length,
+          isSelectionModeActive,
+        })
+      ) {
+        if (requiresExtractionsAcknowledgement(hintExtractions) && isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) {
+          return null;
+        }
+        return { kind: "flipper", text: FLIPPER_STAYPLATE_SELECTION_HINT, className: "text-center font-bold text-sm mb-1 text-red-600" };
+      }
+      if (activeExtractionCode === null) {
+        return { kind: "replace", text: `Select teeth to replace${baseProductName ? ` ${baseProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+      }
+      return { kind: "reference", text: `Select teeth for reference (not added to ${baseProductName || "product"})`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+    }
+    if (opposingProductData && !useScopedRetentionMode) {
+      const opposingName = opposingProductData.name ?? "product";
+      if (opposingActiveExtractionCode === null) {
+        return null;
+      }
+      return { kind: "reference", text: `Select teeth for reference (not added to ${opposingName})`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+    }
+    if (
+      !useRemovableToothChartPath &&
+      ownArchToothChartEnabled &&
+      (!opposingProductData || useScopedRetentionMode) &&
+      (isCardActiveForToothStatus(activeProductCardId) || forceOwnArchChartEnabled)
+    ) {
+      const fixedProductName = (activeProductCardId !== 0
+        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "")
+        : (() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "") : ""; })())
+        || initialProductName || "";
+      return { kind: "replace", text: `Select teeth to replace${fixedProductName ? ` with ${fixedProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+    }
+    const checkedCount = mandibularCheckedTeeth.length;
+    const activeProductName = activeProductCardId !== 0
+      ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name || ""
+      : getToothProduct("mandibular", mandibularTeeth[0])?.name || "";
+    return checkedCount > 0
+      ? { kind: "count", text: `${checkedCount} ${checkedCount === 1 ? "TOOTH" : "TEETH"} to include in ${activeProductName}`, className: "text-center text-orange-500 font-bold text-sm mb-1" }
+      : null;
+  })();
+
   return (
     <div className="flex-1 min-w-0 px-0 order-3 lg:order-none relative">
       {/* Eye toggle + Teeth row */}
@@ -1445,71 +1817,9 @@ export function MandibularPanel({
         </button>
         {showMandibular && (
           <div className="pr-9">
-            {activeProductIsRemovables && !confirmDetailsChecked ? (() => {
-              const activeExtractions = activeProductCardId !== 0
-                ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions
-                : (() => {
-                  const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
-                  return t ? getToothProduct("mandibular", t)?.extractions : undefined;
-                })();
-              if (isFullDentureProduct(activeExtractions)) return null;
-              const removableTeethCount = activeProductCardId !== 0
-                ? MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId).length
-                : MANDIBULAR_ALL_TEETH.filter(tn => { const code = mandibularToothExtractionMap[tn]; return code && code !== "TIM"; }).length;
-              const removableProductName = activeProductCardId !== 0
-                ? (() => {
-                  const ap = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
-                  if (!ap?.product) return "";
-                  const apAssigned = MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId).length;
-                  return resolveVariationDisplay(ap.product, apAssigned).name.replace(/^\d+\s+teeth?\s+/i, "");
-                })()
-                : (() => {
-                  const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
-                  if (!t) return "";
-                  const cardProd = getToothProduct("mandibular", t);
-                  const dTeeth = MANDIBULAR_ALL_TEETH.filter(tn => { const c = mandibularToothExtractionMap[tn]; return c && c !== "TIM"; }).length;
-                  return resolveVariationDisplay(cardProd, dTeeth).name.replace(/^\d+\s+teeth?\s+/i, "");
-                })();
-              if (!removableProductName) return null;
-              const hintExtractions = (
-                useMandibularArchSharedRemovable
-                  ? mandibularMergedExtractions
-                  : ((activeExtractions?.length ? activeExtractions : card0Extractions) as ProductExtraction[])
-              );
-              const hintAckCardId = useMandibularArchSharedRemovable
-                ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
-                : activeProductCardId !== 0
-                  ? activeProductCardId
-                  : 0;
-              if (requiresExtractionsAcknowledgement(hintExtractions)) {
-                if (isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) return null;
-                const isExtractionBoxSelected = activeExtractionCode !== null;
-                return (
-                  <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                    {isExtractionBoxSelected
-                      ? `Select teeth for reference (not added to ${removableProductName})`
-                      : `Select teeth to replace with "${removableProductName}"`}
-                  </p>
-                );
-              }
-              return (
-                <p className={`text-center font-bold text-sm mb-1 ${removableTeethCount > 0 ? "text-orange-500" : "text-red-600"}`}>
-                  {activeExtractionCode !== null
-                    ? `Select teeth for reference (not added to ${removableProductName})`
-                    : `Select teeth to replace with "${removableProductName}"`}
-                </p>
-              );
-            })() : (() => {
-              const checkedCount = mandibularCheckedTeeth.length;
-              const activeProductName = activeProductCardId !== 0
-                ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name || ""
-                : getToothProduct("mandibular", mandibularTeeth[0])?.name || "";
-              return checkedCount > 0 ? (
-                <p className="text-center text-orange-500 font-bold text-sm mb-1">
-                  {checkedCount} {checkedCount === 1 ? "TOOTH" : "TEETH"} to include in {activeProductName}
-                </p>
-              ) : null;
-            })()}
+            {mandibularToothHint && mandibularToothHint.kind !== "reference" && (
+              <p className={mandibularToothHint.className}>{mandibularToothHint.text}</p>
+            )}
             {(() => {
               const currentExtractions = activeProductCardId !== 0
                 ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions ?? [])
@@ -1520,6 +1830,12 @@ export function MandibularPanel({
                   selectedTeeth={activeCardMandibularTeeth}
                   willExtractTeeth={[]}
                   missingTeeth={[]}
+                  splintEnabled={mandibularSplintEnabled}
+                  splintableLinks={mandibularSplintableLinks}
+                  splintedLinks={mandibularSplintedLinks}
+                  onToggleSplintLink={handleToggleMandibularSplint}
+                  wingTeeth={mandibularWingTeeth}
+                  canSelectPontic={canSelectMandibularPontic}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;
@@ -1533,14 +1849,15 @@ export function MandibularPanel({
                       if (!isCardActiveForToothStatus(activeProductCardId)) {
                         return;
                       }
-                      // If the user has clicked Done (acknowledged), lock tooth selection until
-                      // they re-activate by clicking an extraction box or the plus icon.
+                      // If the user has clicked Done (acknowledged), reset Done state so they
+                      // can continue editing — the click proceeds normally and Done reappears.
                       const currentAckExtractions = activeProductCardId !== 0
                         ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions ?? [])
                         : card0Extractions;
                       const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : activeProductCardId;
                       if (isExtractionsSetupComplete(currentAckExtractions, ackCardId, caseSubmitted)) {
-                        return;
+                        setExtractionsSetupComplete(ackCardId, false);
+                        setIsSelectionModeActive(true);
                       }
                       // Rule 1: active box selected → assign directly, skip popover
                       if (activeExtractionCode) {
@@ -1598,6 +1915,7 @@ export function MandibularPanel({
                             : card0Extractions;
                       }
                       if (isSingleDefaultOnlyExtractionList(exts)) return;
+                      if (!hasConfiguredExtractions(exts)) return;
                       if (canUseToothForActiveProduct && !canUseToothForActiveProduct("mandibular", toothNumber)) {
                         return;
                       }
@@ -1884,6 +2202,26 @@ export function MandibularPanel({
                     setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                     setToothStatusPopoverTooth(null);
                   }}
+                  toothHoverTooltip={
+                    activeProductIsRemovables && isCardActiveForToothStatus(activeProductCardId)
+                      ? activeExtractionCode
+                        ? `Click tooth to mark as ${toothStatusPopoverExtractions.find(e => e.code === activeExtractionCode)?.name ?? activeExtractionCode}`
+                        : `Click a tooth to add it to ${
+                            activeProductCardId !== 0
+                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
+                              : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
+                          }`
+                      : !useRemovableToothChartPath &&
+                        ownArchToothChartEnabled &&
+                        (!opposingProductData || useScopedRetentionMode) &&
+                        isCardActiveForToothStatus(activeProductCardId)
+                        ? `Click a tooth to add it to ${
+                            activeProductCardId !== 0
+                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
+                              : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
+                          }`
+                        : undefined
+                  }
                 />
               );
             })()}
@@ -2023,22 +2361,18 @@ export function MandibularPanel({
                     hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"
                   ) ||
                   "";
-                const apStageObj = cardProduct?.stages?.find((s) => s.name === apStageVal);
-                const apDays = apStageObj?.days_to_process;
-                const apEstDaysText = apDays != null
-                  ? `${apDays} work day${apDays === 1 ? "" : "s"} after submission`
-                  : "10 work days after submission";
-                const apRemEstDaysText = (() => {
-                  const apRemStageVal =
-                    selectedStages[`mandibular_prep_${apRepTn}`] ||
+                const apEstDaysText = resolveRemovableEstDaysText(cardProduct, apStageVal);
+                const apRemEstDaysText = resolveRemovableEstDaysText(
+                  cardProduct,
+                  selectedStages[`mandibular_prep_${apRepTn}`] ||
                     getFieldValue("mandibular", apRepTn, "stage") ||
-                    "";
-                  const apRemStageObj = cardProduct?.stages?.find((s) => s.name === apRemStageVal);
-                  const apRemDays = apRemStageObj?.days_to_process;
-                  return apRemDays != null
-                    ? `${apRemDays} work day${apRemDays === 1 ? "" : "s"} after submission`
-                    : "10 work days after submission";
-                })();
+                    ""
+                );
+                const apLabelOnlyHeader =
+                  isApRemovables &&
+                  !hasConfiguredExtractions(
+                    useMandibularArchSharedRemovable ? mandibularMergedExtractions : apProduct?.extractions
+                  );
 
                 // For removable products, compute extractions for header display
                 // Use apRepTn (the representative slot where product data was loaded) to get extractions
@@ -2059,12 +2393,21 @@ export function MandibularPanel({
                   isSingleDefaultOnly: apIsSingleDefaultOnly,
                 });
                 const cardToothDisplay = apDisplayTeeth.length > 0 ? `#${apDisplayTeeth.join(",")}` : "";
+                const statusBoxSelectedTeeth =
+                  apIsSingleDefaultOnly || useMandibularArchSharedRemovable
+                    ? mandibularTeeth
+                    : resolveRemovableStatusBoxSelectedTeeth({
+                        cardTeeth: assignedTeeth,
+                        toothExtractionMap: mandibularToothExtractionMap,
+                        claspTeeth: mandibularClaspTeeth,
+                        archTeeth: MANDIBULAR_ALL_TEETH,
+                      });
                 const apImpressionDone = apRepTn !== 0 && (
                   isFieldCompleted("mandibular", apRepTn, "impression") ||
                   isFieldCompleted("mandibular", apRepTn, "fixed_impression")
                 );
                 const apSlotId = addedProductSlotId(ap.id);
-                const isExpanded = isAccordionExpanded(apSlotId);
+                const isExpanded = apLabelOnlyHeader || isCardAccordionExpanded(apSlotId);
 
                 return (
                   <ProductAccordionCard
@@ -2072,7 +2415,7 @@ export function MandibularPanel({
                     slotId={`added_${ap.id}`}
                     arch="mandibular"
                     isExpanded={isExpanded}
-                    interactionEnabled={isAccordionEnabled(apSlotId)}
+                    interactionEnabled={isCardAccordionInteractionEnabled(apSlotId)}
                     isCurrentlyActive={
                       isExpanded &&
                       (isApRemovables
@@ -2127,7 +2470,10 @@ export function MandibularPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
-                          onPlusClick={() => {
+                          onPlusClick={
+                            apLabelOnlyHeader
+                              ? undefined
+                              : () => {
                             setActiveExtractionCode(null);
                             // Re-activating product selection resets Done so the button re-appears
                             const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
@@ -2138,9 +2484,10 @@ export function MandibularPanel({
                               handleAddedRemovableAccordionToggle(ap);
                             }
                           }}
+                          labelOnlyHeader={apLabelOnlyHeader}
                           isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
                           isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
-                          expandEnabled={isAccordionEnabled(apSlotId)}
+                          expandEnabled={allowAccordionCollapse && isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={getRemovableHeaderTitle({
                             productName: cardProductName,
@@ -2150,6 +2497,7 @@ export function MandibularPanel({
                             hasVariationMatch: apVariationDisplay.matched,
                           })}
                           toothDisplay={cardToothDisplay}
+                          splintSummary={mandibularSplintSummaryFor(assignedTeeth)}
                           categoryName={cardCategoryName}
                           subcategoryName={cardSubcategoryName}
                           stageName={
@@ -2211,20 +2559,21 @@ export function MandibularPanel({
                               ? mandibularMergedExtractions
                               : apExtractions
                             ).length > 0 &&
-                            mandibularTeeth.length > 0 ? (
+                            // Selected teeth, or selection optional (default + optional-only) so
+                            // the user can click Done without selecting (e.g. night guard).
+                            (mandibularTeeth.length > 0 ||
+                              isExtractionSelectionOptional(
+                                useMandibularArchSharedRemovable
+                                  ? mandibularMergedExtractions
+                                  : apExtractions
+                              )) ? (
                               <ToothStatusBoxes
                                 extractions={
                                   useMandibularArchSharedRemovable
                                     ? mandibularMergedExtractions
                                     : apExtractions
                                 }
-                                selectedTeeth={
-                                  apIsSingleDefaultOnly
-                                    ? mandibularTeeth
-                                    : useMandibularArchSharedRemovable
-                                      ? mandibularTeeth
-                                      : assignedTeeth
-                                }
+                                selectedTeeth={statusBoxSelectedTeeth}
                                 allArchTeeth={MANDIBULAR_ALL_TEETH}
                                 toothExtractionMap={mandibularToothExtractionMap}
                                 claspTeeth={mandibularClaspTeeth}
@@ -2232,11 +2581,7 @@ export function MandibularPanel({
                                   extractions: useMandibularArchSharedRemovable
                                     ? mandibularMergedExtractions
                                     : apExtractions,
-                                  selectedTeeth: apIsSingleDefaultOnly
-                                    ? mandibularTeeth
-                                    : useMandibularArchSharedRemovable
-                                      ? mandibularTeeth
-                                      : assignedTeeth,
+                                  selectedTeeth: statusBoxSelectedTeeth,
                                   toothExtractionMap: mandibularToothExtractionMap,
                                   claspTeeth: mandibularClaspTeeth,
                                   excludeTeeth: apDisplayTeeth,
@@ -2317,10 +2662,11 @@ export function MandibularPanel({
                           }}
                           isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
                           isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
-                          expandEnabled={isAccordionEnabled(apSlotId)}
+                          expandEnabled={allowAccordionCollapse && isAccordionEnabled(apSlotId)}
                           productImageUrl={cardProductImage}
                           productName={cardProductName}
                           toothDisplay={cardToothDisplay}
+                          splintSummary={mandibularSplintSummaryFor(assignedTeeth)}
                           categoryName={cardCategoryName}
                           subcategoryName={cardSubcategoryName}
                           stageName={
@@ -2464,7 +2810,7 @@ export function MandibularPanel({
                                 productId={productKey}
                                 arch="mandibular"
                                 toothNumber={repTn}
-                                isExpanded={isAccordionExpanded(apSlotId) && apShowRemovableFields}
+                                isExpanded={isCardAccordionExpanded(apSlotId) && apShowRemovableFields}
                                 isStageVisible={hasAdvanceField("stage", advFields)}
                                 isStageEmpty={!isFComplete("stage") && !(selectedStages[productKey])}
                                 onOpenStage={handleOpenStageModal}
@@ -2472,7 +2818,7 @@ export function MandibularPanel({
                               />
                             )}
                             <AutoOpenImpressionIfEmpty
-                              isExpanded={isAccordionExpanded(apSlotId) && apShowRemovableFields}
+                              isExpanded={isCardAccordionExpanded(apSlotId) && apShowRemovableFields}
                               isImpressionVisible={showArchImpression && removableImplantDetailReady}
                               isImpressionEmpty={
                                 !getImpressionDisplayText(impressionModalProductId, "mandibular", repTn)?.trim() &&
@@ -2489,6 +2835,12 @@ export function MandibularPanel({
                               caseSubmitted={caseSubmitted}
                               blockAutoOpen={isAnyModalOpen}
                             />
+                            {addStageStageHistory && addStageStageHistory.length > 0 ? (
+                              <StageHistoryBlock
+                                history={addStageStageHistory}
+                                className="mx-3 mb-1"
+                              />
+                            ) : null}
                             <div className="rounded-lg p-3 space-y-3">
                               {/* Row 1: Grade / Stage */}
                               {(isF("grade") || (isF("stage") && !singleStageSkip)) && (
@@ -2535,7 +2887,7 @@ export function MandibularPanel({
                                       onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "mandibular", repTn)}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{parseStageDisplayName(stageVal)}</span>
                                       {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                     </fieldset>
                                   );
@@ -2736,7 +3088,7 @@ export function MandibularPanel({
                           {apRetentionFieldsVisible && (
                             <AutoOpenFirstFixedFieldAfterRetentionDone
                               retentionFieldsVisible={apRetentionFieldsVisible}
-                              isExpanded={isAccordionExpanded(apSlotId)}
+                              isExpanded={isCardAccordionExpanded(apSlotId)}
                               caseSubmitted={caseSubmitted}
                               isStageVisible={
                                 !isSingleStageNoStages(apToothProduct) && apIsFixed("fixed_stage")
@@ -2773,7 +3125,7 @@ export function MandibularPanel({
                               productId={apGroupStageProductIdFixed}
                               arch="mandibular"
                               toothNumber={apFirstTn}
-                              isExpanded={isAccordionExpanded(apSlotId)}
+                              isExpanded={isCardAccordionExpanded(apSlotId)}
                               isStageVisible={apIsFixed("fixed_stage")}
                               isStageEmpty={!isFieldCompleted("mandibular", apFirstTn, "fixed_stage") && !(selectedStages[apGroupStageProductIdFixed])}
                               onOpenStage={handleOpenStageModal}
@@ -2783,7 +3135,7 @@ export function MandibularPanel({
                           <AutoOpenShadeGuideIfEmpty
                             arch="mandibular"
                             productId={apFixedShadeProductId}
-                            isExpanded={isAccordionExpanded(apSlotId)}
+                            isExpanded={isCardAccordionExpanded(apSlotId)}
                             isShadeSectionVisible={apIsFixed("fixed_stump_shade") || apIsFixed("fixed_shade_trio")}
                             stumpShadeEmpty={apNeedsStumpShade && !getSelectedShade(apFixedShadeProductId, "mandibular", "stump_shade")}
                             toothShadeEmpty={apNeedsToothShade && !getSelectedShade(apFixedShadeProductId, "mandibular", "tooth_shade")}
@@ -2811,7 +3163,7 @@ export function MandibularPanel({
                           />
                           <RetentionProductFields
                             arch="mandibular"
-                            isExpanded={isAccordionExpanded(apSlotId)}
+                            isExpanded={isCardAccordionExpanded(apSlotId)}
                             firstToothNumber={apFirstTn}
                             groupStageToothNumber={apFirstTn}
                             groupStageProductIdFixed={apGroupStageProductIdFixed}
@@ -3019,20 +3371,26 @@ export function MandibularPanel({
                   selectedProduct,
                   caseSubmitted
                 );
+                // Guided both-arch flow: keep the "Done" acknowledgement (card0ShowFixedFields)
+                // intact for the header, but suppress the field *content* until this arch's
+                // fields phase is reached.
+                const card0ShowFixedFieldsContent =
+                  card0ShowFixedFields && !guidedHideCard0Fields;
                 const showFixedRetentionDone =
                   hasRetentionOptions(selectedProduct) && !caseSubmitted;
-                const card0FixedExpanded = isAccordionExpanded(slotId);
+                const card0FixedExpanded = isCardAccordionExpanded(slotId);
                 return (
                   <ProductAccordionCard
                     key={`prep-pontic-group-${groupKey}`}
                     slotId={slotId}
                     arch="mandibular"
                     isExpanded={card0FixedExpanded}
-                    interactionEnabled={isAccordionEnabled(slotId)}
+                    interactionEnabled={isCardAccordionInteractionEnabled(slotId)}
                     isCurrentlyActive={
                       activeFixedGroupProductId === selectedProduct?.id && card0FixedExpanded
                     }
                     onToggle={() => {
+                      if (!allowAccordionCollapse) return;
                       if (!isAccordionEnabled(slotId)) return;
                       if (card0FixedExpanded) {
                         setShadeSelectionState({ arch: null, fieldType: null, productId: null });
@@ -3079,6 +3437,7 @@ export function MandibularPanel({
                         isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
                       isExtractionActive={activeProductCardId === 0 && activeExtractionCode !== null}
                         onToggleExpand={() => {
+                          if (!allowAccordionCollapse) return;
                           if (!isAccordionEnabled(slotId)) return;
                           if (card0FixedExpanded) {
                             setShadeSelectionState({ arch: null, fieldType: null, productId: null });
@@ -3086,10 +3445,11 @@ export function MandibularPanel({
                           toggleAccordionFocus(slotId, 0);
                           setActiveFixedGroupProductId(selectedProduct?.id ?? null);
                         }}
-                        expandEnabled={isAccordionEnabled(slotId)}
+                        expandEnabled={allowAccordionCollapse && isAccordionEnabled(slotId)}
                         productImageUrl={productImage}
                         productName={productName}
                         toothDisplay={toothNumbersDisplay}
+                        splintSummary={mandibularSplintSummaryFor(toothNumbers)}
                         categoryName={categoryName}
                         subcategoryName={subcategoryName}
                         stageName={
@@ -3131,7 +3491,7 @@ export function MandibularPanel({
                       />
                     }
                   >
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
                       <AutoOpenFirstFixedFieldAfterRetentionDone
                         retentionFieldsVisible={card0ShowFixedFields}
                         isExpanded={card0FixedExpanded}
@@ -3164,24 +3524,24 @@ export function MandibularPanel({
                         fixedShadesComplete={fixedShadesComplete}
                       />
                     )}
-                    {card0ShowFixedFields && !isSingleStageNoStages(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
                         arch="mandibular"
                         toothNumber={hasRetentionOptions(selectedProduct) ? groupStageToothNumber : firstToothNumber}
-                        isExpanded={isAccordionExpanded(slotId)}
+                        isExpanded={isCardAccordionExpanded(slotId)}
                         isStageVisible={hasRetentionOptions(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
                         isStageEmpty={hasRetentionOptions(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
                         onOpenStage={handleOpenStageModal}
                         caseSubmitted={caseSubmitted}
                       />
                     )}
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) && (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
                       <>
                         <AutoOpenShadeGuideIfEmpty
                           arch="mandibular"
                           productId={_mandFixedShadeProductId}
-                          isExpanded={isAccordionExpanded(slotId)}
+                          isExpanded={isCardAccordionExpanded(slotId)}
                           isShadeSectionVisible={isFixed("fixed_stump_shade") || isFixed("fixed_shade_trio")}
                           stumpShadeEmpty={_needsStumpShade && !getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade")}
                           toothShadeEmpty={_needsToothShade && !getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade")}
@@ -3210,10 +3570,10 @@ export function MandibularPanel({
                       </>
                     )}
 
-                    {card0ShowFixedFields && hasRetentionOptions(selectedProduct) ? (
+                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="mandibular"
-                        isExpanded={isAccordionExpanded(slotId)}
+                        isExpanded={isCardAccordionExpanded(slotId)}
                         firstToothNumber={groupStageToothNumber}
                         groupStageToothNumber={groupStageToothNumber}
                         groupStageProductIdFixed={groupStageProductIdFixed}
@@ -3255,7 +3615,7 @@ export function MandibularPanel({
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                       />
-                    ) : card0ShowFixedFields ? (
+                    ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
                         arch="mandibular"
                         firstToothNumber={firstToothNumber}
@@ -3267,7 +3627,7 @@ export function MandibularPanel({
                         setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
                         implantDetailByTooth={implantDetailByTooth}
                         setImplantDetailByTooth={setImplantDetailByTooth}
-                        isExpanded={isAccordionExpanded(slotId)}
+                        isExpanded={isCardAccordionExpanded(slotId)}
                         isFieldVisible={isFieldVisible}
                         isFieldCompleted={isFieldCompleted}
                         getFieldValue={getFieldValue}
@@ -3301,10 +3661,15 @@ export function MandibularPanel({
             {/* Initial Removables product accordion — show fields when card 0 product is Removable/Ortho AND teeth are assigned to it */}
             {showDetails && mandibularHasRemovablesCard0 && (() => {
               // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
-              const cardTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0);
+              const realCardTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0);
+              // Fallback to the sentinel tooth + initial product details so the card renders
+              // immediately for TIM-default removable/ortho products: they select no teeth, and
+              // the async per-tooth product assignment may not have landed yet.
+              const cardTeeth = realCardTeeth.length > 0 ? realCardTeeth : (card0InitialProduct ? [MANDIBULAR_ALL_TEETH[0]] : []);
               if (cardTeeth.length === 0) return null;
-              const card0Extractions = cardTeeth.flatMap((tn) => getToothProduct("mandibular", tn)?.extractions ?? []);
-              const cardProduct = getToothProduct("mandibular", cardTeeth[0]);
+              const getCardToothProduct = (tn: number) => getToothProduct("mandibular", tn) ?? card0InitialProduct;
+              const card0Extractions = cardTeeth.flatMap((tn) => getCardToothProduct(tn)?.extractions ?? []);
+              const cardProduct = getCardToothProduct(cardTeeth[0]);
               const cardIsFullDenture = isFullDentureProduct(card0Extractions);
               const cardIsSingleDefaultOnly = isSingleDefaultOnlyExtractionList(
                 cardProduct?.extractions ?? card0Extractions
@@ -3327,14 +3692,22 @@ export function MandibularPanel({
               const cardProductImage = variationDisplay.imageUrl;
               const hasVariationMatch = variationDisplay.matched;
               const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
+              const statusBoxSelectedTeeth =
+                useMandibularArchSharedRemovable || cardIsSingleDefaultOnly
+                  ? mandibularTeeth
+                  : cardIsFullDenture
+                    ? MANDIBULAR_ALL_TEETH
+                    : resolveRemovableStatusBoxSelectedTeeth({
+                        cardTeeth: rawDisplayTeeth,
+                        toothExtractionMap: mandibularToothExtractionMap,
+                        claspTeeth: mandibularClaspTeeth,
+                        archTeeth: MANDIBULAR_ALL_TEETH,
+                      });
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
               const repTnStage = resolveCardRepToothForRush(cardTeeth);
               const stageVal = selectedStages[`mandibular_prep_${repTnStage}`] || getFieldValue("mandibular", repTnStage, "stage");
-              const remCard0StageObj = cardProduct?.stages?.find(s => s.name === stageVal);
-              const remCard0Days = remCard0StageObj?.days_to_process;
-              const estDays = remCard0Days != null
-                ? `${remCard0Days} work day${remCard0Days === 1 ? "" : "s"} after submission`
-                : "10 work days after submission";
+              const stageDisplayName = parseStageDisplayName(stageVal);
+              const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName);
               const hasRushedRemovables = isProductRushed(
                 rushedProducts,
                 "mandibular",
@@ -3346,24 +3719,28 @@ export function MandibularPanel({
               // Compute extractions for this removable product
               const cardExtractionsSeen = new Set<number>();
               const cardExtractions = cardTeeth.flatMap((tn) => {
-                const product = getToothProduct("mandibular", tn);
+                const product = getCardToothProduct(tn);
                 return product?.extractions ?? [];
               }).filter((e) => {
                 if (cardExtractionsSeen.has(e.extraction_id)) return false;
                 cardExtractionsSeen.add(e.extraction_id);
                 return true;
               });
-
               const SLOT_ID = "removable0";
+              const card0LabelOnlyHeader = !hasConfiguredExtractions(
+                useMandibularArchSharedRemovable ? mandibularMergedExtractions : cardExtractions
+              );
+              const card0Expanded = card0LabelOnlyHeader || isCardAccordionExpanded(SLOT_ID);
+
               return (
                 <ProductAccordionCard
                   key="initial-removables-mandibular"
                   slotId={SLOT_ID}
                   arch="mandibular"
-                  isExpanded={isAccordionExpanded(SLOT_ID)}
-                  interactionEnabled={isAccordionEnabled(SLOT_ID)}
+                  isExpanded={card0Expanded}
+                  interactionEnabled={isCardAccordionInteractionEnabled(SLOT_ID)}
                   isCurrentlyActive={
-                    isCurrentlyActiveProduct && isAccordionExpanded(SLOT_ID)
+                    isCurrentlyActiveProduct && card0Expanded
                   }
                   onToggle={handleCard0RemovableAccordionToggle}
                   productName={cardProductName}
@@ -3374,7 +3751,7 @@ export function MandibularPanel({
                       !shouldSkipStageSelection(
                         resolveProductForStageField(cardProduct, "mandibular", getToothProduct)
                       )
-                      ? stageVal
+                      ? stageDisplayName
                       : undefined
                   }
                   estDaysText={estDays}
@@ -3398,24 +3775,28 @@ export function MandibularPanel({
                   caseSubmitted={caseSubmitted}
                   customHeader={
                     <RestorationAccordionHeader
-                      isExpanded={isAccordionExpanded(SLOT_ID)}
+                      isExpanded={card0Expanded}
                       caseSubmitted={caseSubmitted}
                       hasRush={!!hasRushedRemovables}
                       onToggleExpand={handleCard0RemovableAccordionToggle}
-                      onPlusClick={() => {
+                      onPlusClick={
+                        card0LabelOnlyHeader
+                          ? undefined
+                          : () => {
                         setActiveExtractionCode(null);
                         // Re-activating product selection resets Done so the button re-appears
                         const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : 0;
                         setExtractionsSetupComplete(ackCardId, false);
                         setActiveProductCardId(0);
                         setIsSelectionModeActive(true);
-                        if (!isAccordionExpanded(SLOT_ID)) {
+                        if (!isCardAccordionExpanded(SLOT_ID)) {
                           handleCard0RemovableAccordionToggle();
                         }
                       }}
+                      labelOnlyHeader={card0LabelOnlyHeader}
                       isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
                       isExtractionActive={activeProductCardId === 0 && activeExtractionCode !== null}
-                      expandEnabled={isAccordionEnabled(SLOT_ID)}
+                      expandEnabled={allowAccordionCollapse && isAccordionEnabled(SLOT_ID)}
                       productImageUrl={cardProductImage}
                       productName={getRemovableHeaderTitle({
                         productName: cardProductName,
@@ -3425,6 +3806,7 @@ export function MandibularPanel({
                         hasVariationMatch,
                       })}
                       toothDisplay={cardToothDisplay}
+                      splintSummary={mandibularSplintSummaryFor(card0AssignedTeeth)}
                       categoryName={cardProduct?.subcategory?.category?.name}
                       subcategoryName={cardProduct?.subcategory?.name}
                       stageName={
@@ -3432,7 +3814,7 @@ export function MandibularPanel({
                         !shouldSkipStageSelection(
                           resolveProductForStageField(cardProduct, "mandibular", getToothProduct)
                         )
-                          ? stageVal
+                          ? stageDisplayName
                           : undefined
                       }
                       stageProduct={resolveProductForStageField(
@@ -3457,7 +3839,7 @@ export function MandibularPanel({
                         if (!archStillHasTeeth && !archHasAdded) onBackToCategories?.("mandibular");
                       }}
                       isCurrentlyActive={
-                        isCurrentlyActiveProduct && isAccordionExpanded(SLOT_ID)
+                        isCurrentlyActiveProduct && card0Expanded
                       }
                       confirmDetailsChecked={confirmDetailsChecked}
                       showHeaderContent={shouldShowRemovableHeaderContent({
@@ -3492,14 +3874,26 @@ export function MandibularPanel({
                             ? mandibularMergedExtractions
                             : cardExtractions
                         ) &&
-                        mandibularTeeth.length > 0 ? (
+                        // Show the extraction boxes + Done button once teeth are selected,
+                        // or immediately when selection is optional (default + optional-only,
+                        // e.g. night guard) so the user can click Done without selecting.
+                        (mandibularTeeth.length > 0 ||
+                          isExtractionSelectionOptional(
+                            useMandibularArchSharedRemovable
+                              ? mandibularMergedExtractions
+                              : cardExtractions
+                          )) ? (
+                          <>
+                          {mandibularToothHint && mandibularToothHint.kind === "reference" && (
+                            <p className={mandibularToothHint.className}>{mandibularToothHint.text}</p>
+                          )}
                           <ToothStatusBoxes
                             extractions={
                               useMandibularArchSharedRemovable
                                 ? mandibularMergedExtractions
                                 : cardExtractions
                             }
-                            selectedTeeth={rawDisplayTeeth}
+                            selectedTeeth={statusBoxSelectedTeeth}
                             allArchTeeth={MANDIBULAR_ALL_TEETH}
                             toothExtractionMap={mandibularToothExtractionMap}
                             claspTeeth={mandibularClaspTeeth}
@@ -3507,7 +3901,7 @@ export function MandibularPanel({
                               extractions: useMandibularArchSharedRemovable
                                 ? mandibularMergedExtractions
                                 : cardExtractions,
-                              selectedTeeth: rawDisplayTeeth,
+                              selectedTeeth: statusBoxSelectedTeeth,
                               toothExtractionMap: mandibularToothExtractionMap,
                               claspTeeth: mandibularClaspTeeth,
                               excludeTeeth: displayTeeth,
@@ -3560,6 +3954,7 @@ export function MandibularPanel({
                                 : setExtractionsSetupComplete(0, v);
                             }}
                           />
+                          </>
                         ) : undefined
                       }
                     />
@@ -3567,7 +3962,7 @@ export function MandibularPanel({
                 >
                   {(() => {
                     const repTn = cardTeeth[0];
-                    const toothProduct = getToothProduct("mandibular", repTn);
+                    const toothProduct = getCardToothProduct(repTn);
                     const advFields = toothProduct?.advance_fields;
                     const removableChain = getSelectionFieldChain(toothProduct);
                     const isF = (step: string) =>
@@ -3600,6 +3995,11 @@ export function MandibularPanel({
                     const card0ShowRemovableFields = useMandibularArchSharedRemovable
                       ? mandibularArchExtractionsReady
                       : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                    // Guided both-arch flow: suppress card-0 field content until this arch's
+                    // fields phase (chart + teeth selection above remain visible).
+                    if (guidedHideCard0Fields) {
+                      return null;
+                    }
                     if (
                       !card0ShowRemovableFields &&
                       !useMandibularArchSharedRemovable &&
@@ -3614,7 +4014,7 @@ export function MandibularPanel({
                             productId={productKey}
                             arch="mandibular"
                             toothNumber={repTn}
-                            isExpanded={isAccordionExpanded(SLOT_ID) && card0ShowRemovableFields}
+                            isExpanded={card0Expanded && card0ShowRemovableFields}
                             isStageVisible={isF("stage")}
                             isStageEmpty={!stageVal}
                             onOpenStage={handleOpenStageModal}
@@ -3623,8 +4023,17 @@ export function MandibularPanel({
                         )}
                         {!suppressAutoOpen && (
                           <AutoOpenImpressionIfEmpty
-                            isExpanded={isAccordionExpanded(SLOT_ID) && card0ShowRemovableFields}
-                            isImpressionVisible={isF("impression") && removableImplantDetailReady}
+                            isExpanded={card0Expanded && card0ShowRemovableFields}
+                            isImpressionVisible={
+                              getNextSelectionFieldStep(
+                                removableChain,
+                                "mandibular",
+                                repTn,
+                                (a, t, s) => isFieldCompleted(a, t, s)
+                              ) === "impression" &&
+                              isF("impression") &&
+                              removableImplantDetailReady
+                            }
                             isImpressionEmpty={
                               !isFComplete("impression") &&
                               !archHasActiveImpressionSelections(
@@ -3691,7 +4100,7 @@ export function MandibularPanel({
                                       onClick={() => !caseSubmitted && handleOpenStageModal(productKey, "mandibular", repTn)}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${showGreen ? "text-[#34a853]" : isStageComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Stage</legend>
-                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{stageVal}</span>
+                                      <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">{parseStageDisplayName(stageVal)}</span>
                                       {showGreen && <Check size={14} className="text-[#34a853] flex-shrink-0" />}
                                     </fieldset>
                                   );

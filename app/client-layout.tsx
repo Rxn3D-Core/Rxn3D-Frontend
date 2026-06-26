@@ -9,13 +9,14 @@ import { ChatSupportBox } from "@/components/chat-support-box"
 import { useAuth } from "@/contexts/auth-context"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 import { useDashboardSettingsStore } from "@/stores/dashboard-settings-store"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isRedirecting, setIsRedirecting] = useState(false)
   const [showContent, setShowContent] = useState(true)
   const { user } = useAuth()
-  const userRole = user?.roles?.[0] || ""
+  const userRole = getPrimaryRole(user)
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, isLoading } = useDashboardSettings(userRole, userId, customerId)
@@ -30,7 +31,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [isLoading, userRole, isEnabled, initializeFromSettings])
   
   // Use Zustand store for real-time updates, fallback to hook if store not initialized
-  const shouldShowChat = user && (isLoading || !userRole ? true : chatSupportEnabled)
+  // const shouldShowChat = user && (isLoading || !userRole ? true : chatSupportEnabled)
+  const shouldShowChat = false
 
   return (
     <div className="min-h-screen relative overflow-hidden">

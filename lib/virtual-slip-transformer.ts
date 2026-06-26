@@ -2,9 +2,8 @@
  * Transforms the API response from GET /v1/slip/slip/{slipId}/details
  * into the props and state shape required by CaseDesignCenter in read-only mode.
  *
- * This utility is used exclusively by the virtual slip page
- * (app/virtual-slip/[caseNumber]/page.tsx) and has no effect on the
- * interactive case creation flow.
+ * Used by the read-only virtual slip page and by add-new-stage / edit-slip
+ * preload (`preloadInitialSlipState` → CaseDesignCenter).
  */
 
 import type { AddedProduct, VirtualSlipInitialState } from "@/components/case-design-center/types";
@@ -14,6 +13,32 @@ import {
   type ArchImpressionEntry,
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage";
+import {
+  isFixedRestorationProduct,
+  resolveProductForRetentionCheck,
+} from "@/components/case-design-center/utils/categoryHelpers";
+import {
+  buildGroupedExtractionsChartDisplay,
+  mergeArchExtractionDisplays,
+  mergePreloadExtractionDisplaysForArch,
+  overlayPreloadExtractionsOnChartDisplay,
+  slipProductExtractionCatalog,
+} from "@/lib/virtual-slip-extraction-display";
+import { isTimExtractionRow } from "@/components/case-design-center/utils/extractionHelpers";
+
+/**
+ * Give the preloaded product object an `extractions` catalog merged from the slip
+ * row (saved extractions[], row-level product_extractions, and per-tooth images
+ * from slip_product_teeth_selections). The CDC panels build the chart's
+ * extractionsByCode / extractionImagesByCode from product.extractions, so without
+ * this the preloaded chart can't resolve saved status codes to tooth images and
+ * falls back to default tooth graphics.
+ */
+function withSlipExtractionCatalog(apiProduct: any, baseProduct: any): any {
+  const catalog = slipProductExtractionCatalog(apiProduct);
+  if (catalog.length === 0) return baseProduct;
+  return { ...baseProduct, extractions: catalog };
+}
 
 function upsertArchImpression(
   selections: SlipImpressionSelections,
@@ -34,13 +59,40 @@ function upsertArchImpression(
   }
 }
 
-/** Parse a comma-separated teeth_selection string into an array of tooth numbers. */
-function parseTeethSelection(teethSelection: string | null | undefined): number[] {
-  if (!teethSelection) return [];
-  return teethSelection
-    .split(",")
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !isNaN(n));
+/**
+ * Parse a teeth value that may be a comma-separated string, an array of numbers,
+ * or an array of objects ({ tooth_number } / { tooth_num } / { number }).
+ * Mirrors `parseTeeth` in lib/virtual-slip-view-model.ts so the editable preload
+ * (add-new-stage / edit-slip) reads the same shapes as the read-only virtual slip.
+ */
+function parseTeethValue(value: unknown): number[] {
+  if (!value) return [];
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((v: any) =>
+        typeof v === "number"
+          ? v
+          : parseInt(String(v?.tooth_number ?? v?.tooth_num ?? v?.number ?? v), 10)
+      )
+      .filter((n) => !isNaN(n));
+  }
+  return [];
+}
+
+/**
+ * Resolve a slip product's selected teeth from the slip-details payload, matching
+ * the read-only virtual slip view model: teeth_selection (string OR array), then a
+ * `teeth` fallback. Preserves source order and de-dupes.
+ */
+export function parseProductTeeth(apiProduct: any): number[] {
+  const teeth = parseTeethValue(apiProduct?.teeth_selection ?? apiProduct?.teeth);
+  return [...new Set(teeth)];
 }
 
 /**
@@ -49,6 +101,79 @@ function parseTeethSelection(teethSelection: string | null | undefined): number[
  */
 function archFromType(type: string | null | undefined): "maxillary" | "mandibular" {
   return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
+}
+
+function isNonFixedApiProduct(apiProduct: any): boolean {
+  return !isFixedRestorationProduct(resolveProductForRetentionCheck(apiProduct));
+}
+
+/**
+ * Populate arch-level extraction maps for CDC preload (add-new-stage / edit-slip).
+ * Top arch chart: grouped `extractions[]` only — not product `teeth_selection` / TIM.
+ * Product accordions still use `teeth_selection` + status boxes with `excludeTeeth`.
+ */
+function hydrateArchExtractionMapsFromSlipProducts(
+  apiProducts: any[],
+  state: {
+    maxillaryToothExtractionMap: Record<number, string>;
+    mandibularToothExtractionMap: Record<number, string>;
+    maxillaryClaspTeeth: number[];
+    mandibularClaspTeeth: number[];
+    maxillaryNoActiveBoxTeeth: number[];
+    mandibularNoActiveBoxTeeth: number[];
+  },
+): void {
+  for (const arch of ["maxillary", "mandibular"] as const) {
+    const archProducts = apiProducts.filter((p) => archFromType(p?.type) === arch);
+    if (archProducts.length === 0) continue;
+
+    let extractionDisplay = mergeArchExtractionDisplays(
+      archProducts.map(buildGroupedExtractionsChartDisplay),
+    );
+
+    const preloadDisplay = mergePreloadExtractionDisplaysForArch(archProducts, arch);
+    if (preloadDisplay) {
+      extractionDisplay = overlayPreloadExtractionsOnChartDisplay(
+        extractionDisplay,
+        preloadDisplay,
+        archProducts,
+      );
+    }
+
+    const toothMap =
+      arch === "maxillary"
+        ? state.maxillaryToothExtractionMap
+        : state.mandibularToothExtractionMap;
+    const claspList =
+      arch === "maxillary" ? state.maxillaryClaspTeeth : state.mandibularClaspTeeth;
+    const noActiveBoxList =
+      arch === "maxillary"
+        ? state.maxillaryNoActiveBoxTeeth
+        : state.mandibularNoActiveBoxTeeth;
+
+    for (const [toothKey, code] of Object.entries(extractionDisplay.toothExtractionMap)) {
+      const tn = Number(toothKey);
+      if (!Number.isFinite(tn)) continue;
+      const meta = extractionDisplay.extractionsByCode[code];
+      if (isTimExtractionRow({ code, name: meta?.name })) continue;
+      toothMap[tn] = code;
+    }
+
+    for (const tn of extractionDisplay.claspTeeth) {
+      if (!claspList.includes(tn)) claspList.push(tn);
+    }
+
+    for (const apiProduct of archProducts) {
+      if (!isNonFixedApiProduct(apiProduct)) continue;
+      const teeth = parseProductTeeth(apiProduct);
+      for (const tn of teeth) {
+        if (claspList.includes(tn)) continue;
+        if (toothMap[tn] && !noActiveBoxList.includes(tn)) {
+          noActiveBoxList.push(tn);
+        }
+      }
+    }
+  }
 }
 
 
@@ -65,7 +190,7 @@ export function buildAddedProducts(apiProducts: unknown[]): AddedProduct[] {
     // Merge category/subcategory from the slip-product level into the product object.
     // useCaseDesignState reads product?.subcategory?.category?.name for category detection.
     const baseProduct = apiProduct.product ?? { id: apiProduct.product_id ?? 0 };
-    const product = {
+    const product = withSlipExtractionCatalog(apiProduct, {
       ...baseProduct,
       subcategory: baseProduct.subcategory ?? {
         ...(apiProduct.subcategory ?? {}),
@@ -73,7 +198,7 @@ export function buildAddedProducts(apiProducts: unknown[]): AddedProduct[] {
       },
       // Also embed category_name for any code that reads it as a flat field
       category_name: baseProduct.category_name ?? apiProduct.category?.name ?? "",
-    };
+    });
 
     return {
       id: index + 1,
@@ -104,6 +229,12 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       selectedImpressions: emptyImpressionSelections(),
       completedFields: {},
       fieldValues: {},
+      maxillaryToothExtractionMap: {},
+      mandibularToothExtractionMap: {},
+      maxillaryClaspTeeth: [],
+      mandibularClaspTeeth: [],
+      maxillaryNoActiveBoxTeeth: [],
+      mandibularNoActiveBoxTeeth: [],
     };
   }
 
@@ -118,13 +249,25 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
   const selectedImpressions = emptyImpressionSelections();
   const completedFields: Record<string, string[]> = {};
   const fieldValues: Record<string, Record<string, string>> = {};
+  // Per-arch tooth-status extraction selections (Missing, Will-extract, etc.) and
+  // overlay/clasp teeth, mirroring useToothSelection's interactive state shape.
+  const maxillaryToothExtractionMap: Record<number, string> = {};
+  const mandibularToothExtractionMap: Record<number, string> = {};
+  const maxillaryClaspTeeth: number[] = [];
+  const mandibularClaspTeeth: number[] = [];
+  // Removable product teeth that also carry a status code — must stay in the orange header.
+  const maxillaryNoActiveBoxTeeth: number[] = [];
+  const mandibularNoActiveBoxTeeth: number[] = [];
 
   for (let i = 0; i < apiProducts.length; i++) {
     const apiProduct: any = apiProducts[i];
     const cardId = i + 1; // 0 reserved for initial product
     const arch = archFromType(apiProduct.type);
-    const productData = apiProduct.product ?? { id: apiProduct.product_id ?? 0 };
-    const teeth = parseTeethSelection(apiProduct.teeth_selection);
+    const productData = withSlipExtractionCatalog(
+      apiProduct,
+      apiProduct.product ?? { id: apiProduct.product_id ?? 0 },
+    );
+    const teeth = parseProductTeeth(apiProduct);
 
     // ── Teeth ──────────────────────────────────────────────────────────────
     if (arch === "maxillary") {
@@ -139,14 +282,9 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
 
     // ── Retention types (Prep for fixed, none for removables) ──────────────
     // Category is at the slip-product level (apiProduct.category.name), not inside the product object
-    const categoryName: string =
-      apiProduct.category?.name ??
-      productData?.subcategory?.category?.name ??
-      productData?.category_name ??
-      "";
-    const isRemovable = categoryName.toLowerCase().includes("removable");
+    const isNonFixed = isNonFixedApiProduct(apiProduct);
 
-    if (!isRemovable) {
+    if (!isNonFixed) {
       const retentionTypesMap = arch === "maxillary" ? maxillaryRetentionTypes : mandibularRetentionTypes;
 
       // Build a per-tooth retention map from the API retentions array.
@@ -217,7 +355,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     // `${productId}_${arch}_${fieldType}` where productId for added products
     // is the tooth-based key like "prep_4" (for removables) or "fixed_4" (for fixed)
     if (repTooth !== null) {
-      const productIdKey = isRemovable ? `prep_${repTooth}` : `fixed_${repTooth}`;
+      const productIdKey = isNonFixed ? `prep_${repTooth}` : `fixed_${repTooth}`;
 
       if (teethShadeName) {
         selectedShades[`${productIdKey}_${arch}_tooth_shade`] = teethShadeName;
@@ -231,7 +369,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
 
       // ── Stage selections ─────────────────────────────────────────────────
       if (stageName) {
-        const stageKey = isRemovable ? `${arch}_prep_${repTooth}` : `${arch}_fixed_${repTooth}`;
+        const stageKey = isNonFixed ? `${arch}_prep_${repTooth}` : `${arch}_fixed_${repTooth}`;
         selectedStages[stageKey] = stageName;
       }
 
@@ -243,7 +381,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       const completed: string[] = [];
       const values: Record<string, string> = {};
 
-      if (!isRemovable) {
+      if (!isNonFixed) {
         // Fixed restoration: unlock the entire chain so all fields render in read-only mode.
         // Values are populated only where data exists; steps without data still show as empty.
         const FIXED_CHAIN = [
@@ -316,7 +454,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     // We match saved values to field definitions by ID, then resolve which step key
     // (fixed_contact_icons, fixed_margin, etc.) owns each field using the same name-matchers
     // as getAdvanceFieldsForStep in FixedRestorationFields.tsx.
-    if (!isRemovable && repTooth !== null &&
+    if (!isNonFixed && repTooth !== null &&
         Array.isArray(apiProduct.advance_fields) && apiProduct.advance_fields.length > 0 &&
         Array.isArray(apiProduct.product?.advance_fields)) {
       const productFieldDefs: Array<{ id: number; name: string; options?: Array<{ id: number; name: string }> }> =
@@ -373,6 +511,15 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     }
   }
 
+  hydrateArchExtractionMapsFromSlipProducts(apiProducts, {
+    maxillaryToothExtractionMap,
+    mandibularToothExtractionMap,
+    maxillaryClaspTeeth,
+    mandibularClaspTeeth,
+    maxillaryNoActiveBoxTeeth,
+    mandibularNoActiveBoxTeeth,
+  });
+
   return {
     maxillaryTeeth,
     mandibularTeeth,
@@ -385,6 +532,12 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     selectedImpressions,
     completedFields,
     fieldValues,
+    maxillaryToothExtractionMap,
+    mandibularToothExtractionMap,
+    maxillaryClaspTeeth,
+    mandibularClaspTeeth,
+    maxillaryNoActiveBoxTeeth,
+    mandibularNoActiveBoxTeeth,
   };
 }
 

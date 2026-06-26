@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -107,7 +106,6 @@ export type EditBillingInvoiceDialogProps = {
 }
 
 const MAX_EDIT_REASON = 500
-const MAX_NOTES = 1000
 
 export function EditBillingInvoiceDialog({
   open,
@@ -117,7 +115,6 @@ export function EditBillingInvoiceDialog({
 }: EditBillingInvoiceDialogProps) {
   const { toast } = useToast()
   const [editReason, setEditReason] = useState("")
-  const [notes, setNotes] = useState("")
   const [productEdits, setProductEdits] = useState<ProductEditState[]>([])
 
   const {
@@ -135,7 +132,6 @@ export function EditBillingInvoiceDialog({
   useEffect(() => {
     if (!open || !invoice) return
     setEditReason("")
-    setNotes("")
     setProductEdits(invoiceToEditStates(invoice))
   }, [open, invoice])
 
@@ -221,9 +217,7 @@ export function EditBillingInvoiceDialog({
 
     const body: UpdateBillingInvoicePricingBody = { products }
     const er = editReason.trim().slice(0, MAX_EDIT_REASON)
-    const n = notes.trim().slice(0, MAX_NOTES)
     if (er) body.edit_reason = er
-    if (n) body.notes = n
     return body
   }
 
@@ -234,10 +228,9 @@ export function EditBillingInvoiceDialog({
 
     try {
       await updateInvoicePricing({ invoiceId: billingInvoiceId, body }).unwrap()
-      toast({ title: "Invoice pricing updated" })
-      await refetch()
-      onSaved?.()
       onOpenChange(false)
+      onSaved?.()
+      toast({ title: "Invoice pricing updated", duration: 4000 })
     } catch (e: unknown) {
       toast({
         title: "Update failed",
@@ -253,14 +246,6 @@ export function EditBillingInvoiceDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Edit invoice pricing</DialogTitle>
-          <DialogDescription>
-            One save updates the full invoice in a single request. Estimated line totals use the same rules as the
-            server (rush fee applies to subtotal).
-          </DialogDescription>
-        </DialogHeader>
-
         {billingInvoiceId != null && billingInvoiceId > 0 && (
           <>
             {loading && (
@@ -304,18 +289,6 @@ export function EditBillingInvoiceDialog({
                     className="resize-none"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-inv-notes">Notes (optional, max {MAX_NOTES})</Label>
-                  <Textarea
-                    id="edit-inv-notes"
-                    placeholder="Additional notes for this pricing update…"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value.slice(0, MAX_NOTES))}
-                    rows={2}
-                    className="resize-none"
-                  />
-                </div>
-
                 {!hasProducts && (
                   <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
                     This invoice has no product lines in the API response. Nothing to edit here.

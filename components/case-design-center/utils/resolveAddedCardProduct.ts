@@ -1,6 +1,8 @@
 import type { Arch, ProductApiData } from "../types";
+import type { FieldStep } from "../hooks/useToothFieldProgress";
 
 type GetToothProduct = (arch: Arch, toothNumber: number) => ProductApiData | null | undefined;
+type GetFieldValue = (arch: Arch, toothNumber: number, step: FieldStep) => string;
 
 /** Wizard stub has extractions/retention_options; full library GET adds shades + advance_fields. */
 export function isHydratedProductApiData(
@@ -43,4 +45,29 @@ export function resolveAddedCardProductData(
     if (p) return p;
   }
   return getToothProduct(arch, -cardId) ?? stubProduct ?? null;
+}
+
+/**
+ * Read a field value from the card's representative tooth, virtual slot (-cardId),
+ * or any tooth on the card — stage/grade may be stored on a different tooth than repTooth.
+ */
+export function resolveCardFieldValue(
+  arch: Arch,
+  cardId: number,
+  cardTeeth: readonly number[],
+  repTooth: number,
+  step: FieldStep,
+  getFieldValue: GetFieldValue
+): string {
+  const virtualTooth = cardId === 0 ? -0 : -cardId;
+  const ordered: number[] = [repTooth, virtualTooth, ...cardTeeth];
+  const seen = new Set<string>();
+  for (const tn of ordered) {
+    const sig = Object.is(tn, -0) ? "-0" : String(tn);
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    const val = getFieldValue(arch, tn, step)?.trim();
+    if (val) return val;
+  }
+  return "";
 }

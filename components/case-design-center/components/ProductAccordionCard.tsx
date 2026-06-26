@@ -1,7 +1,9 @@
 "use client";
 
 import React from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, Trash2, Plus } from "lucide-react";
+import { DeleteProductConfirmModal } from "./DeleteProductConfirmModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ExtractionsDoneAcknowledgement } from "./ExtractionsDoneAcknowledgement";
 import { ProductImagePreview } from "./ProductImagePreview";
@@ -53,6 +55,9 @@ export interface ProductAccordionCardProps {
   /** Removable/fixed layout: large image, tags, active product box (replaces default compact header). */
   customHeader?: React.ReactNode;
 
+  /** When set, shows a + icon with this text as a tooltip next to the tooth display (hints the user to click a tooth). */
+  toothSelectHintLabel?: string;
+
   children?: React.ReactNode;
 }
 
@@ -80,10 +85,21 @@ export function ProductAccordionCard({
   onExtractionsAcknowledgedChange,
   headerExtension,
   customHeader,
+  toothSelectHintLabel,
   children,
 }: ProductAccordionCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   return (
     <div className={`relative mt-2 ${!interactionEnabled ? "opacity-45 pointer-events-none" : ""}`}>
+      <DeleteProductConfirmModal
+        open={showDeleteConfirm}
+        productName={productName}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete?.();
+        }}
+      />
       <div className="rounded-lg bg-white overflow-hidden">
         {customHeader ? (
           <div className={headerExtension || isExpanded ? "" : "rounded-b-[5.4px]"}>
@@ -109,6 +125,18 @@ export function ProductAccordionCard({
                 {toothDisplay && (
                   <span className={`${productAccordionToothClass} flex-shrink-0`}>{toothDisplay}</span>
                 )}
+                {toothSelectHintLabel && (
+                  <TooltipProvider delayDuration={100}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-orange-500 cursor-default" onClick={(e) => e.stopPropagation()}>
+                          <Plus size={12} className="text-white" strokeWidth={3} />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">{toothSelectHintLabel}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 {hasRush && <RushIcon className="w-[20px] h-[20px] flex-shrink-0" />}
               </p>
               <div className="flex items-center gap-[5px] flex-wrap">
@@ -123,13 +151,13 @@ export function ProductAccordionCard({
                     tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete?.();
+                      setShowDeleteConfirm(true);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         e.stopPropagation();
-                        onDelete?.();
+                        setShowDeleteConfirm(true);
                       }
                     }}
                     className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer hover:text-red-500 transition-colors"
@@ -179,7 +207,7 @@ export function ProductAccordionCard({
         {/* Body */}
         {isExpanded && children && (
           <div
-            className={`bg-white space-y-3 min-w-0 overflow-x-hidden${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+            className={`bg-white space-y-3 min-w-0 overflow-x-hidden${customHeader ? " pt-1" : ""}${caseSubmitted ? " pointer-events-none select-none" : ""}`}
           >
             {children}
           </div>

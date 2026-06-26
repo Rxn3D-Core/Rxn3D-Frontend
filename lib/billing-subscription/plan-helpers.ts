@@ -51,12 +51,14 @@ export function formatUserSeats(maxUserSeats?: number | null): string {
   return String(maxUserSeats)
 }
 
+export function isEnterprisePlan(plan?: CatalogPlan | null): boolean {
+  return !!plan?.name?.toLowerCase().includes("enterprise")
+}
+
 export function formatPlanPriceLabel(plan?: CatalogPlan | null): string {
+  if (isEnterprisePlan(plan)) return "Custom"
   const fee = getPlanMonthlyFee(plan)
   if (fee <= 0) return "Free"
-  if (plan?.name?.toLowerCase().includes("enterprise") && !plan.pricing?.prices?.length && !plan.monthly_fee) {
-    return "Custom"
-  }
   return `$${fee.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
 
@@ -66,7 +68,7 @@ export function buildPlanLimitsText(plan: CatalogPlan): string {
   const userSeats = formatUserSeats(plan.feature_limits?.max_user_seats)
   const slipLabel =
     slipLimit === 0 ? "Unlimited" : `${slipLimit.toLocaleString()}`
-  return `${slipLabel} cases/month · ${adminSeats} admin seat${adminSeats !== 1 ? "s" : ""}, ${userSeats} user${userSeats === "1" ? "" : "s"}`
+  return `${slipLabel} slips/month · ${adminSeats} admin seat${adminSeats !== 1 ? "s" : ""}, ${userSeats} user${userSeats === "1" ? "" : "s"}`
 }
 
 export function buildPlanFeatures(plan: CatalogPlan): string[] {
@@ -79,8 +81,8 @@ export function buildPlanFeatures(plan: CatalogPlan): string[] {
 
   const features: string[] = []
   const slipLimit = getSlipCapacity(plan)
-  if (slipLimit === 0) features.push("Unlimited cases per month")
-  else if (slipLimit > 0) features.push(`${slipLimit.toLocaleString()} cases per month`)
+  if (slipLimit === 0) features.push("Unlimited slips per month")
+  else if (slipLimit > 0) features.push(`${slipLimit.toLocaleString()} slips per month`)
 
   const storage = getStorageGb(plan)
   if (storage != null) features.push(`${storage} GB included storage`)
@@ -110,6 +112,7 @@ export function collectCatalogHighlights(plans: CatalogPlan[]): string[] {
 }
 
 export function isFreePlan(plan?: CatalogPlan | null): boolean {
+  if (isEnterprisePlan(plan)) return false
   return getPlanMonthlyFee(plan) <= 0
 }
 

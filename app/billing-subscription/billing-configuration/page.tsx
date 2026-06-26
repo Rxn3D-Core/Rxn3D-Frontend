@@ -29,9 +29,11 @@ import {
   createBillingConfigPlan,
   deleteBillingConfigPlan,
   listBillingConfigPlans,
+  listPlanSubscribers,
   updateBillingConfigPlan,
   type BillingConfigPlan,
   type BillingConfigPlanPayload,
+  type PlanSubscriber,
   type PriceFrequency,
 } from "@/lib/api/billing-config-plans"
 import {
@@ -222,41 +224,77 @@ function ConfigRowCard({
   )
 }
 
-function PlanCard({ plan, onDelete }: { plan: PlanCardModel; onDelete: (id: number) => void }) {
+function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCardModel; onDelete: (id: number) => void; onEdit: (plan: PlanCardModel) => void; onViewSubscribers?: (planId: number, planName: string) => void }) {
   const isEnterprise = plan.style === "enterprise"
   const isHighlighted = plan.style === "highlight"
+  const isSuccess = plan.style === "success"
+
+  const headerBg = isEnterprise
+    ? "bg-[#1E2939]"
+    : isHighlighted
+      ? "bg-[#EEF2FF]"
+      : isSuccess
+        ? "bg-[#F0FDF4]"
+        : "bg-[#F9FAFB]"
+
+  const badgeStyle = isEnterprise
+    ? "bg-[#FFFBEB] text-[#BB4D00]"
+    : isHighlighted
+      ? "bg-[#EEF2FF] text-[#1162A8]"
+      : isSuccess
+        ? "bg-[#F0FDF4] text-[#008236]"
+        : "bg-white text-[#434343]"
+
+  const titleColor = isEnterprise ? "text-white" : "text-[#101828]"
+  const priceColor = isEnterprise ? "text-[#D1D5DC]" : "text-[#434343]"
+
+  const isFreemium = plan.style === "default"
+
+  const featureRows = isFreemium
+    ? [
+        { label: "Included Slips", value: plan.includedSlips },
+        { label: "Included Storage", value: plan.includedStorage },
+        { label: "Max User Seats", value: plan.maxUsers },
+        { label: "Priority Support", value: plan.prioritySupport, icon: plan.prioritySupport ? ("check" as const) : ("cross" as const) },
+        { label: "Custom Branding", value: plan.customBranding, icon: plan.customBranding ? ("check" as const) : ("cross" as const) },
+      ]
+    : isEnterprise
+      ? [
+          { label: "Included Slips", value: plan.includedSlips },
+          { label: "Overage Rate", value: "N/A" },
+          { label: "Continuous Rate", value: "Negotiated" },
+          { label: "Included Storage", value: plan.includedStorage },
+          { label: "Max User Seats", value: plan.maxUsers },
+          { label: "Priority Support", value: plan.prioritySupport, icon: plan.prioritySupport ? ("check" as const) : ("cross" as const) },
+          { label: "Custom Branding", value: plan.customBranding, icon: plan.customBranding ? ("check" as const) : ("cross" as const) },
+        ]
+      : [
+          { label: "Included Slips", value: plan.includedSlips },
+          { label: "Standard Overage", value: plan.overageRate },
+          { label: "Continuous Rate", value: isHighlighted ? "$0.45/slip" : "N/A" },
+          { label: "Included Storage", value: plan.includedStorage },
+          { label: "Max User Seats", value: plan.maxUsers },
+          { label: "Priority Support", value: plan.prioritySupport, icon: plan.prioritySupport ? ("check" as const) : ("cross" as const) },
+          { label: "Custom Branding", value: plan.customBranding, icon: plan.customBranding ? ("check" as const) : ("cross" as const) },
+        ] as Array<{ label: string; value: string | boolean; icon?: "check" | "cross" }>
+
   return (
-    <Card
+    <div
       className={cn(
-        "h-full min-h-[350px] rounded-xl border border-[#d9e1ea] bg-white shadow-none",
-        plan.style === "success" && "bg-[#f4fff7]",
-        isHighlighted && "border-[#b9d6ef] bg-[#f8fcff]",
-        isEnterprise && "border-[#0f2740] bg-[#10253a] text-white",
+        "flex h-full flex-col overflow-hidden rounded-[14px] border bg-white",
+        isHighlighted
+          ? "border-[rgba(79,70,229,0.3)] shadow-[0_0_0_1px_rgba(79,70,229,0.1),0_2px_12px_rgba(79,70,229,0.12)]"
+          : "border-[#E5E7EB] shadow-[0_1px_3px_rgba(0,0,0,0.08)]",
       )}
     >
-      <CardHeader className="space-y-2 px-4 pb-1 pt-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className={cn("text-[18px] font-semibold leading-tight tracking-tight", isEnterprise && "text-white")}>
-              {plan.name}
-            </p>
-            <p className={cn("mt-1 text-[32px] font-semibold leading-none tracking-tight", isEnterprise && "text-white")}>
-              {plan.monthly}
-            </p>
-          </div>
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-              isEnterprise
-                ? "bg-amber-200 text-amber-950"
-                : isHighlighted
-                  ? "bg-[#1162A8]/15 text-[#1162A8]"
-                  : "bg-muted text-muted-foreground",
-            )}
-          >
+      {/* Card header */}
+      <div className={cn("flex flex-col gap-1 px-5 pb-4 pt-5", headerBg)}>
+        <div className="flex items-center justify-between">
+          <span className={cn("text-[19px] font-bold leading-7", titleColor)}>{plan.name}</span>
+          <span className={cn("rounded-full px-3 py-0.5 text-[13px] font-medium", badgeStyle)}>
             {isHighlighted ? (
               <span className="inline-flex items-center gap-1">
-                <Star className="h-3.5 w-3.5" />
+                <Star className="h-3 w-3" />
                 {plan.badge}
               </span>
             ) : (
@@ -264,39 +302,68 @@ function PlanCard({ plan, onDelete }: { plan: PlanCardModel; onDelete: (id: numb
             )}
           </span>
         </div>
-      </CardHeader>
-      <CardContent className={cn("space-y-2.5 px-4 pb-3.5", isEnterprise ? "text-slate-200" : "text-[#6c7582]")}>
-        <FeatureRow label="Included Slips" value={plan.includedSlips} />
-        <FeatureRow label="Overage Rate" value={plan.overageRate} />
-        <FeatureRow label="Included Storage" value={plan.includedStorage} />
-        <FeatureRow label="Max User Seats" value={plan.maxUsers} />
-        <FeatureRow label="Priority Support" value={plan.prioritySupport ? "Included" : "No"} icon={plan.prioritySupport ? "check" : "cross"} />
-        <FeatureRow label="Custom Branding" value={plan.customBranding ? "Included" : "No"} icon={plan.customBranding ? "check" : "cross"} />
-        <div className="mt-3 flex items-center justify-between border-t pt-2.5">
-          <div className="flex items-center gap-2">
+        <p className={cn(plan.monthly === "Custom Pricing" ? "text-[20px] font-semibold leading-9 opacity-80" : "text-[23px] font-bold leading-9", priceColor)}>{plan.monthly}</p>
+      </div>
+
+      {/* Feature rows */}
+      <div className="flex flex-1 flex-col">
+        {featureRows.map((row, i) => (
+          <div
+            key={row.label}
+            className={cn(
+              "flex items-center justify-between px-5 py-3",
+              i % 2 === 0 ? "bg-white" : "bg-[#F9FAFB]",
+            )}
+          >
+            <span className="text-[13px] text-[#777777]">{row.label}</span>
+            <div className="flex items-center gap-1">
+              {row.icon === "check" ? <Check className="h-4 w-4 text-[#34C759]" /> : null}
+              {row.icon === "cross" ? <X className="h-4 w-4 text-[#CF0202]" /> : null}
+              {typeof row.value === "string" ? (
+                <span className="text-[14px] font-medium text-[#434343]">{row.value}</span>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-[#E5E7EB] bg-white px-5 py-3">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit(plan) }}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[#1162A8] hover:text-[#0d4a7e]"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit Plan
+          </button>
+          {plan.sourcePlan?.id ? (
             <button
               type="button"
-              className={cn("inline-flex items-center gap-1 text-sm font-medium text-[#1162A8]", isEnterprise && "text-sky-300")}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit Plan
-            </button>
-            <button
-              type="button"
-              className={cn("inline-flex items-center gap-1 text-sm font-medium text-rose-500", isEnterprise && "text-rose-400")}
+              className="inline-flex items-center gap-1 text-[13px] font-medium text-rose-500 hover:text-rose-700"
               onClick={(e) => {
                 e.stopPropagation()
                 if (plan.sourcePlan?.id) onDelete(plan.sourcePlan.id)
               }}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete
             </button>
-          </div>
-          <span className={cn("text-xs", isEnterprise ? "text-slate-400" : "text-[#7a808a]")}>{plan.activeLabs}</span>
+          ) : null}
         </div>
-      </CardContent>
-    </Card>
+        {plan.sourcePlan?.id && onViewSubscribers ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onViewSubscribers(plan.sourcePlan!.id!, plan.name) }}
+            className="text-[13px] text-[#1162A8] underline-offset-2 hover:underline"
+          >
+            {plan.activeLabs}
+          </button>
+        ) : (
+          <span className="text-[13px] text-[#777777]">{plan.activeLabs}</span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -368,6 +435,13 @@ export default function BillingConfigurationPage() {
   const [tenantOverrideAllowed, setTenantOverrideAllowed] = useState(false)
   const [ruleEffective, setRuleEffective] = useState<"immediately" | "scheduled">("immediately")
   const [ruleErrors, setRuleErrors] = useState<Record<string, string>>({})
+  const [publishMode, setPublishMode] = useState<"immediately" | "scheduled" | "draft">("immediately")
+  const [launchDate, setLaunchDate] = useState("")
+  const [launchHour, setLaunchHour] = useState(8)
+  const [launchMinute, setLaunchMinute] = useState(0)
+  const [calendarDate, setCalendarDate] = useState(() => new Date())
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [timePickerOpen, setTimePickerOpen] = useState(false)
   const [openCreditBookModal, setOpenCreditBookModal] = useState(false)
   const [openStorageTierModal, setOpenStorageTierModal] = useState(false)
   const [openAddonModal, setOpenAddonModal] = useState(false)
@@ -413,6 +487,26 @@ export default function BillingConfigurationPage() {
     config: '{\n  "hosting": true,\n  "custom_domain": true,\n  "branding": true\n}',
     active: true,
   })
+
+  const [openSubscribersModal, setOpenSubscribersModal] = useState(false)
+  const [subscribersModalPlan, setSubscribersModalPlan] = useState<{ id: number; name: string } | null>(null)
+  const [subscribers, setSubscribers] = useState<PlanSubscriber[]>([])
+  const [isSubscribersLoading, setIsSubscribersLoading] = useState(false)
+
+  const openSubscribers = async (planId: number, planName: string) => {
+    setSubscribersModalPlan({ id: planId, name: planName })
+    setSubscribers([])
+    setOpenSubscribersModal(true)
+    setIsSubscribersLoading(true)
+    try {
+      const data = await listPlanSubscribers(planId)
+      setSubscribers(data)
+    } catch {
+      setSubscribers([])
+    } finally {
+      setIsSubscribersLoading(false)
+    }
+  }
 
   const filteredModules = useMemo(() => {
     const q = moduleSearch.trim().toLowerCase()
@@ -487,8 +581,12 @@ export default function BillingConfigurationPage() {
     return apiPlans.map((plan) => {
       const lead = pickLeadPriceRow(plan.pricing?.prices)
       let priceDisplay = formatLeadPlanPrice(plan.pricing?.currency, lead)
-      if (priceDisplay === "—" && plan.name.toLowerCase().includes("enterprise")) {
-        priceDisplay = "Custom Pricing"
+      const isEnterprise = plan.name.toLowerCase().includes("enterprise")
+      if (isEnterprise) {
+        const numericPrice = lead ? (typeof lead.price === "string" ? parseFloat(lead.price) : lead.price) : null
+        if (priceDisplay === "—" || numericPrice === null || numericPrice === 0) {
+          priceDisplay = "Custom Pricing"
+        }
       }
       const nameLower = plan.name.toLowerCase()
       const style: PlanCardModel["style"] =
@@ -505,7 +603,7 @@ export default function BillingConfigurationPage() {
         maxUsers: plan.feature_limits?.max_user_seats ? `${plan.feature_limits.max_user_seats}` : "N/A",
         prioritySupport: style === "enterprise" || style === "highlight",
         customBranding: style === "enterprise",
-        activeLabs: "— labs",
+        activeLabs: plan.active_labs_count !== undefined ? `${plan.active_labs_count} active labs` : "— labs",
         style,
         sourcePlan: plan,
       }
@@ -1064,9 +1162,9 @@ export default function BillingConfigurationPage() {
         <TabsList className="flex h-auto w-full flex-wrap gap-1 rounded-md bg-muted/40 p-1 md:inline-flex md:w-auto">
           {(
             [
-              ["plans", "Plans"],
-              ["rules", "Rules (global)"],
-              ["credits", "Credit books"],
+              ["plans", "Plan Tiers"],
+              ["rules", "Freemium Inclusions"],
+              ["credits", "Promotional Offers"],
               ["storage", "Storage tiers"],
               ["addons", "Add-ons"],
             ] as const
@@ -1083,26 +1181,38 @@ export default function BillingConfigurationPage() {
 
         <TabsContent value="plans" className="mt-0 space-y-3 outline-none">
           <Card className="border-[#1162A8]/40">
-            <CardHeader className="flex flex-row items-start justify-between space-y-0 px-3 pb-2 pt-3">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 px-5 pb-3 pt-5">
               <div>
-                <CardTitle className="text-base">Global Pricing</CardTitle>
-                <CardDescription className="text-xs">Last updated: Mar 3, 2026 by admin@platform.com</CardDescription>
+                <CardTitle className="text-[18px] font-bold text-[#101828]">Global Pricing</CardTitle>
+                <CardDescription className="mt-1 text-[13px] text-[#777777]">Last updated: Mar 3, 2026 by admin@platform.com</CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" className="h-8 px-3 text-xs" type="button" onClick={openCreate}>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 rounded-lg border border-[#D0D5DD] px-4 text-[13px] font-medium text-[#434343] hover:bg-[#F9FAFB]"
+                  type="button"
+                >
+                  Drafts
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 rounded-lg bg-[#1162A8] px-4 text-[13px] font-medium text-white hover:bg-[#0d4a7e]"
+                  type="button"
+                  onClick={openCreate}
+                >
                   + Create New Plan
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3 px-3 pb-3">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <CardContent className="space-y-4 px-5 pb-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {planCards.map((plan) => (
                   <div
                     key={plan.key}
                     className="h-full cursor-pointer text-left"
-                    onClick={() => openEdit(plan)}
                   >
-                    <PlanCard plan={plan} onDelete={confirmDelete} />
+                    <PlanCard plan={plan} onDelete={confirmDelete} onEdit={openEdit} onViewSubscribers={openSubscribers} />
                   </div>
                 ))}
               </div>
@@ -1243,11 +1353,6 @@ export default function BillingConfigurationPage() {
           </Button>
         </TabsContent>
       </Tabs>
-
-      <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-xs">
-        <Link href="/billing-subscription">← Back to billing hub</Link>
-      </Button>
-
       <Dialog open={openDeleteConfirm} onOpenChange={setOpenDeleteConfirm}>
         <DialogContent className="max-w-md rounded-xl p-0">
           <div className="p-6">
@@ -1652,12 +1757,12 @@ export default function BillingConfigurationPage() {
             {wizardStep === "review-publish" ? (
               <div className="space-y-4">
                 <div className="space-y-2 rounded-md border p-3">
-                  <SectionHeader title="Plan Details" />
+                  <SectionHeader title="Plan Details" onEdit={() => setWizardStep("plan-details")} />
                   <ReviewRow label="Plan Name" value={planName || "Sample Plan Name"} />
                   <ReviewRow label="Visibility" value={isDraftVisible ? "Draft" : "Active"} />
                 </div>
                 <div className="space-y-2 rounded-md border p-3">
-                  <SectionHeader title="Pricing & Billing" />
+                  <SectionHeader title="Pricing & Billing" onEdit={() => setWizardStep("pricing-billing")} />
                   {selectedBillingFrequencies.map((freq) => (
                     <ReviewRow
                       key={freq}
@@ -1670,7 +1775,7 @@ export default function BillingConfigurationPage() {
                   <ReviewRow label="Discounted Continuous Rate" value={`$ ${discountedContinuousRate}`} />
                 </div>
                 <div className="space-y-2 rounded-md border p-3">
-                  <SectionHeader title="Feature Inclusions & Limits" />
+                  <SectionHeader title="Feature Inclusions & Limits" onEdit={() => setWizardStep("modules-limits")} />
                   <ReviewRow label="Monthly Slip Allocation" value={monthlySlipAllocation === "-1" ? "Unlimited" : (monthlySlipAllocation || "0")} />
                   <ReviewRow label="Included Storage" value={`${includedStorageGb || "0"} GB`} />
                   <ReviewRow label="Max Admin Seats" value={maxAdminSeat === "-1" ? "Unlimited" : (maxAdminSeat || "0")} />
@@ -1684,11 +1789,261 @@ export default function BillingConfigurationPage() {
                     <Button variant="outline" className="h-10 px-4">Validate</Button>
                   </div>
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
+                <div className="space-y-3 rounded-md border p-3">
                   <SectionHeader title="Publish Options" />
-                  <label className="flex items-center gap-2 text-sm"><Checkbox defaultChecked /> Publish Immediately</label>
-                  <label className="flex items-center gap-2 text-sm"><Checkbox /> Schedule Publish</label>
-                  <label className="flex items-center gap-2 text-sm"><Checkbox /> Save as Draft</label>
+                  <RadioGroup
+                    value={publishMode}
+                    onValueChange={(v) => {
+                      setPublishMode(v as "immediately" | "scheduled" | "draft")
+                      setCalendarOpen(v === "scheduled")
+                    }}
+                    className="space-y-2"
+                  >
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <RadioGroupItem value="immediately" className="mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Publish Immediately</p>
+                        <p className="text-xs text-muted-foreground">Plan becomes available for tenant assignment right away</p>
+                      </div>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <RadioGroupItem value="scheduled" className="mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Schedule Publish</p>
+                        <p className="text-xs text-muted-foreground">Plan activates automatically at the specified date</p>
+                      </div>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <RadioGroupItem value="draft" className="mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium">Save as Draft</p>
+                        <p className="text-xs text-muted-foreground">Save all settings but do not make available yet</p>
+                      </div>
+                    </label>
+                  </RadioGroup>
+
+                  {publishMode === "scheduled" && (
+                    <div className="mt-3 flex items-center gap-3 rounded-md border bg-white px-4 py-3">
+                      <svg className="h-[18px] w-[18px] shrink-0 text-[#1162A8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <circle cx="12" cy="12" r="10" />
+                        <path strokeLinecap="round" d="M12 6v6l4 2" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Launch Date"
+                        readOnly
+                        value={launchDate}
+                        className="h-11 flex-1 cursor-pointer rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] placeholder:text-[#B4B0B0] focus:outline-none"
+                        onClick={() => setCalendarOpen(true)}
+                      />
+                      <input
+                        type="text"
+                        readOnly
+                        value={`${String(launchHour).padStart(2, "0")}:${String(launchMinute).padStart(2, "0")}`}
+                        className="h-11 w-[140px] cursor-pointer rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] focus:outline-none"
+                        onClick={() => setCalendarOpen(true)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Calendar modal — floating card, no backdrop */}
+                  {calendarOpen && (
+                    <>
+                      {/* invisible full-screen layer to catch outside clicks */}
+                      <div className="fixed inset-0 z-[199]" onClick={() => setCalendarOpen(false)} />
+                      <div className="fixed z-[200] flex items-start justify-center" style={{ inset: 0, pointerEvents: "none" }}>
+                        <div
+                          className="pointer-events-auto mt-[20vh] w-[514px] rounded-[10px] border border-gray-200 bg-white shadow-[9px_7px_21.5px_rgba(0,0,0,0.25)]"
+                          style={{ padding: "30px 20px" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {/* Date + time row */}
+                          <div className="mb-3 flex items-center gap-3">
+                            <svg className="h-[18px] w-[18px] shrink-0 text-[#1162A8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <circle cx="12" cy="12" r="10" />
+                              <path strokeLinecap="round" d="M12 6v6l4 2" />
+                            </svg>
+                            <input
+                              type="text"
+                              placeholder="Launch Date"
+                              readOnly
+                              value={launchDate}
+                              className="h-12 flex-1 cursor-pointer rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] placeholder:text-[#B4B0B0] focus:outline-none"
+                            />
+                            {/* Time picker trigger */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setTimePickerOpen((o) => !o)}
+                                className="flex h-12 w-[183px] items-center justify-between rounded-md border border-[#545F71] bg-white px-3.5 text-sm text-[#545F71] focus:outline-none"
+                              >
+                                <span>{`${String(launchHour).padStart(2, "0")}:${String(launchMinute).padStart(2, "0")}`}</span>
+                                <ChevronDown className={`h-4 w-4 text-[#545F71] transition-transform ${timePickerOpen ? "rotate-180" : ""}`} />
+                              </button>
+
+                              {timePickerOpen && (
+                                <div className="absolute right-0 top-[calc(100%+6px)] z-[210] flex w-[183px] flex-col items-center gap-0 rounded-[10px] border border-gray-200 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
+                                  {/* Header */}
+                                  <div className="w-full rounded-t-[10px] bg-[#1162A8] px-4 py-2 text-center text-xs font-medium text-white">
+                                    Select Time
+                                  </div>
+
+                                  {/* Hour + minute spinners */}
+                                  <div className="flex w-full items-center justify-center gap-2 px-4 py-4">
+                                    {/* Hour column */}
+                                    <div className="flex flex-col items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setLaunchHour((h) => (h + 1) % 24)}
+                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
+                                      >
+                                        <ChevronDown className="h-4 w-4 rotate-180 text-[#1162A8]" />
+                                      </button>
+                                      <div className="flex h-10 w-12 items-center justify-center rounded-md border border-[#545F71] text-lg font-medium text-[#545F71]">
+                                        {String(launchHour).padStart(2, "0")}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setLaunchHour((h) => (h - 1 + 24) % 24)}
+                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
+                                      >
+                                        <ChevronDown className="h-4 w-4 text-[#1162A8]" />
+                                      </button>
+                                    </div>
+
+                                    <span className="text-xl font-medium text-[#545F71]">:</span>
+
+                                    {/* Minute column */}
+                                    <div className="flex flex-col items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setLaunchMinute((m) => (m + 5) % 60)}
+                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
+                                      >
+                                        <ChevronDown className="h-4 w-4 rotate-180 text-[#1162A8]" />
+                                      </button>
+                                      <div className="flex h-10 w-12 items-center justify-center rounded-md border border-[#545F71] text-lg font-medium text-[#545F71]">
+                                        {String(launchMinute).padStart(2, "0")}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => setLaunchMinute((m) => (m - 5 + 60) % 60)}
+                                        className="flex h-7 w-7 items-center justify-center rounded hover:bg-[#F2F4F7]"
+                                      >
+                                        <ChevronDown className="h-4 w-4 text-[#1162A8]" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Done button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setTimePickerOpen(false)}
+                                    className="mb-3 rounded-md bg-[#1162A8] px-6 py-1.5 text-sm font-medium text-white hover:bg-[#0E4676]"
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Calendar grid */}
+                          <div className="overflow-hidden rounded-[16px]">
+                            {/* Month + nav */}
+                            <div className="flex items-center justify-between px-2 py-3">
+                              <span className="text-[16px] font-medium text-black">
+                                {calendarDate.toLocaleString("default", { month: "long", year: "numeric" }).toUpperCase()}
+                              </span>
+                              <div className="flex items-center gap-5">
+                                <button
+                                  type="button"
+                                  onClick={() => setCalendarDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                                  className="flex h-5 w-5 items-center justify-center text-black"
+                                >
+                                  <ChevronDown className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCalendarDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                                  className="flex h-5 w-5 items-center justify-center text-black"
+                                >
+                                  <ChevronDown className="h-4 w-4 rotate-180" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Day-of-week headers */}
+                            <div className="grid grid-cols-7 bg-[#1162A8]">
+                              {["SU", "MO", "TU", "WE", "TH", "FR", "SA"].map((d, i) => (
+                                <div
+                                  key={d}
+                                  className={`flex h-[64px] items-center justify-center font-['Inter'] text-[16.07px] font-medium tracking-[-0.02em] text-white ${i === 0 || i === 6 ? "bg-[#0E4676]" : ""}`}
+                                >
+                                  {d}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Day cells */}
+                            <div className="grid grid-cols-7">
+                              {(() => {
+                                const year = calendarDate.getFullYear()
+                                const month = calendarDate.getMonth()
+                                const firstDay = new Date(year, month, 1).getDay()
+                                const daysInMonth = new Date(year, month + 1, 0).getDate()
+                                const prevMonthDays = new Date(year, month, 0).getDate()
+                                const cells: { day: number; current: boolean; colIndex: number }[] = []
+
+                                for (let i = 0; i < firstDay; i++) {
+                                  cells.push({ day: prevMonthDays - firstDay + 1 + i, current: false, colIndex: i })
+                                }
+                                for (let d = 1; d <= daysInMonth; d++) {
+                                  cells.push({ day: d, current: true, colIndex: (firstDay + d - 1) % 7 })
+                                }
+                                const remaining = (7 - (cells.length % 7)) % 7
+                                for (let d = 1; d <= remaining; d++) {
+                                  cells.push({ day: d, current: false, colIndex: cells.length % 7 })
+                                }
+
+                                return cells.map((cell, idx) => {
+                                  const isWeekend = cell.colIndex === 0 || cell.colIndex === 6
+                                  const dateStr = cell.current
+                                    ? `${calendarDate.toLocaleString("default", { month: "long" })} ${cell.day}, ${year}`
+                                    : ""
+                                  const isSelected = cell.current && dateStr === launchDate
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      disabled={!cell.current}
+                                      onClick={() => {
+                                        if (!cell.current) return
+                                        setLaunchDate(dateStr)
+                                        setCalendarOpen(false)
+                                      }}
+                                      className={[
+                                        "flex h-[64px] items-center justify-center font-['Inter'] text-[16.07px] font-medium tracking-[-0.02em] transition-colors",
+                                        isSelected
+                                          ? "bg-[#1162A8] text-white"
+                                          : isWeekend
+                                            ? "bg-[#E2E2E2] text-black"
+                                            : "bg-[#F2F4F7] text-black",
+                                        !cell.current ? "!text-[#ADC0DC]" : "",
+                                        cell.current && !isSelected ? "hover:bg-[#c8ddf0]" : "",
+                                      ].join(" ")}
+                                    >
+                                      {cell.day}
+                                    </button>
+                                  )
+                                })
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -2034,6 +2389,49 @@ export default function BillingConfigurationPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={openSubscribersModal} onOpenChange={setOpenSubscribersModal}>
+        <DialogContent className="max-w-lg">
+          <DialogTitle className="text-base font-semibold">
+            Active Labs — {subscribersModalPlan?.name}
+          </DialogTitle>
+          {isSubscribersLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : subscribers.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No active labs on this plan.</div>
+          ) : (
+            <div className="mt-2 max-h-[420px] overflow-y-auto rounded-lg border border-[#E5E7EB]">
+              {subscribers.map((sub, i) => (
+                <div
+                  key={sub.id}
+                  className={cn(
+                    "flex items-center justify-between px-4 py-3",
+                    i % 2 === 0 ? "bg-white" : "bg-[#F9FAFB]",
+                  )}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-medium text-[#101828]">{sub.name}</p>
+                    <p className="truncate text-[12px] text-[#777777]">{sub.email}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      "ml-3 shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize",
+                      sub.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500",
+                    )}
+                  >
+                    {sub.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 flex justify-end">
+            <DialogClose asChild>
+              <Button variant="outline" size="sm">Close</Button>
+            </DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -2053,13 +2451,15 @@ function WizardTab({ label, active, onClick }: { label: string; active: boolean;
   )
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, onEdit }: { title: string; onEdit?: () => void }) {
   return (
     <div className="flex items-center justify-between">
       <p className="text-sm font-semibold">{title}</p>
-      <button type="button" className="text-xs font-medium text-[#1162A8]">
-        Edit
-      </button>
+      {onEdit && (
+        <button type="button" onClick={onEdit} className="text-xs font-medium text-[#1162A8] hover:underline">
+          Edit
+        </button>
+      )}
     </div>
   )
 }

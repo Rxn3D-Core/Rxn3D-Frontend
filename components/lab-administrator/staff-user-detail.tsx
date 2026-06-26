@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OperatingHoursTab } from "@/components/lab-administrator/lab-profile-operating-hours"
 import { PickupDeliveryTab } from "@/components/lab-administrator/lab-profile-pickup-delivery"
+import { useAuth } from "@/contexts/auth-context"
 
 interface User {
   id: number
@@ -42,7 +43,6 @@ interface Activity {
   target: string
   details: string
   timestamp: string
-  hasAvatar?: boolean
 }
 
 interface StaffUserDetailProps {
@@ -123,55 +123,49 @@ export function StaffUserDetail({
   officeAdmins = [],
   doctors = [],
 }: StaffUserDetailProps) {
+  const { fetchUserActivity } = useAuth()
   const isLabMode = mode === "lab"
   const isOfficeMode = mode === "office"
   const sidebarPhone = (isLabMode || isOfficeMode) ? user.phone || user.contactNumber || "-" : user.phone || "-"
   const [activeTab, setActiveTab] = useState<"details" | "activity" | "lab_admins" | "office_admins" | "doctors" | "operating_hours" | "pickup_delivery">("details")
   const [searchTerm, setSearchTerm] = useState("")
   const [entriesPerPage, setEntriesPerPage] = useState("10")
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [isActivityLoading, setIsActivityLoading] = useState(false)
 
-  const activities: Activity[] = [
-    {
-      id: 1,
-      user: "James Cagney",
-      action: "Changed Location",
-      target: "Case #SO029385",
-      details: '"On route to lab" → To: "In lab"',
-      timestamp: "2024-01-27, 11:42 AM",
-    },
-    {
-      id: 2,
-      user: "James Cagney",
-      action: "Updated Setting",
-      target: "Auto-Billing",
-      details: "Enabled for Full Denture Acrylic",
-      timestamp: "2024-01-27, 10:26 AM",
-    },
-    {
-      id: 3,
-      user: "System",
-      action: "Invoice Generated",
-      target: "Case #SO029392",
-      details: "Total: $295.00 – Sent to: office@abc.com",
-      timestamp: "2024-01-27, 8:19 AM",
-    },
-    {
-      id: 4,
-      user: "James Cagney",
-      action: "Invited Office",
-      target: "Sunrise Modern Dentistry",
-      details: "Email: dr.rivera@sunrisemodern.com",
-      timestamp: "2024-01-26, 10:42 PM",
-    },
-    {
-      id: 5,
-      user: "James Cagney",
-      action: "Uploaded File",
-      target: "Case #SO029388",
-      details: "File: lowerarch.stl",
-      timestamp: "2024-01-26, 6:08 PM",
-    },
-  ]
+  const loadActivity = useCallback(async () => {
+    if (!user.id) return
+    setIsActivityLoading(true)
+    try {
+      const response = await fetchUserActivity(user.id, { per_page: Number(entriesPerPage) })
+      const items: Activity[] = (response?.data ?? []).map((item: any) => {
+        const changeDetails = (item.changes ?? [])
+          .map((c: any) => c.old != null ? `${c.field}: "${c.old}" → "${c.new}"` : `${c.field}: "${c.new}"`)
+          .join(", ")
+        return {
+          id: item.id,
+          user: item.user?.name ?? "System",
+          action: item.event_label ?? item.event ?? "-",
+          target: `${item.auditable?.type_label ?? "Record"} #${item.auditable?.id ?? ""}`,
+          details: changeDetails || "-",
+          timestamp: item.created_at
+            ? new Date(item.created_at).toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })
+            : "-",
+        }
+      })
+      setActivities(items)
+    } catch {
+      setActivities([])
+    } finally {
+      setIsActivityLoading(false)
+    }
+  }, [user.id, entriesPerPage, fetchUserActivity])
+
+  useEffect(() => {
+    if (activeTab === "activity") {
+      loadActivity()
+    }
+  }, [activeTab, loadActivity])
 
   const activeStaffList =
     isLabMode
@@ -528,19 +522,29 @@ export function StaffUserDetail({
                       </tr>
                     </thead>
                     <tbody>
-                      {activities.map((activity) => (
-                        <tr key={activity.id} className="border-b hover:bg-gray-50">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">{activity.user}</span>
-                            </div>
+                      {isActivityLoading ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500">
+                            Loading activity...
                           </td>
-                          <td className="px-6 py-4 text-sm">{activity.action}</td>
-                          <td className="px-6 py-4 text-sm">{activity.target}</td>
-                          <td className="px-6 py-4 text-sm">{activity.details}</td>
-                          <td className="px-6 py-4 text-sm">{activity.timestamp}</td>
                         </tr>
-                      ))}
+                      ) : activities.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500">
+                            No activity found.
+                          </td>
+                        </tr>
+                      ) : (
+                        activities.map((activity) => (
+                          <tr key={activity.id} className="border-b hover:bg-gray-50">
+                            <td className="px-6 py-4 text-sm">{activity.user}</td>
+                            <td className="px-6 py-4 text-sm">{activity.action}</td>
+                            <td className="px-6 py-4 text-sm">{activity.target}</td>
+                            <td className="px-6 py-4 text-sm">{activity.details}</td>
+                            <td className="px-6 py-4 text-sm">{activity.timestamp}</td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

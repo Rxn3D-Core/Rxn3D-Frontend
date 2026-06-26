@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import NewCaseWizard from "@/components/new-case-wizard";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import type { SlipProductSnapshot } from "./types";
-import { TopBar } from "./components/TopBar";
 import { PatientHeader } from "./components/PatientHeader";
 import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
@@ -24,10 +23,11 @@ import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
 
 export default function Page() {
-  const { createSlip } = useSlipCreation();
+  const { createSlip, uploadSlipAttachment } = useSlipCreation();
   const { toast } = useToast();
   const router = useRouter();
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
+  const caseSummaryNotesRef = useRef("");
 
   const {
     wizardComplete,
@@ -96,26 +96,21 @@ export default function Page() {
     submit,
   } = useCaseSubmissionFlow({
     createSlip,
+    uploadSlipAttachment,
     router,
     toast,
     slipCollectorRef,
+    caseSummaryNotesRef,
     completedLab,
     completedDoctor,
     completedPatientName,
     completedGender,
     completedAge,
-    labCustomerId:
-      typeof window !== "undefined" && localStorage.getItem("role") === "lab_admin"
-        ? Number(localStorage.getItem("customerId")) || null
-        : completedLab?.id ?? null,
+    labCustomerId: resolveLibraryCustomerId(completedLab?.id) ?? null,
   });
 
   useEffect(() => {
-    const userRole = typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    const labCustomerId = userRole === "lab_admin"
-      ? Number(localStorage.getItem("customerId")) || null
-      : completedLab?.id ?? null;
-
+    const labCustomerId = resolveLibraryCustomerId(completedLab?.id);
     if (!labCustomerId) return;
 
     getBusinessSettings(labCustomerId)
@@ -135,12 +130,6 @@ export default function Page() {
   return (
     <div className={`${caseDesignInter.className} flex h-screen bg-white overflow-hidden`}>
       <main className="flex-1 flex flex-col overflow-auto min-w-0">
-        <TopBar
-          selectedLab={completedLab ? { logo: completedLab.logo, name: completedLab.name } : null}
-          onEditClick={handleTopBarEditLab}
-          caseSubmitted={caseSubmitted}
-        />
-
         {!wizardComplete && (
           <NewCaseWizard
             key={wizardKey}
@@ -177,9 +166,17 @@ export default function Page() {
               onPatientNameChange={setCompletedPatientName}
               onGenderChange={setCompletedGender}
               onAgeChange={setCompletedAge}
-              compactLayout={wizardComplete && !caseSubmitted}
+              labLogoUrl={completedLab?.logo}
+              labName={completedLab?.name}
+              onEditLab={handleTopBarEditLab}
             />
             <CaseDesignCenter
+              // Remount with fresh product configuration when the user goes back and
+              // picks a *different* product. selectedProductId only changes on a real
+              // product change (re-picking the same product is a no-op), so the config
+              // is preserved when the product is unchanged. Patient/doctor/lab and
+              // addedProducts live at the page level and survive the remount.
+              key={`cdc-${selectedProductId ?? "none"}`}
               right1Brand={right1Brand}
               setRight1Brand={setRight1Brand}
               right1Platform={right1Platform}
@@ -206,6 +203,7 @@ export default function Page() {
               onProductsChange={setAddedProducts}
               initialArch={initialArch}
               slipCollectorRef={slipCollectorRef}
+              caseSummaryNotesRef={caseSummaryNotesRef}
               confirmDetailsChecked={confirmDetailsChecked}
               onAnyModalOpenChange={setIsAnyModalOpen}
               rushCasesEnabled={rushCasesEnabled}

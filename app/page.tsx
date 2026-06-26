@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import LoadingOverlay from "@/components/ui/loading-overlay"
+import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 
 function LoadingDots() {
   return (
@@ -34,7 +35,8 @@ export default function Page() {
   }
 
   if (user) {
-    redirect("/dashboard")
+    const userRoles = user.roles || (user.role ? [user.role] : [])
+    redirect(getPostLoginLandingPath(userRoles))
   } else {
     redirect("/login")
   }

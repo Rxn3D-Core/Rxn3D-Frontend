@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input"
 import { Mail, Search } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { useCustomer } from "@/contexts/customer-context"
@@ -44,6 +44,7 @@ export function CustomerSearchBox({
   onInviteSuccess,
 }: CustomerSearchBoxProps) {
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { searchQuery, setSearchQuery, searchResults, handleSearch, clearSearch } = useCustomer()
 
   const { sendInvitation } = useInvitation()
@@ -54,6 +55,12 @@ export function CustomerSearchBox({
   // Use local state if searchState is provided, otherwise use context
   const query = searchState?.query ?? searchQuery
   const setQuery = searchState?.setQuery ?? setSearchQuery
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (query.trim().length >= 2) {
@@ -148,7 +155,9 @@ export function CustomerSearchBox({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setShowSearchResults(true)}
-        onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+        onBlur={() => {
+          blurTimerRef.current = setTimeout(() => setShowSearchResults(false), 200)
+        }}
       />
       <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
 

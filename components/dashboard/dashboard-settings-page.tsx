@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import type { DashboardWidget } from "@/lib/dashboard-widgets"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 import { useAuth } from "@/contexts/auth-context"
 import { useDashboardSettingsStore } from "@/stores/dashboard-settings-store"
 
@@ -77,7 +78,7 @@ function SortableWidgetItem({ widget, onToggle }: SortableWidgetItemProps) {
 export function DashboardSettingsPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const userRole = user?.roles?.[0] || ""
+  const userRole = getPrimaryRole(user)
   const userId = user?.id
   const customerId = getCustomerId(user)
 

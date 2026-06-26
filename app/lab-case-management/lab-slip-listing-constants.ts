@@ -1,3 +1,6 @@
+/** Default page size for lab and office slip listing tables */
+export const SLIP_LISTING_DEFAULT_PER_PAGE = 50
+
 /** Matches `slip_locations` IDs used by GET /v1/slip/listing/lab?location_id= */
 export const SLIP_LOCATION_FILTER_OPTIONS = [
   { id: 1, label: "In office ready to pickup" },
@@ -11,7 +14,7 @@ export const SLIP_LOCATION_FILTER_OPTIONS = [
 /** Lab slip listing API `status` filter values (see API docs) */
 export const LAB_SLIP_STATUS_OPTIONS = [
   "Draft",
-  "On process",
+  "In Progress",
   "On hold",
   "cancelled",
   "Finished",

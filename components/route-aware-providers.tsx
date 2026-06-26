@@ -7,7 +7,14 @@ import { MinimalProviders } from "./minimal-providers"
 import { Providers } from "./providers"
 
 // Routes that should use minimal providers (no authenticated features)
-const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/onboarding"]
+const PUBLIC_ROUTES = [
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/setup-account",
+  "/onboarding",
+  "/user-invitations",
+]
 
 /**
  * Internal component that uses usePathname

@@ -1,10 +1,22 @@
 import { useCallback, useEffect } from "react";
-import { hasRetentionOptions } from "../utils/categoryHelpers";
+import type React from "react";
+import {
+  hasRetentionOptions,
+  parseStageFieldValue,
+  parseStageDisplayName,
+  resolveStageIdFromSelection,
+} from "../utils/categoryHelpers";
+import { resolveEnrichedProductForSubmit } from "../utils/gradeHelpers";
+import {
+  resolveAddedCardProductData,
+  resolveCardFieldValue,
+} from "../utils/resolveAddedCardProduct";
 import { getRushFromStore } from "../utils/rushModalContext";
 import {
   buildExtractionScopeTeeth,
   resolveProductTeethForSlipSubmit,
 } from "../utils/removableToothDisplay";
+import { splintKeyForProductCard, deriveWingTeeth } from "../utils/splintHelpers";
 import { useCaseDesignState } from "./useCaseDesignState";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 
@@ -15,6 +27,8 @@ interface UseSlipProductCollectorParams {
   props: CaseDesignProps;
   maxillaryImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData>;
   mandibularImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData>;
+  maxillarySplintLinksRef: React.MutableRefObject<Record<string, number[]>>;
+  mandibularSplintLinksRef: React.MutableRefObject<Record<string, number[]>>;
 }
 
 export function useSlipProductCollector({
@@ -22,6 +36,8 @@ export function useSlipProductCollector({
   props,
   maxillaryImplantDetail,
   mandibularImplantDetail,
+  maxillarySplintLinksRef,
+  mandibularSplintLinksRef,
 }: UseSlipProductCollectorParams) {
   const collectSlipProducts = useCallback((): SlipProductSnapshot[] => {
     const MAXILLARY_ALL = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
@@ -70,7 +86,28 @@ export function useSlipProductCollector({
       cardGroups.forEach((teethNums, cardId) => {
         const sortedTeeth = [...teethNums].sort((a, b) => a - b);
         const repTooth = sortedTeeth.find((tn) => !!state.getToothProduct(arch, tn)) ?? sortedTeeth[0];
-        const productApiData = state.getToothProduct(arch, repTooth);
+        const stubProduct =
+          props.addedProducts?.find((ap) => ap.id === cardId)?.product ?? null;
+        const productApiData = resolveAddedCardProductData(
+          arch,
+          cardId,
+          sortedTeeth,
+          state.getToothProduct,
+          stubProduct
+        );
+        const allCardTeethOnArch = allTeeth.filter(
+          (tn) => state.getToothProductCard(arch, tn) === cardId
+        );
+        const fieldScanTeeth = [
+          ...new Set([...sortedTeeth, ...allCardTeethOnArch]),
+        ].sort((a, b) => a - b);
+        const productForSubmit =
+          resolveEnrichedProductForSubmit(
+            productApiData,
+            arch,
+            state.getToothProduct,
+            stubProduct
+          ) ?? productApiData;
         const productId = productApiData?.id
           ?? (props.addedProducts?.find((ap) => ap.id === cardId)?.productId)
           ?? props.selectedProductId
@@ -108,13 +145,48 @@ export function useSlipProductCollector({
           "fixed_impression", "fixed_addons", "fixed_notes", "fixed_retention_type",
         ] as const;
         for (const step of allSteps) {
-          const val = state.getFieldValue(arch, repTooth, step as any);
+          const val = resolveCardFieldValue(
+            arch,
+            cardId,
+            fieldScanTeeth,
+            repTooth,
+            step as any,
+            state.getFieldValue
+          );
           if (val) fieldValues[step] = val;
         }
 
         const isFixed = hasRetentionOptions(productApiData);
         const stageKey = isFixed ? `${arch}_fixed_${repTooth}` : `${arch}_prep_${repTooth}`;
-        const stageName = state.selectedStages?.[stageKey] ?? fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
+        const stageRaw = fieldValues["stage"] ?? fieldValues["fixed_stage"] ?? null;
+        const parsedStage = parseStageFieldValue(stageRaw);
+        const stageKeyCandidates = new Set<string>([
+          stageKey,
+          `${arch}_prep_${repTooth}`,
+          `${arch}_fixed_${repTooth}`,
+          ...fieldScanTeeth.map((tn) => `${arch}_prep_${tn}`),
+          ...fieldScanTeeth.map((tn) => `${arch}_fixed_${tn}`),
+        ]);
+        let stageName: string | null = null;
+        for (const key of stageKeyCandidates) {
+          const fromStore = state.selectedStages?.[key];
+          if (fromStore?.trim()) {
+            stageName = fromStore;
+            break;
+          }
+        }
+        if (!stageName) {
+          stageName =
+            parsedStage?.name ??
+            (stageRaw && !stageRaw.trim().startsWith("{")
+              ? parseStageDisplayName(stageRaw)
+              : null);
+        }
+        const stageId = resolveStageIdFromSelection(
+          productForSubmit,
+          stageRaw,
+          stageName
+        );
 
         const catalog = productApiData?.impressions ?? [];
         const resolveImpressionCode = (entryCode: string) => {
@@ -216,15 +288,41 @@ export function useSlipProductCollector({
         }
         const hasImplantDetail = Object.keys(relevantImplantDetail).length > 0;
 
+        const splintLinksByKey =
+          arch === "maxillary"
+            ? maxillarySplintLinksRef.current
+            : mandibularSplintLinksRef.current;
+        const splintKey = splintKeyForProductCard(cardId, productId);
+        // Effective splint links (auto-derived + manual overlay) come from the panel.
+        const splintLinks = splintLinksByKey[splintKey] ?? [];
+
+        // Wing retainers (Maryland / cantilever): derived from this product's pontics
+        // whose arch neighbor is empty. Uses the arch-wide retention map so a neighbor
+        // owned by another product is not mistaken for an empty (wing) position.
+        const archRetentionTypes =
+          arch === "maxillary"
+            ? state.maxillaryRetentionTypes
+            : state.mandibularRetentionTypes ?? {};
+        const productPonticTeeth = productTeeth.filter(
+          (tn) => (archRetentionTypes?.[tn] ?? [])[0] === "Pontic"
+        );
+        // Wing teeth = the empty abutment neighbors only (not the pontic), as a string.
+        const wingTeeth =
+          productPonticTeeth.length > 0
+            ? deriveWingTeeth(archRetentionTypes ?? {}, allTeeth, productPonticTeeth).join(",")
+            : "";
+
         snapshots.push({
           type,
           productId,
-          productApiData: productApiData ?? null,
+          productApiData: productForSubmit ?? productApiData ?? null,
+          cardFieldTeeth: fieldScanTeeth,
           teethNumbers: productTeeth,
           allCardTeeth: extractionScopeTeeth,
           repToothNumber: repTooth,
           fieldValues,
           stageName,
+          ...(stageId && stageId > 0 ? { stageId } : {}),
           impressions,
           ...(Object.keys(oppositeImpressions).length > 0 ? { oppositeImpressions } : {}),
           rush,
@@ -237,6 +335,8 @@ export function useSlipProductCollector({
           ...(oppositeExtractions ? { oppositeExtractions } : {}),
           ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
           selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
+          ...(splintLinks.length > 0 ? { splintLinks } : {}),
+          ...(wingTeeth ? { wingTeeth } : {}),
         });
       });
     };
@@ -247,7 +347,9 @@ export function useSlipProductCollector({
     return snapshots;
   }, [
     mandibularImplantDetail,
+    mandibularSplintLinksRef,
     maxillaryImplantDetail,
+    maxillarySplintLinksRef,
     props.addedProducts,
     props.selectedProductId,
     state.getFieldValue,

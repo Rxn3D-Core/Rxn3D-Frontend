@@ -1,7 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Trash2 } from "lucide-react";
+import { DeleteProductConfirmModal } from "./DeleteProductConfirmModal";
 import {
   caseDesignInter,
   removableHeaderTitleClass,
@@ -50,14 +51,23 @@ export interface RestorationAccordionHeaderProps {
   retentionDoneAcknowledged?: boolean;
   onRetentionDoneChange?: (value: boolean) => void;
 
-  /** e.g. ToothStatusBoxes between title box and footer badges */
+  /** e.g. ToothStatusBoxes below title box, above Est days */
   middleContent?: ReactNode;
+  /** Splinted teeth groups summary, e.g. "6-7-8, 11-12". Shown below Est days when non-empty. */
+  splintSummary?: string;
   /** Callback when the plus icon is clicked to activate product tooth selection */
   onPlusClick?: () => void;
   /** When true, standard product selection mode is active and we render a distinct thick border */
   isProductSelectionActive?: boolean;
   /** When true, an extraction box is active — always show the Plus icon regardless of extraction acknowledgement state */
   isExtractionActive?: boolean;
+  /** Custom tooltip label for the plus icon (e.g. "Click tooth to mark as Will extract on delivery") */
+  plusTooltipLabel?: string;
+  /**
+   * No extractions configured: show product name + est days only — no fieldset box,
+   * plus icon, or expand chevron.
+   */
+  labelOnlyHeader?: boolean;
 }
 
 /**
@@ -90,33 +100,99 @@ export function RestorationAccordionHeader({
   retentionDoneAcknowledged = false,
   onRetentionDoneChange,
   middleContent,
+  splintSummary = "",
   onPlusClick,
   isProductSelectionActive = false,
   isExtractionActive = false,
+  plusTooltipLabel,
+  labelOnlyHeader = false,
 }: RestorationAccordionHeaderProps) {
   const showStageBadge =
     isDisplayableStageValue(stageName) &&
     !shouldSkipStageSelection(stageProduct ?? undefined);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   return (
     <div
       className={`w-full flex flex-col transition-colors rounded-t-[5.4px] relative ${hasRush ? "bg-[#FCE4E4]" : "bg-white"
         }`}
     >
-      <AccordionHeaderActions
-        isExpanded={isExpanded}
-        caseSubmitted={caseSubmitted}
-        showExtractionsDone={false}
-        extractionsAcknowledged={extractionsAcknowledged}
-        onExtractionsAcknowledgedChange={onExtractionsAcknowledgedChange}
-        showRetentionDone={false}
-        retentionDoneAcknowledged={retentionDoneAcknowledged}
-        onRetentionDoneChange={onRetentionDoneChange}
-        onToggleExpand={onToggleExpand}
-        expandEnabled={expandEnabled}
+      <DeleteProductConfirmModal
+        open={showDeleteConfirm}
+        productName={productName}
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDelete?.();
+        }}
       />
+      {!labelOnlyHeader && (
+        <AccordionHeaderActions
+          isExpanded={isExpanded}
+          caseSubmitted={caseSubmitted}
+          showExtractionsDone={false}
+          extractionsAcknowledged={extractionsAcknowledged}
+          onExtractionsAcknowledgedChange={onExtractionsAcknowledgedChange}
+          showRetentionDone={false}
+          retentionDoneAcknowledged={retentionDoneAcknowledged}
+          onRetentionDoneChange={onRetentionDoneChange}
+          onToggleExpand={onToggleExpand}
+          expandEnabled={expandEnabled}
+        />
+      )}
+      {labelOnlyHeader ? (
+        <div
+          className="flex items-stretch gap-[10px] px-[8px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ProductImagePreview
+            imageUrl={productImageUrl}
+            altText={productName}
+            containerClassName={productAccordionLargeImageContainerClass}
+            imgClassName="w-full h-full object-contain"
+            fallback={
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-[10px] text-gray-400">No img</span>
+              </div>
+            }
+          />
+          <div className="flex-1 min-w-0 flex flex-col gap-[2px] justify-center">
+            {showHeaderContent && (
+              <>
+                <p className={`${removableHeaderTitleClass} text-[#555555]`}>
+                  {productName}
+                  {hasRush && (
+                    <RushIcon className="inline w-[14px] h-[14px] ml-1 text-[#CF0202]" />
+                  )}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <EstDaysLabel
+                    rushed={hasRush}
+                    text={hasRush ? "5 work days after submission" : estDaysText}
+                  />
+                  {canDelete && !caseSubmitted && onDelete ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowDeleteConfirm(true);
+                      }}
+                      className="hideen inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
+                      title="Remove this product"
+                      aria-label="Remove this product"
+                    >
+                      <Trash2 className="hidden" size={18} />
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
       <div
-        className="flex items-stretch gap-[10px] px-[8px] py-[14px]"
+        className="flex items-stretch gap-[10px] px-[8px]"
         onClick={(e) => e.stopPropagation()}
       >
         <ProductImagePreview
@@ -130,7 +206,7 @@ export function RestorationAccordionHeader({
             </div>
           }
         />
-        <div className="flex-1 min-w-0 flex flex-col gap-[9.94px]">
+        <div className="flex-1 min-w-0 flex flex-col gap-[2px]">
           {showHeaderContent && (
             <>
               {/* Hidden: Currently active + category/subcategory badges — set to true to restore */}
@@ -159,7 +235,7 @@ export function RestorationAccordionHeader({
                       e.stopPropagation();
                       onPlusClick();
                     }}
-                    title="Activate product tooth selections"
+                    title={plusTooltipLabel || "Activate product tooth selections"}
                   >
                     <svg width="24" height="24" viewBox="0 0 248 248" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path
@@ -193,6 +269,9 @@ export function RestorationAccordionHeader({
                   <p className={`${removableHeaderToothClass} text-[#666666]`}>{toothDisplay}</p>
                 ) : null}
               </fieldset>
+              {middleContent ? (
+                <div className="w-full">{middleContent}</div>
+              ) : null}
               <div className="flex justify-center items-center gap-2 w-full">
                 <EstDaysLabel
                   rushed={hasRush}
@@ -203,19 +282,30 @@ export function RestorationAccordionHeader({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete();
+                      setShowDeleteConfirm(true);
                     }}
-                    className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
+                    className="hideen inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-red-500 transition-colors"
                     title="Remove this product"
                     aria-label="Remove this product"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 className="hidden" size={18} />
                   </button>
                 ) : null}
               </div>
-              {middleContent}
+              {splintSummary ? (
+                <div className="w-full flex justify-center mt-1">
+                  <div className="inline-flex flex-col items-center justify-center leading-tight rounded-md border border-[#1162A8] bg-[#EAF3FB] px-3 py-1">
+                    <span className="text-[12px] sm:text-[13px] font-semibold text-[#1162A8]">
+                      Splinted
+                    </span>
+                    <span className="text-[12px] sm:text-[13px] text-[#1162A8]">
+                      {splintSummary}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               {showRetentionDone && !retentionDoneAcknowledged && onRetentionDoneChange && (
-                <div className="w-full flex justify-center mt-2 py-2 overflow-visible" onClick={(e) => e.stopPropagation()}>
+                <div className="w-full flex justify-center py-1 overflow-visible" onClick={(e) => e.stopPropagation()}>
                   <DoneTransitionButton onComplete={() => onRetentionDoneChange(true)} />
                 </div>
               )}
@@ -227,6 +317,7 @@ export function RestorationAccordionHeader({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

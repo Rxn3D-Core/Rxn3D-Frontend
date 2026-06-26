@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
+import type { STLFile } from "@/components/stl-file-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
 import RushRequestModal from "@/components/rush-request-modal";
@@ -10,17 +12,12 @@ import {
   rushSlotsShareProduct,
   type RushArchSlot,
 } from "../utils/rushModalContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { StageSelectionModal } from "./StageSelectionModal";
 import type { Arch, ImpressionOptionForModal, ProductApiData } from "../types";
 import type { AddOnsConfirmMeta, AddOnsProduct } from "@/components/add-ons-modal";
 import type { RushArchSlot } from "../utils/rushModalContext";
-import { getResolvedStageName } from "../utils/categoryHelpers";
+import { getResolvedStageName, resolveStageIdFromSelection } from "../utils/categoryHelpers";
+import type { NewStageEligibilityStageRef } from "@/lib/api/slip-new-stage-eligibility";
 import { getDualModalArches } from "../utils/impressionFieldSync";
 import {
   buildImpressionDisplayText,
@@ -101,11 +98,13 @@ interface ModalOrchestratorProps {
   currentStageProductId: string;
   currentStageArch: Arch;
   currentStageToothNumber: number | null;
-  currentStageOptions: { name: string; letter: string; is_default?: string }[] | null;
+  currentStageOptions: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number }[] | null;
   /** Product for the current stage step — used to resolve skip/auto when options are empty */
   currentStageProduct?: ProductApiData | null;
   handleStageSelect: (stageName: string) => void;
-  onStageConfirm: (stageName: string) => void;
+  onStageConfirm: (stageName: string, stageId?: number) => void;
+  /** Prior slips/stages for this arch (add-new-stage). */
+  stageHistory?: NewStageEligibilityStageRef[];
   /** When true (virtual slip / read-only view), all modals are suppressed */
   caseSubmitted?: boolean;
 }
@@ -144,9 +143,9 @@ function AutoSelectSingleStage({
   onClose,
   children,
 }: {
-  stages: { name: string; letter: string; is_default?: string }[];
+  stages: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number }[];
   hasExistingSelection: boolean;
-  onAutoSelect: (stageName: string) => void;
+  onAutoSelect: (stageName: string, stageId?: number) => void;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -159,10 +158,10 @@ function AutoSelectSingleStage({
     if (!didAutoSelect.current && shouldAutoSelect) {
       if (stages.length === 1) {
         didAutoSelect.current = true;
-        onAutoSelect(stages[0].name);
+        onAutoSelect(stages[0].name, stages[0].stage_id);
       } else if (defaultStage) {
         didAutoSelect.current = true;
-        onAutoSelect(defaultStage.name);
+        onAutoSelect(defaultStage.name, defaultStage.stage_id);
       }
     }
   }, [stages, defaultStage, onAutoSelect, shouldAutoSelect]);
@@ -229,10 +228,17 @@ export function ModalOrchestrator({
   currentStageProduct = null,
   handleStageSelect,
   onStageConfirm,
+  stageHistory,
   caseSubmitted = false,
 }: ModalOrchestratorProps) {
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
   const handleViewerToggle = useCallback((isOpen: boolean) => setAttachViewerOpen(isOpen), [])
+
+  const [stlFilesByImpression, setStlFilesByImpression] = useState<Record<string, STLFile[]>>({})
+  const handleSTLFilesAttached = useCallback((files: STLFile[], key: string) => {
+    setStlFilesByImpression(prev => ({ ...prev, [key]: files }))
+  }, [])
+
   /** Arches the user edited in this modal session — avoids clearing an arch that was never touched on close. */
   const touchedArchesRef = useRef<Set<Arch>>(new Set());
   const impressionCloseInFlightRef = useRef(false);
@@ -333,6 +339,8 @@ export function ModalOrchestrator({
         }}
         productId={currentImpressionProductId}
         arch={currentImpressionArch}
+        stlFilesByImpression={stlFilesByImpression}
+        onSTLFilesAttached={handleSTLFilesAttached}
         onSubmitNoOpposing={() => {
           const displayText = buildImpressionDisplayText(
             selectedImpressions,
@@ -370,18 +378,19 @@ export function ModalOrchestrator({
         <AutoSelectSingleStage
           stages={currentStageOptions}
           hasExistingSelection={!!(currentStageProductId && selectedStages[currentStageProductId])}
-          onAutoSelect={(stageName) => {
+          onAutoSelect={(stageName, stageId) => {
             handleStageSelect(stageName);
-            onStageConfirm(stageName);
+            onStageConfirm(stageName, stageId);
           }}
           onClose={() => setIsStageModalOpen(false)}
         >
           <StageSelectionModal
             stages={currentStageOptions}
             selectedStage={selectedStages[currentStageProductId]}
-            onSelect={(stageName) => {
+            stageHistory={stageHistory}
+            onSelect={(stageName, stageId) => {
               handleStageSelect(stageName);
-              onStageConfirm(stageName);
+              onStageConfirm(stageName, stageId);
             }}
             onClose={() => setIsStageModalOpen(false)}
           />
@@ -395,8 +404,9 @@ export function ModalOrchestrator({
           onSkip={() => {
             const stageName = getResolvedStageName(currentStageProduct);
             if (stageName) {
+              const stageId = resolveStageIdFromSelection(currentStageProduct, null, stageName);
               handleStageSelect(stageName);
-              onStageConfirm(stageName);
+              onStageConfirm(stageName, stageId);
             }
           }}
           onClose={() => setIsStageModalOpen(false)}
@@ -404,19 +414,26 @@ export function ModalOrchestrator({
       )}
 
 
-      {/* File Attachment Modal */}
-      <Dialog open={showAttachModal} onOpenChange={setShowAttachModal}>
-        <DialogContent className={`${attachViewerOpen ? "max-w-[1700px]" : "max-w-[1100px]"} w-[95vw] h-[80vh] max-h-[800px] overflow-hidden flex flex-col p-0 transition-all duration-300`}>
-          <DialogTitle className="sr-only">File Attachments</DialogTitle>
+      {/* File Attachment Modal — portaled to body so fixed inset-0 is never clipped */}
+      {showAttachModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] bg-white"
+          style={{ width: "100vw", height: "100vh" }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="File Attachments"
+        >
           <FileAttachmentModalContent
             setShowAttachModal={setShowAttachModal}
             isCaseSubmitted={false}
             availableStages={attachmentStages}
             onViewerToggle={handleViewerToggle}
             onFileCountsChange={onAttachFileCountsChange}
+            impressionFiles={Object.values(stlFilesByImpression).flat()}
           />
-        </DialogContent>
-      </Dialog>
+        </div>,
+        document.body
+      )}
 
       {/* Rush Request Modal */}
       {(() => {

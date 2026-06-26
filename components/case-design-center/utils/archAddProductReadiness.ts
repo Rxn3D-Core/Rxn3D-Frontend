@@ -55,3 +55,9 @@ export function filterAddedProductsForArch(
 ): AddedProduct[] {
   return (addedProducts ?? []).filter((ap) => ap.arch === arch);
 }
+
+/** Header "+ Add product" label — first product vs additional product on the same arch. */
+export function addProductButtonLabel(arch: Arch, hasProductsOnArch: boolean): string {
+  const archName = arch === "maxillary" ? "MAXILLARY" : "MANDIBULAR";
+  return hasProductsOnArch ? `ANOTHER ${archName} PRODUCT` : `${archName} PRODUCT`;
+}

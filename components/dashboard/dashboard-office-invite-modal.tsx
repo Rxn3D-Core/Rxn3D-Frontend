@@ -11,6 +11,7 @@ interface DashboardOfficeInviteModalProps {
   invitationsCount: number
   isOpen: boolean
   onClose: () => void
+  forceOpen?: boolean
 }
 
 export function DashboardOfficeInviteModal({
@@ -18,18 +19,27 @@ export function DashboardOfficeInviteModal({
   invitationsCount,
   isOpen,
   onClose,
+  forceOpen = false,
 }: DashboardOfficeInviteModalProps) {
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
-    // Show modal if it's open and user hasn't seen it in this session (or as per rules)
-    if (isOpen) {
-      const hasSeen = localStorage.getItem("has_seen_office_invite_modal")
-      if (!hasSeen && practicesCount === 0 && invitationsCount === 0) {
-        setShowModal(true)
-      }
+    if (!isOpen) {
+      setShowModal(false)
+      return
     }
-  }, [isOpen, practicesCount, invitationsCount])
+
+    if (forceOpen) {
+      setShowModal(true)
+      return
+    }
+
+    // Show modal if it's open and user hasn't seen it in this session (or as per rules)
+    const hasSeen = localStorage.getItem("has_seen_office_invite_modal")
+    if (!hasSeen && practicesCount === 0 && invitationsCount === 0) {
+      setShowModal(true)
+    }
+  }, [forceOpen, isOpen, practicesCount, invitationsCount])
 
   const handleClose = () => {
     setShowModal(false)
@@ -56,7 +66,9 @@ export function DashboardOfficeInviteModal({
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
             <Building2 className="h-8 w-8 text-white" />
           </div>
-          <DialogTitle className="text-2xl font-bold mb-2">Invite Your First Practice</DialogTitle>
+          <DialogTitle className="text-2xl font-bold mb-2">
+            {forceOpen ? "Invite Your Practice" : "Invite Your First Practice"}
+          </DialogTitle>
           <DialogDescription className="text-blue-100">
             Connect with dental practices to start receiving cases and managing your digital workflow.
           </DialogDescription>
@@ -93,7 +105,12 @@ export function DashboardOfficeInviteModal({
               <PlusCircle className="w-4 h-4 mr-2 text-[#1162a8]" />
               Enter practice details
             </h3>
-            <InvitationForm type="Office" onSuccess={handleSuccess} />
+            <InvitationForm
+              type="Office"
+              onSuccess={handleSuccess}
+              onCancel={handleClose}
+              actionsAlign="end"
+            />
           </div>
           
           <div className="text-center pt-4 border-t border-gray-100">

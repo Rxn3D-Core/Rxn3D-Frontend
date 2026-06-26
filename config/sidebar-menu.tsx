@@ -123,6 +123,21 @@ export const superadminMenu: MenuItem[] = [
         title: "Settings",
         path: "/billing-subscription/settings",
       },
+      {
+        id: "billing-invoicing",
+        title: "Invoicing",
+        path: "/billing-subscription/invoicing",
+      },
+      {
+        id: "billing-dunning",
+        title: "Dunning Workflows",
+        path: "/billing-subscription/dunning-workflows",
+      },
+      {
+        id: "billing-integrations",
+        title: "Integrations & Connections",
+        path: "/billing-subscription/integrations",
+      },
     ],
   },
   {
@@ -218,12 +233,14 @@ export const labAdminMenu: MenuItem[] = [
     title: "Dashboard",
     icon: <Monitor className="h-5 w-5" />,
     path: "/dashboard",
+    permission: ["view_dashboard"],
   },
   {
     id: "lab-profile",
     title: "Lab Profile",
     icon: <Building className="h-5 w-5" />,
     path: "/lab-profile",
+    permission: ["view_lab", "edit_lab", "manage_lab"],
   },
   {
     id: "lab-management",
@@ -234,16 +251,25 @@ export const labAdminMenu: MenuItem[] = [
         id: "staff-management",
         title: "Staff Management",
         path: "/lab-administrator/staff-management",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
       {
         id: "lab-schedule",
         title: "Lab Schedule",
         path: "/lab-administrator/lab-schedule",
+        permission: ["view_business_setting", "update_business_setting"],
       },
       {
         id: "all-connections",
         title: "All Connections",
         path: "/lab-administrator/all-connections",
+        permission: ["get_connections"],
+      },
+      {
+        id: "permission-management",
+        title: "User Permissions",
+        path: "/permission",
+        permission: ["update_role"],
       },
     ],
   },
@@ -252,6 +278,7 @@ export const labAdminMenu: MenuItem[] = [
     title: "Product Management",
     icon: <Layers className="h-5 w-5" />,
     path: "/lab-product-library/products",
+    permission: ["view_product", "create_product", "update_product", "delete_product"],
   },
   {
     id: "case-management",
@@ -262,16 +289,19 @@ export const labAdminMenu: MenuItem[] = [
         id: "case-list",
         title: "Case List",
         path: "/lab-case-management/",
+        permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
       },
       {
         id: "call-logs",
         title: "Call logs",
         path: "/lab-case-management/call-logs",
+        permission: ["view_call_logs", "edit_call_logs"],
       },
       {
         id: "slip-notes",
         title: "Slip notes",
         path: "/lab-case-management/slip-notes",
+        permission: ["view_case_details_status"],
       },
     ],
   },
@@ -296,16 +326,19 @@ export const labAdminMenu: MenuItem[] = [
         id: "subscriptions",
         title: "Subscriptions",
         path: "/billing/subscriptions",
+        permission: ["view_billing", "manage_billing"],
       },
       {
         id: "charge-management",
         title: "Charge Management",
         path: "/billing/charge-management",
+        permission: ["view_billing", "manage_billing"],
       },
       {
         id: "generate-statements",
         title: "Generate Statements",
         path: "/billing/generate-statements",
+        permission: ["view_statements", "create_statements", "manage_statements"],
       },
       // {
       //   id: "integrations",
@@ -324,21 +357,27 @@ export const labAdminMenu: MenuItem[] = [
         title: "Dashboard Settings",
         icon: <LayoutDashboard className="h-5 w-5" />,
         path: "/dashboard/settings",
+        permission: ["manage_dashboard_settings"],
       },
       {
         id: "slip-settings",
         title: "Slip Settings",
         icon: <FileText className="h-5 w-5" />,
         path: "/dashboard/slip-settings",
+        permission: ["manage_slip_settings"],
       },
       {
         id: "system-setting-main",
         title: "System Setting",
-    path: "/lab-administrator/system-settings",
+        path: "/lab-administrator/system-settings",
+        permission: ["view_business_setting", "update_business_setting"],
       },
     ],
   },
 ]
+
+/** Shared lab sidebar — filtered by profile permissions from the API. */
+export const labMenu = labAdminMenu
 
 // Office Admin Menu
 export const officeAdminMenu: MenuItem[] = [
@@ -347,12 +386,14 @@ export const officeAdminMenu: MenuItem[] = [
     title: "Dashboard",
     icon: <Monitor className="h-5 w-5" />,
     path: "/dashboard",
+    permission: ["view_dashboard"],
   },
   {
     id: "office-profile",
     title: "Office Profile",
     icon: <Building className="h-5 w-5" />,
     path: "/office-profile",
+    permission: ["view_office", "edit_office", "manage_office"],
   },
   {
     id: "user-management",
@@ -364,21 +405,25 @@ export const officeAdminMenu: MenuItem[] = [
         id: "all-users",
         title: "All Users",
         path: "/office-administrator/user-management",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
       {
         id: "office-admin",
         title: "Office Admin",
         path: "/office-administrator/office-admin",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
       {
         id: "doctors",
         title: "Doctors",
         path: "/office-administrator/doctors",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
       {
         id: "users",
         title: "Users",
         path: "/office-administrator/users",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
     ],
   },
@@ -391,30 +436,9 @@ export const officeAdminMenu: MenuItem[] = [
         id: "case-list",
         title: "Case List",
         path: "/office-case-management/",
-      },
-      {
-        id: "call-logs",
-        title: "Call logs",
-        path: "/office-case-management/call-logs",
-      },
-      {
-        id: "slip-notes",
-        title: "Slip notes",
-        path: "/office-case-management/slip-notes",
+        permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
       },
     ],
-  },
-  {
-    id: "office-connections",
-    title: "Connections",
-    icon: <Link className="h-5 w-5" />,
-    path: "/office-administrator/connections",
-  },
-  {
-    id: "billing",
-    title: "Billing",
-    icon: <CreditCard className="h-5 w-5" />,
-    path: "/office-administrator/billing",
   },
   {
     id: "settings",
@@ -426,23 +450,23 @@ export const officeAdminMenu: MenuItem[] = [
         title: "Dashboard Settings",
         icon: <LayoutDashboard className="h-5 w-5" />,
         path: "/dashboard/settings",
-      },
-      {
-        id: "slip-settings",
-        title: "Slip Settings",
-        icon: <FileText className="h-5 w-5" />,
-        path: "/dashboard/slip-settings",
+        permission: ["manage_dashboard_settings"],
       },
       {
         id: "system-settings-main",
         title: "System Settings",
-    path: "/office-administrator/system-settings",
+        path: "/office-administrator/system-settings",
+        permission: ["view_business_setting", "update_business_setting"],
       },
     ],
   },
 ]
 
-// Doctor Admin Menu
+/** Shared office sidebar — filtered by profile permissions from the API. */
+export const officeMenu = officeAdminMenu
+
+// Legacy doctor admin menu — replaced by officeMenu + permission filtering in dashboard-sidebar.
+// export const doctorAdminMenu: MenuItem[] = [
 export const doctorAdminMenu: MenuItem[] = [
   {
     id: "dashboard",
@@ -492,29 +516,11 @@ export const doctorAdminMenu: MenuItem[] = [
   },
 ]
 
-// Lab User Menu
-export const labUserMenu: MenuItem[] = [
-  {
-    id: "dashboard",
-    title: "Dashboard",
-    icon: <Monitor className="h-5 w-5" />,
-    path: "/dashboard",
-  },
-  {
-    id: "user-profile",
-    title: "User Profile",
-    icon: <User className="h-5 w-5" />,
-    path: "#",
-  },
-  {
-    id: "case-management",
-    title: "Case Management",
-    icon: <Folder className="h-5 w-5" />,
-    path: "/slips",
-  },
-]
+// Legacy lab user menu — replaced by labMenu + permission filtering in dashboard-sidebar.
+// export const labUserMenu: MenuItem[] = [ ... ]
 
-// Office User Menu
+// Legacy office user menu — replaced by officeMenu + permission filtering in dashboard-sidebar.
+// export const officeUserMenu: MenuItem[] = [
 export const officeUserMenu: MenuItem[] = [
   {
     id: "dashboard",
@@ -586,17 +592,43 @@ export function getMenuByRole(role: string): MenuItem[] {
     case "superadmin":
       return superadminMenu
     case "lab_admin":
-      return labAdminMenu
-    case "office_admin":
-    case "doctor_admin":
-      return officeAdminMenu
-    case "doctor":
-      return doctorAdminMenu
     case "lab_user":
-      return labUserMenu
+    case "lab_driver":
+      return labMenu
+    case "office_admin":
     case "office_user":
-      return officeUserMenu
+    case "doctor_admin":
+    case "doctor":
+      return officeMenu
     default:
       return defaultMenu
   }
+}
+
+/**
+ * Pick lab vs office menu from active customer profile (not only primary role slug).
+ * Superadmin keeps the global menu; profile-scoped users get the menu for their customer type.
+ */
+export function getMenuForProfile(role: string, customerType?: string | null): MenuItem[] {
+  if (role === "superadmin") return superadminMenu
+  const type = (customerType ?? "").toLowerCase()
+  if (type === "lab") return labMenu
+  if (type === "office") return officeMenu
+  const normalized = role.toLowerCase()
+  if (
+    normalized === "lab_admin" ||
+    normalized === "lab_user" ||
+    normalized === "lab_driver"
+  ) {
+    return labMenu
+  }
+  if (
+    normalized === "office_admin" ||
+    normalized === "office_user" ||
+    normalized === "doctor_admin" ||
+    normalized === "doctor"
+  ) {
+    return officeMenu
+  }
+  return defaultMenu
 }

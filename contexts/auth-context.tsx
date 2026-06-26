@@ -1,10 +1,25 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
+import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
+import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
+import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
+import {
+  hasAnyPermission as checkAnyPermission,
+  hasPermission as checkPermission,
+  normalizeAvailablePermissions,
+  normalizePermissionsResponse,
+  parsePermissionsProfile,
+  permissionsFromCustomer,
+  roleOnCustomer,
+  userIsSuperadmin,
+  type AvailablePermissionsPayload,
+} from "@/lib/permissions"
+import { formatUserStatusForApi } from "@/lib/user-status"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -41,6 +56,7 @@ type User = {
     type: 'lab' | 'office'
     role?: string
     role_permissions?: string[]
+    permissions?: string[]
     department_id?: number
     is_primary?: boolean
     onboarding_completed?: boolean
@@ -123,6 +139,7 @@ type AuthContextType = {
     work_number?: string
     status?: string
     department_ids?: number[]
+    customer_id?: number
   }) => Promise<any>
   createUser: (userData: FormData | {
     first_name: string;
@@ -147,8 +164,33 @@ type AuthContextType = {
   }) => Promise<any>
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
+  fetchUserActivity: (userId: number, params?: { per_page?: number; page?: number }) => Promise<any>
   getUserPermissions: (customerId?: string) => Promise<any>
-  setCustomerId: (customerId: number) => Promise<boolean>
+  getAvailablePermissions: (customerId?: string) => Promise<AvailablePermissionsPayload>
+  fetchUserPermissionDetail: (
+    userId: number,
+    customerId?: string,
+  ) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  updateUserDirectPermissions: (
+    userId: number,
+    permissions: string[],
+    customerId?: string,
+  ) => Promise<import("@/lib/api/user-permissions-api").UserPermissionDetail>
+  /** Effective permissions for the active customer profile (alias: permissions). */
+  profilePermissions: string[]
+  permissions: string[]
+  selectedCustomerId: number | null
+  profileRole: string | null
+  rolePermissions: string[]
+  overridePermissions: string[]
+  isSuperadmin: boolean
+  refreshProfilePermissions: (customerId?: string) => Promise<string[]>
+  hasPermission: (permission: string) => boolean
+  hasAnyPermission: (permissions: string[]) => boolean
+  setCustomerId: (
+    customerId: number,
+    options?: { reload?: boolean; redirectTo?: string },
+  ) => Promise<boolean>
   isAuthenticated: boolean
   checkAuthAndRedirect: () => boolean
   impersonateUser: (userId: number) => Promise<boolean>
@@ -174,8 +216,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [originalUser, setOriginalUser] = useState<User | null>(null)
   const [originalToken, setOriginalToken] = useState<string | null>(null)
   const [isImpersonating, setIsImpersonating] = useState(false)
+  const [profilePermissions, setProfilePermissions] = useState<string[]>(() => {
+    if (typeof window === "undefined") return []
+    try {
+      const stored = localStorage.getItem("profilePermissions")
+      return stored ? (JSON.parse(stored) as string[]) : []
+    } catch {
+      return []
+    }
+  })
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null
+    const stored = localStorage.getItem("customerId")
+    if (!stored) return null
+    const parsed = Number(stored)
+    return Number.isNaN(parsed) ? null : parsed
+  })
+  const [profileRole, setProfileRole] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null
+    return localStorage.getItem("role")
+  })
+  const [rolePermissions, setRolePermissions] = useState<string[]>([])
+  const [overridePermissions, setOverridePermissions] = useState<string[]>([])
   const router = useRouter()
   const { toast } = useToast()
+
+  /** After a successful POST /set-customer-id, skip duplicate calls for the same id. */
+  const syncedCustomerIdRef = useRef<number | null>(null)
+  const setCustomerIdInFlightRef = useRef<Promise<boolean> | null>(null)
+  const userRef = useRef(user)
+  const lastPermissionsFetchKeyRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  const isSuperadmin = userIsSuperadmin(user)
+
+  const applyPermissionsProfile = useCallback(
+    (snapshot: ReturnType<typeof parsePermissionsProfile>) => {
+      setProfilePermissions(snapshot.permissions)
+      setRolePermissions(snapshot.role_permissions)
+      setOverridePermissions(snapshot.override_permissions)
+      if (snapshot.role) {
+        setProfileRole(snapshot.role)
+        localStorage.setItem("role", snapshot.role)
+      }
+      if (typeof snapshot.customer_id === "number") {
+        setSelectedCustomerId(snapshot.customer_id)
+        localStorage.setItem("customerId", String(snapshot.customer_id))
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("profilePermissions", JSON.stringify(snapshot.permissions))
+        localStorage.setItem("rolePermissions", JSON.stringify(snapshot.role_permissions))
+        localStorage.setItem("overridePermissions", JSON.stringify(snapshot.override_permissions))
+      }
+    },
+    [],
+  )
+
+  const applyProfilePermissions = useCallback((permissions: string[]) => {
+    setProfilePermissions(permissions)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("profilePermissions", JSON.stringify(permissions))
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -410,6 +515,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(userWithAvatar)
       if (identifier) updateSessionHistory(identifier, userWithAvatar)
+
+      const loginPermissions =
+        normalizePermissionsResponse(authData.permissions) ||
+        (customerIdToStore
+          ? permissionsFromCustomer(authData.user.customers, customerIdToStore)
+          : [])
+      if (customerIdToStore) {
+        setSelectedCustomerId(customerIdToStore)
+        const roleOnProfile = roleOnCustomer(authData.user.customers, customerIdToStore)
+        if (roleOnProfile) {
+          setProfileRole(roleOnProfile)
+          localStorage.setItem("role", roleOnProfile)
+        }
+      }
+      if (loginPermissions.length > 0) {
+        applyProfilePermissions(loginPermissions)
+      }
       const userRoles = authData.user.roles || (authData.user.role ? [authData.user.role] : [])
       const shouldSeeMultiLocation = userRoles.some((role) => MULTI_LOCATION_ROLES.includes(role))
       const isSuperAdmin = userRoles.includes("superadmin")
@@ -446,6 +568,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Check if onboarding wizard is finished (office: business hours sufficient; lab: onboarding + hours)
       const isOnboardingComplete = isCustomerProfileOnboardingWizardComplete(primaryCustomer)
 
+      // Honor a safe internal ?redirect= target (e.g. returning to an invitation accept link)
+      try {
+        if (typeof window !== "undefined") {
+          const redirectTarget = new URLSearchParams(window.location.search).get("redirect")
+          if (redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")) {
+            router.replace(redirectTarget)
+            return true
+          }
+        }
+      } catch (e) {
+        // Ignore and fall through to the default landing logic
+      }
+
       // Navigate based on onboarding status - PRIORITIZE onboarding check
       // Only redirect to dashboard/multi-location if onboarding is complete
       try {
@@ -472,7 +607,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               localStorage.setItem("customerId", singleCustomer.id.toString())
               localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
               setToken(result.token)
-              
+              syncedCustomerIdRef.current = singleCustomer.id
+              lastPermissionsFetchKeyRef.current = null
+
               // Update user object with customer_id
               const updatedUser = {
                 ...authData.user,
@@ -480,7 +617,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
               setUser(updatedUser)
               localStorage.setItem("user", JSON.stringify(updatedUser))
-              
+
               // Fetch and store logo for the customer
               fetchCustomerLogo(singleCustomer.id, result.token)
             } else {
@@ -523,19 +660,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }, 100)
             return true
           } else {
-            // Onboarding is complete - safe to go to dashboard
-            console.log('Onboarding complete, redirecting to dashboard')
-            if (shouldSeeMultiLocation && hasMultipleLocations) {
+            // Onboarding is complete - safe to go to the role's landing page
+            const landingPath = getPostLoginLandingPath(userRoles)
+if (shouldSeeMultiLocation && hasMultipleLocations) {
               router.replace("/multiple-location")
             } else {
-              // Single location or no multi-location role - go directly to dashboard
+              // Single location or no multi-location role - go directly to landing page
               if (shouldSeeMultiLocation && customers.length === 1) {
                 // Set the single location automatically via API
                 handleSingleLocation(customers[0]).then(() => {
-                  router.replace("/dashboard")
+                  router.replace(landingPath)
                 })
               } else {
-                router.replace("/dashboard")
+                router.replace(landingPath)
               }
             }
             return true
@@ -699,6 +836,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null)
       setToken(null)
+      setProfilePermissions([])
+      setSelectedCustomerId(null)
+      setProfileRole(null)
+      setRolePermissions([])
+      setOverridePermissions([])
+      syncedCustomerIdRef.current = null
+      setCustomerIdInFlightRef.current = null
+      lastPermissionsFetchKeyRef.current = null
       clearSessionStorage()
 
       router.replace("/login")
@@ -744,11 +889,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     page?: number
   }): Promise<any> => {
     try {
-      // Always get customer_id from params first, then fall back to localStorage
-      const customerId = params?.customer_id || localStorage.getItem("customerId");
+      const superadmin = userIsSuperadmin(userRef.current)
+      const customerId =
+        params?.customer_id ?? (!superadmin ? localStorage.getItem("customerId") : null)
       const queryParams = new URLSearchParams();
       
-      if (params?.status) queryParams.append("status", params.status);
+      if (params?.status) queryParams.append("status", formatUserStatusForApi(params.status));
       if (params?.role) queryParams.append("role", params.role);
       if (params?.department_id) queryParams.append("department_id", params.department_id);
       if (params?.q) queryParams.append("q", params.q);
@@ -760,13 +906,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Always include customer_id if it exists (required for office_admin role)
       if (customerId) {
         queryParams.append("customer_id", String(customerId));
-      } else {
-        console.warn("fetchUsers: customerId not found in localStorage or params");
       }
       
       const url = `${API_BASE_URL}/users${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      console.log("fetchUsers URL:", url);
-      
+
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -805,16 +948,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     work_number?: string
     status?: string
     department_ids?: number[]
+    customer_id?: number
   }): Promise<any> => {
     try {
+      const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
+      const payload = {
+        ...data,
+        ...(data.status !== undefined ? { status: formatUserStatusForApi(data.status) } : {}),
+        ...(customerId !== undefined ? { customer_id: customerId } : {}),
+      }
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(data),
-      });
+        body: JSON.stringify(payload),
+      })
 
       if (response.status === 401) {
         handleUnauthorized()
@@ -822,20 +972,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to update user");
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to update user")
       }
 
-      const result = await response.json();
-      return result;
+      return await response.json()
     } catch (error) {
-      console.error("Update user error:", error);
-      throw error;
+      throw error
     }
   }, [handleUnauthorized]);
 
   const deleteUser = useCallback(async (userId: number): Promise<any> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      const customerId = localStorage.getItem("customerId")
+      const queryParams = new URLSearchParams()
+      if (customerId) {
+        queryParams.append("customer_id", customerId)
+      }
+      const url = `${API_BASE_URL}/users/${userId}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+      const response = await fetch(url, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -855,16 +1010,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return await response.json()
     } catch (error) {
-      console.error("Delete user error:", error)
       throw error
     }
   }, [handleUnauthorized])
 
   const fetchUserById = useCallback(async (userId: number, customerId?: string): Promise<any> => {
     try {
+      const resolvedCustomerId = customerId || localStorage.getItem("customerId") || undefined
       const queryParams = new URLSearchParams()
-      if (customerId) {
-        queryParams.append("customer_id", customerId)
+      if (resolvedCustomerId) {
+        queryParams.append("customer_id", resolvedCustomerId)
       }
       const url = `${API_BASE_URL}/users/${userId}${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
       const response = await fetch(url, {
@@ -892,13 +1047,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [handleUnauthorized])
 
-  const getUserPermissions = useCallback(async (customerId?: string): Promise<any> => {
+  const fetchUserActivity = useCallback(async (userId: number, params?: { per_page?: number; page?: number }): Promise<any> => {
     try {
       const queryParams = new URLSearchParams()
-      if (customerId) {
-        queryParams.append("customer_id", customerId)
+      queryParams.append("user_id", String(userId))
+      if (params?.per_page) queryParams.append("per_page", String(params.per_page))
+      if (params?.page) queryParams.append("page", String(params.page))
+      const url = `${API_BASE_URL}/audits?${queryParams.toString()}`
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
       }
-      const url = `${API_BASE_URL}/users/permissions${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to fetch user activity")
+      }
+
+      return await response.json()
+    } catch (error) {
+      throw error
+    }
+  }, [handleUnauthorized])
+
+  const getUserPermissions = useCallback(async (customerId?: string): Promise<any> => {
+    try {
+      const url = appendCustomerIdQuery(
+        `${API_BASE_URL}/users/permissions`,
+        customerId ?? getActiveCustomerId(),
+      )
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -923,6 +1108,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error
     }
   }, [handleUnauthorized])
+
+  const refreshProfilePermissions = useCallback(
+    async (customerId?: string): Promise<string[]> => {
+      if (userIsSuperadmin(userRef.current)) {
+        applyPermissionsProfile({
+          permissions: [],
+          role_permissions: [],
+          override_permissions: [],
+          role: "superadmin",
+        })
+        return []
+      }
+
+      const id = customerId ?? getActiveCustomerId()
+      if (!id) {
+        applyPermissionsProfile({
+          permissions: [],
+          role_permissions: [],
+          override_permissions: [],
+        })
+        return []
+      }
+
+      const result = await getUserPermissions(id)
+      const snapshot = parsePermissionsProfile(result)
+      const roleFromCustomers = roleOnCustomer(userRef.current?.customers, Number(id))
+      applyPermissionsProfile({
+        ...snapshot,
+        role: snapshot.role ?? roleFromCustomers,
+        customer_id: snapshot.customer_id ?? Number(id),
+      })
+      return snapshot.permissions
+    },
+    [getUserPermissions, applyPermissionsProfile],
+  )
+
+  const getAvailablePermissions = useCallback(async (customerId?: string): Promise<AvailablePermissionsPayload> => {
+    const { fetchAvailablePermissions } = await import("@/lib/api/user-permissions-api")
+    return fetchAvailablePermissions(customerId ?? getActiveCustomerId())
+  }, [])
+
+  const fetchUserPermissionDetail = useCallback(async (userId: number, customerId?: string) => {
+    const { fetchUserPermissionDetail: fetchDetail } = await import("@/lib/api/user-permissions-api")
+    return fetchDetail(userId, customerId ?? getActiveCustomerId())
+  }, [])
+
+  const updateUserDirectPermissions = useCallback(
+    async (userId: number, permissions: string[], customerId?: string) => {
+      const { updateUserOverridePermissions } = await import("@/lib/api/user-permissions-api")
+      return updateUserOverridePermissions(userId, permissions, customerId ?? getActiveCustomerId())
+    },
+    [],
+  )
+
+  const hasPermission = useCallback(
+    (permission: string) => checkPermission(profilePermissions, permission, isSuperadmin),
+    [profilePermissions, isSuperadmin],
+  )
+
+  const hasAnyPermission = useCallback(
+    (permissions: string[]) => checkAnyPermission(profilePermissions, permissions, isSuperadmin),
+    [profilePermissions, isSuperadmin],
+  )
 
   const createUser = useCallback(async (userData: FormData | {
     first_name: string;
@@ -988,7 +1236,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({
+          ...userData,
+          status: formatUserStatusForApi(userData.status),
+        }),
       });
 
       if (response.status === 401) {
@@ -1009,49 +1260,99 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [handleUnauthorized]);
 
-  const setCustomerId = async (customerId: number): Promise<boolean> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/set-customer-id`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ customer_id: customerId }),
-      })
+  const setCustomerId = useCallback(
+    async (
+      customerId: number,
+      options?: { reload?: boolean; redirectTo?: string },
+    ): Promise<boolean> => {
+      const shouldReload = options?.reload === true
 
-      if (response.status === 401) {
-        handleUnauthorized()
-        throw new Error("Unauthorized")
+      if (!shouldReload && syncedCustomerIdRef.current === customerId) {
+        return true
       }
 
-      if (!response.ok) {
-        throw new Error("Failed to set customer ID")
+      if (setCustomerIdInFlightRef.current) {
+        return setCustomerIdInFlightRef.current
       }
 
-      const result = await response.json()
-      localStorage.setItem("token", result.token)
-      localStorage.setItem("customerId", String(customerId))
-      setToken(result.token)
-      
-      // Update user object with customer_id to keep it in sync
-      if (user) {
-        const updatedUser = {
-          ...user,
-          customer_id: customerId,
+      const run = (async (): Promise<boolean> => {
+        try {
+          const authToken = token ?? localStorage.getItem("token")
+          if (!authToken) {
+            throw new Error("Not authenticated")
+          }
+
+          const response = await fetch(`${API_BASE_URL}/set-customer-id`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ customer_id: customerId }),
+          })
+
+          if (response.status === 401) {
+            handleUnauthorized()
+            throw new Error("Unauthorized")
+          }
+
+          if (!response.ok) {
+            throw new Error("Failed to set customer ID")
+          }
+
+          const result = await response.json()
+          localStorage.setItem("token", result.token)
+          localStorage.setItem("customerId", String(customerId))
+          setSelectedCustomerId(customerId)
+          setToken(result.token)
+          syncedCustomerIdRef.current = customerId
+          lastPermissionsFetchKeyRef.current = null
+
+          const currentUser = userRef.current
+          if (currentUser) {
+            const roleOnProfile = roleOnCustomer(currentUser.customers, customerId)
+            if (roleOnProfile) {
+              setProfileRole(roleOnProfile)
+              localStorage.setItem("role", roleOnProfile)
+            }
+            const selectedCustomer = currentUser.customers?.find((c) => c.id === customerId)
+            if (selectedCustomer?.type) {
+              localStorage.setItem("customerType", selectedCustomer.type)
+            }
+            if (selectedCustomer) {
+              localStorage.setItem("selectedLocation", JSON.stringify(selectedCustomer))
+            }
+            const updatedUser = {
+              ...currentUser,
+              customer_id: customerId,
+            }
+            setUser(updatedUser)
+            localStorage.setItem("user", JSON.stringify(updatedUser))
+          }
+
+          fetchCustomerLogo(customerId, result.token)
+
+          try {
+            await refreshProfilePermissions(String(customerId))
+          } catch (permError) {
+            console.error("Failed to refresh permissions after profile switch:", permError)
+          }
+
+          if (shouldReload) {
+            reloadAppAfterProfileSwitch(options?.redirectTo ?? "/dashboard")
+          }
+
+          return true
+        } finally {
+          setCustomerIdInFlightRef.current = null
         }
-        setUser(updatedUser)
-        localStorage.setItem("user", JSON.stringify(updatedUser))
-      }
-      
-      // Fetch and store logo for the newly selected customer
-      fetchCustomerLogo(customerId, result.token)
-      
-      return true
-    } catch (error) {
-      throw error
-    }
-  }
+      })()
+
+      setCustomerIdInFlightRef.current = run
+      return run
+    },
+    [token, handleUnauthorized, refreshProfilePermissions],
+  )
 
   // Impersonate a user
   const impersonateUser = async (userId: number): Promise<boolean> => {
@@ -1168,6 +1469,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Refresh profile permissions when session is restored (e.g. page reload)
+  useEffect(() => {
+    if (!user || !token || isSuperadmin) return
+    const customerId = getActiveCustomerId()
+    if (!customerId) return
+
+    const fetchKey = `${user.id}:${token}:${customerId}`
+    if (lastPermissionsFetchKeyRef.current === fetchKey) return
+    lastPermissionsFetchKeyRef.current = fetchKey
+
+    const fromCustomers = permissionsFromCustomer(user.customers, Number(customerId))
+    if (fromCustomers.length > 0) {
+      applyProfilePermissions(fromCustomers)
+    }
+
+    refreshProfilePermissions(customerId).catch(() => {})
+  }, [user?.id, token, isSuperadmin, refreshProfilePermissions, applyProfilePermissions, user?.customers])
+
   // Load impersonation state on mount
   useEffect(() => {
     const storedIsImpersonating = localStorage.getItem("isImpersonating")
@@ -1210,7 +1529,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUserDetails,
         deleteUser,
         fetchUserById,
+        fetchUserActivity,
         getUserPermissions,
+        getAvailablePermissions,
+        fetchUserPermissionDetail,
+        updateUserDirectPermissions,
+        profilePermissions,
+        permissions: profilePermissions,
+        selectedCustomerId,
+        profileRole,
+        rolePermissions,
+        overridePermissions,
+        isSuperadmin,
+        refreshProfilePermissions,
+        hasPermission,
+        hasAnyPermission,
         setCustomerId,
         isAuthenticated,
         checkAuthAndRedirect,

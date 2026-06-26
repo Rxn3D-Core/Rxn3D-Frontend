@@ -312,7 +312,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
           <div className="relative">
             <Avatar className="w-[50px] h-[50px] sm:w-[75px] sm:h-[75px]">
               <AvatarImage
-                src={doctor?.image || "/images/doctor-image.png"}
+                src={doctor?.image || undefined}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
               />
               <AvatarFallback className="bg-[#1162a8] text-white text-base sm:text-xl font-bold">
@@ -340,7 +340,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
       <div className="relative">
         <Avatar className="w-20 h-20">
           <AvatarImage
-            src={doctor?.image || "/images/doctor-image.png"}
+            src={doctor?.image || undefined}
             alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
           />
           <AvatarFallback className="bg-[#1162a8] text-white text-xl font-semibold">
@@ -774,7 +774,7 @@ const PatientInfoSection = ({
       {/* Gender + Age - shown per slip settings once the name is far enough along */}
       {showSecondRow && (
         <div
-          className="absolute left-[10px] right-[10px] sm:right-auto flex gap-2"
+          className="absolute left-[10px] right-[10px] sm:right-auto flex gap-4"
           style={{
             top: `${10 + fieldHeight + fieldGap}px`,
             height: `${fieldHeight}px`,

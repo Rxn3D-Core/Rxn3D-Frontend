@@ -178,6 +178,7 @@ export default function DriverHistoryModal({
           <div className="space-y-4">
             <Textarea
               className="w-full min-h-[120px] resize-none rounded-lg border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-base"
+              style={{ fontFamily: 'var(--font-windsong), "Segoe Script", "Brush Script MT", cursive' }}
               placeholder="Signature *"
               value={signature}
               onChange={e => setSignature(e.target.value)}

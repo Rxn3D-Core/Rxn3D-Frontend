@@ -1,6 +1,7 @@
 import type React from "react";
 import type { ImplantDetailData } from "./components/ImplantDetailSection";
 import type { ProductAbutment } from "@/services/implant-api";
+import type { AddStageDesignContext } from "@/lib/add-stage/session";
 
 /** Snapshot of per-product design data collected at submit time */
 export interface SlipProductSnapshot {
@@ -12,12 +13,16 @@ export interface SlipProductSnapshot {
   teethNumbers: number[];
   /** Full scope for `extractions` / `tooth_chart` (status boxes, clasps, TIM, etc.) */
   allCardTeeth?: number[];
+  /** All teeth on this card — used to read field values stored on any card tooth */
+  cardFieldTeeth?: number[];
   /** Representative tooth number (first in group — field values are keyed here) */
   repToothNumber: number;
   /** Field values keyed by step name */
   fieldValues: Record<string, string>;
   /** Stage name selected for this product */
   stageName: string | null;
+  /** Resolved stage_id when stored in field JSON or catalog */
+  stageId?: number;
   /** Impression selections for the product arch: { impressionCode: quantity } */
   impressions: Record<string, number>;
   /**
@@ -61,6 +66,17 @@ export interface SlipProductSnapshot {
    * Each entry carries addon_id and qty for payload submission.
    */
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  /**
+   * Active splint links for this product card (lower tooth number per adjacent pair).
+   * Includes auto-derived (Rule S1) links combined with the user's manual overlay.
+   */
+  splintLinks?: number[];
+  /**
+   * Wing-retainer teeth for this product — the empty abutment neighbors of the
+   * product's pontics (NOT the pontic), as a comma-separated string (e.g. "13,15").
+   * Derived from the arch-wide retention map.
+   */
+  wingTeeth?: string;
 }
 
 export interface CaseDesignProps {
@@ -122,11 +138,26 @@ export interface CaseDesignProps {
    */
   slipCollectorRef?: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
   /**
+   * When provided, CaseDesignCenter writes the current Case Summary Notes textarea
+   * content here so submit flows can send WYSIWYG notes to the API.
+   */
+  caseSummaryNotesRef?: React.MutableRefObject<string>;
+  /**
    * Pre-built state from the virtual slip API response.
    * When provided alongside caseSubmitted=true, hydrates all panels on first mount
    * without requiring interactive tooth selection. Has no effect in interactive mode.
    */
   initialSlipState?: VirtualSlipInitialState;
+  /**
+   * When true with initialSlipState, hydrates CDC on mount even when caseSubmitted is false
+   * (add-new-stage preload from source slip).
+   */
+  preloadInitialSlipState?: boolean;
+  /**
+   * Add-new-stage only: per-arch stage history from eligibility API and optional
+   * sequential stage modal prompt on load (maxillary, then mandibular).
+   */
+  addStageContext?: AddStageDesignContext;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   /** Called whenever any full-screen modal (impression, stage, add-ons, etc.) opens or closes. */
@@ -198,6 +229,24 @@ export interface VirtualSlipInitialState {
    * Each value is a Record<stepName, value>.
    */
   fieldValues: Record<string, Record<string, string>>;
+  /**
+   * Per-tooth tooth-status extraction code assignments (Missing, Will-extract, etc.)
+   * for exclusive, non-default extractions. Teeth absent from the map are assumed
+   * to be in the default status (Teeth in mouth). Keyed by tooth number.
+   */
+  maxillaryToothExtractionMap: Record<number, string>;
+  mandibularToothExtractionMap: Record<number, string>;
+  /** Teeth carrying an overlay (clasp) extraction, per arch. */
+  maxillaryClaspTeeth: number[];
+  mandibularClaspTeeth: number[];
+  /**
+   * Removable product teeth (teeth_selection) that also carry a tooth-status code.
+   * These were assigned via the "no active box" path and must appear in BOTH the
+   * orange product header and their status box, so they need to be tracked
+   * separately for `getRemovableOrangeHeaderTeeth` to keep them in the header.
+   */
+  maxillaryNoActiveBoxTeeth: number[];
+  mandibularNoActiveBoxTeeth: number[];
 }
 
 export interface NotesProps {
@@ -224,6 +273,8 @@ export interface NotesProps {
   selectedStages: Record<string, string>;
   /** Get display text for impression */
   getImpressionDisplayText: (productId: string, arch: Arch, toothNumber?: number) => string;
+  /** Fired when the displayed case summary text changes (auto-generated or user-edited). */
+  onNotesChange?: (text: string) => void;
   /** Implant inclusions for right1 and right2 */
   right1Inclusion: string;
   right2Inclusion: string;
@@ -499,6 +550,8 @@ export interface ProductApiData {
   status: string;
   sequence: number;
   is_single_stage: string;
+  is_splinted?: string;
+  show_jaw_photo?: string;
   has_multiple_grades: string;
   is_teeth_based_price: string;
   customer_id: number | null;

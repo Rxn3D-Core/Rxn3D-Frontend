@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="b" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 55.2 90.5">
+  <defs>
+    <style>
+      .f {
+        letter-spacing: 0em;
+      }
+
+      .g {
+        letter-spacing: -.03em;
+      }
+
+      .h {
+        fill: url(#d);
+      }
+
+      .i {
+        fill: url(#e);
+      }
+
+      .j {
+        fill: #231f20;
+        font-family: MyriadPro-Regular, 'Myriad Pro';
+        font-size: 12px;
+      }
+
+      .k {
+        letter-spacing: 0em;
+      }
+    </style>
+    <linearGradient id="d" x1="85.85" y1="-.95" x2="1.47" y2="66.55" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8993e"/>
+      <stop offset="1" stop-color="#db7f57"/>
+    </linearGradient>
+    <linearGradient id="e" x1="74.63" y1="-18.06" x2="-9.74" y2="49.44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#febc38"/>
+      <stop offset="1" stop-color="#edcc9f"/>
+    </linearGradient>
+  </defs>
+  <g id="c" data-name="Layer 2">
+    <g>
+      <g>
+        <rect class="h" x="33.52" y="0" width="20.76" height="65.22" rx="4" ry="4"/>
+        <rect class="i" x=".92" y="0" width="20.76" height="65.22" rx="4" ry="4"/>
+      </g>
+      <text class="j" transform="translate(0 87.5)"><tspan class="g" x="0" y="0">P</tspan><tspan class="f" x="6.07" y="0">ause </tspan><tspan class="k" x="31.78" y="0">C</tspan><tspan x="38.65" y="0">ase</tspan></text>
+    </g>
+  </g>
+</svg>

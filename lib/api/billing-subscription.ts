@@ -64,6 +64,12 @@ export interface CustomerAddOn {
   add_on?: CatalogAddOn
 }
 
+export interface CustomerAddOnPayload {
+  customer_id: number
+  billing_add_on_id: number
+  status?: "active" | "cancelled"
+}
+
 type SlipListingRecord = {
   timestamp?: string | null
   created_at?: string | null
@@ -115,6 +121,28 @@ export async function listCustomerAddOns(customerId: number): Promise<CustomerAd
   return unwrapList<CustomerAddOn>(response.data)
 }
 
+/** POST /v1/customer-add-ons */
+export async function createCustomerAddOn(
+  payload: CustomerAddOnPayload
+): Promise<CustomerAddOn | null> {
+  const response = await apiClient.post<unknown>("/customer-add-ons", payload)
+  return unwrapData<CustomerAddOn>(response.data)
+}
+
+/** PUT /v1/customer-add-ons/{id} */
+export async function updateCustomerAddOn(
+  customerAddOnId: number,
+  payload: Pick<CustomerAddOnPayload, "status">
+): Promise<CustomerAddOn | null> {
+  const response = await apiClient.put<unknown>(`/customer-add-ons/${customerAddOnId}`, payload)
+  return unwrapData<CustomerAddOn>(response.data)
+}
+
+/** DELETE /v1/customer-add-ons/{id} */
+export async function deleteCustomerAddOn(customerAddOnId: number): Promise<void> {
+  await apiClient.delete(`/customer-add-ons/${customerAddOnId}`)
+}
+
 /** Frontend fallback when billing usage metering has not yet been updated by the backend. */
 export async function getSlipUsageFallbackCount(
   customerId: number,
@@ -150,6 +178,34 @@ export async function getSlipUsageFallbackCount(
 
   const usagePeriod = resolveUsagePeriod(options?.periodStart, options?.periodEnd)
   return countSlipUsageInPeriod(slips, usagePeriod)
+}
+
+export async function listSlipUsageFallbackRecords(
+  customerId: number,
+  options?: {
+    perPage?: number
+  }
+): Promise<SlipListingRecord[]> {
+  const response = await apiClient.get<unknown>("/slip/listing/lab", {
+    params: {
+      customer_id: customerId,
+      page: 1,
+      per_page: options?.perPage ?? 200,
+      order_by: "created_at",
+      sort_by: "desc",
+    },
+  })
+
+  const payload = response.data as
+    | { data?: SlipListingRecord[]; pagination?: unknown }
+    | { data?: { data?: SlipListingRecord[]; pagination?: unknown } }
+    | SlipListingRecord[]
+    | null
+
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.data)) return payload.data
+  if (Array.isArray(payload?.data?.data)) return payload.data.data
+  return []
 }
 
 export interface AddOnCheckoutPayload {

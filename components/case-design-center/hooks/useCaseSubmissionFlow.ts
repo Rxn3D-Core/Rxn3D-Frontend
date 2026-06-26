@@ -19,14 +19,74 @@ interface ToastApi {
   (options: { title: string; description: string; variant?: "destructive" }): void;
 }
 
+interface CachedAttachment {
+  file?: unknown;
+  url?: string;
+  description?: string;
+  remoteId?: unknown;
+  generatedPath?: string;
+}
+
+/**
+ * Reads attachments cached during slip creation (window.__caseDesignAttachments)
+ * and uploads any local files to the freshly created slip. Already-remote files
+ * (remoteId/generatedPath set) are skipped. Failures are collected, not thrown,
+ * so a bad attachment never blocks the successful submit redirect.
+ */
+async function uploadCachedAttachmentsToSlip(
+  slipId: number,
+  upload: (slipId: number, file: File, notes?: string) => Promise<any>,
+): Promise<{ uploaded: number; failed: number }> {
+  if (typeof window === "undefined") return { uploaded: 0, failed: 0 };
+
+  const cached = (window as any).__caseDesignAttachments as CachedAttachment[] | undefined;
+  if (!Array.isArray(cached) || cached.length === 0) return { uploaded: 0, failed: 0 };
+
+  const pending = cached.filter(
+    (item) =>
+      item.file instanceof File && !item.remoteId && !item.generatedPath,
+  );
+  if (pending.length === 0) return { uploaded: 0, failed: 0 };
+
+  let uploaded = 0;
+  let failed = 0;
+  for (const item of pending) {
+    try {
+      await upload(slipId, item.file as File, item.description);
+      uploaded += 1;
+    } catch (error) {
+      failed += 1;
+      console.error("Failed to upload cached attachment:", error);
+    }
+  }
+
+  // Clear the cache so a later submit doesn't re-upload the same files.
+  if (failed === 0) {
+    (window as any).__caseDesignAttachments = [];
+  }
+
+  return { uploaded, failed };
+}
+
 interface UseCaseSubmissionFlowParams {
   createSlip: (
     payload: SlipCreationPayload,
     multipartFiles?: SlipCreationMultipartFile[]
   ) => Promise<SlipCreationResponse["data"] | SlipCreationResponse | any>;
+  /**
+   * Uploads a single attachment file to a slip. Provided by the slip-creation
+   * context. When present, attachments cached during slip creation are uploaded
+   * to the newly created slip after a successful submit.
+   */
+  uploadSlipAttachment?: (
+    slipId: number,
+    file: File,
+    notes?: string
+  ) => Promise<any>;
   router: AppRouterInstance;
   toast: ToastApi;
   slipCollectorRef: React.MutableRefObject<(() => SlipProductSnapshot[]) | null>;
+  caseSummaryNotesRef?: React.MutableRefObject<string>;
   completedLab: WizardLabShape | null;
   completedDoctor: WizardDoctorShape | null;
   completedPatientName: string;
@@ -38,9 +98,11 @@ interface UseCaseSubmissionFlowParams {
 
 export function useCaseSubmissionFlow({
   createSlip,
+  uploadSlipAttachment,
   router,
   toast,
   slipCollectorRef,
+  caseSummaryNotesRef,
   completedLab,
   completedDoctor,
   completedPatientName,
@@ -83,6 +145,7 @@ export function useCaseSubmissionFlow({
       gender: completedGender,
       age: completedAge,
       labCustomerId: labCustomerId ?? undefined,
+      caseSummaryNotes: caseSummaryNotesRef?.current,
     });
 
     setSubmissionError(null);
@@ -106,6 +169,26 @@ export function useCaseSubmissionFlow({
 
       toast({ title: "Case submitted", description: "Slip created successfully." });
 
+      // Upload attachments cached during slip creation now that we have a slip id.
+      // Never block the redirect — surface a non-fatal warning if any fail.
+      if (uploadSlipAttachment) {
+        try {
+          const { failed } = await uploadCachedAttachmentsToSlip(
+            result.slipId,
+            uploadSlipAttachment,
+          );
+          if (failed > 0) {
+            toast({
+              title: "Some attachments failed",
+              description: `${failed} file(s) could not be uploaded. You can re-attach them on the slip.`,
+              variant: "destructive",
+            });
+          }
+        } catch (attachmentError) {
+          console.error("Attachment upload step failed:", attachmentError);
+        }
+      }
+
       redirectTimerRef.current = setTimeout(() => {
         router.push(redirectPath);
       }, successRedirectDelayMs);
@@ -125,6 +208,7 @@ export function useCaseSubmissionFlow({
   }, [
     submissionState,
     slipCollectorRef,
+    caseSummaryNotesRef,
     completedLab?.id,
     completedDoctor?.id,
     completedPatientName,
@@ -132,6 +216,7 @@ export function useCaseSubmissionFlow({
     completedAge,
     labCustomerId,
     createSlip,
+    uploadSlipAttachment,
     router,
     successRedirectDelayMs,
     toast,

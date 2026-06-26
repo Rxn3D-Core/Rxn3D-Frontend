@@ -78,3 +78,27 @@ test("finds option by tooth_chart_type Prepped for Prep selection", () => {
   };
   assert.equal(getRetentionSelectorShape(27, types, [prepOpt]), "Diamond");
 });
+
+test("matches lowercase tooth_chart_type pontic", () => {
+  const types = { 11: ["Pontic"] };
+  const ponticOpt = {
+    id: 3,
+    name: "pontic",
+    tooth_chart_type: "pontic",
+    selector_shape: "Star",
+    images: [],
+  };
+  assert.equal(getRetentionSelectorShape(11, types, [ponticOpt]), "Star");
+});
+
+test("matches pontic option by selector_shape without tooth_chart_type", () => {
+  const types = { 12: ["Pontic"] };
+  const ponticOpt = {
+    id: 4,
+    name: "Custom label",
+    selector_shape: "Pontic",
+    has_implant: "No",
+    images: [],
+  };
+  assert.equal(getRetentionSelectorShape(12, types, [ponticOpt]), "Pontic");
+});

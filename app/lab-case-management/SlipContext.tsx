@@ -2,6 +2,12 @@
 
 import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { buildApiUrl } from "@/lib/api/client";
+import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
+import { applySlipAttachmentState } from "./attachment-state.mjs";
+import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
+import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
+import { resolveListingCustomerId } from "@/lib/customer-scope";
 
 type Slip = {
   id: number;
@@ -39,6 +45,7 @@ export type LabListingQuery = {
   delivery_date_start?: string;
   delivery_date_end?: string;
   has_attachments?: boolean;
+  product_name?: string;
   page?: number;
   per_page?: number;
   order_by?: string;
@@ -113,12 +120,14 @@ type SlipContextType = {
   fetchCallLogs: () => Promise<void>;
   fetchSlipNotes: () => Promise<void>;
   fetchDriverPrintData: (slipIds: number[]) => Promise<DriverPrintResponse | null>;
-  scanQrCode: (caseId: number, slipIds: number[]) => Promise<ScanQrCodeResponse | null>;
-  submitScannedSlips: (slipIds: number[], signature: string) => Promise<SubmitScannedSlipsResponse | null>;
+  scanQrCode: (caseId: number, slipIds: number[], sessionKey?: string) => Promise<ScanQrCodeResponse | null>;
+  clearDriverSession: (sessionKey: string) => Promise<{ success: boolean; message?: string } | null>;
+  submitScannedSlips: (slipIds: number[], signature: string, options?: { notes?: string; images?: Record<number, File> }) => Promise<SubmitScannedSlipsResponse | null>;
   fetchPickupDeliverySlips: (slipId: number) => Promise<any | null>;
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
-  readyToSend: (slipId: number) => Promise<ReadyToSendResponse | null>;
+  readyToSend: (slipId: number, signature?: string) => Promise<ReadyToSendResponse | null>;
+  updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
 };
 
 const SlipContext = createContext<SlipContextType | undefined>(undefined);
@@ -153,7 +162,9 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   // Helper to map API slip to UI slip
   const mapApiSlip = (apiSlip: any): Slip => ({
     id: apiSlip.id,
-    createdAt: apiSlip.timestamp,
+    createdAt: formatSlipListingTimestamp(
+      apiSlip.timestamp ?? apiSlip.created_at ?? "",
+    ),
     caseId: apiSlip.case?.id,
     caseNumber: apiSlip.case?.case_number,
     billingId:
@@ -174,7 +185,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       : undefined,
     officeCode: apiSlip.office?.code || "",
     patient: apiSlip.case?.patient_name || "",
-    product: apiSlip.products?.map((p: any) => p.name).join(", ") || "",
+    product: formatSlipListingProducts(apiSlip.products),
     status: apiSlip.status || "",
     rush: !!apiSlip.is_rush,
     location: apiSlip.location?.current?.name || "",
@@ -199,6 +210,15 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
+      if (!API_BASE_URL) {
+        console.error(
+          "fetchLabSlips: NEXT_PUBLIC_API_BASE_URL is not set. Copy .env.example to .env.local and restart the dev server."
+        );
+        setSlips([]);
+        setLabListingPagination(null);
+        return;
+      }
+
       const token = getToken();
       const params = new URLSearchParams();
       params.set("customer_id", String(customerId));
@@ -210,16 +230,17 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       }
       if (effectiveQuery.delivery_date_start) params.set("delivery_date_start", effectiveQuery.delivery_date_start);
       if (effectiveQuery.delivery_date_end) params.set("delivery_date_end", effectiveQuery.delivery_date_end);
-      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "true");
+      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "1");
+      if (effectiveQuery.product_name) params.set("product_name", effectiveQuery.product_name);
       if (effectiveQuery.page != null) params.set("page", String(effectiveQuery.page));
       if (effectiveQuery.per_page != null) params.set("per_page", String(effectiveQuery.per_page));
       if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);
       if (effectiveQuery.sort_by) params.set("sort_by", effectiveQuery.sort_by);
 
-      const url = new URL("/v1/slip/listing/lab", API_BASE_URL);
-      url.search = params.toString();
+      const qs = params.toString();
+      const url = `${buildApiUrl("/slip/listing/lab")}${qs ? `?${qs}` : ""}`;
 
-      const res = await fetch(url.toString(), {
+      const res = await fetch(url, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: "application/json",
@@ -228,6 +249,13 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
       if (res.status === 401) {
         handleUnauthorized();
+        return;
+      }
+
+      if (!res.ok) {
+        console.error(`fetchLabSlips: HTTP ${res.status} for ${url}`);
+        setSlips([]);
+        setLabListingPagination(null);
         return;
       }
 
@@ -245,38 +273,59 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       } else {
         setLabListingPagination({
           total: arr.length,
-          per_page: effectiveQuery.per_page ?? (arr.length > 0 ? arr.length : 10),
+          per_page: effectiveQuery.per_page ?? (arr.length > 0 ? arr.length : SLIP_LISTING_DEFAULT_PER_PAGE),
           current_page: effectiveQuery.page ?? 1,
           last_page: 1,
         });
       }
+    } catch (error) {
+      console.error("fetchLabSlips: network or request error", error);
+      setSlips([]);
+      setLabListingPagination(null);
     } finally {
       setLoading(false);
     }
   }, [API_BASE_URL]);
 
+  const updateSlipAttachmentState = useCallback((slipId: number, hasAttachment: boolean) => {
+    setSlips((currentSlips) => applySlipAttachmentState(currentSlips, slipId, hasAttachment));
+  }, []);
+
   const fetchOfficeSlips = useCallback(async (customerId: number) => {
     setLoading(true);
     try {
+      if (!API_BASE_URL) {
+        console.error("fetchOfficeSlips: NEXT_PUBLIC_API_BASE_URL is not set.");
+        setSlips([]);
+        return;
+      }
+
       const token = getToken();
-      const res = await fetch(
-        `${API_BASE_URL}/slip/listing/office?customer_id=${customerId}`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      
+      const url = `${buildApiUrl("/slip/listing/office")}?customer_id=${customerId}`;
+      const res = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+      });
+
       if (res.status === 401) {
         handleUnauthorized();
         return;
       }
-      
+
+      if (!res.ok) {
+        console.error(`fetchOfficeSlips: HTTP ${res.status}`);
+        setSlips([]);
+        return;
+      }
+
       const api = await res.json();
       const arr = api?.data?.data || [];
       setSlips(arr.map(mapApiSlip));
+    } catch (error) {
+      console.error("fetchOfficeSlips: network or request error", error);
+      setSlips([]);
     } finally {
       setLoading(false);
     }
@@ -368,8 +417,9 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     }
   }, [API_BASE_URL]);
 
-  // Scan QR Code API
-  const scanQrCode = useCallback(async (caseId: number, slipIds: number[]): Promise<ScanQrCodeResponse | null> => {
+  // Scan QR Code API. Omit sessionKey on the first scan; pass the returned
+  // session_key on every subsequent scan to stay in the same driver session.
+  const scanQrCode = useCallback(async (caseId: number, slipIds: number[], sessionKey?: string): Promise<ScanQrCodeResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
@@ -381,7 +431,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ case_id: caseId, slip_ids: slipIds }),
+          body: JSON.stringify({ case_id: caseId, slip_ids: slipIds, ...(sessionKey ? { session_key: sessionKey } : {}) }),
         }
       );
       if (res.status === 401) {
@@ -395,6 +445,32 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       return null;
     } finally {
       setLoading(false);
+    }
+  }, [API_BASE_URL]);
+
+  // Clear the driver session after a pickup batch completes (resets office lock).
+  const clearDriverSession = useCallback(async (sessionKey: string): Promise<{ success: boolean; message?: string } | null> => {
+    try {
+      const token = getToken();
+      const res = await fetch(
+        `${API_BASE_URL}/slip/clear-driver-session`,
+        {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ session_key: sessionKey }),
+        }
+      );
+      if (res.status === 401) {
+        handleUnauthorized();
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error('Error clearing driver session:', error);
+      return null;
     }
   }, [API_BASE_URL]);
 
@@ -467,20 +543,42 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL]);
 
   // Submit Scanned Slips API
-  const submitScannedSlips = useCallback(async (slipIds: number[], signature: string): Promise<SubmitScannedSlipsResponse | null> => {
+  const submitScannedSlips = useCallback(async (slipIds: number[], signature: string, options?: { notes?: string; images?: Record<number, File> }): Promise<SubmitScannedSlipsResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
-      const res = await fetch(
-        `${API_BASE_URL}/slip/submit-scanned-slips`,
-        {
+      const imageEntries = options?.images ? Object.entries(options.images) : [];
+      const hasImages = imageEntries.length > 0;
+
+      let requestInit: RequestInit;
+      if (hasImages) {
+        // multipart/form-data — attach pickup/drop photos as images[{slip_id}].
+        const form = new FormData();
+        slipIds.forEach((id) => form.append('slip_ids[]', String(id)));
+        form.append('signature', signature);
+        if (options?.notes) form.append('notes', options.notes);
+        for (const [slipId, file] of imageEntries) {
+          form.append(`images[${slipId}]`, file);
+        }
+        requestInit = {
+          method: 'POST',
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: form,
+        };
+      } else {
+        requestInit = {
           method: 'POST',
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ slip_ids: slipIds, signature }),
-        }
+          body: JSON.stringify({ slip_ids: slipIds, signature, ...(options?.notes ? { notes: options.notes } : {}) }),
+        };
+      }
+
+      const res = await fetch(
+        `${API_BASE_URL}/slip/submit-scanned-slips`,
+        requestInit
       );
 
       if (res.status === 401) {
@@ -494,9 +592,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (response && response.success) {
         try {
           if (typeof window !== 'undefined') {
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            const customerId = user?.customers?.[0]?.id;
+            const customerId = resolveListingCustomerId();
             const customerType = localStorage.getItem('customerType'); // expected 'lab' or 'office'
             if (customerId) {
               if (customerType === 'lab') {
@@ -553,18 +649,23 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /v1/slip/action/{slipId}/ready-to-send — no body. Success: { success, message }.
+   * POST /slip/action/{slipId}/ready-to-send. When a signature is captured
+   * (lab's require_signature_ready_to_send setting), it is sent as
+   * { signature }; without it, no body is sent.
    */
-  const readyToSend = useCallback(async (slipId: number): Promise<ReadyToSendResponse | null> => {
+  const readyToSend = useCallback(async (slipId: number, signature?: string): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
-      const url = new URL(`/v1/slip/action/${slipId}/ready-to-send`, API_BASE_URL);
-      const res = await fetch(url.toString(), {
+      const trimmedSignature = signature?.trim();
+      const hasBody = Boolean(trimmedSignature);
+      const res = await fetch(buildApiUrl(`/slip/action/${slipId}/ready-to-send`), {
         method: "POST",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(hasBody ? { "Content-Type": "application/json" } : {}),
         },
+        ...(hasBody ? { body: JSON.stringify({ signature: trimmedSignature }) } : {}),
       });
 
       if (res.status === 401) {
@@ -587,9 +688,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       if (response?.success) {
         try {
           if (typeof window !== "undefined") {
-            const userStr = localStorage.getItem("user");
-            const user = userStr ? JSON.parse(userStr) : null;
-            const customerId = user?.customers?.[0]?.id;
+            const customerId = resolveListingCustomerId();
             const customerType = localStorage.getItem("customerType");
             if (customerId) {
               if (customerType === "lab") {
@@ -629,11 +728,13 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       fetchSlipNotes,
       fetchDriverPrintData,
       scanQrCode,
+      clearDriverSession,
       submitScannedSlips,
       createCustomDeliveryDate,
       fetchCustomDeliveryDates,
       fetchPickupDeliverySlips,
       readyToSend,
+      updateSlipAttachmentState,
     }}>
       {children}
     </SlipContext.Provider>

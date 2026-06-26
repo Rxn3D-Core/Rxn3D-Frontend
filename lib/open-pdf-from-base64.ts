@@ -14,14 +14,24 @@ export function pdfBlobFromBase64(base64: string): Blob {
   return new Blob([bytes], { type: "application/pdf" })
 }
 
+export function openBlobInNewTab(
+  blob: Blob,
+  options?: {
+    features?: string
+    revokeAfterMs?: number
+  },
+): boolean {
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, "_blank", options?.features ?? "noopener,noreferrer")
+  window.setTimeout(() => URL.revokeObjectURL(url), options?.revokeAfterMs ?? 180_000)
+  return !!win
+}
+
 /**
  * Decode base64-encoded PDF bytes and open in a new tab.
  * Returns whether a window was opened (false if popup blocked).
  */
 export function openPdfInNewTabFromBase64(base64: string): boolean {
   const blob = pdfBlobFromBase64(base64)
-  const url = URL.createObjectURL(blob)
-  const w = window.open(url, "_blank", "noopener,noreferrer")
-  setTimeout(() => URL.revokeObjectURL(url), 180_000)
-  return !!w
+  return openBlobInNewTab(blob)
 }

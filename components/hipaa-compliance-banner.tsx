@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, memo } from "react"
+import { useState, useMemo, useCallback, useEffect, memo } from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Shield, Eye, Lock, AlertTriangle } from "lucide-react"
@@ -64,11 +64,18 @@ export const HIPAAComplianceBanner = memo(function HIPAAComplianceBanner({
 }: HIPAAComplianceBannerProps) {
   const [isExpanded, setIsExpanded] = useState(showDetails)
   const [showBanner, setShowBanner] = useState(true)
-  const [showRemove, setShowRemove] = useState(true)
 
   // Memoize the current variant to prevent recalculation
   const currentVariant = useMemo(() => BANNER_VARIANTS[variant], [variant])
   const IconComponent = currentVariant.icon
+
+  useEffect(() => {
+    const autoHideTimeout = setTimeout(() => {
+      setShowBanner(false)
+    }, 5000)
+
+    return () => clearTimeout(autoHideTimeout)
+  }, [])
 
   // Memoize event handlers to prevent recreation on every render
   const handleToggleExpanded = useCallback(() => {
@@ -112,20 +119,18 @@ export const HIPAAComplianceBanner = memo(function HIPAAComplianceBanner({
           >
             {isExpanded ? "Hide" : "Details"}
           </Button>
-          {showRemove && (
-            <div className="flex items-center ml-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="p-1 h-6 w-6 ml-2 self-center"
-                aria-label="Remove"
-                onClick={handleHideBanner}
-                style={{ alignSelf: "center" }}
-              >
-                <CloseIcon />
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center ml-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="p-1 h-6 w-6 ml-2 self-center"
+              aria-label="Remove"
+              onClick={handleHideBanner}
+              style={{ alignSelf: "center" }}
+            >
+              <CloseIcon />
+            </Button>
+          </div>
           {onAcknowledge && (
             <Button
               variant="outline"

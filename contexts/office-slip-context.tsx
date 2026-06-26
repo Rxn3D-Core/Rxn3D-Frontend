@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants";
+import { formatSlipListingProducts } from "@/app/lab-case-management/slip-listing-product-label.mjs";
+import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
 
 // Types based on the API response structure
 export interface OfficeSlipProduct {
@@ -45,6 +48,8 @@ export interface OfficeSlip {
   id: number;
   slip_number: string;
   status: string;
+  /** Pre-formatted listing timestamp when provided by API (matches lab listing). */
+  timestamp?: string;
   created_at: string;
   updated_at: string;
   location: OfficeSlipLocation;
@@ -128,6 +133,7 @@ export interface UISlip {
   status: string;
   rush: boolean;
   location: string;
+  locationId?: number;
   attachment: boolean;
   dueDate: string;
   overdue: boolean;
@@ -183,7 +189,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
   const mapApiSlipToUI = (apiCase: OfficeCase): UISlip[] => {
     return apiCase.slips.map((slip) => ({
       id: slip.id,
-      createdAt: slip.created_at,
+      createdAt: formatSlipListingTimestamp(slip.timestamp ?? slip.created_at),
       caseId: apiCase.id,
       caseNumber: apiCase.case_number,
       billingId:
@@ -209,10 +215,11 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
         : undefined,
       officeCode: apiCase.lab?.name || "",
       patient: apiCase.patient_name || "",
-      product: slip.products?.map((p) => `${p.product_code}-${p.product_name}`).join(", ") || "",
+      product: formatSlipListingProducts(slip.products),
       status: slip.status || "",
       rush: slip.is_rush || false,
       location: slip.location?.name || "",
+      locationId: typeof slip.location?.id === "number" ? slip.location.id : undefined,
       attachment: slip.attachments?.has_attachments || false,
       dueDate: slip.delivery?.delivery_date ? new Date(slip.delivery.delivery_date).toLocaleDateString() : "",
       overdue: false, // You can implement overdue logic based on delivery date
@@ -222,7 +229,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const fetchOfficeSlips = useCallback(async (customerId: number, page: number = 1, perPage: number = 20) => {
+  const fetchOfficeSlips = useCallback(async (customerId: number, page: number = 1, perPage: number = SLIP_LISTING_DEFAULT_PER_PAGE) => {
     setLoading(true);
     setError(null);
     setCurrentCustomerId(customerId);

@@ -8,8 +8,23 @@ import { mapOfficeDoctorsToWizardShape } from "../components/DoctorEditModal";
 
 type WizardMode = "initial" | "addProduct" | "backToProducts";
 
+export type CaseDesignBootstrap = {
+  doctor: WizardDoctorShape | null;
+  lab: WizardLabShape | null;
+  patientName: string;
+  gender: string;
+  age: string;
+  addedProducts: AddedProduct[];
+  initialArch?: "maxillary" | "mandibular" | "both";
+};
+
 interface UseCaseWizardSessionParams {
-  fetchProductDetails: (productId: number) => Promise<CaseDesignProductDetails | null>;
+  fetchProductDetails: (
+    productId: number,
+    selectedLabId?: number | null
+  ) => Promise<CaseDesignProductDetails | null>;
+  /** Open CDC immediately with seeded header/products (add-new-stage). */
+  bootstrap?: CaseDesignBootstrap | null;
 }
 
 function buildAddedProductStub(
@@ -44,7 +59,10 @@ function buildAddedProductStub(
   };
 }
 
-export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessionParams) {
+export function useCaseWizardSession({
+  fetchProductDetails,
+  bootstrap,
+}: UseCaseWizardSessionParams) {
   const [wizardComplete, setWizardComplete] = useState(false);
   const [completedDoctor, setCompletedDoctor] = useState<WizardDoctorShape | null>(null);
   const [completedLab, setCompletedLab] = useState<WizardLabShape | null>(null);
@@ -76,6 +94,21 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
     localStorage.removeItem("cdc_added_products");
   }, []);
 
+  useEffect(() => {
+    if (!bootstrap) return;
+    setCompletedDoctor(bootstrap.doctor);
+    setCompletedLab(bootstrap.lab);
+    setCompletedPatientName(bootstrap.patientName);
+    setCompletedGender(bootstrap.gender);
+    setCompletedAge(bootstrap.age);
+    setAddedProducts(bootstrap.addedProducts);
+    if (bootstrap.initialArch) setInitialArch(bootstrap.initialArch);
+    setLabEditMode(false);
+    setDoctorEditModalOpen(false);
+    setWizardComplete(true);
+    setCaseDesignMounted(true);
+  }, [bootstrap]);
+
   const customerId = useMemo(() => {
     if (typeof window === "undefined") return null;
     const stored = localStorage.getItem("customerId");
@@ -104,7 +137,9 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
 
       if (wizardMode === "addProduct") {
         const addedProductId = Number(result.material) || undefined;
-        const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
+        const details = addedProductId
+          ? await fetchProductDetails(addedProductId, completedLab?.id)
+          : null;
         const categoryName = details?.category_name || result.categoryName || "";
         const newProduct: AddedProduct = {
           id: Date.now(),
@@ -131,11 +166,16 @@ export function useCaseWizardSession({ fetchProductDetails }: UseCaseWizardSessi
         } else {
           setSelectedProductCategoryName(undefined);
         }
-        setCompletedDoctor(result?.doctor ?? null);
-        setCompletedLab(result?.lab ?? null);
-        setCompletedPatientName(result?.patientName ?? "");
-        setCompletedGender(result?.gender ?? "");
-        setCompletedAge(result?.age ?? "");
+        // In backToProducts mode the wizard only collects product info (no doctor/lab/patient
+        // steps), so result.doctor/lab/patientName are undefined. Skip the update to avoid
+        // clearing the patient info header the user already filled in.
+        if (wizardMode !== "backToProducts") {
+          setCompletedDoctor(result?.doctor ?? null);
+          setCompletedLab(result?.lab ?? null);
+          setCompletedPatientName(result?.patientName ?? "");
+          setCompletedGender(result?.gender ?? "");
+          setCompletedAge(result?.age ?? "");
+        }
         if (result?.arch) setInitialArch(result.arch);
         setLabEditMode(false);
         setDoctorEditModalOpen(false);

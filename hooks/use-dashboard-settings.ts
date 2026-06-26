@@ -8,6 +8,16 @@ import {
 } from "@/lib/dashboard-widgets"
 import { getDashboardSettings, updateDashboardSettings } from "@/lib/api-dashboard-settings"
 
+function mergeSettingsWithRoleDefaults(stored: DashboardSettings, role: string): DashboardSettings {
+  const defaults = getDefaultWidgetsForRole(role)
+  const storedById = new Map(stored.widgets.map((widget) => [widget.id, widget]))
+
+  return {
+    role,
+    widgets: defaults.map((defaultWidget) => storedById.get(defaultWidget.id) ?? defaultWidget),
+  }
+}
+
 // Module-level cache to prevent duplicate API calls across hook instances
 let cachedSettings: DashboardSettings | null = null
 let cacheKey: string | null = null
@@ -50,8 +60,9 @@ export function useDashboardSettings(role: string, userId?: number, customerId?:
         fetchPromise = null
 
         if (stored) {
-          cachedSettings = stored
-          setSettings(stored)
+          const merged = mergeSettingsWithRoleDefaults(stored, role)
+          cachedSettings = merged
+          setSettings(merged)
         } else {
           // Use defaults if no settings found
           const defaultWidgets = getDefaultWidgetsForRole(role)

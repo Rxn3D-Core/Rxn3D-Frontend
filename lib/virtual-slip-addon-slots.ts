@@ -1,4 +1,5 @@
 import type { RushArchSlot } from "@/components/case-design-center/utils/rushModalContext";
+import { resolveSlipCatalogProductId } from "@/lib/slip-product-addon-catalog";
 import type { VirtualSlipRushArchSlot } from "./virtual-slip-rush-slots";
 import type { VirtualSlipVM } from "./virtual-slip-view-model";
 
@@ -10,12 +11,13 @@ export function virtualSlipSlotsToAddonArchSlots(
   return slots.map((slot) => {
     const archVm = arches[slot.arch];
     const product = archVm?.products.find((p) => {
-      const api = p.apiProduct ?? {};
-      const cardId = Number(api?.id ?? api?.product?.id ?? 0);
+      const api = (p.apiProduct ?? {}) as Record<string, unknown>;
+      const catalogId = resolveSlipCatalogProductId(api);
+      const cardId = Number(api?.id ?? catalogId) || catalogId;
       return cardId === slot.cardId;
     });
-    const api = product?.apiProduct ?? {};
-    const apiProductId = Number(api?.product?.id ?? api?.product_id ?? 0);
+    const api = (product?.apiProduct ?? {}) as Record<string, unknown>;
+    const apiProductId = resolveSlipCatalogProductId(api);
     return {
       arch: slot.arch,
       archLabel: slot.archLabel,

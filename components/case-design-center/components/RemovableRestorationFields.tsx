@@ -22,7 +22,10 @@ import type {
 } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getSelectionFieldChain } from "../hooks/useToothFieldProgress";
-import { shouldSkipStageSelection } from "../utils/categoryHelpers";
+import {
+  shouldSkipStageSelection,
+  parseStageDisplayName,
+} from "../utils/categoryHelpers";
 import {
   productHasGrades,
   resolveProductGradesForDisplay,
@@ -107,12 +110,30 @@ export function GradeHoverSelector({
   disabled?: boolean;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const total = grades.length > 0 ? grades.length : 4;
-  const currentCount = getGradeDiamondCount(currentGradeName, grades);
+  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
+  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
+  // diamond and made them unselectable.
+  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
+  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
+  const currentIndex = sortedGrades.findIndex(
+    (g) => g.name === currentGradeName || g.code === currentGradeName
+  );
+  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
   const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
   const displayName = hoverIndex !== null
-    ? (grades.find((g) => g.sequence === hoverIndex + 1)?.name || currentGradeName)
+    ? (sortedGrades[hoverIndex]?.name || currentGradeName)
     : currentGradeName;
+
+  // Single grade → auto-select it; don't ask the user to pick.
+  const autoSelectSigRef = useRef<string | null>(null);
+  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
+  useEffect(() => {
+    if (disabled) return;
+    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
+      autoSelectSigRef.current = gradesSignature;
+      onSelect(sortedGrades[0]);
+    }
+  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
   return (
     <div
@@ -124,7 +145,7 @@ export function GradeHoverSelector({
       </span>
       <div className="ml-auto flex items-center gap-1">
         {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = grades.find((g) => g.sequence === i + 1);
+          const gradeForIndex = sortedGrades[i];
           return (
             <button
               key={i}
@@ -394,7 +415,8 @@ export function SelectionProductFields({
 
       {/* Step 1: Grade / Stage */}
       {isVisible("grade") && (() => {
-        const stageName = getFieldValueFn(arch, firstToothNumber, "stage");
+        const stageRaw = getFieldValueFn(arch, firstToothNumber, "stage");
+        const stageName = parseStageDisplayName(stageRaw);
         const selectedStageObj = selectedProduct?.stages?.find((s) => s.name === stageName);
         const stageCfg = selectedStageObj?.stage_configurations;
 
@@ -474,7 +496,7 @@ export function SelectionProductFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000]">
-                  {getFieldValueFn(arch, firstToothNumber, "stage")}
+                  {stageName}
                 </span>
                 {isFieldCompletedFn(arch, firstToothNumber, "stage") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853]" />

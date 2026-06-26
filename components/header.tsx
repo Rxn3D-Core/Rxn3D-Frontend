@@ -1,4 +1,5 @@
 "use client"
+import Image from "next/image"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
@@ -16,7 +17,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw } from "lucide-react"
-import { NotificationDropdown } from "@/components/notification-dropdown"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
   Select,
@@ -42,6 +42,7 @@ import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 import { UserProfileModal } from "@/components/user-profile-modal"
+import { DashboardInviteModal } from "@/components/dashboard/dashboard-invite-modal"
 import {
   fetchCurrentUserProfile,
   updateCurrentUserProfile,
@@ -51,6 +52,12 @@ import type { UpdateMeProfileInput } from "@/lib/api/me"
 import { User as UserIcon } from "lucide-react"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
+import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
+import { cn } from "@/lib/utils"
+
+/** Brand gradient used on primary header actions (#2AA6DE → #82298D → #C9539F). */
+const HEADER_ACTION_BUTTON_CLASS =
+  "border-none bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
 
 interface HeaderProps {
   toggleSidebar?: () => void
@@ -82,7 +89,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId } = useAuth()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -107,25 +114,38 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [isDecoding, setIsDecoding] = useState(false)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
+  // Driver pickup session key — reused across scans so the backend keeps the
+  // same single-office session; cleared when the batch is submitted/cancelled.
+  const qrSessionRef = useRef<string | null>(null)
+  // QR texts already scanned in the current session — prevents re-hitting the
+  // backend with the same (last) slip when the QR stays in front of the camera.
+  const scannedQrTextsRef = useRef<Set<string>>(new Set())
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
+  const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
+  const [showNewLabModal, setShowNewLabModal] = useState(false)
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
+  const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
-  const { scanQrCode, submitScannedSlips } = useSlipContext()
+  const { scanQrCode, submitScannedSlips, clearDriverSession } = useSlipContext()
   const { toast } = useToast();
   const pathname = usePathname() || "";
   const router = useRouter();
   const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+const videoRef = useRef<HTMLVideoElement | null>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedCodeRef = useRef<string>("");
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
-  const isSuperAdmin = userRoles.includes("superadmin")
+  const isSuperAdmin = isSuperadmin || userRoles.includes("superadmin")
   const isOfficeAdmin = userRoles.includes("office_admin")
+  const canCreateSlip = isSuperAdmin || hasPermission("submit_new_case")
+  const canCreateOffice =
+    isSuperAdmin ||
+    hasAnyPermission(["manage_office", "edit_office", "view_office"])
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -292,17 +312,38 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           const caseId = parseInt(urlMatch[1])
           const slipIds = urlMatch[2].split(',').map(id => parseInt(id))
 
+          // Already scanned in this session — don't hit the backend again with
+          // the same slip; just stop the scanner and surface a gentle notice.
+          if (scannedQrTextsRef.current.has(text)) {
+            closeScanner()
+            setShowDriverHistoryModal(true)
+            toast({
+              title: "Already added",
+              description: "This case has already been scanned in this session.",
+              duration: 3000,
+            })
+            return
+          }
 
           try {
-            const res: any = await scanQrCode(caseId, slipIds)
+            const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
 
             if (res && res.success) {
 
-              // Store the scan data for the modal
-              setQrScanData(res)
+              // Mark this QR as handled so it isn't re-scanned while still in view.
+              scannedQrTextsRef.current.add(text)
 
-              // Close the scanner
-              closeScanner()
+              // Remember the session so subsequent scans stay in the same batch.
+              qrSessionRef.current = res.session_key || qrSessionRef.current
+
+              // Merge this case's slips into any already-scanned slips (dedupe by slip_id).
+              setQrScanData((prev: any) => {
+                const incoming = Array.isArray(res.data) ? res.data : []
+                if (!prev || !Array.isArray(prev.data)) return res
+                const seen = new Set(prev.data.map((d: any) => d.slip_id))
+                const merged = [...prev.data, ...incoming.filter((d: any) => !seen.has(d.slip_id))]
+                return { ...res, data: merged }
+              })
 
               // Show the driver history modal with the scan data
               setShowDriverHistoryModal(true)
@@ -329,6 +370,10 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               variant: "destructive",
               duration: 5000,
             })
+          } finally {
+            // Always stop the camera after handling a case/slip QR so it does not
+            // keep re-firing /scan-qr with the same slip.
+            closeScanner()
           }
 
           return // Exit early, don't process as regular URL
@@ -778,31 +823,54 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   // Ensure safeLocations is only valid Location objects
   const safeLocations = Array.isArray(locations) ? locations.filter(isLocation) : []
 
-  const handleLocationChange = (value: string) => {
-    const locationId = Number(value);
-    setSelectedLocation(locationId);
-    const location = safeLocations.find((loc) => loc.id === locationId);
-    if (location) {
-      localStorage.setItem("selectedLocation", JSON.stringify(location));
+  const handleLocationChange = async (value: string) => {
+    const locationId = Number(value)
+    if (!Number.isFinite(locationId) || locationId === selectedLocation) return
+
+    const location = safeLocations.find((loc) => loc.id === locationId)
+    if (!location) return
+
+    setIsSwitchingProfile(true)
+    try {
+      await setCustomerId(locationId, { reload: true })
+    } catch (error) {
+      console.error("Failed to switch location:", error)
+      setIsSwitchingProfile(false)
       toast({
-        title: "Location Selected",
-        description: `You've selected ${location.name}`,
-      });
+        title: "Error",
+        description: "Failed to switch location. Please try again.",
+        variant: "destructive",
+      })
     }
-  };
+  }
 
   return (
     <>
+      <LoadingOverlay
+        isLoading={isSwitchingProfile}
+        title="Switching location..."
+        message="Loading your profile"
+        zIndex={99999}
+      />
       <header className="sticky top-0 z-40 w-full border-b bg-white/95 backdrop-blur-sm shadow-sm dark:bg-gray-900/95 dark:border-gray-800">
         <div className=" mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
           {/* Main Header Row */}
-          <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-2 sm:py-2.5 md:py-3">
+          <div className="flex items-center justify-between gap-3 sm:gap-4 md:gap-6 py-1">
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
-              {!isSuperAdmin && (
+              <HeaderWaffleLauncher />
+              <Image
+                src="/images/rxn3d-latest.png"
+                alt="RXN3D"
+                width={195}
+                height={76}
+                priority
+                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
+              />
+              {!isSuperAdmin && canCreateSlip && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  className={HEADER_ACTION_BUTTON_CLASS}
                   onClick={() => {
                     clearSlipCreationStorage();
                     clearCaseDesignCenterStateMutation.mutate();
@@ -812,31 +880,43 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   <span>{t("header.newSlip", "+ New Slip")}</span>
                 </Button>
               )}
-              {!isOfficeAdmin && (
+              {!isOfficeAdmin && canCreateOffice && (
                 <Button
                   size="sm"
-                  className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
+                  className={HEADER_ACTION_BUTTON_CLASS}
+                  onClick={() => setShowNewOfficeModal(true)}
                 >
                   <span>{t("header.newOffice", "New Office")}</span>
                 </Button>
               )}
-              <Button
-                size="sm"
-                className="bg-[#1162a8] hover:bg-[#0d4d87] text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md relative"
-                onClick={openScanner}
-                aria-label={t("header.openScanner", "Open QR code scanner")}
-              >
-                <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
-                <span>{t("header.scanCode", "Scan Code")}</span>
-                {scanHistory.length > 0 && (
-                  <Badge 
-                    variant="secondary" 
-                    className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#1162a8] font-semibold rounded-full"
-                  >
-                    {scanHistory.length}
-                  </Badge>
-                )}
-              </Button>
+              {isSuperAdmin && (
+                <Button
+                  size="sm"
+                  className={HEADER_ACTION_BUTTON_CLASS}
+                  onClick={() => setShowNewLabModal(true)}
+                >
+                  <span>{t("header.newLab", "New Lab")}</span>
+                </Button>
+              )}
+              {!isSuperAdmin && (
+                <Button
+                  size="sm"
+                  className={cn(HEADER_ACTION_BUTTON_CLASS, "relative")}
+                  onClick={openScanner}
+                  aria-label={t("header.openScanner", "Open QR code scanner")}
+                >
+                  <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
+                  <span>{t("header.scanCode", "Scan Code")}</span>
+                  {scanHistory.length > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#82298D] font-semibold rounded-full"
+                    >
+                      {scanHistory.length}
+                    </Badge>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* Center Section - Logo or Search */}
@@ -863,7 +943,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                       <CustomerLogo
                         customerId={customerId}
                         alt="Company Logo"
-                        className="h-8 sm:h-10 md:h-12 lg:h-14 w-auto object-contain max-w-[200px] sm:max-w-[250px] md:max-w-[300px]"
+                        className="h-10 sm:h-14 md:h-16 lg:h-[72px] w-auto object-contain max-w-[240px] sm:max-w-[280px] md:max-w-[320px] lg:max-w-[360px]"
                       />
                     ) : null
                   })()}
@@ -907,14 +987,11 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               </div>
 
               {/* Language Switcher - Desktop */}
-              <div className="hidden lg:block">
+              {/* <div className="hidden lg:block">
                 <LanguageSwitcher />
-              </div>
+              </div> */}
 
-              {/* Notifications */}
-              <NotificationDropdown />
-
-              {/* Settings Icon */}
+{/* Settings Icon */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -930,17 +1007,14 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
+                    className="h-10 w-10 sm:h-11 sm:w-11 md:h-12 md:w-12 lg:h-14 lg:w-14 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage
-                        src={getUserAvatar(
-                          getUserProfileImageUrl(user) || null,
-                          user?.email || user?.id || user?.first_name,
-                        )}
+                        src={getUserAvatar(getUserProfileImageUrl(user) || null)}
                         alt={user?.first_name || t("header.user")}
                       />
-                      <AvatarFallback className="bg-[#1162a8] text-white font-medium text-xs sm:text-sm">
+                      <AvatarFallback className="bg-[#1162a8] text-white font-medium text-sm sm:text-base">
                         {getInitials(user?.first_name || "")}
                       </AvatarFallback>
                     </Avatar>
@@ -1025,7 +1099,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             {/* Mobile Theme & Language */}
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
-              <LanguageSwitcher />
+              {/* <LanguageSwitcher /> */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -1039,6 +1113,25 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           </div>
         </div>
       </header>
+
+      <DashboardInviteModal
+        type="Office"
+        title="Invite Your Practice"
+        description="Connect with dental practices to start receiving cases and managing your digital workflow."
+        isOpen={showNewOfficeModal}
+        forceOpen
+        onClose={() => setShowNewOfficeModal(false)}
+      />
+
+      <DashboardInviteModal
+        type="Lab"
+        title="Invite a Lab"
+        description="Connect with dental labs to start sending cases and managing your digital workflow."
+        searchPlaceholder="Search by lab name, city or email..."
+        isOpen={showNewLabModal}
+        forceOpen
+        onClose={() => setShowNewLabModal(false)}
+      />
 
       {/* Enhanced Scanner Dialog with maintained functionality */}
       <Dialog
@@ -1203,8 +1296,27 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           onClose={() => {
             setShowDriverHistoryModal(false);
             setQrScanData(null);
+            scannedQrTextsRef.current.clear();
+            // End the driver session (submit or cancel) so a new batch can start fresh.
+            if (qrSessionRef.current) {
+              void clearDriverSession(qrSessionRef.current);
+              qrSessionRef.current = null;
+            }
           }}
           qrScanData={qrScanData.data}
+          onRequestScan={() => {
+            // "Add Slip": keep the session + scanned slips and reopen the scanner.
+            setShowDriverHistoryModal(false);
+            openScanner();
+          }}
+          onSubmitted={() => {
+            // Scanned slips submitted — clear the driver session id.
+            if (qrSessionRef.current) {
+              void clearDriverSession(qrSessionRef.current);
+              qrSessionRef.current = null;
+            }
+            scannedQrTextsRef.current.clear();
+          }}
         />
       )}
 

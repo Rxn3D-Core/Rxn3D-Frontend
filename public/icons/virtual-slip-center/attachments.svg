@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="b" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 54.69 54.47">
+  <defs>
+    <style>
+      .f {
+        fill: none;
+        stroke: url(#d);
+        stroke-miterlimit: 10;
+        stroke-width: 3px;
+      }
+    </style>
+    <linearGradient id="d" x1="0" y1="27.23" x2="54.69" y2="27.23" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16ade1"/>
+      <stop offset="1" stop-color="#6563ac"/>
+    </linearGradient>
+  </defs>
+  <g id="c" data-name="Layer 2">
+    <path id="e" data-name="Attachments" class="f" d="M15.76,33.57l19.93-21.09c.41-.43.92-.74,1.5-.9l.68-.19c3.72-1.04,7.14,2.41,6.07,6.12h0c-.13.44-.36.85-.67,1.2l-28.24,31.16c-1.37,1.52-3.2,2.55-5.21,2.96h0c-5.23,1.05-9.65-3.95-7.95-9.01l.03-.08c.44-1.32,1.16-2.54,2.09-3.57L35.5,5.5c1.91-2.1,4.5-3.47,7.31-3.88l.2-.03c5.94-.85,10.99,4.27,10.06,10.18h0c-.32,2.03-1.2,3.92-2.55,5.47l-23.6,27.07"/>
+  </g>
+</svg>

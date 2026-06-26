@@ -30,6 +30,7 @@ import {
   findMatchingBillingInvoiceId,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
+import { buildStatementPreviewRoute } from "./preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "$0.00"
@@ -228,7 +229,6 @@ export default function GenerateStatementsPage() {
   const [dateRangeInput, setDateRangeInput] = useState("")
   const [directionFilter, setDirectionFilter] = useState("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("")
-  const [previewingId, setPreviewingId] = useState<number | null>(null)
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
@@ -344,16 +344,24 @@ export default function GenerateStatementsPage() {
     )
   }
 
-  const handlePreview = async (statement: StatementRecord) => {
-    setPreviewingId(statement.id)
-    try {
-      setPreviewStatement(statement)
-      setIsEditMode(false)
-      setHeaderDraft(null)
-      setPreviewDialogOpen(true)
-    } finally {
-      setPreviewingId(null)
+  const handlePreview = (statement: StatementRecord) => {
+    const previewRoute = buildStatementPreviewRoute(statement.id)
+    if (!previewRoute) {
+      toast({
+        title: "Unable to open statement preview",
+        description: "This statement does not have a valid preview route.",
+        variant: "destructive",
+      })
+      return
     }
+
+    const anchor = document.createElement("a")
+    anchor.href = previewRoute
+    anchor.target = "_blank"
+    anchor.rel = "noopener noreferrer"
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
   }
 
   useEffect(() => {
@@ -817,7 +825,7 @@ export default function GenerateStatementsPage() {
             <div ref={previewContentRef} className="mx-auto max-w-[78rem]">
               <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
                 <div>
-                  <img src="/images/rxn3d-logo.png" alt="RXN3D logo" className="h-20 w-auto object-contain" />
+                  <img src="/images/hmc.svg" alt="RXN3D logo" className="h-20 w-auto object-contain" />
                   <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
                     <p>{activePreviewStatement?.lab?.address || "—"}</p>
                     <p>
@@ -1197,36 +1205,23 @@ export default function GenerateStatementsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
                           <button
-                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                            className="text-blue-600 hover:text-blue-800"
                             title="View"
                             onClick={() => handlePreview(statement)}
-                            disabled={previewingId === statement.id}
                           >
-                            {previewingId === statement.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
+                            <Eye className="h-4 w-4" />
                           </button>
                           <button
                             className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                            title="Send"
+                            title="Send email"
                             onClick={() => handleSend(statement)}
                             disabled={sendingId === statement.id}
                           >
                             {sendingId === statement.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <Send className="h-4 w-4" />
+                              <Mail className="h-4 w-4" />
                             )}
-                          </button>
-                          <button
-                            className="text-blue-600 hover:text-blue-800 disabled:opacity-50"
-                            title="Email"
-                            onClick={() => handleSend(statement)}
-                            disabled={sendingId === statement.id}
-                          >
-                            <Mail className="h-4 w-4" />
                           </button>
                           <button
                             className="text-blue-600 hover:text-blue-800 disabled:opacity-50"

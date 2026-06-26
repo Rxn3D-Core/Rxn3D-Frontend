@@ -20,7 +20,9 @@ import { useFetchUsersQuery } from "@/hooks/use-users"
 import { useFetchUserInvitations } from "@/hooks/use-user-invitations"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
+import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardOfficeInviteModal } from "./dashboard-office-invite-modal"
+import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 
 const getStatusBadgeClass = (status: string) => {
   const statusLower = status?.toLowerCase() || ""
@@ -71,7 +73,7 @@ const getStatusLabel = (status: string) => {
 export function LabAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const userRole = user?.roles?.[0] || "lab_admin"
+  const userRole = getPrimaryRole(user) || "lab_admin"
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)
@@ -83,6 +85,7 @@ export function LabAdminDashboard() {
 
   const selectedLocation = JSON.parse(localStorage.getItem("selectedLocation") || "null")
   const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
+  const { data: dashboardStats } = useDashboardStats(selectedLocation?.id)
 
   // Use cached invitations hook
   const { data: invitationsData, isLoading: isLoadingInvitations } = useInvitations(invitedBy)
@@ -166,17 +169,8 @@ export function LabAdminDashboard() {
         : (received?.data)
 
 
-  // Mock data for KPIs
-  const kpiData = {
-    totalRevenue: "$64,587.70",
-    revenueChange: "+40.3%",
-    outstandingBalance: "$11,567.44",
-    balanceChange: "+20.3%",
-    totalCases: "2657",
-    casesChange: "-2.3%",
-    deliveryRate: "97.50%",
-    deliveryChange: "+40.3%",
-  }
+  const kpi = dashboardStats?.kpi
+  const status = dashboardStats?.status
 
   const handleOpenProfile = async (id: number, type: "Office" | "Lab") => {
     setProfileModalOpen(true)
@@ -309,30 +303,30 @@ export function LabAdminDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           <KpiCard
             title="Total Revenue"
-            value={kpiData.totalRevenue}
-            change={kpiData.revenueChange}
-            isPositive={true}
+            value={kpi ? `$${kpi.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            change={kpi ? `${kpi.revenue_change_pct >= 0 ? '+' : ''}${kpi.revenue_change_pct.toFixed(1)}%` : "—"}
+            isPositive={(kpi?.revenue_change_pct ?? 0) >= 0}
             icon="dollar"
           />
           <KpiCard
             title="Outstanding Balance"
-            value={kpiData.outstandingBalance}
-            change={kpiData.balanceChange}
-            isPositive={true}
+            value={kpi ? `$${kpi.outstanding_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            change={kpi ? `${kpi.balance_change_pct >= 0 ? '+' : ''}${kpi.balance_change_pct.toFixed(1)}%` : "—"}
+            isPositive={(kpi?.balance_change_pct ?? 0) >= 0}
             icon="document"
           />
           <KpiCard
             title="Total Cases"
-            value={kpiData.totalCases}
-            change={kpiData.casesChange}
-            isPositive={false}
+            value={kpi ? kpi.total_cases.toString() : "—"}
+            change={kpi ? `${kpi.cases_change_pct >= 0 ? '+' : ''}${kpi.cases_change_pct.toFixed(1)}%` : "—"}
+            isPositive={(kpi?.cases_change_pct ?? 0) >= 0}
             icon="dollar"
           />
           <KpiCard
             title="On-time Delivery Rate"
-            value={kpiData.deliveryRate}
-            change={kpiData.deliveryChange}
-            isPositive={true}
+            value={kpi ? `${kpi.on_time_delivery_rate.toFixed(2)}%` : "—"}
+            change={kpi ? `${kpi.delivery_change_pct >= 0 ? '+' : ''}${kpi.delivery_change_pct.toFixed(1)}%` : "—"}
+            isPositive={(kpi?.delivery_change_pct ?? 0) >= 0}
             icon="dollar"
           />
         </div>
@@ -341,11 +335,11 @@ export function LabAdminDashboard() {
         {/* Plan Statistics */}
         {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <PlanCard title="Rush Cases" count={15} color="text-red-500" />
-          <PlanCard title="On Hold Cases" count={135} color="text-red-500" />
-          <PlanCard title="Due Today" count={15} color="text-green-500" />
-          <PlanCard title="New Stage notes" count={110} color="text-black" />
-          <PlanCard title="Late Cases" count={10} color="text-black" />
+          <PlanCard title="Rush Cases" count={status?.rush_cases ?? 0} color="text-red-500" />
+          <PlanCard title="On Hold Cases" count={status?.on_hold_cases ?? 0} color="text-red-500" />
+          <PlanCard title="Due Today" count={status?.due_today ?? 0} color="text-green-500" />
+          <PlanCard title="New Stage notes" count={status?.new_stage_notes ?? 0} color="text-black" />
+          <PlanCard title="Late Cases" count={status?.late_cases ?? 0} color="text-black" />
         </div>
         )}
 

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="b" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 77.91 65.86">
+  <defs>
+    <style>
+      .g {
+        stroke: url(#f);
+        stroke-width: 4px;
+      }
+
+      .g, .h, .i {
+        stroke-miterlimit: 10;
+      }
+
+      .g, .i {
+        fill: #fff;
+      }
+
+      .h {
+        fill: none;
+        stroke: url(#d);
+        stroke-width: 3px;
+      }
+
+      .i {
+        stroke: url(#e);
+        stroke-dasharray: 10;
+      }
+    </style>
+    <linearGradient id="d" x1=".33" y1="26.84" x2="54.01" y2="26.84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c0d0e8"/>
+      <stop offset=".17" stop-color="#b5c8e4"/>
+      <stop offset=".47" stop-color="#98b3da"/>
+      <stop offset=".85" stop-color="#6992c9"/>
+      <stop offset="1" stop-color="#5684c3"/>
+    </linearGradient>
+    <linearGradient id="e" x1="0" y1="11.5" x2="22.03" y2="11.5" xlink:href="#d"/>
+    <linearGradient id="f" x1="65.39" y1="17.88" x2="33.26" y2="56.65" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6558a3"/>
+      <stop offset=".07" stop-color="#6e58a3"/>
+      <stop offset=".26" stop-color="#855ba3"/>
+      <stop offset=".47" stop-color="#965ca3"/>
+      <stop offset=".7" stop-color="#9f5da3"/>
+      <stop offset="1" stop-color="#a35ea3"/>
+    </linearGradient>
+  </defs>
+  <g id="c" data-name="Layer 2">
+    <g>
+      <g>
+        <path class="h" d="M1.83,53.68v-24.09c0-1.1.89-1.99,1.99-1.99h23.43c.37,0,.66-.3.66-.66V3.49c0-1.1.89-1.99,1.99-1.99h24.09"/>
+        <rect class="i" x=".5" y=".98" width="21.03" height="21.03" rx="1.5" ry="1.5"/>
+      </g>
+      <path class="g" d="M75.91,34.48v5.56c0,2.26-1.82,4.06-4.06,4.06h-15.68v15.7c0,2.24-1.82,4.06-4.06,4.06h-5.56c-2.24,0-4.06-1.82-4.06-4.06v-15.7h-15.68c-2.26,0-4.08-1.8-4.08-4.06v-5.56c0-2.24,1.82-4.06,4.08-4.06h15.68v-15.68c0-2.24,1.82-4.06,4.06-4.06h5.56c2.24,0,4.06,1.82,4.06,4.06v15.68h15.68c2.24,0,4.06,1.82,4.06,4.06Z"/>
+    </g>
+  </g>
+</svg>

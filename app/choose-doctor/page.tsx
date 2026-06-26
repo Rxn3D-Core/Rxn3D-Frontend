@@ -24,6 +24,7 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { useDebounce } from "@/lib/performance-utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
 
 interface Doctor {
   id: number
@@ -345,7 +346,7 @@ export default function ChooseDoctorPage() {
         first_name: doctor.first_name || "",
         last_name: doctor.last_name || "",
         email: doctor.email || "",
-        image: doctor.image || doctor.profile_image || null,
+        image: resolveDoctorImageUrl(doctor) || null,
         status: doctor.status || "active",
       }))
 
@@ -623,7 +624,7 @@ export default function ChooseDoctorPage() {
                   <div className="relative w-40 h-40 rounded-full overflow-hidden border-2 border-gray-200 group-hover:border-[#1162a8] transition-colors flex items-center justify-center">
                     <Avatar className="w-full h-full">
                       <AvatarImage
-                        src={doctor.image || "/images/doctor-image.png"}
+                        src={doctor.image || undefined}
                         alt={`${doctor.first_name} ${doctor.last_name}`}
                         className="object-cover"
                       />

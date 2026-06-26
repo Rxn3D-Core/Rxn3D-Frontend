@@ -1,7 +1,9 @@
 import type React from "react"
+import { CaseManagementProfileRedirect } from "@/components/case-management-profile-redirect"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PermissionRoute } from "@/components/permission-route"
 import { DriverSlipProvider } from "@/contexts/DriverSlipContext"
 import { OfficeSlipProvider } from "@/contexts/office-slip-context"
 
@@ -12,8 +14,12 @@ export default function LabProfileLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PermissionRoute
+        permissions={["view_case_details_status", "submit_new_case", "edit_slip"]}
+      >
       <DriverSlipProvider>
         <OfficeSlipProvider>
+          <CaseManagementProfileRedirect requiredProfile="office" />
           <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
             <DashboardSidebar />
             <div className="flex-1 flex flex-col overflow-hidden">
@@ -25,6 +31,7 @@ export default function LabProfileLayout({
           </div>
         </OfficeSlipProvider>
       </DriverSlipProvider>
+      </PermissionRoute>
     </ProtectedRoute>
   )
 } 

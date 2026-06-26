@@ -572,6 +572,7 @@ export const ProductCreateFormSchema = z
       .max(31, "Auto bill days must be at most 31")
       .optional(),
     is_single_stage: z.enum(["Yes", "No"]).default("No"),
+    is_splinted: z.enum(["Yes", "No"]).default("No"),
     link_all_addons: z.enum(["Yes", "No"]).default("No"),
     apply_retention_mechanism: z.enum(["Yes", "No"]).default("No"),
     has_implant: z.enum(["Yes", "No"]).default("No"),

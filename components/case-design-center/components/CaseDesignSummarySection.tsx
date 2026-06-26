@@ -22,6 +22,7 @@ interface CaseDesignSummarySectionProps {
   rushArchSlots?: RushArchSlot[];
   /** When false, hide the summary Add Addons action (no product in the case supports add-ons). */
   caseHasAddons?: boolean;
+  onCaseSummaryNotesChange?: (text: string) => void;
 }
 
 export function CaseDesignSummarySection({
@@ -35,6 +36,7 @@ export function CaseDesignSummarySection({
   mandibularImplantDetailByTooth,
   rushArchSlots = [],
   caseHasAddons = false,
+  onCaseSummaryNotesChange,
 }: CaseDesignSummarySectionProps) {
   const showCaseSummaryNotes = shouldShowCaseSummaryNotes({
     caseSubmitted,
@@ -51,7 +53,6 @@ export function CaseDesignSummarySection({
         <div className="absolute -top-5 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 inline-flex">
           <CenterActionIcons
             visible={showCaseSummaryNotes}
-            onEdit={() => {}}
             onAddProduct={
               caseHasAddons
                 ? () => {
@@ -109,10 +110,6 @@ export function CaseDesignSummarySection({
               }
             }}
             onAttach={() => state.setShowAttachModal(true)}
-            onPhoto={() => state.setShowAttachModal(true)}
-            onStlFile={() => state.setShowAttachModal(true)}
-            hasPhotos={state.attachedPhotoCount > 0}
-            hasStlFiles={state.attachedStlCount > 0}
           />
         </div>
       )}
@@ -143,6 +140,7 @@ export function CaseDesignSummarySection({
         selectedImpressions={state.selectedImpressions}
         maxillaryImplantDetailByTooth={maxillaryImplantDetailByTooth}
         mandibularImplantDetailByTooth={mandibularImplantDetailByTooth}
+        onNotesChange={onCaseSummaryNotesChange}
       />
     </div>
   );

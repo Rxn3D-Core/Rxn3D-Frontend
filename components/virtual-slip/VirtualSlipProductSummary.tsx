@@ -7,6 +7,7 @@ import type { ProductVM } from "@/lib/virtual-slip-view-model";
 import { buildVirtualSlipStatusBoxProps } from "@/lib/virtual-slip-extraction-display";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 import { VirtualSlipExtractionStatusBoxes } from "./VirtualSlipExtractionStatusBoxes";
+import { VirtualSlipImplantDetailsAccordion } from "./VirtualSlipImplantDetailsAccordion";
 
 /** A single "Label: Value" detail row (Verdana, #4C4D55). */
 function Detail({ label, value }: { label: string; value: string }) {
@@ -70,10 +71,10 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
   );
 
   return (
-    <div className="mt-5">
-      {/* Title row: thumbnail + bordered product title box */}
+    <div className="mt-1">
+      {/* Thumbnail | title + status boxes (virtual slip wireframe layout) */}
       <div className="flex items-stretch gap-[10px]">
-        <div className="relative h-[99px] w-[142px] shrink-0 overflow-hidden rounded-[6px] bg-black">
+        <div className="relative w-[150px] shrink-0 self-stretch overflow-hidden rounded-[6px] bg-black min-h-[72px]">
           {product.image ? (
             <Image
               src={product.image}
@@ -86,23 +87,22 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
             />
           ) : null}
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-[8px] rounded-[7px] border border-[#D3D3D3] px-4 py-2 text-center">
-          <div className="font-sans text-[20px] font-medium leading-[20px] tracking-[0.01em] text-[#666666]">
-            {product.title}
-          </div>
-          {product.teethLabel && (
-            <div className="font-sans text-[20px] leading-[20px] tracking-[-0.02em] text-[#666666]">
-              {product.teethLabel}
+        <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
+          <div className="flex min-h-[72px] flex-1 flex-col items-center justify-center gap-3 rounded-[7px] border border-[#D3D3D3] pb-3 py-0 text-center">
+            <div className="font-sans text-[20px] font-medium leading-[22px] tracking-[0.01em] text-[#666666]">
+              {product.title}
             </div>
+            {product.teethLabel && (
+              <div className="font-sans text-[20px] leading-[22px] tracking-[-0.02em] text-[#666666]">
+                {product.teethLabel}
+              </div>
+            )}
+          </div>
+          {statusBoxProps && (
+            <VirtualSlipExtractionStatusBoxes boxProps={statusBoxProps} />
           )}
         </div>
       </div>
-
-      {statusBoxProps && (
-        <div className="mt-[10px] w-full">
-          <VirtualSlipExtractionStatusBoxes boxProps={statusBoxProps} />
-        </div>
-      )}
 
       <hr className="my-[10px] border-[#4C4D55]/40" />
 
@@ -123,23 +123,7 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
         </div>
 
         {showImplantColumn && (
-          <div className="space-y-3">
-            {product.implants.map((imp) => (
-              <div key={imp.toothNumber}>
-                {imp.toothNumber > 0 && (
-                  <p className="mb-1 font-sans text-[13px] font-bold text-[#4C4D55]">
-                    #{imp.toothNumber}
-                  </p>
-                )}
-                <Detail label="Implant Brand" value={imp.brand} />
-                <Detail label="Implant Platform" value={imp.platform} />
-                <Detail label="Implant Size" value={imp.size} />
-                <Detail label="Abutment Type" value={imp.abutmentType} />
-                <Detail label="Abutment Option" value={imp.abutmentOption} />
-                <Detail label="Retention" value={imp.retentionMechanism} />
-              </div>
-            ))}
-          </div>
+          <VirtualSlipImplantDetailsAccordion implants={product.implants} />
         )}
       </div>
 

@@ -11,7 +11,6 @@ import { useLoginMutation } from "@/hooks/use-login"
 import { useSessionHistory } from "@/hooks/use-session-history"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
 
 export default function LoginForm() {
   const router = useRouter()
@@ -158,14 +157,6 @@ export default function LoginForm() {
 
   return (
     <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Loading Overlay */}
-      <LoadingOverlay
-        isLoading={loginMutation.isPending}
-        title={t("Logging In...")}
-        message={t("Please wait while we sign you in")}
-        zIndex={10000}
-      />
-      
       {/* Fixed Header */}
       <AuthHeader />
 

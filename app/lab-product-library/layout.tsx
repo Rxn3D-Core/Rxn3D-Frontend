@@ -19,6 +19,7 @@ import { ProductsProvider } from "@/contexts/product-products-context"
 import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-context"
 import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PermissionRoute } from "@/components/permission-route"
 
 export default function LabProductLibraryLayout({
   children,
@@ -27,6 +28,9 @@ export default function LabProductLibraryLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PermissionRoute
+        permissions={["view_product", "create_product", "update_product", "delete_product"]}
+      >
       <ProductLibraryProvider>
         <ProductCategoryProvider>
           <GradesProvider>
@@ -65,6 +69,7 @@ export default function LabProductLibraryLayout({
           </GradesProvider>
         </ProductCategoryProvider>
       </ProductLibraryProvider>
+      </PermissionRoute>
     </ProtectedRoute>
   )
 }

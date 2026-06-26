@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { resolveRetentionOptionImageUrl } from '@/components/case-design-center/utils/retentionOptionImage'
+import {
+  resolveRetentionOptionChartTypeOrDefault,
+  type RetentionChartType,
+} from '@/components/case-design-center/utils/retentionOptionChartType'
 
 export interface RetentionOptionToothImage {
   tooth_number: number
@@ -49,17 +53,6 @@ export interface RetentionOptionItem {
   }>
 }
 
-type RetentionChartType = 'Implant' | 'Prep' | 'Pontic'
-
-const NAME_TO_RETENTION_TYPE: Record<string, RetentionChartType> = {
-  Implant: 'Implant',
-  Prepped: 'Prep',
-  Prep: 'Prep',
-  Pontic: 'Pontic',
-}
-
-const RETENTION_CHART_TYPES: RetentionChartType[] = ['Implant', 'Prep', 'Pontic']
-
 interface RetentionTypePopoverProps {
   toothNumber: number
   onSelectRetentionType: (type: RetentionChartType) => void
@@ -69,25 +62,16 @@ interface RetentionTypePopoverProps {
   retentionOptions?: RetentionOptionItem[]
   arrowOffsetX?: number | null
   arrowDirection?: 'down' | 'up'
+  /**
+   * When false, Pontic options are hidden (a pontic needs an abutment first). Ignored
+   * when the product has no abutment (Prep/Implant) options at all — then Pontic stays
+   * available. Defaults to true.
+   */
+  allowPontic?: boolean
 }
 
 function getOptionName(opt: RetentionOptionItem): string {
   return opt.name || opt.retention_option?.name || opt.lab_retention_option?.name || 'Unknown'
-}
-
-function getRetentionChartType(opt: RetentionOptionItem): RetentionChartType | null {
-  const rawType =
-    opt.tooth_chart_type ||
-    opt.retention_option?.tooth_chart_type ||
-    opt.lab_retention_option?.tooth_chart_type ||
-    getOptionName(opt)
-
-  const mapped = NAME_TO_RETENTION_TYPE[rawType]
-  if (mapped) return mapped
-  if (RETENTION_CHART_TYPES.includes(rawType as RetentionChartType)) {
-    return rawType as RetentionChartType
-  }
-  return null
 }
 
 function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
@@ -107,29 +91,35 @@ function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
 
 function buildRetentionPopoverOptions(
   retentionOptions: RetentionOptionItem[] | undefined,
-  toothNumber: number
-): Array<{ toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
+  toothNumber: number,
+  allowPontic: boolean
+): Array<{ id: number; toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
   if (!retentionOptions?.length) return []
 
-  const seen = new Set<RetentionChartType>()
-  const result: Array<{ toothChartType: RetentionChartType; name: string; imageUrl: string | null }> = []
-
-  const sorted = [...retentionOptions]
+  // Every active retention option from the product (fully data-driven).
+  const mapped = [...retentionOptions]
     .filter((opt) => (opt.status || 'Active') === 'Active')
-    .sort((a, b) => (a.sequence ?? Number.MAX_SAFE_INTEGER) - (b.sequence ?? Number.MAX_SAFE_INTEGER))
-
-  for (const opt of sorted) {
-    const toothChartType = getRetentionChartType(opt)
-    if (!toothChartType || seen.has(toothChartType)) continue
-    seen.add(toothChartType)
-    result.push({
-      toothChartType,
+    .map((opt) => ({
+      id: opt.id,
+      toothChartType: resolveRetentionOptionChartTypeOrDefault(opt),
       name: getOptionName(opt),
       imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
-    })
-  }
+      sequence: opt.sequence ?? Number.MAX_SAFE_INTEGER,
+    }))
 
-  return result
+  // A Pontic needs an abutment first: hide Pontic options until the product has one,
+  // but only when the product actually offers abutment (Prep/Implant) options.
+  const hasAbutmentOption = mapped.some((o) => o.toothChartType !== 'Pontic')
+  const visible =
+    allowPontic || !hasAbutmentOption
+      ? mapped
+      : mapped.filter((o) => o.toothChartType !== 'Pontic')
+
+  // Order: abutment options (Prep/Implant) first, Pontic last; then by sequence.
+  const rank = (t: RetentionChartType) => (t === 'Pontic' ? 1 : 0)
+  return visible
+    .sort((a, b) => rank(a.toothChartType) - rank(b.toothChartType) || a.sequence - b.sequence)
+    .map(({ sequence: _sequence, ...opt }) => opt)
 }
 
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
@@ -141,6 +131,7 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   retentionOptions,
   arrowOffsetX = null,
   arrowDirection = 'down',
+  allowPontic = true,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -158,9 +149,15 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   }, [onClose])
 
   const options = useMemo(
-    () => buildRetentionPopoverOptions(retentionOptions, toothNumber),
-    [retentionOptions, toothNumber]
+    () => buildRetentionPopoverOptions(retentionOptions, toothNumber, allowPontic),
+    [retentionOptions, toothNumber, allowPontic]
   )
+
+  // The chart stores/renders by category, so highlight the first option matching
+  // the selected category (the representative the chart draws), not every variant.
+  const selectedOptionId = selectedType
+    ? options.find((opt) => opt.toothChartType === selectedType)?.id
+    : undefined
 
   const showArrow = typeof arrowOffsetX === 'number'
 
@@ -198,10 +195,10 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
       <div className="z-50 bg-white border border-gray-200 hover:border-blue-500 shadow-xl p-3 flex flex-col gap-2 transition-colors">
         <div className="flex gap-2">
           {options.map((opt) => {
-            const isSelected = selectedType === opt.toothChartType
+            const isSelected = opt.id === selectedOptionId
             return (
               <button
-                key={opt.toothChartType}
+                key={opt.id}
                 type="button"
                 onClick={() => {
                   onSelectRetentionType(opt.toothChartType)

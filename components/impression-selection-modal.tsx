@@ -8,7 +8,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { STLFileSelectionModal } from "./stl-file-selection-modal"
+import { STLFileSelectionModal, type STLFile } from "./stl-file-selection-modal"
 import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
 import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
 import {
@@ -16,12 +16,6 @@ import {
   impressionTouchKey,
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage"
-
-interface STLFile {
-  file: File
-  url: string
-  description?: string
-}
 
 interface ImpressionSelectionModalProps {
   isOpen: boolean
@@ -69,6 +63,7 @@ function ImpressionGrid({
   onSaveArchSelection,
   isValidationComplete,
   onConfirmAllAndClose,
+  suppressDoneButton = false,
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: SlipImpressionSelections
@@ -91,6 +86,8 @@ function ImpressionGrid({
   /** When true, green check saves all arches and closes the modal */
   isValidationComplete: boolean
   onConfirmAllAndClose: () => void
+  /** When true, hides the section-level Done button row. */
+  suppressDoneButton?: boolean
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
@@ -183,7 +180,8 @@ function ImpressionGrid({
       <div
         key={impression.id}
         className={cn(
-          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 p-2 lg:p-3 cursor-pointer select-none h-full",
+          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 cursor-pointer select-none h-full w-full",
+          compact ? "p-1.5" : "p-2 lg:p-3",
           isSelected
             ? "border-[3px] border-[#1162A8]"
             : "border-2 border-[#B4B0B0]"
@@ -191,7 +189,12 @@ function ImpressionGrid({
         onClick={() => handleCardClick(impression)}
       >
         {/* Image */}
-        <div className="w-full aspect-square rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0">
+        <div
+          className={cn(
+            "w-full rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0",
+            compact ? "h-[68px]" : "aspect-square"
+          )}
+        >
           {impression.image_url ? (
               <img
               src={impression.image_url}
@@ -217,7 +220,7 @@ function ImpressionGrid({
         </div>
 
         {/* Name */}
-        <span className={cn("font-['Verdana'] font-normal text-black text-center mt-1.5 w-full flex-1 flex items-end justify-center pb-1", nameSize)}>
+        <span className={cn("font-['Verdana'] font-normal text-black text-center mt-1 w-full flex-1 flex items-end justify-center pb-0.5 leading-tight", nameSize)}>
           {getImpressionLabel(impression)}
         </span>
 
@@ -301,22 +304,40 @@ function ImpressionGrid({
   const lastTouchedIndex = impressions.findIndex(
     (imp) => getKey(imp) === lastTouchedKey
   )
-  const showDoneInThisSection = isValidationComplete && lastTouchedIndex >= 0
+  const showDoneInThisSection =
+    !suppressDoneButton && isValidationComplete && lastTouchedIndex >= 0
+
+  // Cap the grid to the cards' natural width and center it, so a single (or few)
+  // impression card doesn't stretch to the full modal width and balloon in size.
+  // When there are many options the columns still shrink to fit the modal.
+  const colCount = impressions.length
+  const cappedGridStyle = {
+    gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+    maxWidth: `calc(${colCount} * 190px + ${Math.max(colCount - 1, 0)} * 1rem)`,
+  }
 
   return (
     <>
-      {/* Mobile: horizontal carousel */}
-      <div className="flex sm:hidden gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide w-full">
-          {impressions && impressions.map((impression) => (
-            <div key={impression.id} className="snap-center flex-shrink-0 w-[140px]">
-              {renderCard(impression, true)}
-            </div>
-          ))}
+      {/* Small screens: side-by-side when only a couple options; otherwise 2-column grid */}
+      <div
+        className={cn(
+          "w-full min-w-0 sm:hidden",
+          colCount <= 2 ? "flex justify-center gap-2" : "grid grid-cols-2 gap-2"
+        )}
+      >
+        {impressions?.map((impression) => (
+          <div
+            key={impression.id}
+            className={cn(colCount <= 2 ? "w-[46%] max-w-[148px] flex-shrink-0" : "min-w-0")}
+          >
+            {renderCard(impression, true)}
+          </div>
+        ))}
       </div>
 
-      {/* Desktop: grid */}
-      <div className="hidden sm:grid gap-3 md:gap-4 w-full" style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}>
-        {impressions && impressions.map((impression) => renderCard(impression, false))}
+      {/* sm+: capped grid centered in the section */}
+      <div className="hidden sm:grid gap-3 md:gap-4 w-full mx-auto min-w-0" style={cappedGridStyle}>
+        {impressions?.map((impression) => renderCard(impression, false))}
       </div>
 
       {/* Done sits under the column of the last-touched card — kept inside the box */}
@@ -324,8 +345,8 @@ function ImpressionGrid({
         <>
           {/* Desktop: align under the last-touched card's column */}
           <div
-            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3"
-            style={{ gridTemplateColumns: `repeat(${impressions.length}, minmax(0, 1fr))` }}
+            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3 mx-auto"
+            style={cappedGridStyle}
           >
             <div className="flex justify-center py-2 overflow-visible" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
               <DoneTransitionButton
@@ -414,6 +435,8 @@ export function ImpressionSelectionModal({
   // the top arch has at least one impression selected. When re-opening with
   // existing top-arch selections, both sections are immediately visible.
   const showBottomSection = !!bottomArch && (isDualArch ? hasTopSelection : true)
+  const shouldShowSkipOpposing =
+    showBottomSection && !hideSkipOpposing && !hasBottomSelection
 
   // Primary arch selections are required; opposing arch is always optional.
   const isValidationComplete = hasTopSelection
@@ -484,6 +507,7 @@ export function ImpressionSelectionModal({
     onSaveArchSelection,
     isValidationComplete,
     onConfirmAllAndClose: onClose,
+    suppressDoneButton: shouldShowSkipOpposing,
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -493,13 +517,12 @@ export function ImpressionSelectionModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        showCloseButton
-        className="w-[97vw] max-w-[1360px] max-h-[94dvh] overflow-hidden flex flex-col p-0 border-0 rounded-[10px]"
+        className="w-[92vw] max-w-[1080px] h-auto max-h-[min(92dvh,calc(100dvh-1rem))] overflow-y-auto overflow-x-hidden p-0 border-0 rounded-[10px] max-sm:top-3 max-sm:translate-y-0 flex flex-col"
       >
-        <div className="flex flex-col px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-5 md:py-6 gap-3 sm:gap-4 bg-white w-full min-h-0 overflow-y-auto max-h-[94dvh]">
+        <div className="flex flex-col gap-2 sm:gap-3 px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-4 bg-white w-full">
 
           {modalHeading ? (
-            <h2 className="font-['Verdana'] font-bold text-lg sm:text-xl text-center text-[#1d1d1b] tracking-wide -mt-1 mb-1">
+            <h2 className="font-['Verdana'] font-bold text-base sm:text-xl text-center text-[#1d1d1b] tracking-wide">
               {modalHeading}
             </h2>
           ) : null}
@@ -507,13 +530,13 @@ export function ImpressionSelectionModal({
           {/* Top arch section */}
           <div
             className={cn(
-              "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
+              "relative rounded-[12px] px-2 sm:px-6 pt-5 pb-2 sm:pb-3 border-2 transition-colors min-w-0",
               hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]"
             )}
           >
             <span
               className={cn(
-                "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
+                "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 sm:px-4 font-['Verdana'] font-bold text-xs sm:text-base whitespace-nowrap",
                 hasTopSelection ? "text-[#22c55e]" : "text-[#CF0202]"
               )}
             >
@@ -531,13 +554,13 @@ export function ImpressionSelectionModal({
           {showBottomSection && bottomArch && (
             <div
               className={cn(
-                "relative rounded-[12px] px-4 sm:px-6 pt-7 pb-5 border-2 transition-colors",
+                "relative rounded-[12px] px-2 sm:px-6 pt-5 pb-2 sm:pb-3 border-2 transition-colors min-w-0",
                 hasBottomSelection ? "border-[#22c55e]" : "border-[#CF0202]"
               )}
             >
               <span
                 className={cn(
-                  "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 font-['Verdana'] font-bold text-sm sm:text-base whitespace-nowrap",
+                  "absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 sm:px-4 font-['Verdana'] font-bold text-xs sm:text-base whitespace-nowrap",
                   hasBottomSelection ? "text-[#22c55e]" : "text-[#CF0202]"
                 )}
               >
@@ -549,11 +572,11 @@ export function ImpressionSelectionModal({
                 productId={productId}
                 arch={bottomArch}
               />
-              {!hideSkipOpposing && !hasBottomSelection && (
-              <div className="flex justify-center mt-4">
+              {shouldShowSkipOpposing && (
+              <div className="flex justify-center mt-2 sm:mt-4">
                 <button
                   onClick={() => onSubmitNoOpposing ? onSubmitNoOpposing() : handleDone()}
-                  className="px-5 py-1.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded font-['Verdana'] font-bold text-sm transition-colors"
+                  className="px-4 sm:px-5 py-1 sm:py-1.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded font-['Verdana'] font-bold text-xs sm:text-sm transition-colors"
                 >
                   Skip Opposing
                 </button>
@@ -563,21 +586,20 @@ export function ImpressionSelectionModal({
           )}
 
           {(isDualArch ? topList.length === 0 && bottomList.length === 0 : impressions.length === 0) && (
-            <div className="text-center py-8 sm:py-12 text-[#7F7F7F] font-['Verdana'] text-sm sm:text-lg w-full">
+            <div className="text-center py-6 sm:py-12 text-[#7F7F7F] font-['Verdana'] text-sm sm:text-lg w-full">
               No impressions available
             </div>
           )}
 
-          <div className="flex justify-between items-center gap-4 pt-1">
+          <div className="flex justify-between items-center gap-4 border-t border-[#e5e7eb] pt-2 sm:pt-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-8 py-2.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded-[6px] font-['Verdana'] font-bold text-sm transition-colors"
+              className="px-6 sm:px-8 py-2 sm:py-2.5 bg-[#CF0202] hover:bg-[#910202] text-white rounded-[6px] font-['Verdana'] font-bold text-xs sm:text-sm transition-colors"
             >
               Cancel
             </button>
           </div>
-
         </div>
       </DialogContent>
     </Dialog>

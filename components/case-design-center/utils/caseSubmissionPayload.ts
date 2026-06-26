@@ -7,7 +7,7 @@ import type {
 import type { ProductImplant } from "@/services/implant-api";
 import type { Arch, SlipProductSnapshot } from "../types";
 import { getPreferredLabTeethShade } from "@/lib/product-shade-preferences";
-import { hasRetentionOptions } from "./categoryHelpers";
+import { hasRetentionOptions, resolveStageIdFromSelection } from "./categoryHelpers";
 import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
 import { findVariationByTeethCount } from "./variationHelpers";
@@ -24,6 +24,11 @@ import {
   prefetchImplantCatalogsForSnapshots,
   resolveMaterialId,
 } from "./slipPayloadMappers";
+import { formatSplintGroupsForApi } from "./splintHelpers";
+import {
+  buildSlipLevelNotes,
+  clearProductNotesWhenUsingCaseSummary,
+} from "./caseSummaryNotesPayload";
 
 interface BuildCaseSubmissionPayloadParams {
   snapshots: SlipProductSnapshot[];
@@ -36,6 +41,8 @@ interface BuildCaseSubmissionPayloadParams {
   age?: string;
   /** Lab customer id for implant prefetch (`/slip/product/implants`) */
   labCustomerId?: number;
+  /** Case Summary Notes textarea content (auto-generated or user-edited). */
+  caseSummaryNotes?: string;
 }
 
 function parseShadeDisplayName(raw: string): string {
@@ -70,6 +77,51 @@ function parseRemovableTeethShadeField(raw: string): {
   }
 }
 
+function parseGumShadeField(raw: string): {
+  gum_shade_id: number;
+  gum_shade_brand_id: number;
+  name: string;
+} {
+  if (!raw.trim()) {
+    return { gum_shade_id: 0, gum_shade_brand_id: 0, name: "" };
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      gum_shade_id?: number;
+      brand_id?: number;
+      name?: string;
+    };
+    return {
+      gum_shade_id: Number(parsed.gum_shade_id ?? 0),
+      gum_shade_brand_id: Number(parsed.brand_id ?? 0),
+      name: String(parsed.name ?? "").trim(),
+    };
+  } catch {
+    return { gum_shade_id: 0, gum_shade_brand_id: 0, name: raw.trim() };
+  }
+}
+
+function collectCardRepToothNumbers(snap: SlipProductSnapshot): number[] {
+  const teeth = new Set<number>();
+  if (snap.repToothNumber != null) teeth.add(snap.repToothNumber);
+  snap.teethNumbers?.forEach((tn) => teeth.add(tn));
+  snap.cardFieldTeeth?.forEach((tn) => teeth.add(tn));
+  snap.allCardTeeth?.forEach((tn) => teeth.add(tn));
+  return [...teeth];
+}
+
+function resolveSelectedToothShadeName(
+  snap: SlipProductSnapshot,
+  arch: Arch
+): string | undefined {
+  for (const tn of collectCardRepToothNumbers(snap)) {
+    const key = buildShadeSelectionKey(`prep_${tn}`, arch, "tooth_shade");
+    const val = snap.selectedShades[key]?.trim();
+    if (val) return val;
+  }
+  return undefined;
+}
+
 /** Resolve teeth shade IDs for removable products at submit time. */
 function resolveRemovableTeethShadeIds(
   snap: SlipProductSnapshot,
@@ -80,9 +132,7 @@ function resolveRemovableTeethShadeIds(
 
   if (teeth_shade_id <= 0 || teeth_shade_brand_id <= 0) {
     const snapArch: Arch = snap.type === "Upper" ? "maxillary" : "mandibular";
-    const selectedName = snap.selectedShades[
-      buildShadeSelectionKey(`prep_${snap.repToothNumber}`, snapArch, "tooth_shade")
-    ];
+    const selectedName = resolveSelectedToothShadeName(snap, snapArch);
     if (selectedName) name = name || selectedName;
   }
 
@@ -135,15 +185,37 @@ function resolveTeethShadeSelection(
 
 function resolveStageId(
   product: SlipProductSnapshot["productApiData"],
-  stageName: string | null
+  stageName: string | null,
+  stageRaw?: string | null
 ): number | undefined {
-  if (!product || product.has_stage === "No" || product.is_single_stage === "Yes") {
-    return undefined;
+  return resolveStageIdFromSelection(product, stageRaw, stageName);
+}
+
+function resolveGumShadeIds(
+  snap: SlipProductSnapshot,
+  product: SlipProductSnapshot["productApiData"]
+): { gum_shade_id: number; gum_shade_brand_id: number } | null {
+  const parsed = parseGumShadeField(snap.fieldValues["gum_shade"] ?? "");
+  let { gum_shade_id, gum_shade_brand_id, name } = parsed;
+
+  if (gum_shade_id > 0 && gum_shade_brand_id > 0) {
+    return { gum_shade_id, gum_shade_brand_id };
   }
-  if (!stageName) return undefined;
-  const stageObj = product.stages?.find((s: { name?: string }) => s.name === stageName);
-  const stage_id = stageObj?.stage_id ?? 0;
-  return stage_id > 0 ? stage_id : undefined;
+
+  if (name && product?.gum_shades?.length) {
+    const matched = product.gum_shades.find(
+      (s: { name?: string }) => (s.name ?? "").trim() === name
+    );
+    if (matched) {
+      const id = Number(matched.gum_shade_id ?? matched.id ?? 0);
+      const brandId = Number(matched.brand?.id ?? 0);
+      if (id > 0 && brandId > 0) {
+        return { gum_shade_id: id, gum_shade_brand_id: brandId };
+      }
+    }
+  }
+
+  return null;
 }
 
 function resolveVariationId(
@@ -171,7 +243,11 @@ export function snapshotToProduct(
 ): SlipCreationProduct {
   const product = snap.productApiData;
   const isFixed = hasRetentionOptions(product);
-  const stage_id = resolveStageId(product, snap.stageName);
+  const stageRaw = snap.fieldValues["stage"] ?? snap.fieldValues["fixed_stage"] ?? null;
+  const stage_id =
+    snap.stageId && snap.stageId > 0
+      ? snap.stageId
+      : resolveStageId(product, snap.stageName, stageRaw);
 
   const mapImpressionEntries = (byCode: Record<string, number> | undefined) =>
     Object.entries(byCode ?? {})
@@ -222,6 +298,14 @@ export function snapshotToProduct(
   const material_id = resolveMaterialId(product, snap.fieldValues);
   const variation_id = resolveVariationId(product, productTeeth.length);
   const rush = normalizeRush(snap.rush);
+  // Splinting is retention-driven (auto Rule S1 + manual): emit whenever the panel
+  // produced effective splint links, or the catalog product is flagged splinted.
+  const splinted_teeth = snap.splintLinks?.length
+    ? formatSplintGroupsForApi(productTeeth, snap.splintLinks)
+    : [];
+  const isSplintedProduct =
+    product?.is_splinted === "Yes" || splinted_teeth.length > 0;
+  const wing_teeth = snap.wingTeeth ?? "";
 
   const teeth_selection = buildTeethSelection(
     product,
@@ -262,6 +346,9 @@ export function snapshotToProduct(
       : {}),
     ...(tooth_chart.length > 0 ? { tooth_chart } : {}),
     rush,
+    ...(isSplintedProduct ? { is_splinted: "Yes" as const } : {}),
+    ...(splinted_teeth.length > 0 ? { splinted_teeth } : {}),
+    ...(wing_teeth.length > 0 ? { wing_teeth } : {}),
   };
 
   if (isFixed) {
@@ -424,31 +511,13 @@ export function snapshotToProduct(
   }
 
   const teethShadeIds = resolveRemovableTeethShadeIds(snap, product);
-
-  const gumShadeStr = snap.fieldValues["gum_shade"] ?? "";
-  let gum_shade_id = 0;
-  let gum_shade_brand_id = 0;
-  if (gumShadeStr) {
-    try {
-      const parsed = JSON.parse(gumShadeStr);
-      gum_shade_id = parsed.gum_shade_id ?? 0;
-      gum_shade_brand_id = parsed.brand_id ?? 0;
-    } catch {
-      const matchedGumShade = product?.gum_shades?.find(
-        (s: { name?: string }) => s.name === gumShadeStr
-      );
-      if (matchedGumShade) {
-        gum_shade_id = matchedGumShade.gum_shade_id ?? matchedGumShade.id;
-        gum_shade_brand_id = matchedGumShade.brand?.id ?? 0;
-      }
-    }
-  }
+  const gumShadeIds = resolveGumShadeIds(snap, product);
 
   return {
     ...sharedProductFields,
     ...(grade_id ? { grade_id } : {}),
     ...(teethShadeIds ? { ...teethShadeIds } : {}),
-    ...(gum_shade_id ? { gum_shade_id, gum_shade_brand_id } : {}),
+    ...(gumShadeIds ? { ...gumShadeIds } : {}),
   } as SlipCreationProduct;
 }
 
@@ -470,6 +539,7 @@ export async function buildCaseSubmissionPayloadAsync(
     gender,
     age,
     labCustomerId,
+    caseSummaryNotes,
   } = params;
 
   const filteredSnapshots = snapshots.filter(
@@ -490,6 +560,7 @@ export async function buildCaseSubmissionPayloadAsync(
 
   const slipProductGroups = groupProductsIntoSlips(products);
   const orderedProducts = slipProductGroups.flat();
+  clearProductNotesWhenUsingCaseSummary(orderedProducts, caseSummaryNotes);
 
   const multipartFiles: SlipCreationMultipartFile[] = [];
   orderedProducts.forEach((product, productIndex) => {
@@ -509,13 +580,10 @@ export async function buildCaseSubmissionPayloadAsync(
   const labId = role === "lab_admin" ? customerId : completedLabId ?? 0;
   const officeId = role === "lab_admin" ? completedLabId ?? 0 : customerId;
 
-  const slips = slipProductGroups.map((slipProducts) => ({
+  const slips = slipProductGroups.map((slipProducts, slipIndex) => ({
     status: "In Progress" as const,
     products: slipProducts,
-    notes: slipProducts
-      .map((p) => p.notes)
-      .filter((note): note is string => Boolean(note))
-      .map((note) => ({ note })),
+    notes: buildSlipLevelNotes(slipProducts, caseSummaryNotes, slipIndex),
   }));
 
   if (process.env.NODE_ENV === "development") {
@@ -555,6 +623,8 @@ export function buildCaseSubmissionPayload(
   const labId = params.role === "lab_admin" ? params.customerId : params.completedLabId ?? 0;
   const officeId =
     params.role === "lab_admin" ? params.completedLabId ?? 0 : params.customerId;
+  const orderedProducts = slipProductGroups.flat();
+  clearProductNotesWhenUsingCaseSummary(orderedProducts, params.caseSummaryNotes);
 
   return {
     case: {
@@ -566,13 +636,10 @@ export function buildCaseSubmissionPayload(
       ...(params.age ? { age: Number(params.age) } : {}),
       case_status: "In Progress",
     },
-    slips: slipProductGroups.map((slipProducts) => ({
+    slips: slipProductGroups.map((slipProducts, slipIndex) => ({
       status: "In Progress",
       products: slipProducts,
-      notes: slipProducts
-        .map((p) => p.notes)
-        .filter((note): note is string => Boolean(note))
-        .map((note) => ({ note })),
+      notes: buildSlipLevelNotes(slipProducts, params.caseSummaryNotes, slipIndex),
     })),
   };
 }

@@ -7,7 +7,9 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { useLibraryCategories } from "@/hooks/use-library-categories";
-import { useLibraryProducts, useSubcategoryProductCounts, type LibraryProductApi } from "@/hooks/use-library-products";
+import { useLibraryProducts, useLibraryProductSearch, useSubcategoryProductCounts, type LibraryProductApi } from "@/hooks/use-library-products";
+import { hasRetentionOptions } from "@/components/case-design-center/utils/categoryHelpers";
+import { useDebounce } from "@/lib/performance-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
@@ -26,6 +28,9 @@ import {
 } from "@/lib/patient-name-validation";
 import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
+import { getActiveCustomerId } from "@/lib/customer-scope";
+import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -46,16 +51,19 @@ const DEFAULT_WIZARD_FIELD_SETTINGS: WizardPatientFieldSettings = {
 /*  Role / auth helpers (client-only)                                  */
 /* ------------------------------------------------------------------ */
 function useWizardRole() {
-  const [role, setRole] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [isOfficeAdmin, setIsOfficeAdmin] = useState(false);
+  const [isLabAdmin, setIsLabAdmin] = useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setRole(localStorage.getItem("role"));
-    const c = localStorage.getItem("customerId");
-    setCustomerId(c ? Number(c) : null);
+    const activeId = getActiveCustomerId();
+    setCustomerId(activeId ? Number(activeId) : null);
+    setIsOfficeAdmin(isOfficeCustomerContext());
+    setIsLabAdmin(isLabCustomerContext());
   }, []);
-  const isOfficeAdmin = role === "office_admin";
-  const isLabAdmin = role === "lab_admin";
+
+  const role = isOfficeAdmin ? "office_admin" : isLabAdmin ? "lab_admin" : null;
   return { role, customerId, isOfficeAdmin, isLabAdmin };
 }
 
@@ -123,6 +131,268 @@ function ProductImageWithFallback({
         className="w-full h-full object-cover"
         onError={() => setFailed(true)}
       />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Product search (shared across category / subcategory / material)   */
+/* ------------------------------------------------------------------ */
+interface ProductSearchProps {
+  productSearch: string;
+  onProductSearchChange: (value: string) => void;
+  searchResults: LibraryProductApi[];
+  isSearchingProducts: boolean;
+  onSearchProductSelect: (product: LibraryProductApi) => void;
+}
+
+function ProductSearchBar({
+  value,
+  onChange,
+  inline = false,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  inline?: boolean;
+  className?: string;
+}) {
+  const field = (
+    <div
+      className={cn(
+        "relative w-full h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3",
+        className
+      )}
+    >
+      <input
+        type="text"
+        placeholder="Search Product"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+        style={{ fontFamily: "Verdana, sans-serif" }}
+      />
+      <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
+    </div>
+  );
+
+  if (inline) return field;
+
+  return (
+    <div className="flex justify-center mb-4">
+      <div className="w-full max-w-[373px]">{field}</div>
+    </div>
+  );
+}
+
+/** Responsive product picker grid — up to 6 cards per row on HD (xl+), centered. */
+const PRODUCT_CARD_GRID_CLASS =
+  "flex flex-wrap justify-center gap-4 mb-6 w-full";
+
+/** Fluid width so N cards fit per breakpoint; works with flex centering for partial rows. */
+const PRODUCT_CARD_ITEM_CLASS =
+  "w-[calc((100%-1rem)/2)] sm:w-[calc((100%-2rem)/3)] md:w-[calc((100%-3rem)/4)] lg:w-[calc((100%-4rem)/5)] xl:w-[calc((100%-5rem)/6)]";
+
+const PRODUCT_CARD_SKELETON_COUNT = 6;
+
+function productPickerCardClass(selected: boolean, extra?: string) {
+  return cn(
+    "group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-full transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5",
+    selected ? "border-[#1162A8] bg-[#1162A8]/5" : "border-[#d9d9d9] bg-white",
+    extra
+  );
+}
+
+const ProductPickerCardLabel = React.forwardRef<
+  HTMLSpanElement,
+  React.PropsWithChildren<{ className?: string }>
+>(function ProductPickerCardLabel({ children, className }, ref) {
+  return (
+    <span
+      ref={ref}
+      className={cn(
+        "text-[16px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2 flex items-center justify-center",
+        className
+      )}
+      style={{ fontFamily: "Verdana, sans-serif" }}
+    >
+      {children}
+    </span>
+  );
+});
+
+function formatProductDaysLabel(product: LibraryProductApi): string | null {
+  const min = product.min_days_to_process;
+  const max = product.max_days_to_process;
+  if (min != null && max != null) return `est ${min}-${max} days`;
+  if (min != null) return `est ${min} days`;
+  if (max != null) return `est ${max} days`;
+  return null;
+}
+
+function ProductPickerPriceMeta({
+  price,
+  daysLabel,
+}: {
+  price?: string | null;
+  daysLabel?: string | null;
+}) {
+  if (!price && !daysLabel) return null;
+
+  return (
+    <div className="flex flex-col gap-1 px-2 pb-2 w-full mt-auto">
+      {price ? (
+        <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
+          <p className="text-[#1162a8] text-[9px] leading-none" style={{ fontFamily: "Verdana, sans-serif" }}>
+            ${price}
+          </p>
+        </div>
+      ) : null}
+      {daysLabel ? (
+        <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
+          <p className="text-[#929393] text-[9px] leading-none" style={{ fontFamily: "Verdana, sans-serif" }}>
+            {daysLabel}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ProductPickerCardSkeleton() {
+  return (
+    <div className={PRODUCT_CARD_ITEM_CLASS}>
+      <Skeleton className="w-full aspect-[4/5] rounded-[7px]" />
+    </div>
+  );
+}
+
+function BackToProductsIcon({ gradientId }: { gradientId: string }) {
+  return (
+    <svg width="27" height="25" viewBox="0 0 27 25" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0" aria-hidden="true">
+      <path
+        d="M12.3958 22.6042L2.1875 12.3958L12.3958 2.1875M24.0625 22.6042L13.8542 12.3958L24.0625 2.1875"
+        stroke={`url(#${gradientId})`}
+        strokeWidth="4.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <defs>
+        <linearGradient id={gradientId} x1="29.9926" y1="2.46022" x2="0.157808" y2="27.922" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2AA6DE" />
+          <stop offset="0.5" stopColor="#82298D" />
+          <stop offset="1" stopColor="#C9539F" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/** Single-row toolbar: back (left) · title (center) · search (right). */
+function CaseDesignCenterToolbar({
+  onBack,
+  productSearch,
+  onProductSearchChange,
+  showSearch = true,
+}: {
+  onBack?: () => void;
+  productSearch: string;
+  onProductSearchChange: (value: string) => void;
+  showSearch?: boolean;
+}) {
+  const gradientId = React.useId().replace(/:/g, "");
+
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 mb-4 min-h-[34px]">
+      <div className="flex items-center justify-start min-w-[27px]">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-0.5 hover:opacity-80 transition-opacity"
+            aria-label="Back to products"
+          >
+            <BackToProductsIcon gradientId={gradientId} />
+          </button>
+        ) : null}
+      </div>
+
+      <h2
+        className="text-center text-[18px] sm:text-[20px] font-bold text-[#1d1d1b] tracking-wide whitespace-nowrap px-1"
+        style={{ fontFamily: "Verdana, sans-serif" }}
+      >
+        CASE DESIGN CENTER
+      </h2>
+
+      <div className="flex items-center justify-end min-w-0">
+        {showSearch ? (
+          <ProductSearchBar
+            inline
+            value={productSearch}
+            onChange={onProductSearchChange}
+            className="w-full max-w-[200px] sm:max-w-[280px] md:max-w-[373px]"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ProductSearchResults({
+  productSearch,
+  searchResults,
+  isSearchingProducts,
+  onSearchProductSelect,
+}: Pick<
+  ProductSearchProps,
+  "productSearch" | "searchResults" | "isSearchingProducts" | "onSearchProductSelect"
+>) {
+  const trimmed = productSearch.trim();
+  if (!trimmed) return null;
+
+  if (isSearchingProducts) {
+    return (
+      <div className="flex items-center justify-center py-10 mb-6">
+        <p className="text-[#7f7f7f] text-[14px]" style={{ fontFamily: "Verdana, sans-serif" }}>
+          Searching products...
+        </p>
+      </div>
+    );
+  }
+
+  if (searchResults.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-10 mb-6">
+        <p className="text-[#7f7f7f] text-[14px] text-center" style={{ fontFamily: "Verdana, sans-serif" }}>
+          No products found matching &ldquo;{trimmed}&rdquo;
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={PRODUCT_CARD_GRID_CLASS}>
+      {searchResults.map((product) => (
+        <button
+          key={product.id}
+          type="button"
+          onClick={() => onSearchProductSelect(product)}
+          className={cn(productPickerCardClass(false), PRODUCT_CARD_ITEM_CLASS)}
+        >
+          <ProductPickerCardLabel>{product.name}</ProductPickerCardLabel>
+          <ProductImageWithFallback
+            src={product.image_url}
+            alt={product.name}
+            name={product.name}
+            className="rounded-none"
+            bgClassName=""
+          />
+          <ProductPickerPriceMeta
+            price={product.price}
+            daysLabel={formatProductDaysLabel(product)}
+          />
+        </button>
+      ))}
     </div>
   );
 }
@@ -961,6 +1231,11 @@ function StepCategory({
   onAgeChange,
   fieldSettings,
   patientInfoComplete = true,
+  productSearch,
+  onProductSearchChange,
+  searchResults,
+  isSearchingProducts,
+  onSearchProductSelect,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -977,7 +1252,7 @@ function StepCategory({
   fieldSettings?: WizardPatientFieldSettings;
   /** When false, category selection is blocked until required patient fields are filled. */
   patientInfoComplete?: boolean;
-}) {
+} & ProductSearchProps) {
   if (error) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
@@ -990,10 +1265,14 @@ function StepCategory({
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
         <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
-        <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
-        <div className="flex flex-wrap justify-center gap-4 mb-6">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="w-full aspect-square rounded-[4px]" />
+        <CaseDesignCenterToolbar
+          productSearch={productSearch}
+          onProductSearchChange={onProductSearchChange}
+          showSearch={false}
+        />
+        <div className={PRODUCT_CARD_GRID_CLASS}>
+          {Array.from({ length: PRODUCT_CARD_SKELETON_COUNT }, (_, i) => (
+            <ProductPickerCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -1001,47 +1280,46 @@ function StepCategory({
   }
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+      <PatientMiniHeader
+        doctor={doctor}
+        patientName={patientName}
+        gender={gender}
+        age={age}
+        onPatientNameChange={onPatientNameChange}
+        onGenderChange={onGenderChange}
+        onAgeChange={onAgeChange}
+        fieldSettings={fieldSettings}
+      />
 
       {/* Case design center is revealed only once required patient details are filled */}
       {patientInfoComplete && (
         <>
-          <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
-            CASE DESIGN CENTER
-          </h2>
+          <CaseDesignCenterToolbar
+            productSearch={productSearch}
+            onProductSearchChange={onProductSearchChange}
+          />
 
-          <div className="flex justify-center mb-4">
-            <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
-              <input
-                type="text"
-                placeholder="Search Product"
-                className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
-                style={{ fontFamily: "Verdana, sans-serif" }}
-              />
-              <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
-            </div>
-          </div>
+          <ProductSearchResults
+            productSearch={productSearch}
+            searchResults={searchResults}
+            isSearchingProducts={isSearchingProducts}
+            onSearchProductSelect={onSearchProductSelect}
+          />
 
-          <div className="flex flex-wrap justify-center gap-4 mb-6">
+          {!productSearch.trim() && (
+          <div className={PRODUCT_CARD_GRID_CLASS}>
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => onSelect(cat.id)}
-                className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${selected === cat.id
-                  ? "border-[#1162A8] bg-[#1162A8]/5"
-                  : "border-[#d9d9d9] bg-white"
-                  }`}
+                className={cn(productPickerCardClass(selected === cat.id), PRODUCT_CARD_ITEM_CLASS)}
               >
-                <span
-                  className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
-                  style={{ fontFamily: "Verdana, sans-serif" }}
-                >
-                  {cat.name}
-                </span>
+                <ProductPickerCardLabel>{cat.name}</ProductPickerCardLabel>
                 <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" />
               </button>
             ))}
           </div>
+          )}
         </>
       )}
     </div>
@@ -1071,6 +1349,11 @@ function StepSubProduct({
   subcategoryProductCounts,
   subcategoryProducts,
   onArchPickForSingle,
+  productSearch,
+  onProductSearchChange,
+  searchResults,
+  isSearchingProducts,
+  onSearchProductSelect,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -1091,8 +1374,7 @@ function StepSubProduct({
   subcategoryProductCounts?: Record<number, number | undefined>;
   subcategoryProducts?: Record<number, LibraryProductApi[] | undefined>;
   onArchPickForSingle?: (subcatId: number, arch: "maxillary" | "mandibular" | "both") => void;
-}) {
-  const [accordionOpen, setAccordionOpen] = useState(false);
+} & ProductSearchProps) {
   const [activeSubLabelHeight, setActiveSubLabelHeight] = useState(0);
   const subCardRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const subLabelRefs = useRef<Record<number, HTMLSpanElement | null>>({});
@@ -1136,38 +1418,34 @@ function StepSubProduct({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      {/* Patient header mini */}
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+      <PatientMiniHeader
+        doctor={doctor}
+        patientName={patientName}
+        gender={gender}
+        age={age}
+        onPatientNameChange={onPatientNameChange}
+        onGenderChange={onGenderChange}
+        onAgeChange={onAgeChange}
+        fieldSettings={fieldSettings}
+      />
 
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="self-start text-[14px] font-semibold text-[#1162A8] hover:underline mt-2 mb-1"
-        >
-          ← Back to Categories
-        </button>
-      )}
+      <CaseDesignCenterToolbar
+        onBack={onBack}
+        productSearch={productSearch}
+        onProductSearchChange={onProductSearchChange}
+      />
 
-      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
-        CASE DESIGN CENTER
-      </h2>
+      <ProductSearchResults
+        productSearch={productSearch}
+        searchResults={searchResults}
+        isSearchingProducts={isSearchingProducts}
+        onSearchProductSelect={onSearchProductSelect}
+      />
 
-      <div className="flex justify-center mb-4">
-        <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
-          <input
-            type="text"
-            placeholder="Search Product"
-            className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
-            style={{ fontFamily: "Verdana, sans-serif" }}
-          />
-          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
-        </div>
-      </div>
-
-      {/* Product grid */}
-      <div className="flex flex-row flex-nowrap gap-4 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+      {!productSearch.trim() && (
+      <div className={PRODUCT_CARD_GRID_CLASS}>
         {subProducts.map((prod) => (
-          <div key={prod.id} className="relative flex-shrink-0">
+          <div key={prod.id} className={cn("relative", PRODUCT_CARD_ITEM_CLASS)}>
             <button
               ref={(el) => { subCardRefs.current[prod.id] = el; }}
               onClick={() => {
@@ -1183,18 +1461,11 @@ function StepSubProduct({
                   onSelect(prod.id);
                 }
               }}
-              className={`group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-[200px] sm:w-[250px] md:w-[300px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${selected === prod.id
-                ? "border-[#1162A8] bg-[#1162A8]/5"
-                : "border-[#d9d9d9] bg-white"
-                }`}
+              className={productPickerCardClass(selected === prod.id)}
             >
-              <span
-                ref={(el) => { subLabelRefs.current[prod.id] = el; }}
-                className="text-[14px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2"
-                style={{ fontFamily: "Verdana, sans-serif" }}
-              >
+              <ProductPickerCardLabel ref={(el) => { subLabelRefs.current[prod.id] = el; }}>
                 {prod.name}
-              </span>
+              </ProductPickerCardLabel>
               <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
             </button>
             {archPopoverSubId === prod.id && onArchPickForSingle && (() => {
@@ -1250,23 +1521,7 @@ function StepSubProduct({
           </div>
         ))}
       </div>
-
-      {/* Category accordion */}
-      <div className="max-w-[600px] mx-auto w-full">
-        <button
-          type="button"
-          onClick={() => setAccordionOpen(!accordionOpen)}
-          className="w-full flex items-center justify-between bg-[#dfeefb]/50 hover:bg-[#dfeefb]/70 px-4 py-3 rounded-lg transition-colors"
-        >
-          <span className="text-[13px] font-semibold text-[#1d1d1b]">
-            {categoryName}
-          </span>
-          <ChevronDown
-            size={18}
-            className={`text-[#7f7f7f] transition-transform ${accordionOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-      </div>
+      )}
     </div>
   );
 }
@@ -1286,15 +1541,20 @@ function StepMaterial({
   gender,
   isLoading,
   error,
-  isRemovableRestoration,
+  isNonFixedProduct,
   forceArch,
   onPatientNameChange,
   onGenderChange,
   age,
   onAgeChange,
   fieldSettings,
+  productSearch,
+  onProductSearchChange,
+  searchResults,
+  isSearchingProducts,
+  onSearchProductSelect,
+  initialArchPopoverProductId = null,
 }: {
-  categoryName: string;
   subProductName: string;
   products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null }; show_jaw_photo?: boolean; jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } }[];
   selected: string | null;
@@ -1306,13 +1566,14 @@ function StepMaterial({
   age?: string;
   isLoading?: boolean;
   error?: Error | null;
-  isRemovableRestoration?: boolean;
+  isNonFixedProduct?: boolean;
   forceArch?: "maxillary" | "mandibular";
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
-}) {
+  initialArchPopoverProductId?: string | null;
+} & ProductSearchProps) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const [activeProductLabelHeight, setActiveProductLabelHeight] = useState(0);
   const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -1359,13 +1620,13 @@ function StepMaterial({
     if (
       products.length === 1 &&
       !selected &&
-      (!isRemovableRestoration || forceArch) &&
+      (!isNonFixedProduct || forceArch) &&
       !isLoading
     ) {
       const only = products[0];
       onSelect(String(only.id), forceArch);
     }
-  }, [products, selected, isRemovableRestoration, forceArch, isLoading, onSelect]);
+  }, [products, selected, isNonFixedProduct, forceArch, isLoading, onSelect]);
 
   useEffect(() => {
     if (products.length <= 1 && archPopoverProductId) {
@@ -1373,8 +1634,13 @@ function StepMaterial({
     }
   }, [products.length, archPopoverProductId]);
 
-  const shouldAutoSelectSingle = products.length === 1 && (!isRemovableRestoration || forceArch);
-  const shouldAskArchOnly = products.length === 1 && isRemovableRestoration && !forceArch && !isLoading;
+  useEffect(() => {
+    if (!initialArchPopoverProductId || isLoading) return;
+    setArchPopoverProductId(initialArchPopoverProductId);
+  }, [initialArchPopoverProductId, isLoading]);
+
+  const shouldAutoSelectSingle = products.length === 1 && (!isNonFixedProduct || forceArch);
+  const shouldAskArchOnly = products.length === 1 && isNonFixedProduct && !forceArch && !isLoading;
 
   if (error) {
     return (
@@ -1388,10 +1654,15 @@ function StepMaterial({
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
         <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
-        <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">CASE DESIGN CENTER</h2>
-        <div className="flex flex-wrap justify-center gap-4 mb-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="w-[200px] sm:w-[250px] md:w-[300px] aspect-square rounded-[5px]" />
+        <CaseDesignCenterToolbar
+          onBack={onBack}
+          productSearch={productSearch}
+          onProductSearchChange={onProductSearchChange}
+          showSearch={false}
+        />
+        <div className={PRODUCT_CARD_GRID_CLASS}>
+          {Array.from({ length: PRODUCT_CARD_SKELETON_COUNT }, (_, i) => (
+            <ProductPickerCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -1400,35 +1671,32 @@ function StepMaterial({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-4">
-      <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+      <PatientMiniHeader
+        doctor={doctor}
+        patientName={patientName}
+        gender={gender}
+        age={age}
+        onPatientNameChange={onPatientNameChange}
+        onGenderChange={onGenderChange}
+        onAgeChange={onAgeChange}
+        fieldSettings={fieldSettings}
+      />
 
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="self-start text-[14px] font-semibold text-[#1162A8] hover:underline mt-2 mb-1"
-        >
-          ← Back to Subcategories
-        </button>
-      )}
+      <CaseDesignCenterToolbar
+        onBack={onBack}
+        productSearch={productSearch}
+        onProductSearchChange={onProductSearchChange}
+      />
 
-      <h2 className="text-center text-[20px] font-bold text-[#1d1d1b] tracking-wide mt-4 mb-2">
-        CASE DESIGN CENTER
-      </h2>
+      <ProductSearchResults
+        productSearch={productSearch}
+        searchResults={searchResults}
+        isSearchingProducts={isSearchingProducts}
+        onSearchProductSelect={onSearchProductSelect}
+      />
 
-      <div className="flex justify-center mb-4">
-        <div className="relative w-full max-w-[373px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-3">
-          <input
-            type="text"
-            placeholder="Search Product"
-            className="flex-1 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
-            style={{ fontFamily: "Verdana, sans-serif" }}
-          />
-          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
-        </div>
-      </div>
-
-
-      {/* Product cards grid (from API) */}
+      {!productSearch.trim() && (
+      <>
       {/* Single removable product with no forced arch: show arch picker without product grid */}
       {shouldAskArchOnly && (
         <div className="flex justify-center mb-6">
@@ -1457,16 +1725,16 @@ function StepMaterial({
       )}
 
       {!shouldAutoSelectSingle && !shouldAskArchOnly && (
-        <div className="flex flex-row flex-nowrap gap-4 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+        <div className={PRODUCT_CARD_GRID_CLASS}>
           {products.map((prod) => {
             const prodId = String(prod.id);
             const isSelected = selected === prodId;
             return (
-              <div key={prod.id} className="relative flex-shrink-0">
+              <div key={prod.id} className={cn("relative", PRODUCT_CARD_ITEM_CLASS)}>
                 <button
                   ref={(el) => { cardRefs.current[prodId] = el; }}
                   onClick={() => {
-                    if (!isRemovableRestoration || forceArch) {
+                    if (!isNonFixedProduct || forceArch) {
                       onSelect(prodId, forceArch);
                     } else {
                       if (archPopoverProductId === prodId) {
@@ -1477,18 +1745,11 @@ function StepMaterial({
                       }
                     }
                   }}
-                  className={`group relative flex flex-col items-center overflow-hidden w-[200px] sm:w-[250px] md:w-[300px] rounded-[7px] border-[3px] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5 ${isSelected
-                    ? "border-[#1162A8] bg-[#1162A8]/5"
-                    : "border-[#d9d9d9] bg-white"
-                    }`}
+                  className={productPickerCardClass(isSelected, "relative items-center")}
                 >
-                  <span
-                    ref={(el) => { labelRefs.current[prodId] = el; }}
-                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-                    className="text-[#000000] text-center self-stretch py-2 px-2"
-                  >
+                  <ProductPickerCardLabel ref={(el) => { labelRefs.current[prodId] = el; }}>
                     {prod.name}
-                  </span>
+                  </ProductPickerCardLabel>
                   <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
                 </button>
                   {archPopoverProductId === prodId && (() => {
@@ -1547,15 +1808,18 @@ function StepMaterial({
         </div>
       )}
 
+      </>
+      )}
+
       {/* Arch hint when adding product to a specific arch */}
       {forceArch && (
-        <p className="text-center text-[13px] text-[#7f7f7f] mb-4" style={{ fontFamily: "Verdana, sans-serif" }}>
+        <p className="text-center text-[13px] text-[#7f7f7f] mb-4 hidden" style={{ fontFamily: "Verdana, sans-serif" }}>
           This product will be added to the <span className="font-semibold text-[#1162A8]">{forceArch === "maxillary" ? "upper (maxillary)" : "lower (mandibular)"}</span> arch
         </p>
       )}
 
       {/* Breadcrumb bar showing category > sub-product */}
-      <div className="max-w-[600px] mx-auto w-full">
+      <div className="max-w-[600px] mx-auto w-full hidden">
         <div className="flex items-center justify-between bg-[#dfeefb]/50 px-4 py-3 rounded-lg">
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-semibold text-[#1d1d1b] bg-white px-3 py-1 rounded border border-[#d9d9d9]">
@@ -1765,6 +2029,9 @@ export default function NewCaseWizard({
   const [selectedArch, setSelectedArch] = useState<"maxillary" | "mandibular" | "both" | undefined>(forceArch);
   const [archPopoverSubId, setArchPopoverSubId] = useState<number | null>(null);
   const [shouldAutoAdvanceProducts, setShouldAutoAdvanceProducts] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [pendingArchProductId, setPendingArchProductId] = useState<string | null>(null);
+  const debouncedProductSearch = useDebounce(productSearch, 300);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddLabModal, setShowAddLabModal] = useState(false);
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
@@ -1816,6 +2083,15 @@ export default function NewCaseWizard({
     enabled: step >= 5 && selectedSubProduct != null,
   });
 
+  const {
+    products: productSearchResults,
+    isLoading: isSearchingProducts,
+  } = useLibraryProductSearch({
+    customerId: customerIdForCategories,
+    search: debouncedProductSearch,
+    enabled: step >= 4 && patientInfoComplete,
+  });
+
   // Product counts per subcategory — used to show arch popover only for single-product subcategories
   const currentSubcategoryIds = useMemo(
     () => (subcategoriesByCategoryId[selectedCategory ?? -1] ?? []).map((s) => s.id),
@@ -1844,11 +2120,11 @@ export default function NewCaseWizard({
 
   const doctorsForWizard: WizardDoctorShape[] = useMemo(
     () =>
-      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string }[]).map(
+      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; signature_url?: string }[]).map(
         (d, i) => ({
           id: d.id,
           name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
-          img: d.image || d.profile_image || getDoctorFallbackImg(d.id, i),
+          img: resolveDoctorImageUrl(d) || getDoctorFallbackImg(d.id, i),
         })
       ),
     [officeDoctorsRaw]
@@ -1908,6 +2184,47 @@ export default function NewCaseWizard({
     ]
   );
 
+  const handleSearchProductSelect = useCallback(
+    (product: LibraryProductApi) => {
+      const categoryId = product.subcategory?.category?.id ?? product.subcategory?.category_id;
+      const subcategoryId = product.subcategory?.id;
+      const categoryName =
+        product.subcategory?.category?.name ??
+        categoriesAsWizard.find((c) => c.id === categoryId)?.name ??
+        "";
+
+      if (categoryId != null) setSelectedCategory(categoryId);
+      if (subcategoryId != null) setSelectedSubProduct(subcategoryId);
+
+      setShouldAutoAdvanceProducts(false);
+      setProductSearch("");
+
+      const needsArchSelection = !hasRetentionOptions(product);
+      const productId = String(product.id);
+
+      if (needsArchSelection && !forceArch) {
+        setSelectedMaterial(productId);
+        setPendingArchProductId(productId);
+        setStep(6);
+        return;
+      }
+
+      finalizeSelection(productId, forceArch);
+    },
+    [categoriesAsWizard, forceArch, finalizeSelection]
+  );
+
+  const productSearchProps: ProductSearchProps = useMemo(
+    () => ({
+      productSearch,
+      onProductSearchChange: setProductSearch,
+      searchResults: productSearchResults,
+      isSearchingProducts,
+      onSearchProductSelect: handleSearchProductSelect,
+    }),
+    [productSearch, productSearchResults, isSearchingProducts, handleSearchProductSelect]
+  );
+
   useEffect(() => {
     if (step !== 5) return;
     if (selectedSubProduct == null) return;
@@ -1915,11 +2232,11 @@ export default function NewCaseWizard({
     if (!shouldAutoAdvanceProducts) return;
 
     const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-    const isRemovable = selectedCategoryName.toLowerCase().includes("removable");
 
     if (productsAsWizard.length === 1) {
       const only = productsAsWizard[0];
-      if (isRemovable && !forceArch && !selectedArch) {
+      const needsArchSelection = !hasRetentionOptions(only);
+      if (needsArchSelection && !forceArch && !selectedArch) {
         setArchPopoverSubId(selectedSubProduct);
       } else {
         finalizeSelection(String(only.id), forceArch ?? selectedArch);
@@ -2153,6 +2470,7 @@ export default function NewCaseWizard({
             onAgeChange={setAge}
             fieldSettings={patientFieldSettings}
             patientInfoComplete={patientInfoComplete}
+            {...productSearchProps}
           />
         )}
         {step === 5 && selectedCategory != null && (
@@ -2193,11 +2511,15 @@ export default function NewCaseWizard({
               setShouldAutoAdvanceProducts(false);
               finalizeSelection(String(only.id), arch);
             }}
+            {...productSearchProps}
           />
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
           const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-          const isRemovable = selectedCategoryName.toLowerCase().includes("removable");
+          const activeProduct =
+            productsAsWizard.find((p) => String(p.id) === String(selectedMaterial)) ??
+            productsAsWizard[0];
+          const isNonFixedProduct = activeProduct ? !hasRetentionOptions(activeProduct) : false;
           return (
             <StepMaterial
               categoryName={selectedCategoryName}
@@ -2208,13 +2530,15 @@ export default function NewCaseWizard({
               selected={selectedMaterial}
               isLoading={productsLoading}
               error={productsError}
-              isRemovableRestoration={isRemovable}
+              isNonFixedProduct={isNonFixedProduct}
               forceArch={forceArch ?? selectedArch}
               onBack={() => {
                 setShouldAutoAdvanceProducts(false);
+                setPendingArchProductId(null);
                 setStep(5);
               }}
               onSelect={(id, arch) => {
+                setPendingArchProductId(null);
                 setSelectedMaterial(id);
                 if (arch) setSelectedArch(arch);
                 const materialName = productsAsWizard.find((p) => String(p.id) === String(id))?.name ?? "";
@@ -2260,6 +2584,8 @@ export default function NewCaseWizard({
               onGenderChange={setGender}
               onAgeChange={setAge}
               fieldSettings={patientFieldSettings}
+              initialArchPopoverProductId={pendingArchProductId}
+              {...productSearchProps}
             />
           );
         })()}
@@ -2294,7 +2620,7 @@ export default function NewCaseWizard({
       {step >= 4 && (
         <SlipCreationStepFooter
           mode="navigation"
-          showPrevious={true}
+          showPrevious={false}
           onPrevious={() => {
             if (step > 1) {
               setStep(step - 1);

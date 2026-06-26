@@ -1,0 +1,51 @@
+<h2>Paper slip: direct native print preview</h2>
+<p class="subtitle">The Lab Case Management page stays in place throughout the print flow.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Recommended flow</div>
+  <div class="mockup-body">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:14px;align-items:center;text-align:center">
+      <div style="padding:18px;border:1px solid #d8dee8;border-radius:12px;background:#fff">
+        <strong>Lab Case Management</strong><br><small>User clicks Print Paper Slip</small>
+      </div>
+      <div style="font-size:24px">→</div>
+      <div style="padding:18px;border:2px dashed #8494aa;border-radius:12px;background:#f8fafc">
+        <strong>Hidden print frame</strong><br><small>Loads slip 88, data, and images</small>
+      </div>
+      <div style="font-size:24px">→</div>
+      <div style="padding:18px;border:2px solid #2563eb;border-radius:12px;background:#eff6ff">
+        <strong>Native print preview</strong><br><small>No visible route change</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Approaches considered</h3>
+  <div class="options">
+    <div class="option" data-choice="hidden-frame" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content"><h3>Hidden print frame — recommended</h3><p>Reuses the existing print route and document. Smallest change, keeps the current URL, supports single and bulk printing.</p></div>
+    </div>
+    <div class="option" data-choice="inline-render" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content"><h3>Render inside Case Management</h3><p>Fetch and mount the paper-slip document directly in the page. Cleaner long-term API, but duplicates print lifecycle and adds more state to an already large page.</p></div>
+    </div>
+    <div class="option" data-choice="blank-popup" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content"><h3>Temporary blank popup</h3><p>Avoids route navigation but still opens another window and may be blocked, so it does not match the direct experience as well.</p></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Behavior and safeguards</h3>
+  <ul>
+    <li>The print action creates one off-screen iframe using the existing <code>/paper-slip/print</code> URL.</li>
+    <li>The print page fetches authenticated data, waits for images, and calls its own frame-scoped <code>print()</code>.</li>
+    <li>The parent Lab Case Management route never changes.</li>
+    <li>The iframe is removed after printing or after a bounded cleanup timeout.</li>
+    <li>Invalid selections still use the existing destructive toast; loading failures notify the parent instead of silently failing.</li>
+    <li>Tests cover route construction, frame lifecycle, cleanup, single print, and bulk print.</li>
+  </ul>
+</div>

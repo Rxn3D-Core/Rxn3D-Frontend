@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AddCategoryModal } from "@/components/product-management/add-category-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useProductCategory } from "@/contexts/product-category-context"
-import { useAuth } from "@/contexts/auth-context"
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
+import { isLabCustomerContext } from "@/lib/role-utils"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -35,23 +36,12 @@ export default function ProductCategoryPage() {
     getCategoryDetail,
   } = useProductCategory()
 
-  const { user } = useAuth()
-  const isLabAdmin = useMemo(() => {
-    const fromUser = user?.roles?.length ? user.roles.map(String) : user?.role ? [String(user.role)] : []
-    let stored: string[] = []
-    if (typeof window !== "undefined") {
-      const raw = localStorage.getItem("role")
-      if (raw) {
-        try {
-          const p = JSON.parse(raw)
-          stored = Array.isArray(p) ? p.map(String) : [String(p)]
-        } catch {
-          stored = [raw]
-        }
-      }
-    }
-    return new Set([...fromUser, ...stored]).has("lab_admin")
-  }, [user])
+  const { canCreateProduct, canUpdateProduct, canDeleteProduct } =
+    usePermissionCapabilities()
+  const [isLabProfile, setIsLabProfile] = useState(false)
+  useEffect(() => {
+    setIsLabProfile(isLabCustomerContext())
+  }, [])
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
@@ -206,7 +196,7 @@ export default function ProductCategoryPage() {
 
   async function confirmDelete() {
     if (!deleteTarget) return
-    if (isCustomNo && !isLabAdmin) {
+    if (isCustomNo && !isLabProfile) {
       setDeleteModalOpen(false)
       setDeleteTarget(null)
       return
@@ -275,13 +265,15 @@ export default function ProductCategoryPage() {
         </div>
         
         <div className="flex gap-3">
-          <Button
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            onClick={() => setIsAddCategoryModalOpen(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t("+ Add Category", { defaultValue: "+ Add Category" })}
-          </Button>
+          {canCreateProduct ? (
+            <Button
+              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              onClick={() => setIsAddCategoryModalOpen(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t("+ Add Category", { defaultValue: "+ Add Category" })}
+            </Button>
+          ) : null}
           
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -397,10 +389,12 @@ export default function ProductCategoryPage() {
                   </TableCell>
                   <TableCell className="text-center pr-6">
                     <div className="flex items-center justify-center gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category.id)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      {(category as any)?.is_custom === "No" && !isLabAdmin ? (
+                      {canUpdateProduct ? (
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category.id)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                      {!canDeleteProduct ? null : (category as any)?.is_custom === "No" && !isLabProfile ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>
@@ -550,7 +544,7 @@ export default function ProductCategoryPage() {
         confirmText={t("Delete", { defaultValue: "Delete" })}
         cancelText={t("Cancel", { defaultValue: "Cancel" })}
         isLoading={isDeleting}
-        isCustomNo={isCustomNo && !isLabAdmin}
+        isCustomNo={isCustomNo && !isLabProfile}
       />
       </TooltipProvider>
     </div>

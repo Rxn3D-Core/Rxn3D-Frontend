@@ -1,6 +1,5 @@
 "use client";
 
-import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 import type { CaseSubmissionState } from "../utils/caseCompletionDestination";
 
 interface CaseSubmissionOverlaysProps {
@@ -26,13 +25,11 @@ export function CaseSubmissionOverlays({ submissionState }: CaseSubmissionOverla
 
       {showSuccessOverlay && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="w-[350px] h-[350px]">
-            <DotLottieReact
-              src="https://lottie.host/b1a1c60d-ee51-497e-ba93-e50e79bf6abb/em5bh3uFj8.lottie"
-              autoplay
-              speed={2}
-            />
-          </div>
+          <img
+            src="/images/success-orbit.gif?v=20260610"
+            alt="Case submitted successfully!"
+            className="w-[300px] h-[300px]"
+          />
           <p className="mt-4 text-lg font-semibold text-gray-700">Case submitted successfully!</p>
         </div>
       )}
