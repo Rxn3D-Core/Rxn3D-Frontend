@@ -153,18 +153,6 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
     [retentionOptions, toothNumber, allowPontic]
   )
 
-  // Single selectable option → auto-select it and skip the popover. Only when the
-  // tooth has no selection yet (don't re-toggle an existing choice on edit/re-open).
-  const autoSelectedRef = useRef<number | null>(null)
-  useEffect(() => {
-    if (selectedType) return
-    if (options.length !== 1) return
-    if (autoSelectedRef.current === toothNumber) return
-    autoSelectedRef.current = toothNumber
-    onSelectRetentionType(options[0].toothChartType)
-    onClose?.()
-  }, [options, selectedType, toothNumber, onSelectRetentionType, onClose])
-
   // The chart stores/renders by category, so highlight the first option matching
   // the selected category (the representative the chart draws), not every variant.
   const selectedOptionId = selectedType

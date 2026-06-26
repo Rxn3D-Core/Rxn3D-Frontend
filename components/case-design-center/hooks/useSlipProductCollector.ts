@@ -16,7 +16,7 @@ import {
   buildExtractionScopeTeeth,
   resolveProductTeethForSlipSubmit,
 } from "../utils/removableToothDisplay";
-import { splintKeyForProductCard, formatWingGroupsForApi } from "../utils/splintHelpers";
+import { splintKeyForProductCard, deriveWingTeeth } from "../utils/splintHelpers";
 import { useCaseDesignState } from "./useCaseDesignState";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 
@@ -306,10 +306,11 @@ export function useSlipProductCollector({
         const productPonticTeeth = productTeeth.filter(
           (tn) => (archRetentionTypes?.[tn] ?? [])[0] === "Pontic"
         );
-        const wingGroups =
+        // Wing teeth = the empty abutment neighbors only (not the pontic), as a string.
+        const wingTeeth =
           productPonticTeeth.length > 0
-            ? formatWingGroupsForApi(archRetentionTypes ?? {}, allTeeth, productPonticTeeth)
-            : [];
+            ? deriveWingTeeth(archRetentionTypes ?? {}, allTeeth, productPonticTeeth).join(",")
+            : "";
 
         snapshots.push({
           type,
@@ -335,7 +336,7 @@ export function useSlipProductCollector({
           ...(hasImplantDetail ? { implantDetailByTooth: relevantImplantDetail } : {}),
           selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
           ...(splintLinks.length > 0 ? { splintLinks } : {}),
-          ...(wingGroups.length > 0 ? { wingGroups } : {}),
+          ...(wingTeeth ? { wingTeeth } : {}),
         });
       });
     };

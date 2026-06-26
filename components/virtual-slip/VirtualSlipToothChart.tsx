@@ -30,6 +30,8 @@ interface VirtualSlipToothChartProps {
   extractionDisplay?: ExtractionDisplayVM;
   /** Read-only splint connectors between adjacent teeth (lower tooth per pair). */
   splintedLinks?: number[];
+  /** Read-only wing-retainer circles (empty abutment neighbor tooth numbers). */
+  wingTeeth?: number[];
 }
 
 /**
@@ -47,6 +49,7 @@ export function VirtualSlipToothChart({
   toothChartSelectionsByTooth = {},
   extractionDisplay,
   splintedLinks = [],
+  wingTeeth = [],
 }: VirtualSlipToothChartProps) {
   const useExtractionOverlay = hasExtractionChartOverlay(extractionDisplay);
 
@@ -126,6 +129,7 @@ export function VirtualSlipToothChart({
     getRetentionOptionsForTooth: (toothNumber: number) => retentionOptionsByTooth[toothNumber],
     hideSelectionIndicators: true,
     ...(splintedLinks.length > 0 ? { splintedLinks } : {}),
+    ...(wingTeeth.length > 0 ? { wingTeeth } : {}),
     ...(useExtractionOverlay && chartExtractionDisplay
       ? {
           toothExtractionMap: chartExtractionDisplay.toothExtractionMap,

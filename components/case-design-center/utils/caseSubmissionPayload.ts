@@ -305,7 +305,7 @@ export function snapshotToProduct(
     : [];
   const isSplintedProduct =
     product?.is_splinted === "Yes" || splinted_teeth.length > 0;
-  const wing_teeth = snap.wingGroups ?? [];
+  const wing_teeth = snap.wingTeeth ?? "";
 
   const teeth_selection = buildTeethSelection(
     product,
