@@ -35,8 +35,8 @@ import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import { buildLabCaseDropdownActions } from "./dropdown-actions.mjs"
-import { buildPaperSlipPrintRoute } from "./paper-slip-print-route.mjs"
-import { openPaperSlipPrintTab } from "@/lib/paper-slip-print-tab"
+import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import {
   SLIP_LOCATION_FILTER_OPTIONS,
   LAB_SLIP_STATUS_OPTIONS,
@@ -134,6 +134,7 @@ function UnknownLocationDotIcon() {
 export default function LabSlipPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
   if (typeof window !== 'undefined') {
@@ -572,98 +573,31 @@ export default function LabSlipPage() {
   }
 
 
-  // Individual print handler - opens in new window
-  const handlePrintPaperSlip = async (slip: any) => {
-    // Determine which ID to use based on customerType
-    let customerType = 'lab';
-    if (typeof window !== 'undefined') {
-      const storedType = localStorage.getItem('customerType');
-      if (storedType) customerType = storedType;
-    }
-    let idToSend: number | null = null;
-    if (customerType === 'lab') {
-      idToSend = (typeof slip.id === 'number' && !isNaN(slip.id)) ? slip.id : null;
-    } else if (customerType === 'office') {
-      idToSend = (typeof slip.caseId === 'number' && !isNaN(slip.caseId)) ? slip.caseId : null;
-    } else {
-      idToSend = (typeof slip.id === 'number' && !isNaN(slip.id)) ? slip.id : null;
-    }
+  // Individual print handler
+  const handlePrintPaperSlip = (slip: any) => {
+    const customerType = (typeof window !== 'undefined' && localStorage.getItem('customerType')) || 'lab';
+    const idToSend: number | null = customerType === 'office'
+      ? ((typeof slip.caseId === 'number' && !isNaN(slip.caseId)) ? slip.caseId : null)
+      : ((typeof slip.id === 'number' && !isNaN(slip.id)) ? slip.id : null);
     if (idToSend === null) {
-      toast({
-        title: "No valid slip",
-        description: "This slip does not have a valid slip ID.",
-        variant: "destructive"
-      });
+      toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" });
       return;
     }
-    try {
-      const printRoute = buildPaperSlipPrintRoute({
-        customerType,
-        ids: [idToSend],
-      });
-
-      if (!printRoute) {
-        toast({
-          title: "No valid slip",
-          description: "This slip does not have a valid slip ID.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      openPaperSlipPrintTab(printRoute);
-    } catch (err: any) {
-      toast({
-        title: "Failed to open paper slip",
-        description: err?.message || String(err),
-        variant: "destructive"
-      });
-    }
+    printPaperSlip([idToSend], []);
   }
 
-  // Bulk print handler - opens each slip in new window
-  const handleBulkPrintPaperSlip = async () => {
+  // Bulk print handler
+  const handleBulkPrintPaperSlip = () => {
     if (!selected.length) return;
-
-    try {
-      const selectedRows = slips.filter(slip => selected.includes(slip.id));
-
-
-      // Only send valid slip IDs (not null/undefined/NaN)
-      const slipIds = selectedRows
-        .map(r => (typeof r.caseId === 'number' && !isNaN(r.caseId)) ? r.caseId : (typeof r.id === 'number' && !isNaN(r.id) ? r.id : null))
-        .filter(id => typeof id === 'number' && !isNaN(id));
-
-      if (!slipIds.length) {
-        toast({
-          title: "No valid slips",
-          description: "Please select slips with valid slip IDs.",
-          variant: "destructive",
-        });
-        return;
-      }
-      const printRoute = buildPaperSlipPrintRoute({
-        customerType: userRole,
-        ids: slipIds,
-      });
-
-      if (!printRoute) {
-        toast({
-          title: "No valid slips",
-          description: "Please select slips with valid IDs.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      openPaperSlipPrintTab(printRoute);
-    } catch (err: any) {
-      toast({
-        title: "Failed to open paper slips",
-        description: err?.message || String(err),
-        variant: "destructive",
-      });
+    const selectedRows = slips.filter(slip => selected.includes(slip.id));
+    const slipIds = selectedRows
+      .map(r => (typeof r.caseId === 'number' && !isNaN(r.caseId)) ? r.caseId : (typeof r.id === 'number' && !isNaN(r.id) ? r.id : null))
+      .filter((id): id is number => typeof id === 'number' && !isNaN(id));
+    if (!slipIds.length) {
+      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
+      return;
     }
+    printPaperSlip(slipIds, []);
   };
 
 
@@ -1834,7 +1768,8 @@ export default function LabSlipPage() {
                                 <button
                                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
                                   onClick={() => {
-                                  handlePrintPaperSlip(row);
+                                    setPrintDropdownOpen(null);
+                                    handlePrintPaperSlip(row);
                                   }}
                                 >
                                   Print Paper Slip
@@ -2009,6 +1944,9 @@ export default function LabSlipPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {paperSlipPortal}
+        <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
         {/* File Attachment Modal */}
         {showAttachModal && selectedCaseForAttachment && createPortal(

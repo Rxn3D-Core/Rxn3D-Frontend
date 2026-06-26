@@ -43,11 +43,14 @@ export function PaperSlipPrintPageShell({
   caseIds,
   initialSlips,
   slipIds,
+  onReady,
 }: {
   error: string | null;
   caseIds: number[];
   initialSlips: PaperSlipPrintableSlipVM[];
   slipIds: number[];
+  /** When provided, called with the rendered HTML instead of postMessage/window.print. */
+  onReady?: (html: string) => void;
 }) {
   const [slips, setSlips] = useState<PaperSlipPrintableSlipVM[]>(initialSlips);
   const [loading, setLoading] = useState(initialSlips.length === 0 && !error);
@@ -59,7 +62,7 @@ export function PaperSlipPrintPageShell({
     const style = document.createElement("style");
     style.textContent = "[data-accessibility-widget] { display: none !important; }";
     document.head.appendChild(style);
-    return () => { document.head.removeChild(style); };
+    return () => { style.remove(); };
   }, []);
 
   const { showPrintButton } = buildPaperSlipPrintActionState({
@@ -141,12 +144,12 @@ export function PaperSlipPrintPageShell({
       setPrinted(true);
 
       const html = printRootRef.current?.innerHTML ?? "";
-      if (window.opener) {
-        // desktop: send HTML to opener tab, opener calls window.print(), this tab closes
+      if (onReady) {
+        onReady(html);
+      } else if (window.opener) {
         window.opener.postMessage({ type: "PAPER_SLIP_PRINT_READY", html }, window.location.origin);
         window.close();
       } else {
-        // mobile/tablet or popup-blocked fallback: print in this tab then close
         if (typeof window.print === "function") window.print();
         window.close();
       }

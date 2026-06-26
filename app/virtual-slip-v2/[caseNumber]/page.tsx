@@ -51,8 +51,8 @@ import {
   getStoredSlipUserRole,
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
-import { buildVirtualSlipPrintRoute } from "./print-route.mjs";
-import { openPaperSlipPrintTab } from "@/lib/paper-slip-print-tab";
+import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
@@ -355,11 +355,11 @@ export default function VirtualSlipV2Page() {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
   }, [router, slipId]);
 
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint();
   const handlePrint = useCallback(() => {
-    const printRoute = buildVirtualSlipPrintRoute(slipId);
-    if (!printRoute) return;
-    openPaperSlipPrintTab(printRoute);
-  }, [slipId]);
+    if (!slipId || isNaN(slipId)) return;
+    printPaperSlip([slipId], []);
+  }, [slipId, printPaperSlip]);
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
@@ -738,6 +738,9 @@ export default function VirtualSlipV2Page() {
         location={vm.header.location}
         signatureRequired={readyToSendRequired}
       />
+
+      {paperSlipPortal}
+      <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
       {showAttachModal && typeof document !== "undefined" && createPortal(
         <div
