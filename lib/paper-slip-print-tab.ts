@@ -1,7 +1,20 @@
+// ponytail: width ≤1024 covers phones + tablets; avoids UA sniffing
+function isMobileOrTablet(): boolean {
+  return window.innerWidth <= 1024 ||
+    /android|ipad|iphone|ipod|mobile/i.test(navigator.userAgent);
+}
+
 export function openPaperSlipPrintTab(route: string): void {
+  // On mobile/tablet popups are always blocked and postMessage flow won't work.
+  // Open in a new tab so the user can return via browser back button.
+  if (isMobileOrTablet()) {
+    window.open(route, "_blank");
+    return;
+  }
+
   const popup = window.open(route, "_blank");
   if (!popup) {
-    // popup blocked — fall back to direct navigation
+    // popup blocked on desktop — fall back to same-tab navigation
     window.location.href = route;
     return;
   }
