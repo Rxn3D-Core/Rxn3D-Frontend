@@ -569,6 +569,28 @@ export function useCaseDesignState(props: CaseDesignProps) {
     focusArchCard0("mandibular");
   }, [guidedBothArches, upperCard0FieldsComplete, focusArchCard0]);
 
+  // Single-default removable card 0: there is no tooth-status box or "Done" button for
+  // the user to interact with (the default extraction applies to every tooth), so the
+  // guided selection phase would otherwise stall waiting on a Done that can never fire.
+  // Auto-advance past the upper- and lower-selection steps to the field-entry phase.
+  useEffect(() => {
+    if (!guidedBothArches) return;
+    if (!initialProductDetails || initialProductDetailsPending) return;
+    if (hasRetentionOptions(initialProductDetails)) return;
+    if (!isSingleDefaultOnlyExtractionList(initialProductDetails.extractions)) return;
+    if (guidedBothArchPhase === "upper-selection") {
+      advanceGuidedSelectionDone("maxillary");
+    } else if (guidedBothArchPhase === "lower-selection") {
+      advanceGuidedSelectionDone("mandibular");
+    }
+  }, [
+    guidedBothArches,
+    initialProductDetails,
+    initialProductDetailsPending,
+    guidedBothArchPhase,
+    advanceGuidedSelectionDone,
+  ]);
+
   // ── Auto-copy between arches for removable restoration "both arches" ──
   // When user selects "both arches", configuring one side auto-copies to the other.
   // The primary flow is upper-first: user fills maxillary, values copy to mandibular.
