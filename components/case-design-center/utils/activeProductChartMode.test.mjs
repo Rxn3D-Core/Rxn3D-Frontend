@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   addedProductAppliesToArch,
+  getActiveProductLayersOnArch,
   isActiveProductSelectionOnlyOnArch,
   shouldUseRemovableToothChartPath,
 } from "./activeProductChartMode.ts";
@@ -83,6 +84,65 @@ test("removable chart path follows active removable added card", () => {
     }),
     true
   );
+});
+
+const layersParams = (product) => ({
+  arch: "maxillary",
+  activeProductCardId: 7,
+  addedProducts: [
+    { id: 7, arch: "maxillary", expanded: true, productId: 700, product },
+  ],
+  getToothProduct: () => null,
+  getToothProductCard: () => 7,
+  allArchTeeth: [1, 2, 3, 4],
+  initialProductDetails: null,
+  initialProductDetailsPending: false,
+  initialArch: "maxillary",
+});
+
+test("getActiveProductLayersOnArch resolves the four capability combinations", () => {
+  assert.deepEqual(
+    getActiveProductLayersOnArch(layersParams({ has_retention: "Yes", has_extraction: "No" })),
+    { retention: true, extraction: false }
+  );
+  assert.deepEqual(
+    getActiveProductLayersOnArch(layersParams({ has_retention: "No", has_extraction: "Yes" })),
+    { retention: false, extraction: true }
+  );
+  assert.deepEqual(
+    getActiveProductLayersOnArch(layersParams({ has_retention: "Yes", has_extraction: "Yes" })),
+    { retention: true, extraction: true }
+  );
+  assert.deepEqual(
+    getActiveProductLayersOnArch(layersParams({ has_retention: "No", has_extraction: "No" })),
+    { retention: false, extraction: false }
+  );
+});
+
+test("getActiveProductLayersOnArch returns all-false when product can't be resolved", () => {
+  assert.deepEqual(
+    getActiveProductLayersOnArch({
+      arch: "maxillary",
+      activeProductCardId: 0,
+      addedProducts: [],
+      getToothProduct: () => null,
+      getToothProductCard: () => 0,
+      allArchTeeth: [1, 2, 3, 4],
+      initialProductDetails: null,
+      initialProductDetailsPending: true,
+      initialArch: "maxillary",
+      activeFixedGroupProductId: null,
+    }),
+    { retention: false, extraction: false }
+  );
+});
+
+test("getActiveProductLayersOnArch: a 'both' added product keeps extraction alive (binary helper collapses it)", () => {
+  const params = layersParams({ has_retention: "Yes", has_extraction: "Yes" });
+  // The legacy binary helper reports NOT selection-only (retention wins)...
+  assert.equal(isActiveProductSelectionOnlyOnArch(params), false);
+  // ...but the layer resolver preserves the extraction capability.
+  assert.equal(getActiveProductLayersOnArch(params).extraction, true);
 });
 
 test("fixed added product stays retention path even when card 0 initial is non-retention", () => {

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import { MaxillaryTeethSVG } from "@/components/maxillary-teeth-svg";
-import type { RetentionOptionItem } from "@/components/retention-type-popover";
+import type { RetentionOptionItem, ExtractionStatusOption } from "@/components/retention-type-popover";
 import { FieldInput, ShadeField, IconField } from "./fields";
 import { RushIcon } from "./CenterActionIcons";
 import {
@@ -1621,6 +1621,17 @@ export function MaxillaryPanel({
     return null;
   })();
   const activeMaxillaryProductIsSplinted = activeMaxillaryProduct?.is_splinted === "Yes";
+  // Combined popover (Q2): when the active product also has extractions, offer its
+  // extraction statuses alongside retention types. Excludes the default "teeth in mouth".
+  const maxillaryRetentionExtractionOptions = useMemo<ExtractionStatusOption[] | undefined>(() => {
+    if (activeMaxillaryProduct?.has_extraction !== "Yes") return undefined;
+    const opts = (activeMaxillaryProduct.extractions ?? [])
+      .filter((e) => e.status === "Active" && !!e.code && !!e.name)
+      .filter((e) => e.code !== "TIM" && !e.name.toLowerCase().includes("in mouth"))
+      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+      .map((e) => ({ code: e.code, name: e.name, imageUrl: null as string | null }));
+    return opts.length > 0 ? opts : undefined;
+  }, [activeMaxillaryProduct]);
   const handleToggleMaxillarySplint = useCallback(
     (lower: number) => {
       const key = splintKeyForMaxillaryTooth(lower);
@@ -1884,6 +1895,21 @@ export function MaxillaryPanel({
                   onToggleSplintLink={handleToggleMaxillarySplint}
                   wingTeeth={maxillaryWingTeeth}
                   canSelectPontic={canSelectMaxillaryPontic}
+                  retentionPopoverExtractionOptions={maxillaryRetentionExtractionOptions}
+                  onSelectExtractionStatus={(toothNumber, code) => {
+                    // Mutual exclusivity (Q1): selecting an extraction status clears
+                    // any retention type on this tooth, then sets the status.
+                    const current = maxillaryRetentionTypes[toothNumber];
+                    if (current && current.length > 0) {
+                      handleSelectRetentionType("maxillary", toothNumber, current[0]);
+                    }
+                    handleToothExtractionToggle(
+                      "maxillary",
+                      toothNumber,
+                      code,
+                      activeMaxillaryProduct?.extractions
+                    );
+                  }}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;

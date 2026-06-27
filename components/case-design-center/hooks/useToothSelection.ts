@@ -102,14 +102,27 @@ export function useToothSelection(
 
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
     const setter = arch === "maxillary" ? setMaxillaryRetentionTypes : setMandibularRetentionTypes;
+    let isAdding = false;
     setter((prev) => {
       const current = prev[toothNumber] || [];
       if (current.includes(type)) {
         const { [toothNumber]: _, ...rest } = prev;
         return rest;
       }
+      isAdding = true;
       return { ...prev, [toothNumber]: [type] };
     });
+    // Mutual exclusivity: a tooth is either a retention type OR an extraction status —
+    // assigning a retention type clears any extraction status on this tooth.
+    if (isAdding) {
+      const extSetter =
+        arch === "maxillary" ? setMaxillaryToothExtractionMap : setMandibularToothExtractionMap;
+      extSetter((m) => {
+        if (!(toothNumber in m)) return m;
+        const { [toothNumber]: _removed, ...rest } = m;
+        return rest;
+      });
+    }
     setRetentionPopoverState({ arch: null, toothNumber: null });
   };
 
