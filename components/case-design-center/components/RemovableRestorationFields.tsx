@@ -381,7 +381,8 @@ export function SelectionProductFields({
   const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
   const implantDetailReady = areAllImplantDetailsComplete(
     implantTeeth,
-    implantDetailCompleteByTooth
+    implantDetailCompleteByTooth,
+    implantDetailByTooth
   );
 
   return (

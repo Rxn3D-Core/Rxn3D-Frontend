@@ -159,12 +159,21 @@ export function ImplantDetailSection({
   const inclusionValue = inclusionField
     ? (dynamicFields[inclusionField.id] ?? "No inclusion")
     : inclusions;
-  const inclusionComplete = sizeComplete && !!inclusionValue.trim();
+  // Inclusion is only required when the product configures an inclusion field.
+  const inclusionComplete = inclusionField
+    ? sizeComplete && !!inclusionValue.trim()
+    : sizeComplete;
+  // Abutment is only required when the product actually configures abutments (real
+  // product/advance-field data — NOT the legacy fallback). Implant-only products with
+  // no abutment skip it entirely, so the flow continues to the next configured field.
+  const abutmentApplicable =
+    !abutmentConfig.usesLegacyFallback &&
+    abutmentConfig.abutmentCategoryOptions.length > 0;
   const abutmentCategoryComplete = inclusionComplete && !!abutmentCategory;
   const abutmentTypeComplete =
     abutmentCategoryComplete && !!abutmentSpecificType;
 
-  const isComplete = abutmentTypeComplete;
+  const isComplete = abutmentApplicable ? abutmentTypeComplete : inclusionComplete;
 
   const abutmentTypeOptions = abutmentCategory
     ? abutmentConfig.getAbutmentTypeOptions(abutmentCategory)
@@ -179,12 +188,12 @@ export function ImplantDetailSection({
   }, [platformComplete, size]);
 
   useEffect(() => {
-    if (inclusionComplete && !abutmentCategory) setAbutmentCategoryOpen(true);
-  }, [inclusionComplete, abutmentCategory]);
+    if (abutmentApplicable && inclusionComplete && !abutmentCategory) setAbutmentCategoryOpen(true);
+  }, [abutmentApplicable, inclusionComplete, abutmentCategory]);
 
   useEffect(() => {
-    if (abutmentCategoryComplete && !abutmentSpecificType) setAbutmentTypeOpen(true);
-  }, [abutmentCategoryComplete, abutmentSpecificType]);
+    if (abutmentApplicable && abutmentCategoryComplete && !abutmentSpecificType) setAbutmentTypeOpen(true);
+  }, [abutmentApplicable, abutmentCategoryComplete, abutmentSpecificType]);
 
   const onCompleteChangeRef = useRef(onCompleteChange);
   onCompleteChangeRef.current = onCompleteChange;
@@ -349,8 +358,8 @@ export function ImplantDetailSection({
               </div>
             )}
 
-            {/* —— Abutment (2 fields) —— */}
-            {inclusionComplete && (
+            {/* —— Abutment (2 fields) — only when the product configures abutments —— */}
+            {inclusionComplete && abutmentApplicable && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {abutmentCategoryComplete ? (
                   <CardSelectorField

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import { MandibularTeethSVG } from "@/components/mandibular-teeth-svg";
-import type { RetentionOptionItem } from "@/components/retention-type-popover";
+import type { RetentionOptionItem, ExtractionStatusOption } from "@/components/retention-type-popover";
 import {
   FieldInput,
   ShadeField,
@@ -1586,6 +1586,16 @@ export function MandibularPanel({
     return null;
   })();
   const activeMandibularProductIsSplinted = activeMandibularProduct?.is_splinted === "Yes";
+  // Combined popover (Q2): extraction statuses alongside retention for a "both" product.
+  const mandibularRetentionExtractionOptions = useMemo<ExtractionStatusOption[] | undefined>(() => {
+    if (activeMandibularProduct?.has_extraction !== "Yes") return undefined;
+    const opts = (activeMandibularProduct.extractions ?? [])
+      .filter((e) => e.status === "Active" && !!e.code && !!e.name)
+      .filter((e) => e.code !== "TIM" && !e.name.toLowerCase().includes("in mouth"))
+      .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
+      .map((e) => ({ code: e.code, name: e.name, imageUrl: null as string | null }));
+    return opts.length > 0 ? opts : undefined;
+  }, [activeMandibularProduct]);
   const handleToggleMandibularSplint = useCallback(
     (lower: number) => {
       const key = splintKeyForMandibularTooth(lower);
@@ -1836,6 +1846,21 @@ export function MandibularPanel({
                   onToggleSplintLink={handleToggleMandibularSplint}
                   wingTeeth={mandibularWingTeeth}
                   canSelectPontic={canSelectMandibularPontic}
+                  retentionPopoverExtractionOptions={mandibularRetentionExtractionOptions}
+                  onSelectExtractionStatus={(toothNumber, code) => {
+                    // Mutual exclusivity (Q1): selecting an extraction status clears
+                    // any retention type on this tooth, then sets the status.
+                    const current = mandibularRetentionTypes[toothNumber];
+                    if (current && current.length > 0) {
+                      handleSelectRetentionType("mandibular", toothNumber, current[0]);
+                    }
+                    handleToothExtractionToggle(
+                      "mandibular",
+                      toothNumber,
+                      code,
+                      activeMandibularProduct?.extractions
+                    );
+                  }}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
                       return;

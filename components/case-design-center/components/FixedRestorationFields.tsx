@@ -28,7 +28,10 @@ import type {
 import { FixedAccordionShadePicker } from "./FixedAccordionShadePicker";
 import { ShadeDetailSection } from "./ShadeDetailSection";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { FIXED_RETENTION_MECHANISM_FIELD_STEP } from "../hooks/useToothFieldProgress";
+import {
+  FIXED_RETENTION_MECHANISM_FIELD_STEP,
+  getRetentionFieldChain,
+} from "../hooks/useToothFieldProgress";
 import {
   getSuggestedRetentionMechanismTypes,
   serializeRetentionMechanismSelection,
@@ -44,7 +47,13 @@ import {
 } from "../utils/implantDetailHelpers";
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import { shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
-import { productHasGrades } from "../utils/gradeHelpers";
+import {
+  productHasGrades,
+  getActiveGrades,
+  parseGradeDisplayName,
+  isGradeStepCompleteForDisplay,
+} from "../utils/gradeHelpers";
+import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
   getShadeGuideAdvanceFields,
@@ -442,7 +451,12 @@ export function RetentionProductFields({
   });
   const implantDetailReady = areAllImplantDetailsComplete(
     implantTeeth,
-    implantDetailCompleteByTooth
+    implantDetailCompleteByTooth,
+    implantDetailByTooth
+  );
+  const fixedChain = useMemo(
+    () => getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct),
+    [selectedProduct]
   );
   const hasPostImplantProgress = useMemo(
     () =>
@@ -563,6 +577,40 @@ export function RetentionProductFields({
     isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const hasAutoOpenedImpressionRef = useRef(false);
   const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Shade UI can be complete (named shade guide / selectedShades) while the progressive
+   * fixedChain still has fixed_shade_trio or fixed_stump_shade unmarked — that blocks
+   * post-implant fields (impression) even after implant details are filled.
+   */
+  useEffect(() => {
+    if (caseSubmitted || fixedShadeIncomplete) return;
+
+    if (
+      fixedChain.includes("fixed_shade_trio") &&
+      !isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")
+    ) {
+      completeFieldStep(arch, firstToothNumber, "fixed_shade_trio", "shade-sync");
+    }
+
+    const hasNamedStumpFields = namedStumpShadeFields.length > 0;
+    if (
+      fixedChain.includes("fixed_stump_shade") &&
+      !hasNamedStumpFields &&
+      !isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")
+    ) {
+      completeFieldStep(arch, firstToothNumber, "fixed_stump_shade", "shade-sync-skip-stump");
+    }
+  }, [
+    arch,
+    caseSubmitted,
+    completeFieldStep,
+    firstToothNumber,
+    fixedChain,
+    fixedShadeIncomplete,
+    isFieldCompleted,
+    namedStumpShadeFields.length,
+  ]);
 
   useEffect(() => {
     if (caseSubmitted || !setShadeSelectionState) return;
@@ -800,6 +848,42 @@ export function RetentionProductFields({
           />
         )}
       </div>
+
+      {/* Grade — shown first (after identity fields) and required when the product has
+          grades, mirroring the removable flow. Uses the shared "grade" step so submit
+          handling is identical. */}
+      {productHasGrades(selectedProduct) && (() => {
+        const productGrades = getActiveGrades(selectedProduct?.grades);
+        if (productGrades.length === 0) return null;
+        const gradeRaw = getFieldValue(arch, firstToothNumber, "grade") || "";
+        const gradeVal = parseGradeDisplayName(gradeRaw);
+        const isGradeComplete = isGradeStepCompleteForDisplay(
+          gradeRaw,
+          isFieldCompleted(arch, firstToothNumber, "grade"),
+          selectedProduct
+        );
+        const showGradeGreen = isGradeComplete && !caseSubmitted;
+        return (
+          <fieldset
+            className={`border rounded px-3 py-0 relative h-[42px] flex items-center mt-3 ${
+              showGradeGreen ? "border-[#34a853]" : isGradeComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
+            }`}
+          >
+            <legend className={`text-sm px-1 leading-none ${showGradeGreen ? "text-[#34a853]" : isGradeComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+              Grade
+            </legend>
+            <GradeHoverSelector
+              grades={productGrades}
+              currentGradeName={gradeVal}
+              disabled={caseSubmitted}
+              onSelect={(g) =>
+                completeFieldStep(arch, firstToothNumber, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))
+              }
+            />
+            {showGradeGreen && <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />}
+          </fieldset>
+        );
+      })()}
 
       {/* Standalone Stage: named-shade path only. In the legacy path Stage is rendered
           in the stage+shade grid below, so gating here avoids a duplicate Stage field. */}

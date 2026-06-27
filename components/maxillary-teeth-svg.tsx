@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
-import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
+import { RetentionTypePopover, RetentionOptionItem, type ExtractionStatusOption } from './retention-type-popover'
 import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
 import { getClaspOverlayImageUrl } from './case-design-center/utils/claspOverlayImage'
 import {
@@ -105,6 +105,10 @@ interface MaxillaryTeethSVGProps {
   getRetentionOptionsForTooth?: (toothNumber: number) => RetentionOptionItem[] | undefined
   /** Whether Pontic may be offered for a tooth (false until the product has an abutment). */
   canSelectPontic?: (toothNumber: number) => boolean
+  /** Extraction statuses to show in the retention popover ("both" products). Omit for retention-only. */
+  retentionPopoverExtractionOptions?: ExtractionStatusOption[]
+  /** Set a tooth's extraction status from the combined popover (caller clears retention — mutual exclusivity). */
+  onSelectExtractionStatus?: (toothNumber: number, code: string) => void
   /** When true, renders a checkbox below each tooth that has an extraction status. */
   showCheckboxes?: boolean
   /** Called whenever the set of checked teeth changes. */
@@ -172,6 +176,8 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
   onToggleSplintLink,
   wingTeeth = [],
   canSelectPontic,
+  retentionPopoverExtractionOptions,
+  onSelectExtractionStatus,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -774,6 +780,13 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
                 onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
                 selectedType={selectedType || undefined}
                 allowPontic={canSelectPontic ? canSelectPontic(retentionPopoverTooth) : true}
+                extractionOptions={retentionPopoverExtractionOptions}
+                selectedExtractionCode={toothExtractionMap[retentionPopoverTooth] ?? null}
+                onSelectExtractionStatus={
+                  onSelectExtractionStatus
+                    ? (code) => onSelectExtractionStatus(retentionPopoverTooth, code)
+                    : undefined
+                }
                 onClose={onClosePopover}
                 onDeselectTooth={() => {
                   if (retentionPopoverTooth !== null) {
