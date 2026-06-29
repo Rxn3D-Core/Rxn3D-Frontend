@@ -1,5 +1,6 @@
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
+import { resolveArchProductImage } from "@/components/case-design-center/utils/variationHelpers";
 import {
   isFixedRestorationProduct,
   resolveProductForRetentionCheck,
@@ -519,7 +520,8 @@ function buildProduct(apiProduct: any): ProductVM {
     apiProduct,
     arch: productArch,
     extractionDisplay,
-    image: variationImage ?? productImage,
+    // Variation image wins; otherwise show the arch-specific (upper/lower) image when configured.
+    image: variationImage ?? resolveArchProductImage(product, productArch, productImage),
     title: variationTitle || productTitle,
     teethLabel,
     missingTeeth,

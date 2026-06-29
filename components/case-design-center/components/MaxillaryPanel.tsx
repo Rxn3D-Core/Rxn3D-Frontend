@@ -64,7 +64,7 @@ import {
   isGradeStepCompleteForDisplay,
   isGradeFieldValueSkipped,
 } from "../utils/gradeHelpers";
-import { resolveVariationDisplay } from "../utils/variationHelpers";
+import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
 import {
   FLIPPER_STAYPLATE_SELECTION_HINT,
   isFlipperOrStayplateProduct,
@@ -3763,7 +3763,10 @@ export function MaxillaryPanel({
               });
               const variationDisplay = resolveVariationDisplay(cardProduct, displayTeeth.length);
               const cardProductName = variationDisplay.name;
-              const cardProductImage = variationDisplay.imageUrl;
+              // Prefer a matched variation image; otherwise show the upper arch image when configured.
+              const cardProductImage = variationDisplay.matched
+                ? variationDisplay.imageUrl
+                : resolveArchProductImage(cardProduct, "maxillary", variationDisplay.imageUrl);
               const hasVariationMatch = variationDisplay.matched;
               const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
               const statusBoxSelectedTeeth =

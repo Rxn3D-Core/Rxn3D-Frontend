@@ -1,9 +1,29 @@
 import {
+  getDefaultExtraction,
   isFullDentureProduct,
   isOverlayExtractionByFlag,
   isSingleDefaultOnlyExtractionList,
   isTimExtractionByFlag,
+  shouldAutoSelectArchForDefaultExtraction,
+  type ExtractionLike,
 } from "./extractionHelpers";
+
+/**
+ * Code of the product's default extraction when that default is NOT "teeth in
+ * mouth" (is_tim = No) — e.g. an Immediate Full Denture whose default is "Will
+ * extract on delivery". Teeth stamped with this code are treated as product
+ * teeth (same as full-denture / single-default products), not as a separate
+ * non-product tooth status. Returns null for TIM defaults or when no explicit
+ * default exists.
+ */
+function getNonTimDefaultCode(
+  extractions: ReadonlyArray<ExtractionLike> | undefined,
+): string | null {
+  if (!extractions || !shouldAutoSelectArchForDefaultExtraction(extractions)) {
+    return null;
+  }
+  return getDefaultExtraction(extractions)?.code ?? null;
+}
 
 function getSortedUniqueTeeth(teeth: number[]): number[] {
   return [...new Set(teeth)].sort((a, b) => a - b);
@@ -123,7 +143,7 @@ export function getRemovableOrangeHeaderTeeth({
   /** Teeth with overlay === Yes (clasps) — excluded from orange header entirely */
   claspTeeth?: number[];
   noActiveBoxTeeth: number[];
-  extractions?: ReadonlyArray<{ code?: string | null; overlay?: string }>;
+  extractions?: ReadonlyArray<ExtractionLike>;
   isFullDenture: boolean;
   /** When true, product has only one default status — show all scoped teeth in the orange box. */
   isSingleDefaultOnly?: boolean;
@@ -147,12 +167,21 @@ export function getRemovableOrangeHeaderTeeth({
     return getSortedUniqueTeeth(scopedTeeth);
   }
 
+  // Teeth stamped with a non-TIM default extraction code (e.g. an Immediate Full
+  // Denture's "Will extract on delivery") count as product teeth, just like
+  // single-default / full-denture products. Teeth assigned to other (non-default)
+  // statuses stay out of the orange header.
+  const nonTimDefaultCode = getNonTimDefaultCode(extractions);
+
   return getSortedUniqueTeeth(
-    scopedTeeth.filter(
-      (toothNumber) =>
-        !toothExtractionMap[toothNumber] ||
+    scopedTeeth.filter((toothNumber) => {
+      const code = toothExtractionMap[toothNumber];
+      return (
+        !code ||
+        (nonTimDefaultCode != null && code === nonTimDefaultCode) ||
         noActiveBoxTeeth.includes(toothNumber)
-    )
+      );
+    })
   );
 }
 
@@ -217,7 +246,7 @@ export function resolveProductTeethForSlipSubmit({
   toothExtractionMap: Record<number, string>;
   claspTeeth: number[];
   noActiveBoxTeeth: number[];
-  extractions?: ReadonlyArray<{ code?: string | null; overlay?: string }>;
+  extractions?: ReadonlyArray<ExtractionLike>;
 }): number[] {
   if (!isRemovable) {
     return getSortedUniqueTeeth(cardTeeth);

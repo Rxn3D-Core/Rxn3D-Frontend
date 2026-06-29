@@ -19,7 +19,7 @@ import {
 } from "../case-design-inter-font";
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
-import { resolveVariationDisplay } from "../utils/variationHelpers";
+import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
 import { isSingleStageNoStages, shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import {
   productHasGrades,
@@ -332,7 +332,10 @@ export function OpposingRemovableAccordion({
   });
   const variationDisplay = resolveVariationDisplay(opposingProductData, displayTeeth.length);
   const productName = variationDisplay.name;
-  const productImage = variationDisplay.imageUrl;
+  // Prefer a matched variation image; otherwise show this arch's (upper/lower) image when configured.
+  const productImage = variationDisplay.matched
+    ? variationDisplay.imageUrl
+    : resolveArchProductImage(opposingProductData, opposingArch, variationDisplay.imageUrl);
   const hasVariationMatch = variationDisplay.matched;
   const cardToothDisplay = displayTeeth.length > 0 ? `#${displayTeeth.join(",")}` : "";
 
