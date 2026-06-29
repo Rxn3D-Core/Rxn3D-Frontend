@@ -2,6 +2,9 @@
 
 import { useRef, useEffect, useState, useMemo } from "react";
 import { Check } from "@/components/ui/custom-check";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   FieldInput,
   ShadeField,
@@ -37,10 +40,30 @@ import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
 /* ------------------------------------------------------------------ */
-function Diamond({ filled }: { filled: boolean }) {
-  const blue = { a: "#45B2EF", b: "#3B9FE2", c: "#80D4FD", d: "#4FC1F8" };
-  const gray = { a: "#575756", b: "#706F6F", c: "#3C3C3B", d: "#1D1D1B" };
-  const c = filled ? blue : gray;
+export type GradeDiamondPalette = { a: string; b: string; c: string; d: string };
+
+/** Unfilled (placeholder) diamond color. */
+const GRADE_UNFILLED_PALETTE: GradeDiamondPalette = { a: "#575756", b: "#706F6F", c: "#3C3C3B", d: "#1D1D1B" };
+
+/**
+ * Diamond color by grade level (1-based): level 1 = lowest grade.
+ * gray → silver → gold → platinum → blue; levels beyond 5 reuse blue.
+ */
+const GRADE_LEVEL_PALETTES: GradeDiamondPalette[] = [
+  { a: "#9CA3AF", b: "#6B7280", c: "#D1D5DB", d: "#B5BBC4" }, // 1 gray
+  { a: "#C0C7CF", b: "#9AA3AD", c: "#E8ECF0", d: "#D6DBE0" }, // 2 silver
+  { a: "#E6B422", b: "#C8960F", c: "#F7D560", d: "#F0C53C" }, // 3 gold
+  { a: "#A9BCCB", b: "#8499AB", c: "#D7E2EA", d: "#C2D1DC" }, // 4 platinum
+  { a: "#45B2EF", b: "#3B9FE2", c: "#80D4FD", d: "#4FC1F8" }, // 5 blue
+];
+
+export function gradeLevelPalette(level: number): GradeDiamondPalette {
+  if (level <= 0) return GRADE_LEVEL_PALETTES[0];
+  return GRADE_LEVEL_PALETTES[Math.min(level, GRADE_LEVEL_PALETTES.length) - 1];
+}
+
+function Diamond({ filled, palette }: { filled: boolean; palette?: GradeDiamondPalette }) {
+  const c = filled ? (palette ?? GRADE_LEVEL_PALETTES[4]) : GRADE_UNFILLED_PALETTE;
   return (
     <svg width="30" height="24" viewBox="0 0 30 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M30 6.84708L14.9998 23.4212L0 6.84708L6.93035 0H23.07L30 6.84708Z" fill={c.a} className="transition-[fill] duration-300 ease-in-out" />
@@ -84,19 +107,124 @@ export function getActiveGrades(grades?: ProductGrade[]): ProductGrade[] {
 }
 
 /** Static diamond display (used in non-interactive contexts) */
-export function GradeDiamonds({ filledCount, total = 4 }: { filledCount: number; total?: number }) {
+export function GradeDiamonds({
+  filledCount,
+  total = 4,
+  palette,
+}: {
+  filledCount: number;
+  total?: number;
+  palette?: GradeDiamondPalette;
+}) {
   const filled = Math.max(0, Math.min(filledCount, total));
   return (
     <div className="flex gap-1">
       {Array.from({ length: total }, (_, i) => (
-        <Diamond key={i} filled={i < filled} />
+        <Diamond key={i} filled={i < filled} palette={palette} />
       ))}
     </div>
   );
 }
 
 /**
- * Interactive grade selector: hover over diamonds to preview, click to select.
+ * Grade picker modal — lists each grade as its level's colored diamonds plus the
+ * grade name (level 1 = 1 diamond, level 2 = 2 diamonds, …). Opened from the grade
+ * field, mirroring the stage selection modal.
+ */
+export function GradeSelectionModal({
+  grades,
+  selectedGradeName,
+  onSelect,
+  onClose,
+}: {
+  grades: ProductGrade[];
+  selectedGradeName?: string;
+  onSelect: (grade: ProductGrade) => void;
+  onClose: () => void;
+}) {
+  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-[420px] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="p-3 sm:p-4">
+          <DialogTitle
+            className="font-semibold"
+            style={{ fontFamily: "Verdana", fontWeight: 700, letterSpacing: "-0.02em" }}
+          >
+            <span className="text-xl sm:text-[26px]">Select grade</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="px-3 sm:px-5 py-2 sm:py-3 overflow-y-auto max-h-[70vh] flex flex-col gap-2">
+          {sortedGrades.map((grade, idx) => {
+            const level = idx + 1;
+            const isSelected =
+              grade.name === selectedGradeName || grade.code === selectedGradeName;
+            const palette = gradeLevelPalette(level);
+            return (
+              <button
+                key={grade.grade_id ?? grade.name}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(grade);
+                }}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl border-2 px-3 py-2 transition-all duration-200 bg-white cursor-pointer text-left",
+                  isSelected
+                    ? "border-blue-500 shadow-md"
+                    : "border-gray-300 hover:border-blue-500 hover:shadow"
+                )}
+              >
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {Array.from({ length: level }, (_, i) => (
+                    <Diamond key={i} filled palette={palette} />
+                  ))}
+                </div>
+                <span
+                  className="text-[18px] sm:text-[22px] text-[#000000] truncate"
+                  style={{ fontFamily: "Verdana", fontWeight: 400, letterSpacing: "-0.02em" }}
+                >
+                  {grade.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="border-t p-3 sm:p-4 flex justify-end">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            style={{
+              border: "2px solid #9BA5B7",
+              borderRadius: "6px",
+              fontFamily: "Verdana",
+              fontWeight: 700,
+              fontSize: "12px",
+              color: "#9BA5B7",
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Module-level guard so only one grade picker auto-opens at a time. Several grade
+ * fields (both arches, opposing) can mount together; without this they would each
+ * pop their modal simultaneously and stack.
+ */
+let gradeAutoOpenActive = false;
+
+/**
+ * Grade field content: shows the selected grade name + its level-colored diamonds,
+ * and opens the grade selection modal on click. A product with a single grade
+ * auto-selects it (no modal needed). When a multi-grade field is shown without a
+ * selection, the picker auto-opens once so the user doesn't have to click first.
  */
 export function GradeHoverSelector({
   grades,
@@ -109,20 +237,16 @@ export function GradeHoverSelector({
   onSelect: (grade: ProductGrade) => void;
   disabled?: boolean;
 }) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
-  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
-  // diamond and made them unselectable.
+  const [modalOpen, setModalOpen] = useState(false);
+  // Sort by sequence so diamond count maps to grade level. Grade `sequence` values can
+  // be non-contiguous (e.g. levels 2 and 3) — position, not raw sequence, drives the count.
   const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
   const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
   const currentIndex = sortedGrades.findIndex(
     (g) => g.name === currentGradeName || g.code === currentGradeName
   );
   const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
-  const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
-  const displayName = hoverIndex !== null
-    ? (sortedGrades[hoverIndex]?.name || currentGradeName)
-    : currentGradeName;
+  const palette = gradeLevelPalette(currentCount);
 
   // Single grade → auto-select it; don't ask the user to pick.
   const autoSelectSigRef = useRef<string | null>(null);
@@ -135,37 +259,80 @@ export function GradeHoverSelector({
     }
   }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
+  // Auto-open the picker the first time a multi-grade field is shown without a
+  // selection, so the user picks a grade without having to click the field first.
+  // Mirrors the stage modal's auto-open. Opens once per mount; cancelling won't re-open.
+  const autoOpenedRef = useRef(false);
+  const ownsAutoOpenLockRef = useRef(false);
+  useEffect(() => {
+    if (disabled) return;
+    if (autoOpenedRef.current) return;
+    if (sortedGrades.length <= 1) return; // single grade auto-selects instead
+    if (currentIndex !== -1) return; // already has a selection
+    if (gradeAutoOpenActive) return; // another grade field is already auto-opening
+    autoOpenedRef.current = true;
+    gradeAutoOpenActive = true;
+    ownsAutoOpenLockRef.current = true;
+    setModalOpen(true);
+  }, [disabled, sortedGrades.length, currentIndex]);
+
+  // Release the auto-open lock if this field unmounts while still holding it.
+  useEffect(() => {
+    return () => {
+      if (ownsAutoOpenLockRef.current) {
+        gradeAutoOpenActive = false;
+        ownsAutoOpenLockRef.current = false;
+      }
+    };
+  }, []);
+
+  const closeGradeModal = () => {
+    if (ownsAutoOpenLockRef.current) {
+      gradeAutoOpenActive = false;
+      ownsAutoOpenLockRef.current = false;
+    }
+    setModalOpen(false);
+  };
+
   return (
-    <div
-      className="flex items-center gap-2 w-full"
-      onMouseLeave={() => setHoverIndex(null)}
-    >
-      <span className="text-[14px] sm:text-lg text-[#000000] min-w-0 truncate transition-opacity duration-200">
-        {displayName}
-      </span>
-      <div className="ml-auto flex items-center gap-1">
-        {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = sortedGrades[i];
-          return (
-            <button
-              key={i}
-              type="button"
-              disabled={disabled || !gradeForIndex}
-              className={`p-0 border-0 bg-transparent ${!disabled && gradeForIndex ? "cursor-pointer" : "cursor-default"} transition-transform duration-200 hover:scale-110`}
-              onMouseEnter={() => {
-                if (!disabled && gradeForIndex) setHoverIndex(i);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!disabled && gradeForIndex) onSelect(gradeForIndex);
-              }}
-            >
-              <Diamond filled={i < displayCount} />
-            </button>
-          );
-        })}
+    <>
+      {/* Clickable field content. The modal is rendered as a sibling (below) rather
+          than a child so its clicks don't bubble back into this open handler via the
+          React portal tree and immediately re-open it. */}
+      <div
+        className={`flex items-center gap-2 w-full ${disabled ? "" : "cursor-pointer"}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) setModalOpen(true);
+        }}
+      >
+        <span className="text-[14px] sm:text-lg text-[#000000] min-w-0 truncate transition-opacity duration-200">
+          {currentGradeName}
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          {currentCount > 0
+            ? // Selected: show that grade's diamonds, all in its level color.
+              Array.from({ length: currentCount }, (_, i) => (
+                <Diamond key={i} filled palette={palette} />
+              ))
+            : // Unselected: gray placeholders, one per available grade.
+              Array.from({ length: total }, (_, i) => (
+                <Diamond key={i} filled={false} />
+              ))}
+        </div>
       </div>
-    </div>
+      {modalOpen && !disabled && (
+        <GradeSelectionModal
+          grades={sortedGrades}
+          selectedGradeName={currentGradeName}
+          onSelect={(grade) => {
+            onSelect(grade);
+            closeGradeModal();
+          }}
+          onClose={closeGradeModal}
+        />
+      )}
+    </>
   );
 }
 

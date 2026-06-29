@@ -11,7 +11,7 @@ export const removableHeaderTitleClass =
   "text-[20px] font-normal leading-[20px] tracking-[-0.02em]";
 
 export const removableHeaderToothClass =
-  "text-[20px] font-medium leading-[20px] tracking-[-0.02em]";
+  "text-[18px] sm:text-[20px] font-medium leading-[20px] tracking-[-0.02em]";
 
 /** Fixed-restoration accordion header (inline product name + tooth numbers). */
 export const productAccordionTitleClass =

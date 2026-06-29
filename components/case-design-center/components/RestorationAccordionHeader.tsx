@@ -63,6 +63,8 @@ export interface RestorationAccordionHeaderProps {
   isExtractionActive?: boolean;
   /** Custom tooltip label for the plus icon (e.g. "Click tooth to mark as Will extract on delivery") */
   plusTooltipLabel?: string;
+  /** When true, every tooth in the arch is already on this product — hide the add-teeth plus icon. */
+  allArchTeethSelected?: boolean;
   /**
    * No extractions configured: show product name + est days only — no fieldset box,
    * plus icon, or expand chevron.
@@ -105,6 +107,7 @@ export function RestorationAccordionHeader({
   isProductSelectionActive = false,
   isExtractionActive = false,
   plusTooltipLabel,
+  allArchTeethSelected = false,
   labelOnlyHeader = false,
 }: RestorationAccordionHeaderProps) {
   const showStageBadge =
@@ -228,7 +231,7 @@ export function RestorationAccordionHeader({
                     : "none"
                 }}
               >
-                {onPlusClick && (isExtractionActive || !(showExtractionsDone && !extractionsAcknowledged)) && (
+                {onPlusClick && !allArchTeethSelected && (isExtractionActive || !(showExtractionsDone && !extractionsAcknowledged)) && (
                   <div
                     className="absolute left-[16px] top-1/2 transform -translate-y-1/2 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform"
                     onClick={(e) => {

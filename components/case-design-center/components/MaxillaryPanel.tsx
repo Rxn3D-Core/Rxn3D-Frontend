@@ -145,7 +145,7 @@ import {
 import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExtractionHelpers";
 import { RetentionProductFields } from "./FixedRestorationFields";
 import type { ImplantDetailData } from "./ImplantDetailSection";
-import { SelectionProductFields } from "./RemovableRestorationFields";
+import { SelectionProductFields, GradeHoverSelector } from "./RemovableRestorationFields";
 
 import {
   AccordionBadge,
@@ -211,135 +211,6 @@ function ArticulatorIcon() {
       </defs>
     </svg>
   );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Diamond SVG icons (Grade field)                                    */
-/* ------------------------------------------------------------------ */
-
-/** Single diamond SVG with smooth color transition between blue/gray */
-function Diamond({ filled }: { filled: boolean }) {
-  const blue = { a: "#45B2EF", b: "#3B9FE2", c: "#80D4FD", d: "#4FC1F8" };
-  const gray = { a: "#575756", b: "#706F6F", c: "#3C3C3B", d: "#1D1D1B" };
-  const c = filled ? blue : gray;
-  return (
-    <svg width="30" height="24" viewBox="0 0 30 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M30 6.84708L14.9998 23.4212L0 6.84708L6.93035 0H23.07L30 6.84708Z" fill={c.a} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M7.96094 6.84708H0L6.93035 0L7.96094 6.84708Z" fill={c.a} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M14.9996 23.4212L-0.000244141 6.84708H7.96069L14.9996 23.4212Z" fill={c.b} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M14.9996 23.4212L7.96068 6.84708H22.0388L14.9996 23.4212Z" fill={c.a} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M22.0388 6.84708H7.96068L14.9996 0L22.0388 6.84708Z" fill={c.c} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M29.9998 6.84708H22.0388L23.0698 0L29.9998 6.84708Z" fill={c.a} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M29.9998 6.84708L14.9996 23.4212L22.0389 6.84708H29.9998Z" fill={c.b} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M14.9996 0L7.96075 6.84708L6.93016 0H14.9996Z" fill={c.d} className="transition-[fill] duration-300 ease-in-out" />
-      <path d="M23.0698 0L22.0389 6.84708L14.9996 0H23.0698Z" fill={c.d} className="transition-[fill] duration-300 ease-in-out" />
-    </svg>
-  );
-}
-
-/** Static diamond display (used in non-interactive contexts) */
-function GradeDiamonds({ filledCount, total = 4 }: { filledCount: number; total?: number }) {
-  const filled = Math.max(0, Math.min(filledCount, total));
-  return (
-    <div className="flex gap-1">
-      {Array.from({ length: total }, (_, i) => (
-        <Diamond key={i} filled={i < filled} />
-      ))}
-    </div>
-  );
-}
-
-/**
- * Interactive grade selector: hover over diamonds to preview, click to select.
- * Hovering diamond N fills diamonds 1..N with smooth animation.
- * Shows grade name label below the diamonds.
- */
-function GradeHoverSelector({
-  grades,
-  currentGradeName,
-  onSelect,
-  disabled,
-}: {
-  grades: ProductGrade[];
-  currentGradeName: string;
-  onSelect: (grade: ProductGrade) => void;
-  disabled?: boolean;
-}) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
-  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
-  // diamond and made them unselectable.
-  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
-  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
-  const currentIndex = sortedGrades.findIndex(
-    (g) => g.name === currentGradeName || g.code === currentGradeName
-  );
-  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
-  const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
-  const displayName = hoverIndex !== null
-    ? (sortedGrades[hoverIndex]?.name || currentGradeName)
-    : currentGradeName;
-
-  // Single grade → auto-select it; don't ask the user to pick.
-  const autoSelectSigRef = useRef<string | null>(null);
-  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
-  useEffect(() => {
-    if (disabled) return;
-    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
-      autoSelectSigRef.current = gradesSignature;
-      onSelect(sortedGrades[0]);
-    }
-  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
-
-  return (
-    <div
-      className="flex items-center gap-2 w-full"
-      onMouseLeave={() => setHoverIndex(null)}
-    >
-      <span className="text-[14px] sm:text-lg text-[#000000] min-w-0 truncate transition-opacity duration-200">
-        {displayName}
-      </span>
-      <div className="ml-auto flex items-center gap-1">
-        {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = sortedGrades[i];
-          return (
-            <button
-              key={i}
-              type="button"
-              disabled={disabled || !gradeForIndex}
-              className={`p-0 border-0 bg-transparent ${!disabled && gradeForIndex ? "cursor-pointer" : "cursor-default"} transition-transform duration-200 hover:scale-110`}
-              onMouseEnter={() => {
-                if (!disabled && gradeForIndex) setHoverIndex(i);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!disabled && gradeForIndex) onSelect(gradeForIndex);
-              }}
-            >
-              <Diamond filled={i < displayCount} />
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** Get the number of filled diamonds from a grade name or code, using the grades array from the API */
-function getGradeDiamondCount(gradeName: string, grades?: ProductGrade[]): number {
-  if (!gradeName || !grades || grades.length === 0) {
-    // Fallback: try to match by known names
-    const lower = gradeName?.toLowerCase() || "";
-    if (lower.includes("economy")) return 1;
-    if (lower.includes("ultra")) return 4;
-    if (lower.includes("premium")) return 3;
-    if (lower.includes("standard")) return 2;
-    return 0;
-  }
-  const match = grades.find(
-    (g) => g.name === gradeName || g.code === gradeName
-  );
-  return match ? match.sequence : 0;
 }
 
 /** Get active grades sorted by sequence */
@@ -2550,6 +2421,7 @@ export function MaxillaryPanel({
                               handleAddedRemovableAccordionToggle(ap);
                             }
                           }}
+                          allArchTeethSelected={apDisplayTeeth.length >= MAXILLARY_ALL_TEETH.length}
                           labelOnlyHeader={apLabelOnlyHeader}
                           isProductSelectionActive={activeProductCardId === ap.id && (isSelectionModeActive || activeExtractionCode !== null)}
                           isExtractionActive={activeProductCardId === ap.id && activeExtractionCode !== null}
@@ -3871,6 +3743,7 @@ export function MaxillaryPanel({
                           handleCard0RemovableAccordionToggle();
                         }
                       }}
+                      allArchTeethSelected={displayTeeth.length >= MAXILLARY_ALL_TEETH.length}
                       labelOnlyHeader={card0LabelOnlyHeader}
                       isProductSelectionActive={activeProductCardId === 0 && (isSelectionModeActive || activeExtractionCode !== null)}
                       expandEnabled={allowAccordionCollapse && isAccordionEnabled(SLOT_ID)}

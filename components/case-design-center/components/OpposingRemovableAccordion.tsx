@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type ReactNode, type MouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
-import type { Arch, ProductApiData, ProductExtraction, ProductGrade, ShadeFieldType } from "../types";
+import type { Arch, ProductApiData, ProductExtraction, ShadeFieldType } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
 import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
@@ -20,6 +20,7 @@ import {
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
+import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { isSingleStageNoStages, shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import {
   productHasGrades,
@@ -101,107 +102,6 @@ function hasAdvanceField(
     default:
       return names.some((n) => n.includes(step.replace(/_/g, " ")));
   }
-}
-
-function getActiveGrades(grades?: ProductGrade[]): ProductGrade[] {
-  if (!grades || grades.length === 0) return [];
-  return grades.filter((g) => g.status === "Active").sort((a, b) => a.sequence - b.sequence);
-}
-
-function Diamond({ filled }: { filled: boolean }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M9 1L16.7942 9L9 17L1.20577 9L9 1Z"
-        fill={filled ? "#007AFF" : "#D9D9D9"}
-        stroke={filled ? "#007AFF" : "#D9D9D9"}
-        strokeWidth="0.5"
-      />
-    </svg>
-  );
-}
-
-function getGradeDiamondCount(gradeName: string, grades?: ProductGrade[]): number {
-  if (!gradeName || !grades || grades.length === 0) {
-    const lower = gradeName?.toLowerCase() || "";
-    if (lower.includes("economy")) return 1;
-    if (lower.includes("ultra")) return 4;
-    if (lower.includes("premium")) return 3;
-    if (lower.includes("standard")) return 2;
-    return 0;
-  }
-  const match = grades.find((g) => g.name === gradeName || g.code === gradeName);
-  return match ? match.sequence : 0;
-}
-
-function GradeHoverSelector({
-  grades,
-  currentGradeName,
-  onSelect,
-  disabled,
-}: {
-  grades: ProductGrade[];
-  currentGradeName: string;
-  onSelect: (grade: ProductGrade) => void;
-  disabled?: boolean;
-}) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  // Map each diamond to a grade by sorted position. Grade `sequence` values can be
-  // non-contiguous (e.g. levels 2 and 3), which previously left higher grades with no
-  // diamond and made them unselectable.
-  const sortedGrades = [...grades].sort((a, b) => a.sequence - b.sequence);
-  const total = sortedGrades.length > 0 ? sortedGrades.length : 4;
-  const currentIndex = sortedGrades.findIndex(
-    (g) => g.name === currentGradeName || g.code === currentGradeName
-  );
-  const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
-  const displayCount = hoverIndex !== null ? hoverIndex + 1 : currentCount;
-  const displayName =
-    hoverIndex !== null
-      ? sortedGrades[hoverIndex]?.name || currentGradeName
-      : currentGradeName;
-
-  // Single grade → auto-select it; don't ask the user to pick.
-  const autoSelectSigRef = useRef<string | null>(null);
-  const gradesSignature = sortedGrades.map((g) => g.grade_id).join(",");
-  useEffect(() => {
-    if (disabled) return;
-    if (sortedGrades.length === 1 && currentIndex === -1 && autoSelectSigRef.current !== gradesSignature) {
-      autoSelectSigRef.current = gradesSignature;
-      onSelect(sortedGrades[0]);
-    }
-  }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
-
-  return (
-    <PanelDiv
-      className="flex items-center gap-2 w-full"
-      onMouseLeave={() => setHoverIndex(null)}
-    >
-      <span className="text-[14px] sm:text-lg text-[#000000] min-w-0 truncate">{displayName}</span>
-      <div className="ml-auto flex items-center gap-1">
-        {Array.from({ length: total }, (_, i) => {
-          const gradeForIndex = sortedGrades[i];
-          return (
-            <button
-              key={i}
-              type="button"
-              disabled={disabled || !gradeForIndex}
-              className={`p-0 border-0 bg-transparent ${!disabled && gradeForIndex ? "cursor-pointer" : "cursor-default"} transition-transform duration-200 hover:scale-110`}
-              onMouseEnter={() => {
-                if (!disabled && gradeForIndex) setHoverIndex(i);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!disabled && gradeForIndex) onSelect(gradeForIndex);
-              }}
-            >
-              <Diamond filled={i < displayCount} />
-            </button>
-          );
-        })}
-      </div>
-    </PanelDiv>
-  );
 }
 
 function PanelDiv({
