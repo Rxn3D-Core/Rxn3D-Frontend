@@ -2354,7 +2354,10 @@ export function MandibularPanel({
 
                 const apVariationDisplay = resolveVariationDisplay(apProduct, assignedTeeth.length);
                 const cardProductName = apVariationDisplay.name || "Untitled Product";
-                const cardProductImage = apVariationDisplay.imageUrl;
+                // Prefer a matched variation image; otherwise show the lower arch image when configured.
+                const cardProductImage = apVariationDisplay.matched
+                  ? apVariationDisplay.imageUrl
+                  : resolveArchProductImage(apProduct, "mandibular", apVariationDisplay.imageUrl);
                 const cardCategoryName = cardProduct?.subcategory?.category?.name || ap.product?.subcategory?.category?.name || ap.product?.category_name || "";
                 const cardSubcategoryName = cardProduct?.subcategory?.name || ap.product?.subcategory?.name || ap.product?.subcategory_name || "";
                 const removableCardExtractions = (apProduct?.extractions || []).filter(
