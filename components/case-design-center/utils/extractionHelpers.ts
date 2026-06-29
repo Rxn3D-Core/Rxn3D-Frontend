@@ -205,6 +205,19 @@ export function getDefaultExtraction(
   return defaultExtraction || active[0] || null;
 }
 
+/**
+ * The active extraction explicitly marked as the product default (is_default === "yes"),
+ * or null when none is. Unlike {@link getDefaultExtraction} this never falls back to the
+ * first active row — callers that want "show the default, otherwise show nothing" (e.g. the
+ * center "Teeth in mouth" badge) depend on the null when no default is configured.
+ */
+export function getDefaultExtractionStrict(
+  extractions: ReadonlyArray<ExtractionLike & { color?: string | null }> | undefined | null
+): (ExtractionLike & { color?: string | null }) | null {
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  return active.find(isDefaultExtractionRow) ?? null;
+}
+
 /** Determine text class from a hex background color (dark bg → white text) */
 export function textClassFromColor(hex: string): string {
   const h = hex.replace("#", "");

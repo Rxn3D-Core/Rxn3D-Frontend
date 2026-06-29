@@ -1,6 +1,36 @@
-export function CenterNavigation() {
+import { textClassFromColor } from "../utils/extractionHelpers";
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const h = hex.replace("#", "");
+  if (h.length < 6) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some(Number.isNaN)) return null;
+  return { r, g, b };
+}
+
+interface CenterNavigationProps {
+  /** Badge text. Defaults to "Teeth in mouth" when no default extraction is configured. */
+  label?: string;
+  /** Badge background color. Defaults to the "Teeth in mouth" beige. */
+  backgroundColor?: string;
+}
+
+export function CenterNavigation({
+  label = "Teeth in mouth",
+  backgroundColor = "#F3EBD7",
+}: CenterNavigationProps = {}) {
   const arrowWidth = 48;
   const arrowHeight = 4;
+  // Dark extraction colors are rendered at 50% opacity so the badge stays light
+  // enough to read black text on; lighter colors are used as-is.
+  const rgb = hexToRgb(backgroundColor);
+  const isDark =
+    rgb !== null && (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255 < 0.5;
+  const effectiveBackground =
+    isDark && rgb ? `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.5)` : backgroundColor;
+  const textClass = isDark ? "text-black" : textClassFromColor(backgroundColor);
 
   return (
     <div className="flex flex-col items-center justify-start pt-8 flex-shrink-0 order-2 lg:order-none w-auto">
@@ -30,10 +60,10 @@ export function CenterNavigation() {
         {/* The box itself */}
         <div
           className="flex items-center justify-center px-3 py-2 rounded-[6px] whitespace-nowrap shadow-[1px_1px_3.5px_rgba(0,0,0,0.25)] border border-[#CEC6B3]/60"
-          style={{ backgroundColor: "#F3EBD7" }}
+          style={{ backgroundColor: effectiveBackground }}
         >
-          <span className="font-[Verdana] text-[13px] sm:text-[15px] font-normal tracking-[0.05em] text-black leading-tight text-center">
-            Teeth in mouth
+          <span className={`font-[Verdana] text-[13px] sm:text-[15px] tracking-[0.05em] ${textClass} leading-tight text-center`}>
+            {label}
           </span>
         </div>
 

@@ -47,7 +47,8 @@ import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
-import { canSkipExtractionToothSelection } from "../utils/extractionHelpers";
+import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
+import { getExtractionTypeColor } from "@/lib/extraction-type-colors";
 import {
   findOppositeArchProductDonor,
   resolveProductStagesForDisplay,
@@ -178,6 +179,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const card0ExtractionSelectionOptional = canSkipExtractionToothSelection(
     state.initialProductDetails?.extractions
   );
+
+  // Center badge: show the product's default extraction (name + its color) when one is
+  // configured; otherwise fall back to the neutral "Teeth in mouth" beige badge.
+  const centerDefaultExtraction = getDefaultExtractionStrict(
+    state.initialProductDetails?.extractions
+  );
+  const centerBadgeLabel = centerDefaultExtraction?.name?.trim() || "Teeth in mouth";
+  const centerBadgeColor = centerDefaultExtraction
+    ? centerDefaultExtraction.color?.trim() ||
+      getExtractionTypeColor(centerDefaultExtraction.name ?? "")
+    : "#F3EBD7";
   const maxillaryHasRemovables = hasSelectionOnlyProductForArch("maxillary") ||
     (initialProductIsNonFixed && (props.initialArch === "maxillary" || props.initialArch === "both") && !!props.selectedProductId);
   const mandibularHasRemovables = hasSelectionOnlyProductForArch("mandibular") ||
@@ -1532,8 +1544,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMaxillary}
         />
 
-        {/* CENTER NAVIGATION — Teeth in mouth badge between arch panels */}
-        <CenterNavigation />
+        {/* CENTER NAVIGATION — default-extraction badge between arch panels */}
+        <CenterNavigation label={centerBadgeLabel} backgroundColor={centerBadgeColor} />
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
