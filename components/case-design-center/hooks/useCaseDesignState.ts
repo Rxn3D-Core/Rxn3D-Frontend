@@ -1981,6 +1981,52 @@ export function useCaseDesignState(props: CaseDesignProps) {
     toothFieldProgress.getToothProductCard,
   ]);
 
+  // Added removables whose teeth are auto-assigned (full denture / single-default /
+  // non-TIM default) never pass through assignToothToActiveProduct, and the virtual-slot
+  // seed effect above skips them because teeth are already assigned. As a result the
+  // opposite-arch field backfill never runs on their real representative tooth. Once such
+  // a card has real teeth, backfill grade / stage / shades from the opposite arch (and
+  // other same-arch removables) so a product added after the other arch was configured
+  // inherits those values as defaults. The backfill helpers only fill empty fields, so a
+  // user's later edits are never overwritten.
+  const backfilledRemovableRealRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    for (const ap of props.addedProducts ?? []) {
+      if (!ap.productId || (ap.arch !== "maxillary" && ap.arch !== "mandibular")) continue;
+      if (ap.product && hasRetentionOptions(ap.product)) continue;
+      const arch = ap.arch as Arch;
+      const doneKey = `${arch}_${ap.id}`;
+      if (backfilledRemovableRealRef.current.has(doneKey)) continue;
+
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const repTooth = getRepToothForRemovableCard(
+        arch,
+        ap.id,
+        allTeeth,
+        toothFieldProgress.getToothProductCard,
+        toothFieldProgress.getToothProduct
+      );
+      if (repTooth == null) continue;
+      // Require a real tooth assignment for this card (not the virtual slot).
+      if ((toothFieldProgress.getToothProductCard(arch, repTooth) ?? 0) !== ap.id) continue;
+      if (!toothFieldProgress.getToothProduct(arch, repTooth)) continue;
+
+      backfilledRemovableRealRef.current.add(doneKey);
+      migrateRemovableVirtualProgressToTooth(arch, ap.id, repTooth);
+      backfillRemovableFromExistingCard(arch, ap.id, repTooth);
+      backfillRemovableFromOppositeArch(arch, repTooth);
+    }
+  }, [
+    props.addedProducts,
+    props.caseSubmitted,
+    toothFieldProgress.toothProductCardMap,
+    toothFieldProgress.toothProducts,
+    migrateRemovableVirtualProgressToTooth,
+    backfillRemovableFromExistingCard,
+    backfillRemovableFromOppositeArch,
+  ]);
+
   const assignToothToActiveProduct = useCallback(
     (arch: Arch, toothNumber: number) => {
       const isRemovableActive = isActiveNonRetentionProduct(arch);
