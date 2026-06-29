@@ -28,9 +28,11 @@ export function parseStageFromSlipProductNotes(notes: string): string {
   return capture(notes, /\bin the (.+?) stage\b/i);
 }
 
-/** Removable teeth shade from "Use C4 denture teeth ...". */
+/** Removable teeth shade from "use … denture" (includes optional shade system prefix). */
 export function parseRemovableTeethShadeFromNotes(notes: string): string {
   if (!notes?.trim()) return "";
+  const withSystem = capture(notes, /\buse\s+(?:.+?\s+)?([A-Za-z0-9][A-Za-z0-9./+\-]*)\s+denture\b/i);
+  if (withSystem) return withSystem;
   return capture(notes, /\bUse\s+(.+?)\s+denture teeth\b/i);
 }
 

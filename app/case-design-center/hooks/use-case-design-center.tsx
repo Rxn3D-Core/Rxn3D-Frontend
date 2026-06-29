@@ -25,6 +25,11 @@ import {
   hasRetentionOptions,
   isNonRetentionCategory,
 } from "@/components/case-design-center/utils/categoryHelpers"
+import {
+  getCaseSummaryArchContent,
+  parseCompactSectionLines,
+  rebuildCaseSummaryFromArchParts,
+} from "@/lib/format-case-summary-notes"
 
 export function useCaseDesignCenter() {
   const router = useRouter()
@@ -4567,30 +4572,15 @@ export function useCaseDesignCenter() {
 
   // Helpers to get/set case summary content split by arch (for separate Maxillary / Mandibular fields)
   const getCaseSummaryMaxillaryContent = (): string => {
-    const notes = maxillaryImplantDetails || ''
-    const mandibularIndex = notes.toUpperCase().search(/\n\s*MANDIBULAR\s*\n/)
-    if (mandibularIndex === -1) {
-      const afterHeader = notes.replace(/^\s*MAXILLARY\s*\n?/i, '')
-      return afterHeader.trim()
-    }
-    const maxillaryPart = notes.slice(0, mandibularIndex).replace(/^\s*MAXILLARY\s*\n?/i, '')
-    return maxillaryPart.trim()
+    return getCaseSummaryArchContent(maxillaryImplantDetails || '', 'maxillary')
   }
   const getCaseSummaryMandibularContent = (): string => {
-    const notes = maxillaryImplantDetails || ''
-    const mandibularIndex = notes.toUpperCase().search(/\n\s*MANDIBULAR\s*\n/)
-    if (mandibularIndex === -1) return ''
-    return notes.slice(mandibularIndex).replace(/^\s*MANDIBULAR\s*\n?/i, '').trim()
+    return getCaseSummaryArchContent(maxillaryImplantDetails || '', 'mandibular')
   }
   const setCaseSummaryFromParts = (maxillaryContent: string, mandibularContent: string) => {
-    const combined = [
-      'MAXILLARY',
-      maxillaryContent,
-      '',
-      'MANDIBULAR',
-      mandibularContent,
-    ].filter(Boolean).join('\n\n')
-    setMaxillaryImplantDetails(combined)
+    setMaxillaryImplantDetails(
+      rebuildCaseSummaryFromArchParts(maxillaryContent, mandibularContent),
+    )
   }
 
   // Function to parse case notes and update products, categories, and teeth selections
@@ -4655,16 +4645,26 @@ export function useCaseDesignCenter() {
     let currentSection = ""
 
     for (const section of sections) {
-      const lines = section.split('\n').map(l => l.trim()).filter(l => l)
+      let lines = section.split('\n').map(l => l.trim()).filter(l => l)
       if (lines.length === 0) continue
 
-      const firstLine = lines[0].toUpperCase()
-      if (firstLine.includes('MAXILLARY')) {
-        currentSection = "maxillary"
-        continue
-      } else if (firstLine.includes('MANDIBULAR')) {
-        currentSection = "mandibular"
-        continue
+      const compactSection = parseCompactSectionLines(lines)
+      if (compactSection) {
+        currentSection = compactSection.arch
+        lines = compactSection.lines
+      } else {
+        const firstLine = lines[0].toUpperCase()
+        if (firstLine.includes('MAXILLARY')) {
+          currentSection = "maxillary"
+          if (lines.length === 1) continue
+          lines = lines.slice(1)
+        } else if (firstLine.includes('MANDIBULAR')) {
+          currentSection = "mandibular"
+          if (lines.length === 1) continue
+          lines = lines.slice(1)
+        } else if (!currentSection) {
+          continue
+        }
       }
 
       if (!currentSection) continue

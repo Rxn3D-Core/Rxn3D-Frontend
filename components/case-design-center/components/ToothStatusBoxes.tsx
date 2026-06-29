@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
+import { useSupportsHover } from "@/hooks/use-supports-hover";
 import { DoneTransitionButton } from "./DoneTransitionButton";
 import type { ProductExtraction } from "../types";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
@@ -205,6 +206,7 @@ export function ToothStatusBoxes({
     return teethForBox.length === 0 && !anyOptionalHasTeeth;
   });
 
+  const supportsHover = useSupportsHover();
   const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
 
   const prevRequiredValidationRef = useRef<boolean | null>(null);
@@ -296,7 +298,8 @@ export function ToothStatusBoxes({
             </div>
           );
 
-          const tooltipLabel = isInteractive ? `assign teeth to ${extraction.name}` : undefined;
+          const tooltipLabel =
+            isInteractive && supportsHover ? `assign teeth to ${extraction.name}` : undefined;
           const hoverHandlers = tooltipLabel
             ? {
                 onMouseMove: (e: React.MouseEvent) => setTooltipState({ label: tooltipLabel, x: e.clientX, y: e.clientY }),
@@ -434,7 +437,7 @@ export function ToothStatusBoxes({
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
       )}
-      {tooltipState && typeof document !== "undefined" && ReactDOM.createPortal(
+      {supportsHover && tooltipState && typeof document !== "undefined" && ReactDOM.createPortal(
         <div
           style={{ position: "fixed", left: tooltipState.x + 12, top: tooltipState.y - 36, zIndex: 9999, pointerEvents: "none" }}
           className="bg-white/90 backdrop-blur-sm text-gray-900 border border-gray-200 text-xs font-medium px-2.5 py-1.5 rounded-md shadow-lg whitespace-nowrap"
