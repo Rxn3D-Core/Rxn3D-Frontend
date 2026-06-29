@@ -552,6 +552,12 @@ export interface ProductApiData {
   is_single_stage: string;
   is_splinted?: string;
   show_jaw_photo?: string;
+  /** Per-arch product images; upper shown on maxillary, lower on mandibular. */
+  arch_image_maxillary?: string | null;
+  arch_image_both?: string | null;
+  arch_image_mandibular?: string | null;
+  /** Jaw reference photos — used as per-arch images when show_jaw_photo is "Yes". */
+  jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } | null;
   has_multiple_grades: string;
   is_teeth_based_price: string;
   customer_id: number | null;
