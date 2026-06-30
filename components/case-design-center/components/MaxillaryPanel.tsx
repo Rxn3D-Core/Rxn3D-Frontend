@@ -139,6 +139,10 @@ import {
   resolveRemovableStatusBoxSelectedTeeth,
 } from "../utils/removableToothDisplay";
 import {
+  resolveRemovablePopoverExtractionsForActiveCard,
+  shouldApplyExtractionOnPopoverSelect,
+} from "../utils/removableToothPopoverAssign";
+import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
 } from "../utils/impressionFieldSync";
@@ -1818,15 +1822,8 @@ export function MaxillaryPanel({
                         const alreadyAssigned = maxillaryToothExtractionMap[toothNumber] === activeExtractionCode;
                         if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) return;
                         if (alreadyAssigned) {
-                          if (maxillaryNoActiveBoxTeeth.includes(toothNumber)) {
-                            // Tooth was assigned via popover (Scenario 2) — demote it to status-box-only (Scenario 1)
-                            setMaxillaryNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
-                          } else {
-                            // Already status-box-only — clicking again fully deselects it
-                            handleMaxillaryToothDeselect(toothNumber);
-                          }
-                          return;
-                        }
+                          // Already has this status — open popover; removal only via popover Remove.
+                        } else {
                         if (
                           !maxillaryTeeth.includes(toothNumber) &&
                           shouldAddToProductSelectionOnRemovableClick({
@@ -1840,28 +1837,20 @@ export function MaxillaryPanel({
                         // Ensure tooth is NOT in the no-active-box set when assigned via active box
                         setMaxillaryNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                         return;
+                        }
                       }
-                      // Rule 2: no active box → open tooth status popover (works for both new and already-selected teeth)
-                      let exts: ProductExtraction[] = useMaxillaryArchSharedRemovable
-                        ? maxillaryMergedExtractions
-                        : [];
-                      if (!useMaxillaryArchSharedRemovable && activeProductCardId !== 0) {
-                        const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary");
-                        if (!activeCard) return;
-                        const cardTeethForExts = MAXILLARY_ALL_TEETH.filter(tn =>
-                          getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === activeCard.id
-                        );
-                        const repTn = cardTeethForExts.length > 0 ? cardTeethForExts[0] : -activeCard.id;
-                        exts = getToothProduct("maxillary", repTn)?.extractions ?? (activeCard.product as any)?.extractions ?? [];
-                      } else if (!useMaxillaryArchSharedRemovable) {
-                        const card0Teeth = MAXILLARY_ALL_TEETH.filter(tn =>
-                          getToothProduct("maxillary", tn) && getToothProductCard("maxillary", tn) === 0
-                        );
-                        exts =
-                          card0Teeth.length > 0
-                            ? (getToothProduct("maxillary", card0Teeth[0])?.extractions ?? card0Extractions)
-                            : card0Extractions;
-                      }
+                      // Rule 2: open tooth status popover (also when tooth already has the active status)
+                      const exts = resolveRemovablePopoverExtractionsForActiveCard({
+                        useArchSharedRemovable: useMaxillaryArchSharedRemovable,
+                        mergedExtractions: maxillaryMergedExtractions,
+                        activeProductCardId,
+                        addedProducts,
+                        arch: "maxillary",
+                        allArchTeeth: MAXILLARY_ALL_TEETH,
+                        getToothProduct,
+                        getToothProductCard,
+                        card0Extractions,
+                      });
                       if (isSingleDefaultOnlyExtractionList(exts)) return;
                       if (!hasConfiguredExtractions(exts)) return;
                       if (canUseToothForActiveProduct && !canUseToothForActiveProduct("maxillary", toothNumber)) {
@@ -1900,23 +1889,16 @@ export function MaxillaryPanel({
                           return;
                         }
                         if (alreadyAssigned) {
-                          if (opposingNoActiveBoxTeeth.includes(toothNumber)) {
-                            setOpposingNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
-                          } else {
-                            onOpposingExtractionToggle?.(
-                              toothNumber,
-                              opposingActiveExtractionCode,
-                              opposingMappedExtractions
-                            );
-                          }
+                          // Already has this status — open popover; removal only via popover Remove.
+                        } else {
+                          onOpposingExtractionToggle?.(
+                            toothNumber,
+                            opposingActiveExtractionCode,
+                            opposingMappedExtractions
+                          );
+                          setOpposingNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                           return;
                         }
-                        onOpposingExtractionToggle?.(
-                          toothNumber,
-                          opposingActiveExtractionCode,
-                          opposingMappedExtractions
-                        );
-                        setOpposingNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                       } else {
                         if (
                           ownArchToothChartEnabled &&
@@ -2106,7 +2088,16 @@ export function MaxillaryPanel({
                         setToothStatusPopoverTooth(null);
                         return;
                       }
-                      onOpposingExtractionToggle?.(toothNumber, code, opposingMappedExtractions);
+                      if (
+                        shouldApplyExtractionOnPopoverSelect(
+                          opposingToothExtractionMap[toothNumber],
+                          code
+                        )
+                      ) {
+                        onOpposingExtractionToggle?.(toothNumber, code, opposingMappedExtractions);
+                      } else {
+                        selectAllOpposingTeeth?.([toothNumber]);
+                      }
                       if (!isOverlayExtractionCode(code, opposingMappedExtractions)) {
                         setOpposingNoActiveBoxTeeth?.((prev) =>
                           prev.includes(toothNumber) ? prev : [...prev, toothNumber]
@@ -2125,10 +2116,15 @@ export function MaxillaryPanel({
                       setToothStatusPopoverTooth(null);
                       return;
                     }
-                    if (!maxillaryTeeth.includes(toothNumber)) {
-                      handleMaxillaryToothClick(toothNumber);
+                    selectAllMaxillaryTeeth([toothNumber]);
+                    if (
+                      shouldApplyExtractionOnPopoverSelect(
+                        maxillaryToothExtractionMap[toothNumber],
+                        code
+                      )
+                    ) {
+                      handleToothExtractionToggle("maxillary", toothNumber, code, toothStatusPopoverExtractions);
                     }
-                    handleToothExtractionToggle("maxillary", toothNumber, code, toothStatusPopoverExtractions);
                     if (!isOverlayExtractionCode(code, toothStatusPopoverExtractions)) {
                       setMaxillaryNoActiveBoxTeeth?.((prev) =>
                         prev.includes(toothNumber) ? prev : [...prev, toothNumber]
@@ -2157,9 +2153,8 @@ export function MaxillaryPanel({
                       handleToothExtractionToggle("maxillary", toothNumber, currentCode, toothStatusPopoverExtractions);
                     }
                     if (maxillaryTeeth.includes(toothNumber)) {
-                      handleMaxillaryToothClick(toothNumber);
+                      handleMaxillaryToothDeselect(toothNumber);
                     }
-                    // Remove from no-active-box set
                     setMaxillaryNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                     setToothStatusPopoverTooth(null);
                   }}

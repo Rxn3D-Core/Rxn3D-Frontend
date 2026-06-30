@@ -171,11 +171,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
               key={opt.code}
               type="button"
               onClick={() => {
-                if (isSelected && onRemove) {
-                  onRemove()
-                } else {
-                  onSelect(opt.code)
-                }
+                onSelect(opt.code)
                 onClose?.()
               }}
               className={`flex flex-col items-center gap-0 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm ${

@@ -142,6 +142,10 @@ import {
   resolveRemovableStatusBoxSelectedTeeth,
 } from "../utils/removableToothDisplay";
 import {
+  resolveRemovablePopoverExtractionsForActiveCard,
+  shouldApplyExtractionOnPopoverSelect,
+} from "../utils/removableToothPopoverAssign";
+import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
 } from "../utils/impressionFieldSync";
@@ -1774,13 +1778,8 @@ export function MandibularPanel({
                         const alreadyAssigned = mandibularToothExtractionMap[toothNumber] === activeExtractionCode;
                         if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) return;
                         if (alreadyAssigned) {
-                          if (mandibularNoActiveBoxTeeth.includes(toothNumber)) {
-                            setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
-                          } else {
-                            handleMandibularToothDeselect(toothNumber);
-                          }
-                          return;
-                        }
+                          // Already has this status — open popover; removal only via popover Remove.
+                        } else {
                         if (
                           !mandibularTeeth.includes(toothNumber) &&
                           shouldAddToProductSelectionOnRemovableClick({
@@ -1793,28 +1792,20 @@ export function MandibularPanel({
                         handleToothExtractionToggle("mandibular", toothNumber, activeExtractionCode, activeExtractions);
                         setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                         return;
+                        }
                       }
-                      // Rule 2: no active box → show popover so user can pick status
-                      let exts: ProductExtraction[] = useMandibularArchSharedRemovable
-                        ? mandibularMergedExtractions
-                        : [];
-                      if (!useMandibularArchSharedRemovable && activeProductCardId !== 0) {
-                        const activeCard = addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular");
-                        if (!activeCard) return;
-                        const cardTeethForExts = MANDIBULAR_ALL_TEETH.filter(tn =>
-                          getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === activeCard.id
-                        );
-                        const repTn = cardTeethForExts.length > 0 ? cardTeethForExts[0] : -activeCard.id;
-                        exts = getToothProduct("mandibular", repTn)?.extractions ?? (activeCard.product as any)?.extractions ?? [];
-                      } else if (!useMandibularArchSharedRemovable) {
-                        const card0Teeth = MANDIBULAR_ALL_TEETH.filter(tn =>
-                          getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0
-                        );
-                        exts =
-                          card0Teeth.length > 0
-                            ? (getToothProduct("mandibular", card0Teeth[0])?.extractions ?? card0Extractions)
-                            : card0Extractions;
-                      }
+                      // Rule 2: open tooth status popover (also when tooth already has the active status)
+                      const exts = resolveRemovablePopoverExtractionsForActiveCard({
+                        useArchSharedRemovable: useMandibularArchSharedRemovable,
+                        mergedExtractions: mandibularMergedExtractions,
+                        activeProductCardId,
+                        addedProducts,
+                        arch: "mandibular",
+                        allArchTeeth: MANDIBULAR_ALL_TEETH,
+                        getToothProduct,
+                        getToothProductCard,
+                        card0Extractions,
+                      });
                       if (isSingleDefaultOnlyExtractionList(exts)) return;
                       if (!hasConfiguredExtractions(exts)) return;
                       if (canUseToothForActiveProduct && !canUseToothForActiveProduct("mandibular", toothNumber)) {
@@ -1853,23 +1844,16 @@ export function MandibularPanel({
                           return;
                         }
                         if (alreadyAssigned) {
-                          if (opposingNoActiveBoxTeeth.includes(toothNumber)) {
-                            setOpposingNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
-                          } else {
-                            onOpposingExtractionToggle?.(
-                              toothNumber,
-                              opposingActiveExtractionCode,
-                              opposingMappedExtractions
-                            );
-                          }
+                          // Already has this status — open popover; removal only via popover Remove.
+                        } else {
+                          onOpposingExtractionToggle?.(
+                            toothNumber,
+                            opposingActiveExtractionCode,
+                            opposingMappedExtractions
+                          );
+                          setOpposingNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                           return;
                         }
-                        onOpposingExtractionToggle?.(
-                          toothNumber,
-                          opposingActiveExtractionCode,
-                          opposingMappedExtractions
-                        );
-                        setOpposingNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                       } else {
                         if (
                           ownArchToothChartEnabled &&
@@ -2050,7 +2034,16 @@ export function MandibularPanel({
                         setToothStatusPopoverTooth(null);
                         return;
                       }
-                      onOpposingExtractionToggle?.(toothNumber, code, opposingMappedExtractions);
+                      if (
+                        shouldApplyExtractionOnPopoverSelect(
+                          opposingToothExtractionMap[toothNumber],
+                          code
+                        )
+                      ) {
+                        onOpposingExtractionToggle?.(toothNumber, code, opposingMappedExtractions);
+                      } else {
+                        onSelectAllOpposingTeeth?.([toothNumber]);
+                      }
                       if (!isOverlayExtractionCode(code, opposingMappedExtractions)) {
                         setOpposingNoActiveBoxTeeth?.((prev) =>
                           prev.includes(toothNumber) ? prev : [...prev, toothNumber]
@@ -2066,10 +2059,15 @@ export function MandibularPanel({
                       setToothStatusPopoverTooth(null);
                       return;
                     }
-                    if (!mandibularTeeth.includes(toothNumber)) {
-                      selectAllMandibularTeeth([toothNumber]);
+                    selectAllMandibularTeeth([toothNumber]);
+                    if (
+                      shouldApplyExtractionOnPopoverSelect(
+                        mandibularToothExtractionMap[toothNumber],
+                        code
+                      )
+                    ) {
+                      handleToothExtractionToggle("mandibular", toothNumber, code, toothStatusPopoverExtractions);
                     }
-                    handleToothExtractionToggle("mandibular", toothNumber, code, toothStatusPopoverExtractions);
                     if (!isOverlayExtractionCode(code, toothStatusPopoverExtractions)) {
                       setMandibularNoActiveBoxTeeth?.((prev) =>
                         prev.includes(toothNumber) ? prev : [...prev, toothNumber]
