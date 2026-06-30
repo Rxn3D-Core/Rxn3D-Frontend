@@ -297,6 +297,8 @@ export interface NotesProps {
   maxillaryImplantDetailByTooth?: Record<number, import("./components/ImplantDetailSection").ImplantDetailData>;
   /** Per-tooth implant form data for live notes (mandibular arch) */
   mandibularImplantDetailByTooth?: Record<number, import("./components/ImplantDetailSection").ImplantDetailData>;
+  /** Active teeth shade guide system name for removable note text. */
+  selectedShadeGuide?: string;
 }
 
 export type Arch = "maxillary" | "mandibular";

@@ -41,6 +41,7 @@ export function CaseSummaryNotes(props: NotesProps) {
     props.maxillaryImplantDetailByTooth,
     props.mandibularImplantDetailByTooth,
     props.addedProducts,
+    props.selectedShadeGuide,
   ]);
 
   useEffect(() => {

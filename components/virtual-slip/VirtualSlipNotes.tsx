@@ -15,6 +15,7 @@ import {
   type CaseNoteStageSeed,
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes";
+import { formatCaseSummaryNotesForDisplay } from "@/lib/format-case-summary-notes";
 
 interface VirtualSlipNotesProps {
   caseId?: number | null;
@@ -33,6 +34,7 @@ function NoteEntry({ note }: { note: SlipNoteDetail }) {
   const statusColor = slipNoteStatusColor(status);
   const author = slipNoteAuthorName(note);
   const body = note.note?.trim() ?? "";
+  const displayBody = body ? formatCaseSummaryNotesForDisplay(body) : "";
 
   return (
     <div className="border-b border-[#D1D5DB] last:border-b-0">
@@ -54,8 +56,12 @@ function NoteEntry({ note }: { note: SlipNoteDetail }) {
           />
         ) : null}
       </p>
-      {body ? (
-        <p className="mt-1 font-sans text-[16px] leading-[22px] text-[#374151]">{body}</p>
+      {displayBody ? (
+        <div className="mt-1 space-y-2 font-sans text-[16px] leading-[22px] text-[#374151]">
+          {displayBody.split("\n\n").map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </div>
       ) : null}
     </div>
   );
