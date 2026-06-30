@@ -437,7 +437,7 @@ export function VariationSection({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-8 w-full text-[11px] border-[#1162a8] text-[#1162a8] hover:bg-[#1162a8]/10 px-2"
+                              className="h-8 w-full text-[11px] border-[#1162a8] text-[#1162a8] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/10 px-2"
                               onClick={() => handleInsertToothCount(index)}
                               aria-label="Insert tooth count placeholder at cursor"
                             >

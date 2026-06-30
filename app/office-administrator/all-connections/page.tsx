@@ -213,7 +213,7 @@ export default function AllConnections() {
           <Button variant="outline" size="sm">
             <Filter className="h-4 w-4" />
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowNewConnectionModal(true)}>
+          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" onClick={() => setShowNewConnectionModal(true)}>
             Add Connection
           </Button>
         </div>

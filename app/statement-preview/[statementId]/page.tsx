@@ -996,7 +996,7 @@ export default function StatementPreviewPage() {
                   </div>
                   <Button
                     type="button"
-                    className="h-14 justify-center gap-2 rounded-2xl bg-[#1162A8] px-8 text-base font-semibold text-white hover:bg-[#0f4d8b]"
+                    className="h-14 justify-center gap-2 rounded-2xl bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-8 text-base font-semibold text-white hover:bg-[#0f4d8b]"
                       style={{ fontFamily: "Verdana, sans-serif" }}
                     onClick={() => void handleEmail()}
                     disabled={isSending || !statement}

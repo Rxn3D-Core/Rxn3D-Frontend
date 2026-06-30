@@ -156,7 +156,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
     <>
       <div className="fixed inset-0 z-[10001] bg-black/50" onClick={() => onOpenChange(false)} />
       <div className="fixed left-1/2 top-1/2 z-[10002] w-full max-w-6xl max-h-[90vh] -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+        <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">
               {typeof window !== "undefined" && (
@@ -275,7 +275,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                   setSearchTerm("")
                   setShowInviteModal(true)
                 }}
-                className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
               >
                 Add new
               </Button>
@@ -392,7 +392,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
         <>
           <div className="fixed inset-0 z-[10003] bg-black/50" onClick={() => setShowConnectionModal(false)} />
           <div className="fixed left-1/2 top-1/2 z-[10004] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
                   Connect to {selectedLabForConnection.name}
@@ -438,7 +438,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
         <>
           <div className="fixed inset-0 z-[10005] bg-black/50" />
           <div className="fixed left-1/2 top-1/2 z-[10006] w-full max-w-md -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
                   Sending connection request
@@ -463,7 +463,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
         <>
           <div className="fixed inset-0 z-[10007] bg-black/50" />
           <div className="fixed left-1/2 top-1/2 z-[10008] w-full max-w-md -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
                   Sending connection request
@@ -490,7 +490,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
         <>
           <div className="fixed inset-0 z-[10009] bg-black/50" onClick={() => setShowInviteModal(false)} />
           <div className="fixed left-1/2 top-1/2 z-[10010] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
                   {typeof window !== "undefined" && (

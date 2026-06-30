@@ -186,7 +186,7 @@ export function Casespan() {
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600">
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">
                 <Plus className="mr-2 h-4 w-4" /> Add
               </Button>
             </DialogTrigger>
@@ -405,7 +405,7 @@ export function Casespan() {
                     : `${selectedItems.length} selected`}
                 </span>
                 {selectedItems.length > 0 && (
-                  <Button variant="default" size="sm" className="ml-2 h-7 bg-blue-600">
+                  <Button variant="default" size="sm" className="ml-2 h-7 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">
                     1
                   </Button>
                 )}

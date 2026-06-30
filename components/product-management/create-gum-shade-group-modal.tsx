@@ -232,7 +232,7 @@ export function CreateGumShadeGroupModal({ isOpen, onClose, onChanges }: CreateG
           <Button variant="destructive" onClick={onClose} className="bg-red-600 hover:bg-red-700">
             Cancel
           </Button>
-          <Button className="bg-[#1162a8]">Save Group</Button>
+          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">Save Group</Button>
         </div>
       </DialogContent>
     </Dialog>

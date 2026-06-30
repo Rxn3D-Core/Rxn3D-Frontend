@@ -174,7 +174,7 @@ export function CreateVisibilityGroupModal({ isOpen, onClose }: CreateVisibility
             <Button
               onClick={handleSave}
               disabled={!canSave}
-              className="bg-[#1162a8] hover:bg-[#0f5597] disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2"
             >
               Save Group
             </Button>

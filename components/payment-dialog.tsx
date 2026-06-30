@@ -127,7 +127,7 @@ export function PaymentDialog({
                 />
               </Elements>
             ) : (
-              <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={createPaymentIntent}>
+              <Button className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" onClick={createPaymentIntent}>
                 Proceed to Payment
               </Button>
             )}
@@ -219,7 +219,7 @@ function CheckoutForm({
       {message && (
         <div className={`text-sm ${message.includes("successful") ? "text-green-600" : "text-red-600"}`}>{message}</div>
       )}
-      <Button type="submit" disabled={!stripe || isProcessing} className="w-full bg-blue-600 hover:bg-blue-700">
+      <Button type="submit" disabled={!stripe || isProcessing} className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
         {isProcessing ? "Processing..." : "Pay Now"}
       </Button>
     </form>

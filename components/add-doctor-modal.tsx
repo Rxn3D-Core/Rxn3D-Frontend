@@ -478,7 +478,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
               setSearchTerm("")
               setStep("invite")
             }}
-            className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
           >
             Add new
           </Button>
@@ -575,7 +575,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   ) : (
                     <Button
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2"
+                      className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-sm px-4 py-2"
                     >
                       Request connection
                     </Button>
@@ -624,7 +624,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
       <div className="fixed inset-0 z-[10001] bg-black/50" onClick={handleClose} />
       <div className="fixed left-1/2 top-1/2 z-[10002] w-[95vw] max-w-[1600px] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
         {/* Header with close button */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-blue-600">
+        <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-white">Add a Doctor</h2>
             <button
@@ -647,7 +647,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <>
           <div className="fixed inset-0 z-[10003] bg-black/50" onClick={() => setStep("search")} />
           <div className="fixed left-1/2 top-1/2 z-[10004] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Connect to Doctor</h2>
                 <button
@@ -696,7 +696,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <>
           <div className="fixed inset-0 z-[10005] bg-black/50" />
           <div className="fixed left-1/2 top-1/2 z-[10006] w-full max-w-md -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <h2 className="text-lg font-semibold">
                 {connectType === "request" ? "Sending connection request" : "Sending invitation"}
               </h2>
@@ -741,7 +741,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   : "The doctor will receive an email invitation to join."
                 }
               </p>
-              <Button onClick={handleClose} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={handleClose} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
                 Done
               </Button>
             </div>
@@ -754,7 +754,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <>
           <div className="fixed inset-0 z-[10009] bg-black/50" onClick={() => setStep("search")} />
           <div className="fixed left-1/2 top-1/2 z-[10010] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <h2 className="text-lg font-semibold">Invite new doctor</h2>
             </div>
             <div className="p-8">

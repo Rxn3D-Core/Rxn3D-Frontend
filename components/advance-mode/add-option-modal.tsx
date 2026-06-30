@@ -249,7 +249,7 @@ export function AddOptionModal({ isOpen, onClose, onSave, title = "Add new optio
           </Button>
           <Button
             onClick={handleSave}
-            className="h-8 sm:h-[34px] px-4 sm:px-4 bg-[#1162A8] hover:bg-[#0f5497] text-white rounded-[10px] text-xs sm:text-xs font-bold"
+            className="h-8 sm:h-[34px] px-4 sm:px-4 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5497] text-white rounded-[10px] text-xs sm:text-xs font-bold"
             style={{
               fontFamily: 'Verdana',
               letterSpacing: '-0.02em',

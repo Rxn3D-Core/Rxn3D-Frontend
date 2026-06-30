@@ -293,11 +293,11 @@ export function CreateEventModal({ open, onOpenChange, selectedDate, onCreateEve
 
           {/* Action Buttons */}
             <div className="flex justify-end gap-4 pt-4">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 px-8 flex items-center gap-2" onClick={handleCancel}>
+            <Button size="sm" className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 px-8 flex items-center gap-2" onClick={handleCancel}>
               Cancel
             </Button>
             <Button
-              className="bg-blue-600 hover:bg-blue-700 px-8 flex items-center gap-2"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 px-8 flex items-center gap-2"
               onClick={handleSubmit}
               disabled={!formData.title.trim() || (formData.type === "Holiday" && localLoading)}
             >

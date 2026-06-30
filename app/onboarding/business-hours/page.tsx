@@ -506,7 +506,7 @@ function DaySchedule({ day, enabled, fromTime, toTime, onToggle, onTimeChange }:
         <div className="flex items-center gap-2">
           <div
             className={`w-5 h-5 rounded-full border flex items-center justify-center cursor-pointer ${
-              enabled ? "bg-[#1162a8] border-[#1162a8]" : "bg-white border-[#b9b9b9]"
+              enabled ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] border-[#1162a8]" : "bg-white border-[#b9b9b9]"
             }`}
             onClick={onToggle}
           >

@@ -507,7 +507,7 @@ export default function UserOfficeManagement() {
                 </PopoverContent>
               </Popover>
 
-              <Button className="bg-[#1162a8] hover:bg-blue-700 text-white" onClick={handleAddUser}>
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white" onClick={handleAddUser}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add User
               </Button>
@@ -733,7 +733,7 @@ export default function UserOfficeManagement() {
             <Button variant="outline" size="sm" disabled>
               Previous
             </Button>
-            <Button variant="outline" size="sm" className="bg-blue-600 text-white">
+            <Button variant="outline" size="sm" className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               1
             </Button>
             <Button variant="outline" size="sm" disabled>

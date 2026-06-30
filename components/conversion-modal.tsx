@@ -347,7 +347,7 @@ export const ConversionModal: React.FC<ConversionModalProps> = ({
                 className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-colors ${
                   isLoadingConversion 
                     ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'
+                    : 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 cursor-pointer'
                 }`}
                 title={isLoadingConversion ? "Converting shades..." : "Click to convert shades"}
               >
@@ -825,7 +825,7 @@ export const ConversionModal: React.FC<ConversionModalProps> = ({
                   onConfirm(selectedShadeSystem, selectedIndividualShade)
                 }
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8"
             >
               Confirm Selection
             </Button>

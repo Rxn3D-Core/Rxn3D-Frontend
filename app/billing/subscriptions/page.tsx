@@ -1143,7 +1143,7 @@ export default function SubscriptionsPage() {
                     href={paymentUpdateUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-[34px] w-full items-center justify-center gap-2 rounded-md bg-[#1162A8] text-[13px] font-semibold tracking-[-0.01em] text-white shadow-sm transition hover:bg-[#0d4f88]"
+                    className="inline-flex h-[34px] w-full items-center justify-center gap-2 rounded-md bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-[13px] font-semibold tracking-[-0.01em] text-white shadow-sm transition hover:bg-[#0d4f88]"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Update via Stripe
@@ -1151,7 +1151,7 @@ export default function SubscriptionsPage() {
                 ) : (
                   <button
                     onClick={() => void openBillingManagement(paymentUpdateUrl)}
-                    className="inline-flex h-[34px] w-full items-center justify-center gap-2 rounded-md bg-[#1162A8] text-[13px] font-semibold tracking-[-0.01em] text-white shadow-sm transition hover:bg-[#0d4f88]"
+                    className="inline-flex h-[34px] w-full items-center justify-center gap-2 rounded-md bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-[13px] font-semibold tracking-[-0.01em] text-white shadow-sm transition hover:bg-[#0d4f88]"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Update via Stripe

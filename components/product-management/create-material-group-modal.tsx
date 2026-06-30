@@ -220,7 +220,7 @@ export function CreateMaterialGroupModal({ isOpen, onClose }: CreateMaterialGrou
             >
               Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-[#1162a8] hover:bg-[#0d4d87]">
+            <Button onClick={handleSave} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d4d87]">
               Save Group
             </Button>
           </div>

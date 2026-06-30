@@ -166,7 +166,7 @@ export function OfficeUserDetail({ user, onBack }: OfficeUserDetailProps) {
 
           <Button
             variant="outline"
-            className="w-full mt-6 bg-[#1162a8] text-white hover:bg-blue-700 hover:text-white"
+            className="w-full mt-6 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700 hover:text-white"
             onClick={handleViewAsUser}
             disabled={isImpersonating}
           >

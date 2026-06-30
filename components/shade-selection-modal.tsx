@@ -237,7 +237,7 @@ export function ShadeSelectionModal({
                     className={cn(
                       "flex-1 px-6 py-3 text-sm font-medium transition-colors",
                       activeModalTab === "shade" 
-                        ? "bg-blue-600 text-white" 
+                        ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" 
                         : "bg-white text-gray-700 border-r"
                     )}
                     onClick={() => setActiveModalTab("shade")}
@@ -248,7 +248,7 @@ export function ShadeSelectionModal({
                     className={cn(
                       "flex-1 px-6 py-3 text-sm font-medium transition-colors",
                       activeModalTab === "color-picker" 
-                        ? "bg-blue-600 text-white" 
+                        ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" 
                         : "bg-white text-gray-700"
                     )}
                     onClick={() => setActiveModalTab("color-picker")}
@@ -482,7 +482,7 @@ export function ShadeSelectionModal({
                   Set as Default
                 </Button>
               )}
-              <Button onClick={handleResumeCase} disabled={!currentShade} className="bg-blue-600 text-white">
+              <Button onClick={handleResumeCase} disabled={!currentShade} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
                 Resume Case
               </Button>
             </div>
@@ -503,7 +503,7 @@ export function ShadeSelectionModal({
             </p>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowDefaultGuideModal(false)}>Cancel</Button>
-              <Button onClick={() => setShowDefaultGuideModal(false)} className="bg-blue-600 text-white">
+              <Button onClick={() => setShowDefaultGuideModal(false)} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
                 Done
               </Button>
             </div>

@@ -104,7 +104,7 @@ export default function STLViewer({ onCloseViewer, models, onClearDisplay }: STL
             <Button
               variant="outline"
               size="sm"
-              className="w-full mt-2 bg-[#1162A8] hover:bg-[#0f5490] text-white"
+              className="w-full mt-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white"
               onClick={handleReset}
             >
               <RotateCcw className="w-3 h-3 mr-1" />
@@ -132,7 +132,7 @@ export default function STLViewer({ onCloseViewer, models, onClearDisplay }: STL
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start bg-[#1162A8] hover:bg-[#0f5490] text-white"
+                className="w-full justify-start bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white"
                 onClick={onClearDisplay}
               >
                 Clear Display
@@ -157,7 +157,7 @@ export default function STLViewer({ onCloseViewer, models, onClearDisplay }: STL
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start bg-[#1162A8] hover:bg-[#0f5490] text-white"
+                className="w-full justify-start bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white"
                 onClick={toggleColor}
               >
                 <Palette className="w-3 h-3 mr-2" />
@@ -171,21 +171,21 @@ export default function STLViewer({ onCloseViewer, models, onClearDisplay }: STL
             <h4 className="text-sm font-medium mb-2">Layout</h4>
             <div className="grid grid-cols-3 gap-2">
               {/* Example layout buttons */}
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-[#1162A8] hover:bg-[#0f5490] text-white">
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white">
                 <div className="grid grid-cols-2 gap-0.5 w-full h-full p-1">
                   <div className="bg-gray-300 col-span-2"></div>
                   <div className="bg-gray-300"></div>
                   <div className="bg-gray-300"></div>
                 </div>
               </Button>
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-[#1162A8] hover:bg-[#0f5490] text-white">
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white">
                 <div className="grid grid-cols-2 gap-0.5 w-full h-full p-1">
                   <div className="bg-gray-300"></div>
                   <div className="bg-gray-300"></div>
                   <div className="bg-gray-300 col-span-2"></div>
                 </div>
               </Button>
-              <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-[#1162A8] hover:bg-[#0f5490] text-white">
+              <Button variant="outline" size="sm" className="h-8 w-8 p-0 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white">
                 <div className="grid grid-cols-2 gap-0.5 w-full h-full p-1">
                   <div className="bg-gray-300"></div>
                   <div className="bg-gray-300 col-span-1 row-span-2"></div>

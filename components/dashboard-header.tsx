@@ -59,7 +59,7 @@ export function DashboardHeader({ toggleSidebar }: { toggleSidebar: () => void }
         </div>
 
         <div className="flex items-center space-x-4">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hidden md:flex items-center" size="sm">
+          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white shadow-sm hidden md:flex items-center" size="sm">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-4 w-4 mr-2"

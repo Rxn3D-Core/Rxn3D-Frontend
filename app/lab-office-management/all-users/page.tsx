@@ -555,7 +555,7 @@ export default function AllUsers() {
                   Clear Filters
                 </Button>
               )}
-              <Button className="bg-[#1162a8] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser} disabled={!canCreateUser}>
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser} disabled={!canCreateUser}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add User
               </Button>

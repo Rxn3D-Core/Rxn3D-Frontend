@@ -269,7 +269,7 @@ export default function BillingPage() {
                 <div className="text-sm">
                   Total Amount: <span className="font-medium">${totalAmount}</span>
                 </div>
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setIsPaymentOpen(true)}>
+                <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" onClick={() => setIsPaymentOpen(true)}>
                   Pay Selected
                 </Button>
               </div>

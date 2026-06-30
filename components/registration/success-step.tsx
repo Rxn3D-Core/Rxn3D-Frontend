@@ -111,7 +111,7 @@ export function SuccessStep({ users, isSubmitting, handleOnboarding }: SuccessSt
         passHref
       >
         <button
-          className={`bg-[#1162a8] text-white px-6 py-3 rounded flex items-center justify-center min-w-[180px] ${
+          className={`bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-6 py-3 rounded flex items-center justify-center min-w-[180px] ${
         isSubmitting ? "opacity-90" : "hover:bg-[#0d4d8a]"
           } transition-all duration-300 transform hover:scale-105`}
           onClick={handleOnboarding}

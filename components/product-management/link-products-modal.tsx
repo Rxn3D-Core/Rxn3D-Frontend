@@ -1164,7 +1164,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                   <button
                     onClick={() => setActiveTab("individual")}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "individual"
-                        ? "bg-[#1162a8] text-white"
+                        ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                       }`}
                   >
@@ -1173,7 +1173,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                   <button
                     onClick={() => setActiveTab("category")}
                     className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "category"
-                        ? "bg-[#1162a8] text-white"
+                        ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                         : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                       }`}
                   >
@@ -1608,7 +1608,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
               </Button>
               <Button
                 onClick={handleApply}
-                className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
                 disabled={selectedEntities.length === 0 || selectedProducts.length === 0 || isSubmitting}
               >
                 {isSubmitting ? (

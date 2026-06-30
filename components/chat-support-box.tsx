@@ -240,7 +240,7 @@ export function ChatSupportBox() {
                         className={cn(
                           "max-w-[80%] rounded-lg px-4 py-2 text-sm",
                           msg.sender === "user"
-                            ? "bg-[#1162A8] text-white"
+                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                             : "bg-white text-gray-800 border border-[#E0E0E0]"
                         )}
                       >

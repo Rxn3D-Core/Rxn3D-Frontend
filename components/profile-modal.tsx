@@ -271,7 +271,7 @@ export function ProfileModal({ isOpen, onClose, data, isLoading, onSave }: Profi
           <Button
             onClick={handleSave}
             disabled={isLoading || isSaving || !profile}
-            className="px-6 py-2 hover:bg-[#0d4f8c] h-10 bg-[#1162a8] text-white"
+            className="px-6 py-2 hover:bg-[#0d4f8c] h-10 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
           >
             Save Changes
           </Button>

@@ -99,9 +99,9 @@ export function ProductsAndServices() {
                       className={cn(
                         "h-auto py-3 px-5 rounded-lg text-sm font-medium transition-all duration-200",
                         selectedServices.includes(service.id)
-                          ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                          ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white shadow-md"
                           : service.isPrimary
-                            ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md"
+                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700 shadow-md"
                             : "bg-white hover:bg-gray-50 border-gray-200",
                       )}
                       onClick={() => handleServiceClick(service.id)}
@@ -144,10 +144,10 @@ export function ProductsAndServices() {
                   "h-auto py-3 px-5 rounded-lg text-sm font-medium transition-all duration-200",
                   selectedServices.includes(service.id)
                     ? service.isPrimary
-                      ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-                      : "bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white shadow-md"
+                      : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white shadow-md"
                     : service.isPrimary
-                      ? "bg-blue-600 text-white hover:bg-blue-700 shadow-md"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700 shadow-md"
                       : "bg-white hover:bg-gray-50 border-gray-200",
                 )}
                 onClick={() => handleServiceClick(service.id)}

@@ -579,7 +579,7 @@ export default function RegisterPage() {
             <div className="flex justify-center">
               <a
                 href="mailto:support@rxn3d.com"
-                className="px-6 py-2 bg-[#1162a8] text-white rounded inline-flex items-center"
+                className="px-6 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded inline-flex items-center"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

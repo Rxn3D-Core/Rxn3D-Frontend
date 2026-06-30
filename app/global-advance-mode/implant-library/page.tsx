@@ -171,7 +171,7 @@ export default function ImplantLibraryPage() {
                 setEditingImplantId(null)
                 setIsAddImplantModalOpen(true)
               }}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
               {t("advanceMode.implantLibrary.addImplants", "Add Implants")}
@@ -180,14 +180,14 @@ export default function ImplantLibraryPage() {
               type="button"
               variant="outline"
               onClick={() => setIsImportCsvModalOpen(true)}
-              className="border-[#1162a8] text-[#1162a8] hover:bg-[#1162a8]/10 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              className="border-[#1162a8] text-[#1162a8] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/10 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <FileUp className="h-4 w-4 mr-2" />
               {t("advanceMode.implantLibrary.importCsv", "Import CSV")}
             </Button>
             <Button
               onClick={() => setIsLinkImplantModalOpen(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <LinkIcon className="h-4 w-4 mr-2" />
               {t("advanceMode.implantLibrary.linkProduct", "Link Product")}
@@ -390,7 +390,7 @@ export default function ImplantLibraryPage() {
                   key={i}
                   className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
                     currentPage === pageNum
-                      ? "bg-[#1162a8] text-white"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                   onClick={() => setCurrentPage(pageNum)}

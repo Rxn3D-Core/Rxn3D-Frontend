@@ -131,7 +131,7 @@ export default function SlipNoteTable() {
       {/* Filter Bar */}
       <div className="flex flex-wrap gap-2 items-center mb-2">
         <Input className="w-96" placeholder="Search by patient, office, doctor, case..." value={filterText} onChange={e => setFilterText(e.target.value)} />
-        <Button className="bg-blue-700 text-white px-4"> <Phone className="h-4 w-4 mr-1" /> Add Call log</Button>
+        <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-4"> <Phone className="h-4 w-4 mr-1" /> Add Call log</Button>
         <Button variant="outline" className="ml-auto"><Filter className="h-4 w-4 mr-1" /> Advance Filter</Button>
         <Button variant="ghost" className="text-sm text-blue-700" onClick={() => setFilterText("")}>Clear all Filters</Button>
         {/* Example: you can add a follow-up only filter toggle here if needed */}
@@ -178,7 +178,7 @@ export default function SlipNoteTable() {
                 <td colSpan={11} className="py-16 text-center text-gray-500">
                   <div className="flex flex-col items-center gap-3">
                     <span>No call logs match your current filter.</span>
-                    <Button className="bg-blue-700 text-white" onClick={() => setFilterText("")}>
+                    <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" onClick={() => setFilterText("")}>
                       <CheckCircle2 className="mr-2 h-5 w-5" /> Clear all filters
                     </Button>
                   </div>

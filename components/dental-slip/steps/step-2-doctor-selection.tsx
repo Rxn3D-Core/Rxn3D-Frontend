@@ -66,7 +66,7 @@ export const Step2DoctorSelection: React.FC<Step2DoctorSelectionProps> = ({
 
             {/* Add Doctor button on the right */}
             <Button
-              className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
               onClick={() => {
                 setShowAddDoctorModal(true)
               }}
@@ -156,7 +156,7 @@ export const Step2DoctorSelection: React.FC<Step2DoctorSelectionProps> = ({
                   {/* Select Button */}
                   <button
                     className={`px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 ${isSelected
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     onClick={(e) => {

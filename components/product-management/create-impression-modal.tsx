@@ -715,7 +715,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
             Cancel
           </Button>
           <Button
-            className="bg-[#1162a8] h-9 px-4 w-full sm:w-auto"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] h-9 px-4 w-full sm:w-auto"
             onClick={handleSubmit}
             disabled={
               isLoading ||

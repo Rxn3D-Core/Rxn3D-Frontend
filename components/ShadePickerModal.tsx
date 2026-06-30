@@ -226,7 +226,7 @@ export function ShadePickerModal({
         <div className="flex justify-center p-6 border-t bg-gray-50">
           <Button 
             onClick={handleConfirm}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-md font-medium"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8 py-2 rounded-md font-medium"
             aria-label="Confirm shade selection"
           >
             Confirm

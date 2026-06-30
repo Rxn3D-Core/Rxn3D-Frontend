@@ -2007,7 +2007,7 @@ export function AddFieldModal({
                   e.stopPropagation()
                   void form.handleSubmit(handleSave)(e)
                 }}
-                className="px-4 sm:px-6 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="px-4 sm:px-6 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {(isSaving || createFieldMutation.isPending || updateFieldMutation.isPending) ? (
                   <>

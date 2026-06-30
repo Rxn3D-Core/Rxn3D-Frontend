@@ -514,7 +514,7 @@ export default function SimpleSTLViewer({
           key={index}
           onClick={() => setSelectedLayout(index)}
           className={`w-12 h-16 sm:w-15 sm:h-20 p-1 border rounded ${
-            isSelected ? 'bg-blue-600 border-blue-600' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'
+            isSelected ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] border-blue-600' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'
           } transition-colors`}
           aria-label={`Layout ${rows}x${cols}`}
         >

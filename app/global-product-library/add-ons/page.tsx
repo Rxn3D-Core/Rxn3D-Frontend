@@ -273,11 +273,11 @@ export default function AddOnsPage() {
         </div>
 
         <div className="flex gap-3">
-          {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+          {/* <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
             Import add-ons
           </Button> */}
           <Button
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsCreateModalOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -424,7 +424,7 @@ export default function AddOnsPage() {
                           </p>
                           {!searchQuery && (
                             <Button
-                              className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
                               onClick={() => setIsCreateModalOpen(true)}
                             >
                               <Plus className="h-4 w-4 mr-2" />
@@ -515,7 +515,7 @@ export default function AddOnsPage() {
                           </Tooltip>
                         </TooltipProvider>
                       </div>
-                      <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white text-xs px-2 py-1 h-7 rounded-lg shadow-sm transition-colors">
+                      <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-xs px-2 py-1 h-7 rounded-lg shadow-sm transition-colors">
                         {t("Create Group", "Create Group")}
                       </Button>
                     </div>
@@ -555,7 +555,7 @@ export default function AddOnsPage() {
                           <p className="text-sm text-gray-500 mb-4">
                             {t("Get started by creating your first add-on group", "Get started by creating your first add-on group")}
                           </p>
-                          <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white">
+                          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white">
                             <Plus className="h-4 w-4 mr-2" />
                             {t("Create Group", "Create Group")}
                           </Button>

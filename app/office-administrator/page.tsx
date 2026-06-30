@@ -49,7 +49,7 @@ export default function OfficeAdministrator() {
             <p className="text-gray-600 mb-4">Manage office users, their roles, and permissions.</p>
             <a 
               href="/office-administrator/user-management" 
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Go to User Management →
             </a>
@@ -62,7 +62,7 @@ export default function OfficeAdministrator() {
             <p className="text-gray-600 mb-4">View and manage staff members and their information.</p>
             <a 
               href="/office-administrator/staff" 
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Go to Staff →
             </a>
@@ -75,7 +75,7 @@ export default function OfficeAdministrator() {
             <p className="text-gray-600 mb-4">Manage office schedules and working hours.</p>
             <a 
               href="/office-administrator/office-schedule" 
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Go to Office Schedule →
             </a>
@@ -88,7 +88,7 @@ export default function OfficeAdministrator() {
             <p className="text-gray-600 mb-4">View and manage connections with labs and other offices.</p>
             <a 
               href="/office-administrator/all-connections" 
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               Go to All Connections →
             </a>

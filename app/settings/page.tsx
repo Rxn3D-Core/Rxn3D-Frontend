@@ -66,7 +66,7 @@ export default function SettingsPage() {
                     <p className="text-2xl font-bold text-gray-900 mb-1">$48/month</p>
                     <p className="text-sm text-gray-600 mb-4">365 days</p>
                     <div className="flex space-x-2">
-                      <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-blue-700">
+                      <button className="flex-1 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-blue-700">
                         Upgrade
                       </button>
                       <button className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 hover:bg-gray-50">

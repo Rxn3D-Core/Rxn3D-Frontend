@@ -167,7 +167,7 @@ export function BirthdayModal({ isOpen, onClose, birthdayData, userId, onBirthda
           </Button>
           <Button
             onClick={handleSave}
-            className="px-6 py-2 bg-[#1162a8] hover:bg-[#0d4f8c] text-white"
+            className="px-6 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
             disabled={isSaving || !birthday}
           >
             {isSaving ? (

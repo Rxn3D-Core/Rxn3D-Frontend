@@ -51,7 +51,7 @@ function OptionCard({
       <div className="flex min-h-[80px] items-start gap-[10px] px-4 py-4">
         <div
           className={`mt-[15px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full ${
-            selected ? "bg-[#1162A8]" : "border-2 border-[#B3B3B3] bg-white"
+            selected ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" : "border-2 border-[#B3B3B3] bg-white"
           }`}
         >
           {selected && <div className="h-[8px] w-[8px] rounded-full bg-white" />}

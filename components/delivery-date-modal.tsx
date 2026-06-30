@@ -198,7 +198,7 @@ export function DeliveryDateModal({
           <Button variant="outline" onClick={() => onOpenChange(false)} className="px-4 py-2">
             Cancel
           </Button>
-          <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-4 py-2" onClick={handleSave}>
+          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2" onClick={handleSave}>
             Save Date
           </Button>
         </div>

@@ -242,7 +242,7 @@ export default function ChangeDateModal({
             </Button>
             <Button
               variant="default"
-              className="rounded-xl bg-blue-600 hover:bg-blue-700 font-medium px-8 py-4 text-lg w-full sm:min-w-[180px] sm:w-auto"
+              className="rounded-xl bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 font-medium px-8 py-4 text-lg w-full sm:min-w-[180px] sm:w-auto"
             >
               Delivery Date
             </Button>
@@ -344,7 +344,7 @@ export default function ChangeDateModal({
             <Button
               onClick={handleSave}
               disabled={isSaveDisabled}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-8 py-3 rounded-lg text-base w-full sm:w-auto"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white font-medium px-8 py-3 rounded-lg text-base w-full sm:w-auto"
             >
               Save Dates
             </Button>

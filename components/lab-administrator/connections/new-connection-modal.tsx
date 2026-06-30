@@ -118,7 +118,7 @@ export function NewConnectionModal({ open, onOpenChange, onSubmit }: NewConnecti
             <Button variant="outline" onClick={handleCancel} className="bg-red-600 text-white hover:bg-red-700">
               Cancel
             </Button>
-            <Button onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleSubmit} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
               Send
             </Button>
           </div>
