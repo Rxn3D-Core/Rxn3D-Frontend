@@ -317,7 +317,7 @@ export function ImplantLibraryImportModal({ open, onOpenChange }: ImplantLibrary
             </Button>
             <Button
               type="button"
-              className="bg-[#1162a8] hover:bg-[#0f5490]"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
               disabled={!canImport}
               onClick={() => void handleImport()}
             >

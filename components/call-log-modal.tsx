@@ -221,7 +221,7 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
 
         {/* Add Call Log Form */}
         <div className="px-6 py-6 border-b bg-gray-50 flex-shrink-0">
-          <Button className="mb-6 bg-blue-600 hover:bg-blue-700">
+          <Button className="mb-6 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
             Add Call log
           </Button>
           
@@ -329,7 +329,7 @@ export default function CallLogModal({ isOpen, onClose, slipNumber }: CallLogMod
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button onClick={handleSaveCallLog} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleSaveCallLog} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
               Save Call log
             </Button>
           </div>

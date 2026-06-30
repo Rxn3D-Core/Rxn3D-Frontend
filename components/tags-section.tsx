@@ -89,7 +89,7 @@ export function TagsSection() {
       </div>
 
       <Button
-        className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
+        className="w-full mt-4 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
         onClick={() => openWorkingHoursModal()}
       >
         Working Hours

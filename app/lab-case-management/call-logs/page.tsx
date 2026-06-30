@@ -294,7 +294,7 @@ export default function CallLogTable() {
           value={filterText}
           onChange={(event) => setFilterText(event.target.value)}
         />
-        <Button className="bg-blue-700 px-4 text-white" onClick={() => setShowCallLogModal(true)}>
+        <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 text-white" onClick={() => setShowCallLogModal(true)}>
           <Phone className="mr-1 h-4 w-4" /> Add Call log
         </Button>
         <Button variant="outline" className="ml-auto" disabled>
@@ -323,7 +323,7 @@ export default function CallLogTable() {
           <Button
             variant={filterCallType.includes("Outgoing") ? "default" : "outline"}
             size="sm"
-            className={filterCallType.includes("Outgoing") ? "bg-blue-700 text-white hover:bg-blue-800" : ""}
+            className={filterCallType.includes("Outgoing") ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-800" : ""}
             onClick={() => toggleCallType("Outgoing")}
           >
             Outgoing
@@ -436,7 +436,7 @@ export default function CallLogTable() {
                   <div className="flex flex-col items-center gap-3">
                     <span>{getNoResultsMessage({ hasValidCaseId, fetchError, hasRows })}</span>
                     {(filterText || filterCallType.length > 0 || showFollowUpOnly || filterDate.start || filterDate.end || filterOffice !== "All" || filterUser !== "All") ? (
-                      <Button className="bg-blue-700 text-white" onClick={clearFilters}>
+                      <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" onClick={clearFilters}>
                         <CheckCircle2 className="mr-2 h-5 w-5" /> Clear all filters
                       </Button>
                     ) : null}

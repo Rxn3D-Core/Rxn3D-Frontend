@@ -1356,7 +1356,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-[#1162a8] hover:bg-[#0d4d87] w-full sm:w-auto"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 w-full sm:w-auto"
               disabled={isLoading || !materialName.trim()}
             >
               {isLoading 

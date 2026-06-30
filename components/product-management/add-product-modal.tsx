@@ -2359,7 +2359,7 @@ export function AddProductModal({
                     {editingProduct && hasFormChanges && (
                       <Button
                         type="button"
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
+                        className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 sm:px-8"
                         disabled={isSubmitting || isProductActionLoading}
                         onClick={() => void handleSubmit(debouncedSubmit)()}
                       >
@@ -2372,7 +2372,7 @@ export function AddProductModal({
                       !editingProduct && (
                         <Button
                           type="button"
-                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
+                          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 sm:px-8"
                           disabled={isSubmitting || isProductActionLoading}
                           onClick={() => void handleSubmit(debouncedSubmit)()}
                         >
@@ -2385,7 +2385,7 @@ export function AddProductModal({
                       <Button
                         type="button"
                         onClick={handleNext}
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={activeTab !== "details" && !isCurrentStepValid}
                       >
                         Next

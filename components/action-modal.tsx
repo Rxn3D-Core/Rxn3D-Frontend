@@ -127,7 +127,7 @@ export function ActionModal({ isOpen, onClose, actionType, officeName }: ActionM
             className={
               actionType === "hold"
                 ? "bg-red-500 hover:bg-red-600 text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+                : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
             }
           >
             {isSubmitting ? "Processing..." : actionType === "hold" ? "Confirm Hold" : "Send Link"}

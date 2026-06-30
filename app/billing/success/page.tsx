@@ -13,7 +13,7 @@ export default function PaymentSuccessPage() {
         <p className="text-gray-600 mb-6">
           Thank you for your payment. Your transaction has been completed successfully.
         </p>
-        <Button asChild className="bg-blue-600 hover:bg-blue-700">
+        <Button asChild className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
           <Link href="/billing">Return to Billing</Link>
         </Button>
       </div>

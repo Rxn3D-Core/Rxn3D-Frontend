@@ -68,7 +68,7 @@ export function ChangeRushGroupModal({
             </Button>
             <Button
               onClick={handleContinue}
-              className="flex-1 h-12 text-base bg-[#1162a8] hover:bg-[#0f5490]"
+              className="flex-1 h-12 text-base bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
             >
               {t("caseTracking.continue", "Continue")}
             </Button>

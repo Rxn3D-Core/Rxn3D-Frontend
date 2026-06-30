@@ -97,7 +97,7 @@ export function AdditionalUserForm({
             ${
               showAnimation || users?.length >= 4
                 ? "bg-gray-400 text-white cursor-not-allowed"
-                : "bg-[#1162a8] text-white hover:bg-[#0e518e]"
+                : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-[#0e518e]"
             }
           `}
           onClick={handleAddUser}

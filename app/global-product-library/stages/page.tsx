@@ -241,7 +241,7 @@ export default function StagesPage() {
 
         <div className="flex gap-3">
           <Button
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsLinkProductsModalOpen(true)}
           >
             <Link className="h-4 w-4 mr-2" />
@@ -249,7 +249,7 @@ export default function StagesPage() {
           </Button>
 
           <Button
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsCreateStageModalOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -388,7 +388,7 @@ export default function StagesPage() {
                           variant="outline"
                           className={
                             stage.is_common === "Yes"
-                              ? "bg-[#1162a8] text-white border-[#1162a8]"
+                              ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8]"
                               : "bg-gray-50 text-gray-700 border-gray-200"
                           }
                         >
@@ -400,7 +400,7 @@ export default function StagesPage() {
                           variant="outline"
                           className={
                             stage.is_releasing_stage === "Yes"
-                              ? "bg-[#1162a8] text-white border-[#1162a8]"
+                              ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8]"
                               : "bg-gray-50 text-gray-700 border-gray-200"
                           }
                         >
@@ -412,7 +412,7 @@ export default function StagesPage() {
                           variant="outline"
                           className={
                             stage.is_stage_with_addons === "Yes"
-                              ? "bg-[#1162a8] text-white border-[#1162a8]"
+                              ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8]"
                               : "bg-gray-50 text-gray-700 border-gray-200"
                           }
                         >
@@ -469,7 +469,7 @@ export default function StagesPage() {
                           </p>
                           {!contextSearchQuery && (
                             <Button
-                              className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
                               onClick={handleOpenCreateStageModal}
                             >
                               <Plus className="h-4 w-4 mr-2" />

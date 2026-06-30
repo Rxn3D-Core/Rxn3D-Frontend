@@ -235,7 +235,7 @@ export default function SubscriptionInvoiceDetailPage({ params }: InvoiceDetailP
                       href={downloadUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#1162A8] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0D4C83]"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 text-sm font-medium text-white transition-colors hover:bg-[#0D4C83]"
                     >
                       <Download className="h-4 w-4" />
                       Download PDF

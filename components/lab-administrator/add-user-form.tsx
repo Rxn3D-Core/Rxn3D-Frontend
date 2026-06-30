@@ -835,7 +835,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                   <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-[#1162a8]" disabled={isSubmitting || isLoadingUser}>
+                  <Button type="submit" className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" disabled={isSubmitting || isLoadingUser}>
                     {isSubmitting
                       ? isEditMode
                         ? "Updating..."

@@ -37,7 +37,7 @@ const mockCategoryProducts = [
 ]
 
 const colorMapDropdown: Record<string, string> = {
-  blue: "bg-[#1162a8] text-white",
+  blue: "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white",
   red: "bg-[#cf0202] text-white",
   white: "bg-[#ffffff] text-black",
   green: "bg-[#11a85d] text-white",

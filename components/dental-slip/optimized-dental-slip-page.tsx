@@ -855,7 +855,7 @@ export function OptimizedDentalSlipPageContent({
 
                   {/* Add Doctor button on the right */}
                   <Button
-                    className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+                    className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
                     onClick={() => {
                       setShowAddDoctorModal(true)
                     }}
@@ -945,7 +945,7 @@ export function OptimizedDentalSlipPageContent({
                         {/* Select Button */}
                         <button
                           className={`px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 group-hover:bg-blue-500 group-hover:text-white ${isSelected
-                            ? 'bg-blue-600 text-white'
+                            ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                           onClick={(e) => {
@@ -1042,7 +1042,7 @@ export function OptimizedDentalSlipPageContent({
                   disabled={!addSlipFormData.patient || addSlipFormData.patient.trim().length === 0}
                   className={`px-8 py-3 text-lg font-medium rounded-lg transition-all duration-200 ${
                     addSlipFormData.patient && addSlipFormData.patient.trim().length > 0
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl'
+                      ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white shadow-lg hover:shadow-xl'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}
                 >
@@ -1190,7 +1190,7 @@ export function OptimizedDentalSlipPageContent({
                     <p className="text-gray-600 mb-4">No categories available.</p>
                     <button
                       onClick={() => fetchAllCategories("en")}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
                     >
                       Retry
                     </button>
@@ -1263,7 +1263,7 @@ export function OptimizedDentalSlipPageContent({
                           fetchSubcategoriesByCategory(selectedCategory.id, "en");
                         }
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
                     >
                       Retry
                     </button>
@@ -1275,7 +1275,7 @@ export function OptimizedDentalSlipPageContent({
                     <p className="text-gray-600 mb-4">No subcategories available for this category.</p>
                     <button
                       onClick={handleCategorySelectionChange}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
                     >
                       Back to Categories
                     </button>
@@ -1881,7 +1881,7 @@ export function OptimizedDentalSlipPageContent({
                   (step === 3 && !addSlipFormData.patient?.trim()) ||
                   (step === 4 && !productCategory)
                 }
-                className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 md:px-8 h-10 text-sm rounded-lg font-semibold"
+                className="flex-1 sm:flex-none bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6 md:px-8 h-10 text-sm rounded-lg font-semibold"
               >
                 Next
               </Button>
@@ -2065,8 +2065,8 @@ export function OptimizedDentalSlipPageContent({
               <Button
                 className={`w-full sm:w-auto px-4 sm:px-6 md:px-8 py-2 sm:py-2.5 min-w-[120px] sm:min-w-[140px] text-xs sm:text-sm transition-all rounded-lg ${
                   selectedArch && (selectedArch === 'upper' || selectedArch === 'lower' || selectedArch === 'both')
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-blue-600/60 text-white cursor-not-allowed'
+                    ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white'
+                    : 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/60 text-white cursor-not-allowed'
                 }`}
                 onClick={() => {
                   if (selectedArch) {

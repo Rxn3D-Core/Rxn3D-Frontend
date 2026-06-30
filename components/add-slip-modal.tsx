@@ -408,7 +408,7 @@ export default function AddSlipFlowModal({
                           {chooseLabel}
                         </h3>
                         <Button
-                          className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 sm:px-5 py-2 w-full sm:w-auto"
+                          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 sm:px-5 py-2 w-full sm:w-auto"
                           onClick={() => setShowAddNewLabModal(true)}
                         >
                           {addLabel}
@@ -475,8 +475,8 @@ export default function AddSlipFlowModal({
                               ) : (
                                 <button
                                   className={`transition-all px-4 py-1 rounded-md text-xs font-medium border ${selectedLab === String(lab.lab.id)
-                                    ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#0f5490] hover:border-[#0f5490]"
-                                    : "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#0f5490] hover:border-[#0f5490] opacity-0 group-hover:opacity-100"
+                                    ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8] hover:bg-[#0f5490] hover:border-[#0f5490]"
+                                    : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8] hover:bg-[#0f5490] hover:border-[#0f5490] opacity-0 group-hover:opacity-100"
                                     }`}
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -657,7 +657,7 @@ export default function AddSlipFlowModal({
                         <Button
                           size="sm"
                           onClick={handleAdvanceFilterApply}
-                          className="bg-[#1162a8] hover:bg-[#0f5490] text-white"
+                          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
                         >
                           Apply Filter
                         </Button>
@@ -749,7 +749,7 @@ export default function AddSlipFlowModal({
             </Button>
             {step === 1 && (
               <Button
-                className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-6 sm:px-8 py-2 rounded-lg font-semibold w-full sm:w-auto"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6 sm:px-8 py-2 rounded-lg font-semibold w-full sm:w-auto"
                 onClick={handleContinueModal}
                 disabled={!selectedLab}
               >
@@ -758,7 +758,7 @@ export default function AddSlipFlowModal({
             )}
             {step === 2 && (
               <Button
-                className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-6 sm:px-8 py-2 rounded-lg font-semibold w-full sm:w-auto"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6 sm:px-8 py-2 rounded-lg font-semibold w-full sm:w-auto"
                 onClick={handleContinueModal}
                 disabled={!selectedProductInModal}
               >
@@ -821,7 +821,7 @@ export default function AddSlipFlowModal({
                   Change Product
                 </Button>
                 <Button
-                  className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-4 py-2"
+                  className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2"
                   onClick={handleArchContinue}
                   disabled={!selectedArch}
                 >

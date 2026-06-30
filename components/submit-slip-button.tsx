@@ -49,7 +49,7 @@ const PLANE_KEYFRAMES: Keyframe[] = [
   },
 ]
 
-const IDLE_BACKGROUND = "linear-gradient(180deg, #1b7ac7 0%, #08366b 100%)"
+const IDLE_BACKGROUND = "linear-gradient(256.66deg, #2AA6DE 0%, #82298D 50%, #C9539F 100%)"
 const HOVER_BACKGROUND =
   "linear-gradient(202.47deg, #2aa6de 14.497%, #82298d 51.108%, #c9539f 116.71%)"
 const DISABLED_BACKGROUND = "linear-gradient(180deg, #9BA5B7 0%, #7E8B9E 100%)"

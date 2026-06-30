@@ -38,7 +38,7 @@ export function CreditBalanceDisplay({
             <CardTitle className="text-lg font-medium">Credit Balance</CardTitle>
             <CardDescription>Your current available Slip Credits</CardDescription>
           </div>
-          <Button onClick={onPurchaseClick} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={onPurchaseClick} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
             <DollarSign className="mr-2 h-4 w-4" />
             Purchase Credits
           </Button>

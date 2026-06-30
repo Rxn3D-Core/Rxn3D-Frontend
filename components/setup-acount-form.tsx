@@ -243,7 +243,7 @@ export default function SetupAccountForm() {
 
                 <button
                   type="submit"
-                  className="w-full bg-[#1162a8] text-white py-3 rounded-md font-medium hover:bg-[#0d5999] transition-colors flex justify-center items-center"
+                  className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white py-3 rounded-md font-medium hover:bg-[#0d5999] transition-colors flex justify-center items-center"
                   disabled={isLoading}
                 >
                   {isLoading ? (

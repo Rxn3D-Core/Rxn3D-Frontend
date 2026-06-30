@@ -125,7 +125,7 @@ export function DiscardChangesDialog({ isOpen, type, onDiscard, onKeepEditing }:
           >
             Discard Changes
           </Button>
-          <Button onClick={onKeepEditing} className="bg-[#1162a8]">
+          <Button onClick={onKeepEditing} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">
             Keep Editing
           </Button>
         </div>

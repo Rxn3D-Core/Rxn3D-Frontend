@@ -952,7 +952,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             </div>
 
             {/* Right Section - Controls & User */}
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
               {/* Location Selector - Desktop */}
               {!isSuperAdmin && safeLocations.length > 0 && (
                 <div className="hidden md:block min-w-0">
@@ -981,10 +981,6 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 </div>
               )}
 
-              {/* Theme Toggle */}
-              <div className="hidden sm:block">
-                <ThemeToggle />
-              </div>
 
               {/* Language Switcher - Desktop */}
               {/* <div className="hidden lg:block">
@@ -1096,9 +1092,8 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               </div>
             )}
             
-            {/* Mobile Theme & Language */}
+            {/* Mobile controls */}
             <div className="flex items-center gap-1.5">
-              <ThemeToggle />
               {/* <LanguageSwitcher /> */}
               <Button
                 variant="ghost"

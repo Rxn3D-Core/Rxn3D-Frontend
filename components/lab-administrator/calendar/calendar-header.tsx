@@ -66,7 +66,7 @@ export function CalendarHeader({ view, onViewChange, currentDate, onDateChange, 
             variant={view === "month" ? "default" : "outline"}
             size="sm"
             onClick={() => onViewChange("month")}
-            className={view === "month" ? "bg-blue-600 hover:bg-blue-700" : ""}
+            className={view === "month" ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" : ""}
           >
             <Calendar className="h-4 w-4 mr-2" />
             Month
@@ -75,7 +75,7 @@ export function CalendarHeader({ view, onViewChange, currentDate, onDateChange, 
             variant={view === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => onViewChange("list")}
-            className={view === "list" ? "bg-blue-600 hover:bg-blue-700" : ""}
+            className={view === "list" ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" : ""}
           >
             <List className="h-4 w-4 mr-2" />
             List

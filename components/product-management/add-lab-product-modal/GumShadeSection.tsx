@@ -477,7 +477,7 @@ export function GumShadeSection({
                       onClick={() => toggleBrandExpansion(brand.id)}
                       className={`rounded-full px-4 py-2 h-auto transition-colors ${
                         isActive
-                          ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
+                          ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/90"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
                     >
@@ -487,7 +487,7 @@ export function GumShadeSection({
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                             isActive
                               ? "bg-white/20 text-white"
-                              : "bg-[#1162a8]/10 text-[#1162a8]"
+                              : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/10 text-[#1162a8]"
                           }`}>
                             {brand.system_name}
                           </span>
@@ -699,7 +699,7 @@ export function GumShadeSection({
                               }
                               className={`rounded-full px-4 py-2 h-auto pr-8 transition-colors ${
                                 isChecked
-                                  ? "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#1162a8]/90"
+                                  ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/90"
                                   : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                               }`}
                             >

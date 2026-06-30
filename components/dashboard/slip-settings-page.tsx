@@ -199,7 +199,7 @@ export function SlipSettingsPage() {
     <div className="h-full w-full bg-[#F9F9F9] overflow-auto">
       <div className="w-full h-full px-4 sm:px-6 lg:px-8 py-4">
         <div className="mb-4">
-          <div className="bg-[#1162a8] text-white rounded-lg px-5 py-3 shadow-sm">
+          <div className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg px-5 py-3 shadow-sm">
             <h1 className="text-lg sm:text-xl font-bold">Slip Settings</h1>
             <p className="text-blue-100 text-xs sm:text-sm">
               Configure slip header visibility and whether gender and age are required when creating slips
@@ -374,7 +374,7 @@ export function SlipSettingsPage() {
                   <Button
                     onClick={handleSave}
                     disabled={isLoading || isSaving || !isDirty}
-                    className="bg-[#1162a8] hover:bg-[#0f5497] text-white min-w-[100px]"
+                    className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white min-w-[100px]"
                   >
                     {isSaving ? (
                       <>

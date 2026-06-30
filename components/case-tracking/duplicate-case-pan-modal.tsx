@@ -224,7 +224,7 @@ export function DuplicateCasePanModal({ isOpen, onClose, sourceData }: Duplicate
           <Button
             onClick={handleSubmit}
             disabled={!isFormValid}
-            className="bg-[#1162a8] hover:bg-[#0f5490]"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
           >
             {t("caseTracking.save", "Save")}
           </Button>

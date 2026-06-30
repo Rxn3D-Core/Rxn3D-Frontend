@@ -865,7 +865,7 @@ export default function RushRequestModal({
                     onClick={() => setActiveProductId(p.id)}
                     className={`px-4 py-1.5 rounded-md text-sm font-medium border transition-colors cursor-pointer ${
                       activeProductId === p.id
-                        ? "bg-[#1162A8] text-white border-[#1162A8]"
+                        ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]"
                         : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                     }`}
                   >

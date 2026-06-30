@@ -258,7 +258,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     );
   }
   const isDark = theme === "dark"
-  const sidebarBg = isDark ? "bg-[#1162a8]" : "bg-white"
+  const sidebarBg = isDark ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" : "bg-white"
   const sidebarBorder = isDark ? "border-[#0f5497]" : "border-[#d9d9d9]"
   const textColor = isDark ? "text-white" : "text-[#000000]"
   const hoverBg = isDark ? "hover:bg-[#0f5497]" : "hover:bg-gray-100"

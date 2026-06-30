@@ -144,7 +144,7 @@ export function STLFileAttachmentModal({
             <Button
               onClick={handleAttachFiles}
               disabled={files.length === 0}
-              className="bg-[#1162A8] hover:bg-[#0f5490] text-white px-6"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white px-6"
             >
               Attach Files
             </Button>

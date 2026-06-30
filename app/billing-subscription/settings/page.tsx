@@ -194,7 +194,7 @@ export default function BillingSettingsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
         <TabsList className="h-9 rounded-md bg-muted/40 p-1">
-          <TabsTrigger value="stripe" className="h-7 rounded-md px-3 text-xs data-[state=active]:bg-[#1162A8] data-[state=active]:text-white">
+          <TabsTrigger value="stripe" className="h-7 rounded-md px-3 text-xs data-[state=active]:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] data-[state=active]:text-white">
             Stripe Settings
           </TabsTrigger>
         </TabsList>

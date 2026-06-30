@@ -1063,7 +1063,7 @@ export function LinkProductModal({
                             className={cn(
                               "flex h-9 w-9 items-center justify-center rounded-full text-xs font-medium transition-colors",
                               browsePage === pageNum
-                                ? "bg-[#1162a8] text-white"
+                                ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                                 : "bg-gray-100 text-gray-600 hover:bg-gray-200",
                             )}
                             onClick={() => setBrowsePage(pageNum)}
@@ -1636,7 +1636,7 @@ export function LinkProductModal({
                         className={cn(
                           "h-7 w-7 rounded-full flex items-center justify-center text-[11px] transition-colors",
                           bulkFieldPage === pageNum
-                            ? "bg-[#1162a8] text-white"
+                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200",
                         )}
                         onClick={() => setBulkFieldPage(pageNum)}
@@ -1727,7 +1727,7 @@ export function LinkProductModal({
                         className={cn(
                           "h-7 w-7 rounded-full flex items-center justify-center text-[11px] transition-colors",
                           bulkProductPage === pageNum
-                            ? "bg-[#1162a8] text-white"
+                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200",
                         )}
                         onClick={() => setBulkProductPage(pageNum)}
@@ -1765,7 +1765,7 @@ export function LinkProductModal({
             </Button>
             <Button
               type="button"
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
               disabled={
                 isSubmitting ||
                 (mainTab === "browse" &&

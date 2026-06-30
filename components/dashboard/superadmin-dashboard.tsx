@@ -887,7 +887,7 @@ export function SuperAdminDashboard() {
                   <button
                     key={idx}
                     className={`h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center text-xs ${
-                      item === 1 ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#a19d9d]"
+                      item === 1 ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" : "bg-[#f0f0f0] text-[#a19d9d]"
                     }`}
                   >
                     {item}
@@ -956,7 +956,7 @@ export function SuperAdminDashboard() {
             </p>
             <Button
               onClick={() => window.location.href = "/dashboard/settings"}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
             >
               Go to Dashboard Settings
             </Button>

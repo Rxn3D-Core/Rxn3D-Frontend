@@ -11,11 +11,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-[#1162A8] text-white border-none hover:brightness-110 hover:shadow-[0_0_8px_rgba(0,0,0,0.15)]",
+        default: "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-none hover:brightness-110 hover:shadow-[0_0_8px_rgba(0,0,0,0.15)]",
         success: "bg-[#119933] text-white border-none hover:brightness-110 hover:shadow-[0_0_8px_rgba(0,0,0,0.15)]",
         warning: "bg-[#FF9900] text-white border-none hover:brightness-110 hover:shadow-[0_0_8px_rgba(0,0,0,0.15)]",
         destructive: "bg-[#CF0202] text-white border-none hover:brightness-110 hover:shadow-[0_0_8px_rgba(0,0,0,0.15)]",
-        outline: "border-[1.5px] border-[#E0E0E0] bg-white hover:bg-[#dfeefb] hover:text-[#1162A8] hover:border-[#1162A8]",
+        outline: "[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent text-[#82298D] hover:brightness-110",
         secondary: "bg-gray-100 text-gray-900 hover:bg-[#dfeefb] hover:text-[#1162A8]",
         ghost: "bg-transparent hover:bg-[#dfeefb] hover:text-[#1162A8]",
         link: "text-[#1162A8] underline-offset-4 hover:underline bg-transparent",

@@ -540,7 +540,7 @@ export function CaseTrackingPage() {
         {/* Toolbar */}
         <div className="px-6 py-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button onClick={() => setIsAddModalOpen(true)} className="bg-[#1162a8] hover:bg-[#0f5490]">
+            <Button onClick={() => setIsAddModalOpen(true)} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
               <Plus className="h-4 w-4 mr-2" />
               {t("caseTracking.addCasePan", "Add Case Pan")}
             </Button>
@@ -856,7 +856,7 @@ export function CaseTrackingPage() {
                     key={pageNum}
                     className={`h-8 w-8 rounded-full flex items-center justify-center text-xs transition-colors ${
                       pageNum === currentPage 
-                        ? "bg-[#1162a8] text-white" 
+                        ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" 
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                     onClick={() => handlePageChange(pageNum)}

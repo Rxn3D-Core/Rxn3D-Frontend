@@ -207,7 +207,7 @@ export function CalendarMeetingView() {
               Day
             </Button>
           </div>
-          <Button onClick={handleAddMeeting} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleAddMeeting} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
             <Plus className="h-5 w-5 mr-1" /> Create
           </Button>
         </div>
@@ -220,7 +220,7 @@ export function CalendarMeetingView() {
           <div className="text-center mb-2">
             <Button
               variant="outline"
-              className="w-full bg-blue-600 text-white hover:bg-blue-700"
+              className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700"
               onClick={handleAddMeeting}
             >
               <Plus className="h-4 w-4 mr-2" /> Create
@@ -247,7 +247,7 @@ export function CalendarMeetingView() {
                     className={`
                       cursor-pointer rounded-full w-6 h-6 flex items-center justify-center text-xs
                       ${isToday ? "bg-blue-100 text-blue-800" : ""}
-                      ${isSelected ? "bg-blue-600 text-white" : ""}
+                      ${isSelected ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" : ""}
                       ${!isToday && !isSelected ? "hover:bg-gray-100" : ""}
                     `}
                     onClick={() => setSelectedDate(new Date(date))}

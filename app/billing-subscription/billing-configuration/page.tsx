@@ -1172,7 +1172,7 @@ export default function BillingConfigurationPage() {
             <TabsTrigger
               key={id}
               value={id}
-              className="h-8 rounded-md px-3 text-xs font-medium data-[state=active]:bg-[#1162A8] data-[state=active]:text-white data-[state=active]:shadow-sm"
+              className="h-8 rounded-md px-3 text-xs font-medium data-[state=active]:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               {label}
             </TabsTrigger>
@@ -1197,7 +1197,7 @@ export default function BillingConfigurationPage() {
                 </Button>
                 <Button
                   size="sm"
-                  className="h-9 rounded-lg bg-[#1162A8] px-4 text-[13px] font-medium text-white hover:bg-[#0d4a7e]"
+                  className="h-9 rounded-lg bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 text-[13px] font-medium text-white hover:bg-[#0d4a7e]"
                   type="button"
                   onClick={openCreate}
                 >
@@ -1884,7 +1884,7 @@ export default function BillingConfigurationPage() {
                               {timePickerOpen && (
                                 <div className="absolute right-0 top-[calc(100%+6px)] z-[210] flex w-[183px] flex-col items-center gap-0 rounded-[10px] border border-gray-200 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
                                   {/* Header */}
-                                  <div className="w-full rounded-t-[10px] bg-[#1162A8] px-4 py-2 text-center text-xs font-medium text-white">
+                                  <div className="w-full rounded-t-[10px] bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 py-2 text-center text-xs font-medium text-white">
                                     Select Time
                                   </div>
 
@@ -1939,7 +1939,7 @@ export default function BillingConfigurationPage() {
                                   <button
                                     type="button"
                                     onClick={() => setTimePickerOpen(false)}
-                                    className="mb-3 rounded-md bg-[#1162A8] px-6 py-1.5 text-sm font-medium text-white hover:bg-[#0E4676]"
+                                    className="mb-3 rounded-md bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-6 py-1.5 text-sm font-medium text-white hover:bg-[#0E4676]"
                                   >
                                     Done
                                   </button>
@@ -2025,7 +2025,7 @@ export default function BillingConfigurationPage() {
                                       className={[
                                         "flex h-[64px] items-center justify-center font-['Inter'] text-[16.07px] font-medium tracking-[-0.02em] transition-colors",
                                         isSelected
-                                          ? "bg-[#1162A8] text-white"
+                                          ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                                           : isWeekend
                                             ? "bg-[#E2E2E2] text-black"
                                             : "bg-[#F2F4F7] text-black",

@@ -480,7 +480,7 @@ export default function AttachmentsPage() {
             </Select>
 
             <div className="flex justify-end">
-              <Button className="bg-[#1162a8] hover:bg-[#1162a8]/90 text-white" onClick={() => setShowAddAddon(false)}>
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/90 text-white" onClick={() => setShowAddAddon(false)}>
                 Add Add-on
               </Button>
             </div>
@@ -514,7 +514,7 @@ function CategoryButton({
         selected
           ? disabled
             ? "bg-gray-200 text-gray-500"
-            : "bg-[#1162a8] text-white"
+            : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
           : "bg-white border border-gray-300 text-gray-700 hover:bg-gray-100"
       } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} min-w-[180px]`}
       onClick={onClick}
@@ -545,7 +545,7 @@ function CheckboxOption({ id, label, checked, onChange }: CheckboxOptionProps) {
     >
       <div
         className={`w-5 h-5 flex items-center justify-center rounded border ${
-          checked ? "bg-[#1162a8] border-[#1162a8]" : "bg-white border-gray-400"
+          checked ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] border-[#1162a8]" : "bg-white border-gray-400"
         }`}
       >
         {checked && <Check className="h-3.5 w-3.5 text-white" />}

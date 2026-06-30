@@ -725,8 +725,8 @@ const AddProductModal = React.memo(function AddProductModal({ isOpen, onClose, o
                 size="sm"
                 className={`w-full sm:w-auto px-4 md:px-6 h-9 min-w-[120px] text-xs md:text-sm transition-all rounded-lg ${
                   selectedArch && (selectedArch === 'upper' || selectedArch === 'lower' || selectedArch === 'both')
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-blue-600/60 text-white cursor-not-allowed'
+                    ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white'
+                    : 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/60 text-white cursor-not-allowed'
                 }`}
                 onClick={handleArchSelect}
                 disabled={!selectedArch}

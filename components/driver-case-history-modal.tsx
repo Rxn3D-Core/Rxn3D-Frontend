@@ -185,7 +185,7 @@ export default function DriverHistoryModal({
             />
             <div className="flex justify-end">
               <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium text-base"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8 py-3 rounded-lg font-medium text-base"
                 onClick={handleSubmit}
               >
                 Submit

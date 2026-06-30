@@ -249,7 +249,7 @@ const ExpertModeModal: React.FC<ExpertModeModalProps> = ({ isOpen, onClose }) =>
                     onClick={() => setCurrentStep(step.id)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white hover:bg-blue-700'
                         : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                     }`}
                   >
@@ -648,7 +648,7 @@ const ExpertModeModal: React.FC<ExpertModeModalProps> = ({ isOpen, onClose }) =>
                                 onClick={() => handleContactType(contact.id)}
                                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                                   contactTypes.includes(contact.id)
-                                    ? 'bg-blue-600 text-white'
+                                    ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white'
                                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                 }`}
                               >
@@ -895,7 +895,7 @@ const ExpertModeModal: React.FC<ExpertModeModalProps> = ({ isOpen, onClose }) =>
                               key={value}
                               className={`w-3 h-3 rounded-full cursor-pointer ${
                                 occlusalStainingIntensity === value
-                                  ? 'bg-blue-600'
+                                  ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]'
                                   : 'bg-gray-300'
                               }`}
                               onClick={() => setOcclusalStainingIntensity(value)}
@@ -1133,7 +1133,7 @@ const ExpertModeModal: React.FC<ExpertModeModalProps> = ({ isOpen, onClose }) =>
                 <Button variant="outline" onClick={onClose}>
                   Cancel
                 </Button>
-                <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={handleSave} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
                   <Save className="w-4 h-4 mr-2" />
                   Save Configuration
                 </Button>

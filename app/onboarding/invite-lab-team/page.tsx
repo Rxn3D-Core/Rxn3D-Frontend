@@ -125,7 +125,7 @@ export default function InviteLabTeamPage() {
                 </Select>
               </div>
               <div className="flex justify-center pt-2">
-                <Button type="submit" className="bg-[#1162a8]" disabled={isPending || !customerId}>
+                <Button type="submit" className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" disabled={isPending || !customerId}>
                   {isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -143,7 +143,7 @@ export default function InviteLabTeamPage() {
             <Button variant="outline" className="bg-[#eef1f4]" onClick={goBackToCaseSchedule}>
               Previous
             </Button>
-            <Button className="bg-[#1162a8]" onClick={() => router.push("/onboarding/invite-users")}>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" onClick={() => router.push("/onboarding/invite-users")}>
               Next
             </Button>
           </div>

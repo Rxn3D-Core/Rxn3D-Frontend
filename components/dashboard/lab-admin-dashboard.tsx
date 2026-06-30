@@ -900,7 +900,7 @@ export function LabAdminDashboard() {
           </p>
           <Button
             onClick={() => window.location.href = "/dashboard/settings"}
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
           >
             Go to Dashboard Settings
           </Button>
