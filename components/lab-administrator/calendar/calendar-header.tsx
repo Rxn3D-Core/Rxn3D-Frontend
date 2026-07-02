@@ -62,37 +62,67 @@ export function CalendarHeader({ view, onViewChange, currentDate, onDateChange, 
 
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
-          <Button
-            variant={view === "month" ? "default" : "outline"}
-            size="sm"
-            onClick={() => onViewChange("month")}
-            className={view === "month" ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" : ""}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            Month
-          </Button>
-          <Button
-            variant={view === "list" ? "default" : "outline"}
-            size="sm"
-            onClick={() => onViewChange("list")}
-            className={view === "list" ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" : ""}
-          >
-            <List className="h-4 w-4 mr-2" />
-            List
-          </Button>
+          {view === "month" ? (
+            <Button
+              size="sm"
+              onClick={() => onViewChange("month")}
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Month
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onViewChange("month")}
+              className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
+            >
+              <Calendar className="h-4 w-4 mr-2" style={{ color: "#82298D" }} />
+              <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Month</span>
+            </Button>
+          )}
+          {view === "list" ? (
+            <Button
+              size="sm"
+              onClick={() => onViewChange("list")}
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
+            >
+              <List className="h-4 w-4 mr-2" />
+              List
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onViewChange("list")}
+              className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
+            >
+              <List className="h-4 w-4 mr-2" style={{ color: "#82298D" }} />
+              <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>List</span>
+            </Button>
+          )}
         </div>
 
-        <Button variant="outline" size="sm">
-          <Filter className="h-4 w-4 mr-2" />
-          Filter
+        <Button
+          variant="ghost"
+          size="sm"
+          className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
+        >
+          <Filter className="h-4 w-4 mr-2" style={{ color: "#82298D" }} />
+          <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Filter</span>
         </Button>
 
         {/* Calendar View Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="w-32">
-              {getViewLabel()}
-              <ChevronDown className="h-4 w-4 ml-2" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 w-32"
+            >
+              <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>{getViewLabel()}</span>
+              <ChevronDown className="h-4 w-4 ml-2" style={{ color: "#82298D" }} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -111,8 +141,13 @@ export function CalendarHeader({ view, onViewChange, currentDate, onDateChange, 
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" size="sm" onClick={goToToday}>
-          Today
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={goToToday}
+          className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
+        >
+          <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Today</span>
         </Button>
 
         <div className="relative">

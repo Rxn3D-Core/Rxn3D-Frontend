@@ -602,21 +602,22 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 className="hidden"
               />
               <div className="flex flex-col gap-1">
-                <Button 
-                  size="sm" 
-                  className="bg-blue-600 text-white hover:bg-blue-700"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
                   onClick={handleUploadClick}
                   disabled={isUploading}
                 >
                   {isUploading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Uploading....
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" style={{ color: "#82298D" }} />
+                      <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Uploading...</span>
                     </>
                   ) : (
                     <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Logo
+                      <Upload className="h-4 w-4 mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                      <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Upload Logo</span>
                     </>
                   )}
                 </Button>

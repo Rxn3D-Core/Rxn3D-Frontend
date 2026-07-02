@@ -89,10 +89,11 @@ export function TagsSection() {
       </div>
 
       <Button
-        className="w-full mt-4 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
+        variant="ghost"
+        className="w-full mt-4 [background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
         onClick={() => openWorkingHoursModal()}
       >
-        Working Hours
+        <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Working Hours</span>
       </Button>
 
       <WorkingHoursModal 

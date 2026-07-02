@@ -17,20 +17,27 @@ export default function LabProfileTabs({ tabs, activeTab, onTabChange }: LabProf
   return (
     <div className="border-b bg-white">
       <div className="flex">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={cn(
-              "px-6 py-4 text-sm font-medium border-b-2 transition-colors relative",
-              activeTab === tab.id
-                ? "border-blue-600 text-blue-600 bg-blue-50"
-                : "border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={cn(
+                "px-6 py-4 text-sm font-medium transition-colors relative border-b-2 border-transparent",
+                isActive ? "text-gray-900" : "text-gray-600 hover:text-gray-800 hover:bg-gray-50",
+              )}
+            >
+              {tab.label}
+              {isActive && (
+                <span
+                  className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full"
+                  style={{ background: "linear-gradient(256.66deg, #2AA6DE 0%, #82298D 50%, #C9539F 100%)" }}
+                />
+              )}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

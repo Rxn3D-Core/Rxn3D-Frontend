@@ -375,12 +375,13 @@ export function OfficeAdminDashboard() {
                   <p className="text-blue-100 text-xs">Manage your laboratory partnerships</p>
                 </div>
                 <Button
-                  className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                  variant="ghost"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                   onClick={() => setShowLabForm(!showLabForm)}
                 >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">New Lab</span>
-                  <span className="sm:hidden">New</span>
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">New Lab</span>
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                 </Button>
               </div>
             </div>
@@ -413,40 +414,37 @@ export function OfficeAdminDashboard() {
 
               <div className="flex flex-col sm:flex-row border-b border-[#e4e6ef]">
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    labsTab === "connected" 
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50" 
-                      : "text-gray-500 hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    labsTab === "connected" ? "text-gray-900" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => setLabsTab("connected")}
                 >
                   <span className="hidden sm:inline">Connected Labs</span>
                   <span className="sm:hidden">Connected</span>
                   <span className="block sm:inline">({labs.filter(l => l.status?.toLowerCase() === "active").length})</span>
+                  {labsTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    labsTab === "sent" 
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50" 
-                      : "text-gray-500 hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    labsTab === "sent" ? "text-gray-900" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => setLabsTab("sent")}
                 >
                   <span className="hidden sm:inline">Request Sent</span>
                   <span className="sm:hidden">Sent</span>
                   <span className="block sm:inline">({(sent?.data || []).filter(l => l.type === "Lab").length})</span>
+                  {labsTab === "sent" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    labsTab === "received" 
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50" 
-                      : "text-gray-500 hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    labsTab === "received" ? "text-gray-900" : "text-gray-500 hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => setLabsTab("received")}
                 >
                   <span className="hidden sm:inline">Request Received</span>
                   <span className="sm:hidden">Received</span>
                   <span className="block sm:inline">({received?.data?.length || 0})</span>
+                  {labsTab === "received" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
               </div>
             </div>
@@ -634,12 +632,13 @@ export function OfficeAdminDashboard() {
                   <p className="text-blue-100 text-xs">Manage team access and permissions</p>
                 </div>
                 <Button
-                  className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                  variant="ghost"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                   onClick={() => setShowUserForm(!showUserForm)}
                 >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">New User</span>
-                  <span className="sm:hidden">New</span>
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">New User</span>
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                 </Button>
               </div>
             </div>
@@ -678,28 +677,26 @@ export function OfficeAdminDashboard() {
 
               <div className="flex flex-col sm:flex-row border-b border-[#d9d9d9]">
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabUsers === "connected"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabUsers === "connected" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("connected", "users")}
                 >
                   <span className="hidden sm:inline">Connected Users</span>
                   <span className="sm:hidden">Connected</span>
                   <span className="block sm:inline">({users.filter((u: { id: number; name: string; role: string; status: string; email: string }) => u.status.toLowerCase() === "connected").length})</span>
+                  {activeTabUsers === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabUsers === "request"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabUsers === "request" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("request", "users")}
                 >
                   <span className="hidden sm:inline">Pending</span>
                   <span className="sm:hidden">Pending</span>
                   <span className="block sm:inline">({invitations.length})</span>
+                  {activeTabUsers === "request" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
               </div>
             </div>
