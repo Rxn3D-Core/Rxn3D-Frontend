@@ -5,7 +5,12 @@ import { createPortal } from "react-dom"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { X } from "lucide-react"
+import { format } from "date-fns"
 import { useSlipContext } from "../SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
@@ -27,10 +32,17 @@ import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
+  LAB_SLIP_STATUS_OPTIONS,
   SLIP_LISTING_DEFAULT_PER_PAGE,
+  SLIP_LOCATION_FILTER_OPTIONS,
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
+import {
+  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
+  SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
+} from "@/lib/slip-listing-filter-select"
 import { slipCanSendBackToOffice } from "@/lib/slip-location"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
@@ -55,19 +67,37 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
   return typeof row.billingId === "number" && Number.isFinite(row.billingId)
 }
 
+function normalizeStatusFilterValue(status: string): string {
+  const value = status.trim().toLowerCase()
+  if (value === "on hold" || value === "on-hold") return "on hold"
+  if (value === "cancelled" || value === "canceled") return "cancelled"
+  return value
+}
+
 export default function LabSlipV3Page() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
   const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint()
+  const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
 
   const [search, setSearch] = useState("")
-  const [location, setLocation] = useState(() => parseLocationFilterFromUrl(searchParams.get("location")))
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => initialLocation === "All" ? [] : [initialLocation])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["In Progress"])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
   const [menuRow, setMenuRow] = useState<number | null>(null)
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
+  const [dateRange, setDateRange] = useState<{ start?: Date; end?: Date }>({})
+  const [officeFilter, setOfficeFilter] = useState("All")
+  const [productType, setProductType] = useState("All")
+  const [doctorFilter, setDoctorFilter] = useState("All")
+  const [stageFilter, setStageFilter] = useState("All")
+  const [officeLabFilter, setOfficeLabFilter] = useState("All")
+  const [userFilter, setUserFilter] = useState("All")
+  const [showWithAttachments, setShowWithAttachments] = useState(false)
 
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
@@ -109,10 +139,22 @@ export default function LabSlipV3Page() {
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
   const router = useRouter()
 
+  const dateRangeKey = useMemo(
+    () => `${dateRange.start?.toISOString() ?? ""}|${dateRange.end?.toISOString() ?? ""}`,
+    [dateRange.start, dateRange.end]
+  )
   const debouncedSearch = useDebounce(search, 400)
   const filterSig = useMemo(
-    () => [debouncedSearch, location].join("|"),
-    [debouncedSearch, location]
+    () => [
+      debouncedSearch,
+      selectedLocations.join(","),
+      selectedStatuses.join(","),
+      officeFilter,
+      productType,
+      dateRangeKey,
+      showWithAttachments ? "attachments" : "",
+    ].join("|"),
+    [debouncedSearch, selectedLocations, selectedStatuses, officeFilter, productType, dateRangeKey, showWithAttachments]
   )
   const prevFilterSigRef = useRef<string | null>(null)
 
@@ -129,17 +171,89 @@ export default function LabSlipV3Page() {
     }
 
     const pageToFetch = filtersJustChanged ? 1 : currentPage
+    const selectedLocationIds = selectedLocations.map(Number).filter((id) => !Number.isNaN(id))
     void fetchLabSlips(customerId, {
       q: debouncedSearch.trim() || undefined,
-      location_id: location !== "All" ? Number(location) : undefined,
+      location_ids: selectedLocationIds.length > 0 ? selectedLocationIds : undefined,
+      office_code: officeFilter !== "All" ? officeFilter : undefined,
+      statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+      has_attachments: showWithAttachments ? true : undefined,
+      product_name: productType !== "All" ? productType : undefined,
+      delivery_date_start: dateRange.start ? formatYmd(dateRange.start) : undefined,
+      delivery_date_end: dateRange.end ? formatYmd(dateRange.end) : undefined,
       page: pageToFetch,
       per_page: itemsPerPage,
     })
-  }, [filterSig, currentPage, itemsPerPage, fetchLabSlips])
+  }, [filterSig, currentPage, itemsPerPage, fetchLabSlips, selectedLocations, selectedStatuses, officeFilter, showWithAttachments, productType, dateRange.start, dateRange.end])
 
-  const slipsPage = slips
-  const totalListingCount = labListingPagination?.total ?? slips.length
-  const maxPage = Math.max(1, labListingPagination?.last_page ?? 1)
+  const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode))), [slips])
+  const allStatuses = useMemo(() => {
+    const fromSlips = slips.map((s) => s.status).filter(Boolean) as string[]
+    return Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...fromSlips]))
+  }, [slips])
+  const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
+  const allUsers = useMemo(() => Array.from(new Set(slips.map((s) => s.user || "Unknown"))), [slips])
+  const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
+  const allStages = useMemo(() => Array.from(new Set(slips.map((s) => s.product).filter(Boolean))), [slips])
+
+  const slipsPage = useMemo(() => {
+    const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
+    return slips.filter((slip) => {
+      if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
+        return false
+      }
+      if (selectedStatusSet.size > 0 && !selectedStatusSet.has(normalizeStatusFilterValue(slip.status || ""))) {
+        return false
+      }
+      if (doctorFilter !== "All" && slip.doctor !== doctorFilter) {
+        return false
+      }
+      if (userFilter !== "All" && slip.user !== userFilter) {
+        return false
+      }
+      if (stageFilter !== "All" && slip.product !== stageFilter) {
+        return false
+      }
+      return true
+    })
+  }, [selectedLocations, selectedStatuses, slips, doctorFilter, userFilter, stageFilter])
+  const clientFiltering = doctorFilter !== "All" || userFilter !== "All" || stageFilter !== "All"
+  const totalListingCount = clientFiltering ? slipsPage.length : labListingPagination?.total ?? slips.length
+  const maxPage = clientFiltering ? 1 : Math.max(1, labListingPagination?.last_page ?? 1)
+
+  const handleLocationFilterChange = (value: string) => {
+    setSelectedLocations((current) => {
+      if (value === "All") return []
+      return current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
+    })
+  }
+
+  const handleStatusFilterChange = (status: string) => {
+    setSelectedStatuses((current) => (
+      current.some((item) => normalizeStatusFilterValue(item) === normalizeStatusFilterValue(status))
+        ? current.filter((item) => normalizeStatusFilterValue(item) !== normalizeStatusFilterValue(status))
+        : [...current, status]
+    ))
+  }
+
+  const handleClearQuickFilters = () => {
+    setSelectedLocations([])
+    setSelectedStatuses([])
+  }
+
+  const handleClearAdvancedFilters = () => {
+    setDateRange({})
+    setSearch("")
+    setProductType("All")
+    setDoctorFilter("All")
+    setStageFilter("All")
+    setOfficeLabFilter("All")
+    setUserFilter("All")
+    setOfficeFilter("All")
+    setShowWithAttachments(false)
+    setSelectedLocations([])
+    setSelectedStatuses([])
+  }
 
   const allOnPageSelected = slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
   const someOnPageSelected = slipsPage.some((s) => selected.includes(s.id))
@@ -347,6 +461,188 @@ export default function LabSlipV3Page() {
     setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
   }
 
+  const advancedFilterContent = showAdvancedFilter ? (
+    <div className="border-b border-[#e5e7eb] bg-white px-4 py-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-900">Advanced Filters</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-blue-600 hover:text-blue-700"
+          onClick={handleClearAdvancedFilters}
+        >
+          Clear all Filters
+        </Button>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-6">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
+              <SlipListingCalendarIcon className="mr-2" />
+              {dateRange.start ? format(dateRange.start, "PPP") : <span className="text-gray-500">Start Date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarComponent
+              mode="single"
+              selected={dateRange.start}
+              onSelect={(date) => setDateRange((prev) => ({ ...prev, start: date }))}
+              disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
+              <SlipListingCalendarIcon className="mr-2" />
+              {dateRange.end ? format(dateRange.end, "PPP") : <span className="text-gray-500">End Date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarComponent
+              mode="single"
+              selected={dateRange.end}
+              onSelect={(date) => setDateRange((prev) => ({ ...prev, end: date }))}
+              disabled={(date) =>
+                date > new Date() ||
+                date < new Date("1900-01-01") ||
+                Boolean(dateRange.start && date < dateRange.start)
+              }
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Input
+          placeholder="Search patient name, slip #..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="text-xs"
+        />
+
+        <Select value={selectedStatuses[0] ?? "All"} onValueChange={(value) => setSelectedStatuses(value === "All" ? [] : [value])}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Status</SelectItem>
+            {allStatuses.filter(Boolean).map((status) => (
+              <SelectItem key={status} value={status}>{status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={officeFilter} onValueChange={setOfficeFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Offices/Lab" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Offices/Lab</SelectItem>
+            {allOffices.filter(Boolean).map((office) => (
+              <SelectItem key={office} value={office}>{office}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={userFilter} onValueChange={setUserFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All users" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All users</SelectItem>
+            {allUsers.filter(Boolean).map((user) => (
+              <SelectItem key={user} value={user}>{user}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <Select value={productType} onValueChange={setProductType}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <span className="text-sm">{productType === "All" ? "All product type" : productType}</span>
+          </SelectTrigger>
+          <SelectContent className="[&_[data-radix-select-item-indicator]]:hidden [&_[role=option]]:pl-2">
+            <SelectItem value="All">All product type</SelectItem>
+            {allProductTypes.filter((product) => product && product !== "Unknown").map((product) => (
+              <SelectItem key={product} value={product}>{product}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={stageFilter} onValueChange={setStageFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Stages" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Stages</SelectItem>
+            {allStages.map((stage) => (
+              <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Doctors" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Doctors</SelectItem>
+            {allDoctors.filter(Boolean).map((doctor) => (
+              <SelectItem key={doctor} value={doctor}>{doctor}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Office & Lab" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Office & Lab</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+        <Select
+          value={selectedLocations.length === 1 ? selectedLocations[0] : "All"}
+          onValueChange={(value) => setSelectedLocations(value === "All" ? [] : [value])}
+        >
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Location" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Location</SelectItem>
+            {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
+              <SelectItem key={loc.id} value={String(loc.id)}>
+                {loc.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <label className="flex items-center gap-2 text-base">
+          <span className="relative">
+            <input
+              type="checkbox"
+              checked={showWithAttachments}
+              onChange={(e) => setShowWithAttachments(e.target.checked)}
+              className="sr-only"
+            />
+            <span className={`block h-6 w-11 rounded-full transition-colors ${showWithAttachments ? "bg-blue-600" : "bg-gray-300"}`}>
+              <span className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${showWithAttachments ? "translate-x-5" : "translate-x-0.5"}`} />
+            </span>
+          </span>
+          Show only cases with attachments
+        </label>
+      </div>
+    </div>
+  ) : null
+
   const selectedStatementRow = selected.length === 1 ? slipsPage.find((row) => row.id === selected[0]) : undefined
 
   return (
@@ -362,8 +658,13 @@ export default function LabSlipV3Page() {
           onSearchEnter={() => {
             if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
           }}
-          location={location}
-          onLocationChange={setLocation}
+          onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
+          advancedFilterContent={advancedFilterContent}
+          locations={selectedLocations}
+          onLocationChange={handleLocationFilterChange}
+          statuses={selectedStatuses}
+          onStatusChange={handleStatusFilterChange}
+          onClearQuickFilters={handleClearQuickFilters}
           rows={slipsPage}
           loading={loading}
           selected={selected}

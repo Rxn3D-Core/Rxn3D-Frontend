@@ -1406,10 +1406,9 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
               <CollapsibleContent className="pt-4">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
-                      className="bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
                       onClick={handleOpenCreateVariation}
                     >
                       + New variation

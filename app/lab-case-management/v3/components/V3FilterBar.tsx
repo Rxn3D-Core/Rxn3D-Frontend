@@ -1,6 +1,7 @@
 "use client"
 
-import { Search, SlidersHorizontal, Columns } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Filter, Search, Columns } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 
@@ -9,15 +10,93 @@ const GRADIENT = "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9
 const ALL_TAB = { id: 0, label: "All" }
 const LOCATION_TABS = [ALL_TAB, ...SLIP_LOCATION_FILTER_OPTIONS]
 
+const COLUMN_KEYS = [
+  "patient",
+  "slip",
+  "panProduct",
+  "location",
+  "dueDate",
+  "status",
+  "office",
+  "caseNo",
+  "timestamp",
+] as const
+
+export type ColumnKey = typeof COLUMN_KEYS[number]
+
+type ColumnDefinition = {
+  key: ColumnKey
+  label: string
+  default: boolean
+  required?: boolean
+}
+
+export const ALL_COLUMNS: readonly ColumnDefinition[] = [
+  { key: "patient",    label: "Patient",        default: true },
+  { key: "slip",       label: "Slip #",         default: true },
+  { key: "panProduct", label: "Pan / Product",  default: true, required: true },
+  { key: "location",   label: "Location",       default: true },
+  { key: "dueDate",    label: "Due date",       default: true },
+  { key: "status",     label: "Status",         default: true, required: true },
+  { key: "office",     label: "Office",         default: false },
+  { key: "caseNo",     label: "Case #",         default: false },
+  { key: "timestamp",  label: "Time stamp",     default: false },
+]
+
+const DEFAULT_VISIBLE = new Set(ALL_COLUMNS.filter((c) => c.default || c.required).map((c) => c.key)) as Set<ColumnKey>
+
 interface Props {
   search: string
   onSearchChange: (value: string) => void
   onSearchEnter: () => void
-  location: string
+  onAdvancedFilterClick: () => void
+  locations: string[]
   onLocationChange: (value: string) => void
+  statuses: string[]
+  onStatusChange: (status: string) => void
+  onClearQuickFilters: () => void
+  visibleColumns: Set<ColumnKey>
+  onVisibleColumnsChange: (cols: Set<ColumnKey>) => void
 }
 
-export function V3FilterBar({ search, onSearchChange, onSearchEnter, location, onLocationChange }: Props) {
+export function V3FilterBar({
+  search,
+  onSearchChange,
+  onSearchEnter,
+  onAdvancedFilterClick,
+  locations,
+  onLocationChange,
+  statuses,
+  onStatusChange,
+  onClearQuickFilters,
+  visibleColumns,
+  onVisibleColumnsChange,
+}: Props) {
+  const [colPanelOpen, setColPanelOpen] = useState(false)
+  const colPanelRef = useRef<HTMLDivElement>(null)
+  const statusActive = (status: string) => statuses.some((item) => normalizeStatus(item) === normalizeStatus(status))
+  const hasQuickFilters = locations.length > 0 || statuses.length > 0
+
+  useEffect(() => {
+    if (!colPanelOpen) return
+    function onPointerDown(e: PointerEvent) {
+      if (colPanelRef.current && !colPanelRef.current.contains(e.target as Node)) {
+        setColPanelOpen(false)
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [colPanelOpen])
+
+  function toggleColumn(key: ColumnKey) {
+    const col = ALL_COLUMNS.find((c) => c.key === key)
+    if (col?.default || col?.required) return
+    const next = new Set(visibleColumns)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    onVisibleColumnsChange(next)
+  }
+
   return (
     <div className="border-b border-[#e5e7eb] bg-white px-4 py-3 space-y-3">
       {/* Search row */}
@@ -33,22 +112,90 @@ export function V3FilterBar({ search, onSearchChange, onSearchEnter, location, o
             onKeyDown={(e) => e.key === "Enter" && onSearchEnter()}
           />
         </div>
-        <IconBtn aria-label="Filters"><SlidersHorizontal className="h-4 w-4" /></IconBtn>
-        <IconBtn aria-label="Columns"><Columns className="h-4 w-4" /></IconBtn>
+        <IconBtn aria-label="Filters" onClick={onAdvancedFilterClick}><Filter className="h-4 w-4" /></IconBtn>
+
+        {/* Columns toggle button + panel */}
+        <div ref={colPanelRef} style={{ position: "relative" }}>
+          <IconBtn
+            aria-label="Show/Hide Columns"
+            onClick={() => setColPanelOpen((o) => !o)}
+            style={{ background: colPanelOpen ? "#f3f4f6" : undefined }}
+          >
+            <Columns className="h-4 w-4" />
+          </IconBtn>
+
+          {colPanelOpen && (
+            <div
+              style={{
+                position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 60,
+                background: "#fff", borderRadius: 12,
+                boxShadow: "0px 8px 24px rgba(0,0,0,0.12)",
+                border: "1px solid #E2E4E8",
+                minWidth: 260, padding: "16px 0 12px",
+              }}
+            >
+              <p style={{ fontSize: 18, fontWeight: 700, color: "#000", padding: "0 16px 12px" }}>Show/Hide Column</p>
+              <div style={{ borderTop: "1px solid #E2E4E8", marginBottom: 4 }} />
+              {ALL_COLUMNS.map(({ key, label, default: isDefault, required: isRequired }) => {
+                const locked = isDefault || isRequired
+                const checked = locked || visibleColumns.has(key)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={locked}
+                    aria-disabled={locked}
+                    onClick={() => toggleColumn(key)}
+                    style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      width: "100%", padding: "10px 16px", background: "none", border: "none",
+                      cursor: locked ? "default" : "pointer", gap: 12,
+                      opacity: locked ? 0.6 : 1,
+                    }}
+                    onMouseEnter={(e) => { if (!locked) (e.currentTarget as HTMLElement).style.background = "#F9FAFB" }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      {/* Checkbox */}
+                      <div
+                        style={{
+                          width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+                          border: checked ? "none" : "1.5px solid #6B7280",
+                          background: checked ? "#6B7280" : "transparent",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        {checked && (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6L5 9L10 3" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 15, color: checked ? "#6B7280" : "#111827" }}>{label}</span>
+                    </div>
+                    {isDefault && (
+                      <span style={{ fontSize: 13, color: "#9CA3AF" }}>Default</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Location pill tabs + action icons — all on the same row */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* Location pill tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
+        <div className="flex shrink-0 items-center gap-1.5">
           {LOCATION_TABS.map((tab) => {
             const value = tab.id === 0 ? "All" : String(tab.id)
-            const active = location === value
+            const active = value === "All" ? locations.length === 0 : locations.includes(value)
             return (
               <button
                 key={tab.id}
                 type="button"
                 aria-pressed={active}
-                onClick={() => onLocationChange(active && value !== "All" ? "All" : value)}
+                onClick={() => onLocationChange(value)}
                 className="relative inline-flex h-7 items-center px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#82298D]"
                 style={{
                   borderRadius: 24,
@@ -59,7 +206,6 @@ export function V3FilterBar({ search, onSearchChange, onSearchEnter, location, o
               >
                 {active && (
                   <>
-                    {/* gradient border via pseudo-element replacement: box-shadow outline */}
                     <span
                       aria-hidden
                       className="pointer-events-none absolute inset-0"
@@ -90,36 +236,56 @@ export function V3FilterBar({ search, onSearchChange, onSearchEnter, location, o
           })}
         </div>
 
-        {/* Always-visible action icons */}
-        <div className="flex items-center gap-1 shrink-0">
-          <ActionIcon aria-label="Stage history" title="Stage history">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
+        {/* Action icons */}
+        <div className="flex shrink-0 items-center gap-1 ml-2">
+          <ActionIcon
+            active={statusActive("Draft")}
+            aria-label="Draft"
+            title="Draft"
+            onClick={() => onStatusChange("Draft")}
+          >
+            <StatusAssetIcon active={statusActive("Draft")} src="/icons/stage-history.svg" />
           </ActionIcon>
-          <ActionIcon aria-label="Resume" title="Resume" className="text-[#16a34a] hover:bg-[#dcfce7]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
+          <ActionIcon
+            active={statusActive("In Progress")}
+            aria-label="In Progress"
+            title="In Progress"
+            onClick={() => onStatusChange("In Progress")}
+          >
+            <StatusAssetIcon active={statusActive("In Progress")} src="/icons/virtual-slip-actions/resume.svg" />
           </ActionIcon>
-          <ActionIcon aria-label="Pause" title="Pause">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
+          <ActionIcon
+            active={statusActive("On hold")}
+            aria-label="On Hold"
+            title="On Hold"
+            onClick={() => onStatusChange("On hold")}
+          >
+            <PauseActionIcon active={statusActive("On hold")} />
           </ActionIcon>
-          <ActionIcon aria-label="Cancel" title="Cancel">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+          <ActionIcon
+            active={statusActive("cancelled")}
+            aria-label="Cancelled"
+            title="Cancelled"
+            onClick={() => onStatusChange("cancelled")}
+          >
+            <CancelActionIcon active={statusActive("cancelled")} />
           </ActionIcon>
-          <ActionIcon aria-label="Complete" title="Mark complete">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+          <ActionIcon
+            active={statusActive("Finished")}
+            aria-label="Finished"
+            title="Finished"
+            onClick={() => onStatusChange("Finished")}
+          >
+            <StatusAssetIcon active={statusActive("Finished")} src="/icons/check.svg" />
           </ActionIcon>
+          <button
+            type="button"
+            disabled={!hasQuickFilters}
+            onClick={onClearQuickFilters}
+            className="ml-1 h-8 shrink-0 rounded-md border border-[#d1d5db] px-3 text-[11px] font-medium text-[#374151] transition-colors hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Clear Filter
+          </button>
         </div>
       </div>
     </div>
@@ -138,14 +304,84 @@ function IconBtn({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonEl
   )
 }
 
-function ActionIcon({ children, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+function ActionIcon({
+  active,
+  children,
+  className = "",
+  style,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
   return (
     <button
       type="button"
       className={`grid h-8 w-8 shrink-0 place-items-center rounded-md text-[#6b7280] transition-colors hover:bg-[#f3f4f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9ca3af] ${className}`}
+      aria-pressed={active}
+      style={{ ...(active ? { backgroundColor: "#f3f4f6" } : null), ...style }}
       {...props}
     >
       {children}
     </button>
   )
 }
+
+function StatusAssetIcon({ active, src }: { active: boolean; src: string }) {
+  return (
+    <img
+      src={src}
+      alt=""
+      className="h-5 w-5"
+      style={active ? undefined : { filter: "grayscale(1) brightness(0)", opacity: 0.65 }}
+    />
+  )
+}
+
+function PauseActionIcon({ active }: { active: boolean }) {
+  const inactiveFill = "#111827"
+
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 20 20">
+      <defs>
+        <linearGradient id="v3PauseLeft" x1="15" y1="1" x2="3" y2="18" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FEBC38" />
+          <stop offset="1" stopColor="#EDCC9F" />
+        </linearGradient>
+        <linearGradient id="v3PauseRight" x1="18" y1="1" x2="6" y2="18" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#F8993E" />
+          <stop offset="1" stopColor="#DB7F57" />
+        </linearGradient>
+      </defs>
+      <rect x="4" y="3" width="4.5" height="14" rx="1.4" fill={active ? "url(#v3PauseLeft)" : inactiveFill} opacity={active ? 1 : 0.65} />
+      <rect x="11.5" y="3" width="4.5" height="14" rx="1.4" fill={active ? "url(#v3PauseRight)" : inactiveFill} opacity={active ? 1 : 0.65} />
+    </svg>
+  )
+}
+
+function CancelActionIcon({ active }: { active: boolean }) {
+  const inactiveFill = "#111827"
+
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 20 20">
+      <defs>
+        <linearGradient id="v3CancelMain" x1="17" y1="3" x2="3" y2="17" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#EF3D49" />
+          <stop offset="1" stopColor="#C1404F" />
+        </linearGradient>
+        <linearGradient id="v3CancelAccent" x1="13" y1="7" x2="7" y2="13" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#F26B73" />
+          <stop offset="1" stopColor="#C44058" />
+        </linearGradient>
+      </defs>
+      <rect x="2.3" y="8" width="15.4" height="4" rx="1.2" transform="rotate(-45 10 10)" fill={active ? "url(#v3CancelMain)" : inactiveFill} opacity={active ? 1 : 0.65} />
+      <rect x="2.3" y="8" width="15.4" height="4" rx="1.2" transform="rotate(45 10 10)" fill={active ? "url(#v3CancelAccent)" : inactiveFill} opacity={active ? 1 : 0.65} />
+    </svg>
+  )
+}
+
+function normalizeStatus(status: string) {
+  const value = status.trim().toLowerCase()
+  if (value === "on hold" || value === "on-hold") return "on hold"
+  if (value === "cancelled" || value === "canceled") return "cancelled"
+  return value
+}
+
+export { DEFAULT_VISIBLE }

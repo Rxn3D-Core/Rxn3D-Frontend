@@ -41,7 +41,9 @@ export type LabListingQuery = {
   q?: string;
   office_code?: string;
   status?: string;
+  statuses?: string[];
   location_id?: number;
+  location_ids?: number[];
   delivery_date_start?: string;
   delivery_date_end?: string;
   has_attachments?: boolean;
@@ -220,32 +222,46 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       }
 
       const token = getToken();
-      const params = new URLSearchParams();
-      params.set("customer_id", String(customerId));
-      if (effectiveQuery.q) params.set("q", effectiveQuery.q);
-      if (effectiveQuery.office_code) params.set("office_code", effectiveQuery.office_code);
-      if (effectiveQuery.status) params.set("status", effectiveQuery.status);
-      if (effectiveQuery.location_id != null && !Number.isNaN(effectiveQuery.location_id)) {
-        params.set("location_id", String(effectiveQuery.location_id));
-      }
-      if (effectiveQuery.delivery_date_start) params.set("delivery_date_start", effectiveQuery.delivery_date_start);
-      if (effectiveQuery.delivery_date_end) params.set("delivery_date_end", effectiveQuery.delivery_date_end);
-      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "1");
-      if (effectiveQuery.product_name) params.set("product_name", effectiveQuery.product_name);
-      if (effectiveQuery.page != null) params.set("page", String(effectiveQuery.page));
-      if (effectiveQuery.per_page != null) params.set("per_page", String(effectiveQuery.per_page));
-      if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);
-      if (effectiveQuery.sort_by) params.set("sort_by", effectiveQuery.sort_by);
+      const buildLabListingUrl = (queryOverride: LabListingQuery = {}) => {
+        const requestQuery = { ...effectiveQuery, ...queryOverride };
+        const params = new URLSearchParams();
+        params.set("customer_id", String(customerId));
+        if (requestQuery.q) params.set("q", requestQuery.q);
+        if (requestQuery.office_code) params.set("office_code", requestQuery.office_code);
+        if (requestQuery.status) params.set("status", requestQuery.status);
+        requestQuery.statuses?.filter(Boolean).forEach((status) => {
+          params.append("statuses[]", status);
+        });
+        if (requestQuery.location_id != null && !Number.isNaN(requestQuery.location_id)) {
+          params.set("location_id", String(requestQuery.location_id));
+        }
+        requestQuery.location_ids
+          ?.filter((id) => id != null && !Number.isNaN(id))
+          .forEach((id) => {
+            params.append("location_ids[]", String(id));
+          });
+        if (requestQuery.delivery_date_start) params.set("delivery_date_start", requestQuery.delivery_date_start);
+        if (requestQuery.delivery_date_end) params.set("delivery_date_end", requestQuery.delivery_date_end);
+        if (requestQuery.has_attachments === true) params.set("has_attachments", "1");
+        if (requestQuery.product_name) params.set("product_name", requestQuery.product_name);
+        if (requestQuery.page != null) params.set("page", String(requestQuery.page));
+        if (requestQuery.per_page != null) params.set("per_page", String(requestQuery.per_page));
+        if (requestQuery.order_by) params.set("order_by", requestQuery.order_by);
+        if (requestQuery.sort_by) params.set("sort_by", requestQuery.sort_by);
+        const qs = params.toString();
+        return `${buildApiUrl("/slip/listing/lab")}${qs ? `?${qs}` : ""}`;
+      };
 
-      const qs = params.toString();
-      const url = `${buildApiUrl("/slip/listing/lab")}${qs ? `?${qs}` : ""}`;
-
-      const res = await fetch(url, {
+      const requestLabListing = async (url: string) => fetch(url, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: "application/json",
         },
       });
+
+      const url = buildLabListingUrl();
+
+      const res = await requestLabListing(url);
 
       if (res.status === 401) {
         handleUnauthorized();

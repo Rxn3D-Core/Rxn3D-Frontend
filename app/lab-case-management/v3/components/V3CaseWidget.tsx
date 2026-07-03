@@ -1,7 +1,8 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { V3FilterBar } from "./V3FilterBar"
+import { useState } from "react"
+import { V3FilterBar, DEFAULT_VISIBLE, type ColumnKey } from "./V3FilterBar"
 import { V3CaseTable } from "./V3CaseTable"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 
@@ -10,8 +11,13 @@ interface Props {
   search: string
   onSearchChange: (value: string) => void
   onSearchEnter: () => void
-  location: string
+  onAdvancedFilterClick: () => void
+  advancedFilterContent?: ReactNode
+  locations: string[]
   onLocationChange: (value: string) => void
+  statuses: string[]
+  onStatusChange: (status: string) => void
+  onClearQuickFilters: () => void
   // table
   rows: V2CaseRowData[]
   loading: boolean
@@ -38,6 +44,7 @@ export function V3CaseWidget(props: Props) {
   const pages = getPaginationPages(props.currentPage, props.totalPages)
   const firstEntry = props.totalCount === 0 ? 0 : (props.currentPage - 1) * props.itemsPerPage + 1
   const lastEntry = Math.min(props.currentPage * props.itemsPerPage, props.totalCount)
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(DEFAULT_VISIBLE)
 
   return (
     <section className="overflow-hidden rounded-lg border border-[#e5e7eb] bg-white shadow-sm">
@@ -45,12 +52,20 @@ export function V3CaseWidget(props: Props) {
         search={props.search}
         onSearchChange={props.onSearchChange}
         onSearchEnter={props.onSearchEnter}
-        location={props.location}
+        onAdvancedFilterClick={props.onAdvancedFilterClick}
+        locations={props.locations}
         onLocationChange={props.onLocationChange}
+        statuses={props.statuses}
+        onStatusChange={props.onStatusChange}
+        onClearQuickFilters={props.onClearQuickFilters}
+        visibleColumns={visibleColumns}
+        onVisibleColumnsChange={setVisibleColumns}
       />
+      {props.advancedFilterContent}
       <V3CaseTable
         rows={props.rows}
         loading={props.loading}
+        visibleColumns={visibleColumns}
         selected={props.selected}
         selectAllChecked={props.selectAllChecked}
         onSelectAll={props.onSelectAll}
@@ -62,10 +77,15 @@ export function V3CaseWidget(props: Props) {
         moreMenuRow={props.moreMenuRow}
         onPrintMenuRowChange={props.onPrintMenuRowChange}
         onMoreMenuRowChange={props.onMoreMenuRowChange}
+        firstEntry={firstEntry}
+        lastEntry={lastEntry}
+        totalCount={props.totalCount}
+        statusFilter={props.statuses}
+        onStatusFilterChange={props.onStatusChange}
       />
       <div className="border-t border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[11px] text-[#77736b]">ⓘ Amber rows are today or overdue · Click a row to open</p>
+          <p className="text-[11px] text-[#77736b]">Click a row to open</p>
           <div className="flex items-center justify-between gap-3 sm:justify-end">
             <span className="whitespace-nowrap text-[11px] text-[#77736b]">
               {firstEntry}–{lastEntry} of {props.totalCount}
