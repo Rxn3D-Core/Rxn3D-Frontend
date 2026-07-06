@@ -55,7 +55,15 @@ import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-c
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
 import { cn } from "@/lib/utils"
 
-/** Brand gradient used on primary header actions (#2AA6DE → #82298D → #C9539F). */
+/** New Slip: solid gradient fill, white text */
+const NEW_SLIP_BUTTON_CLASS =
+  "border-none bg-[linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)] hover:brightness-110 text-[#F7F7F7] h-10 w-[120px] rounded-[8px] text-[18px] font-bold leading-[21px] font-[Helvetica] shadow-sm transition-all duration-200 hover:shadow-md px-0"
+
+/** Scan Code: white bg, gradient border — text/icon gradient handled inline */
+const SCAN_CODE_BUTTON_CLASS =
+  "h-10 w-[144px] rounded-[8px] transition-all duration-200 px-0 [background:linear-gradient(white,white)_padding-box,linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)_border-box] border-2 border-transparent hover:brightness-110"
+
+/** Keep for any remaining non-slip/scan header actions */
 const HEADER_ACTION_BUTTON_CLASS =
   "border-none bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
 
@@ -865,12 +873,11 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 width={195}
                 height={76}
                 priority
-                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
+                className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
               />
               {!isSuperAdmin && canCreateSlip && (
                 <Button
-                  size="sm"
-                  className={HEADER_ACTION_BUTTON_CLASS}
+                  className={`${NEW_SLIP_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={() => {
                     clearSlipCreationStorage();
                     clearCaseDesignCenterStateMutation.mutate();
@@ -883,7 +890,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {!isOfficeAdmin && canCreateOffice && (
                 <Button
                   size="sm"
-                  className={HEADER_ACTION_BUTTON_CLASS}
+                  className={`${HEADER_ACTION_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={() => setShowNewOfficeModal(true)}
                 >
                   <span>{t("header.newOffice", "New Office")}</span>
@@ -892,7 +899,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {isSuperAdmin && (
                 <Button
                   size="sm"
-                  className={HEADER_ACTION_BUTTON_CLASS}
+                  className={`${HEADER_ACTION_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={() => setShowNewLabModal(true)}
                 >
                   <span>{t("header.newLab", "New Lab")}</span>
@@ -900,17 +907,35 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               )}
               {!isSuperAdmin && (
                 <Button
-                  size="sm"
-                  className={cn(HEADER_ACTION_BUTTON_CLASS, "relative")}
+                  variant="ghost"
+                  className={`${SCAN_CODE_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={openScanner}
                   aria-label={t("header.openScanner", "Open QR code scanner")}
                 >
-                  <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
-                  <span>{t("header.scanCode", "Scan Code")}</span>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-2.5">
+                    <defs>
+                      <linearGradient id="qr-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C9539F" />
+                        <stop offset="51.11%" stopColor="#82298D" />
+                        <stop offset="100%" stopColor="#2AA6DE" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad)" />
+                  </svg>
+                  <span style={{
+                    background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    fontWeight: 700,
+                    fontSize: "18px",
+                    lineHeight: "21px",
+                    fontFamily: "Helvetica, sans-serif",
+                  }}>{t("header.scanCode", "Scan Code")}</span>
                   {scanHistory.length > 0 && (
                     <Badge
                       variant="secondary"
-                      className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#82298D] font-semibold rounded-full"
+                      className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
                     >
                       {scanHistory.length}
                     </Badge>
@@ -1062,49 +1087,85 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             </div>
           </div>
 
-          {/* Secondary Row - Mobile Only Elements */}
-          <div className="flex items-center gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
-            {/* Location Selector - Mobile */}
-            {!isSuperAdmin && safeLocations.length > 0 && (
-              <div className="flex-1 min-w-0">
-                <Select
-                  value={selectedLocation !== null ? selectedLocation.toString() : ""}
-                  onValueChange={handleLocationChange}
+          {/* Secondary Row - Mobile Only */}
+          <div className="flex flex-col gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
+            {/* Mobile action buttons: New Slip + Scan Code */}
+            {!isSuperAdmin && (
+              <div className="flex gap-2">
+                {canCreateSlip && (
+                  <Button
+                    className={`${NEW_SLIP_BUTTON_CLASS} flex-1 w-auto`}
+                    onClick={() => {
+                      clearSlipCreationStorage();
+                      clearCaseDesignCenterStateMutation.mutate();
+                      router.replace("/case-design-center");
+                    }}
+                  >
+                    <span>{t("header.newSlip", "+ New Slip")}</span>
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  className={`${SCAN_CODE_BUTTON_CLASS} flex-1 w-auto`}
+                  onClick={openScanner}
+                  aria-label={t("header.openScanner", "Open QR code scanner")}
                 >
-                  <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
-                    <SelectValue placeholder={t("header.selectLocation", "Select location")} />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-lg shadow-lg">
-                    <SelectGroup>
-                      <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
-                      {safeLocations.map((location) => (
-                        <SelectItem 
-                          key={location.id} 
-                          value={location.id.toString()} 
-                          className="hover:bg-blue-50"
-                        >
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-1.5">
+                    <defs>
+                      <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C9539F" />
+                        <stop offset="51.11%" stopColor="#82298D" />
+                        <stop offset="100%" stopColor="#2AA6DE" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
+                  </svg>
+                  <span style={{
+                    background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    fontWeight: 700,
+                    fontSize: "16px",
+                    lineHeight: "21px",
+                    fontFamily: "Helvetica, sans-serif",
+                  }}>{t("header.scanCode", "Scan Code")}</span>
+                  {scanHistory.length > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
+                    >
+                      {scanHistory.length}
+                    </Badge>
+                  )}
+                </Button>
               </div>
             )}
-            
-            {/* Mobile controls */}
-            <div className="flex items-center gap-1.5">
-              {/* <LanguageSwitcher /> */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                aria-label="Settings"
-                onClick={() => router.push("/dashboard/settings")}
+            {/* Location Selector - Mobile */}
+            {!isSuperAdmin && safeLocations.length > 0 && (
+              <Select
+                value={selectedLocation !== null ? selectedLocation.toString() : ""}
+                onValueChange={handleLocationChange}
               >
-                <Settings className="h-4 w-4 text-gray-600" />
-              </Button>
-            </div>
+                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                  <SelectValue placeholder={t("header.selectLocation", "Select location")} />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg shadow-lg">
+                  <SelectGroup>
+                    <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
+                    {safeLocations.map((location) => (
+                      <SelectItem
+                        key={location.id}
+                        value={location.id.toString()}
+                        className="hover:bg-blue-50"
+                      >
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </header>

@@ -209,53 +209,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   const shouldExpand = expanded || isHovered
 
   if (isMobile && !isMobileOverlay) {
-    const visibleItems = menuItems.slice(0, 4);
-    
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#d9d9d9] flex justify-around items-center min-h-[64px] h-[64px] sm:h-[72px] shadow-lg pb-safe">
-        {visibleItems.map((item) => (
-          <Link 
-            key={item.id} 
-            href={item.path || "#"} 
-            className={cn(
-              "flex flex-col items-center justify-center flex-1 py-1.5 sm:py-2 px-0.5 sm:px-1 active:bg-gray-50 transition-colors rounded-lg mx-0.5 sm:mx-1 min-w-0",
-              isActive(item.path) && "bg-blue-50"
-            )}
-          >
-            <div className={cn(
-              "flex items-center justify-center mb-0.5 sm:mb-1",
-              isActive(item.path) ? "text-[#1162a8]" : "text-[#666666]"
-            )}>
-              <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
-                {item.icon}
-              </div>
-            </div>
-            <span className={cn(
-              "text-[14px] font-['Verdana'] font-normal leading-[100%] tracking-[0%] truncate w-full text-center px-0.5",
-              isActive(item.path) ? "text-[#1162a8]" : "text-[#666666]"
-            )}>
-              {t(`menu.${item.title}`, item.title)}
-            </span>
-          </Link>
-        ))}
-        <button
-          className={cn(
-            "flex flex-col items-center justify-center flex-1 py-1.5 sm:py-2 px-0.5 sm:px-1 text-[#666666] active:bg-gray-50 transition-colors rounded-lg mx-0.5 sm:mx-1 min-w-0 disabled:opacity-50"
-          )}
-          onClick={() => {
-            logoutMutation.mutate()
-          }}
-          disabled={logoutMutation.isPending}
-        >
-          <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center mb-0.5 sm:mb-1">
-            <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <span className="text-[14px] font-['Verdana'] font-normal leading-[100%] tracking-[0%] truncate w-full text-center px-0.5">
-            {t("menu.logout", "Sign Out")}
-          </span>
-        </button>
-      </nav>
-    );
+    return null;
   }
   const isDark = theme === "dark"
   const sidebarBg = isDark ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" : "bg-white"

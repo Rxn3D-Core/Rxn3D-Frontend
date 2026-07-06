@@ -487,9 +487,10 @@ export function TeethShadeSection({
                       onClick={() => toggleBrandExpansion(brand.id)}
                       className={`rounded-full px-4 py-2 h-auto transition-colors ${
                         isActive
-                          ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/90"
+                          ? "text-white border-transparent hover:opacity-90"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                       }`}
+                      style={isActive ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" } : undefined}
                     >
                       {!isActive && <Plus className="h-4 w-4 mr-1" />}
                       <span className="flex items-center gap-2">
