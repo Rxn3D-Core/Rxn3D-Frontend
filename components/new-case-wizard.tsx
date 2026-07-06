@@ -8,7 +8,10 @@ import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { useLibraryCategories } from "@/hooks/use-library-categories";
 import { useLibraryProducts, useLibraryProductSearch, useSubcategoryProductCounts, type LibraryProductApi } from "@/hooks/use-library-products";
-import { hasRetentionOptions } from "@/components/case-design-center/utils/categoryHelpers";
+import {
+  categoryShowsJawSelection,
+  shouldShowJawArchSelection,
+} from "@/components/case-design-center/utils/wizardJawSelection";
 import { useDebounce } from "@/lib/performance-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -1349,6 +1352,7 @@ function StepSubProduct({
   subcategoryProductCounts,
   subcategoryProducts,
   onArchPickForSingle,
+  categoryShowJawSelection,
   productSearch,
   onProductSearchChange,
   searchResults,
@@ -1358,6 +1362,7 @@ function StepSubProduct({
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
   categoryName: string;
+  categoryShowJawSelection: boolean;
   selected: number | null;
   onSelect: (id: number) => void;
   onBack?: () => void;
@@ -1450,7 +1455,13 @@ function StepSubProduct({
               ref={(el) => { subCardRefs.current[prod.id] = el; }}
               onClick={() => {
                 const isSingle = subcategoryProductCounts?.[prod.id] === 1;
-                if (onArchPickForSingle && isSingle) {
+                const singleProduct = subcategoryProducts?.[prod.id]?.[0];
+                const showArchForSingle =
+                  isSingle &&
+                  singleProduct != null &&
+                  shouldShowJawArchSelection(singleProduct, categoryShowJawSelection) &&
+                  onArchPickForSingle;
+                if (showArchForSingle) {
                   if (archPopoverSubId === prod.id) {
                     setArchPopoverSubId(null);
                   } else {
@@ -1468,8 +1479,13 @@ function StepSubProduct({
               </ProductPickerCardLabel>
               <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
             </button>
-            {archPopoverSubId === prod.id && onArchPickForSingle && (() => {
+            {archPopoverSubId === prod.id &&
+              onArchPickForSingle &&
+              (() => {
               const singleProduct = subcategoryProducts?.[prod.id]?.[0];
+              if (!singleProduct || !shouldShowJawArchSelection(singleProduct, categoryShowJawSelection)) {
+                return null;
+              }
               const useJawPhotos = singleProduct?.show_jaw_photo === "Yes";
               const jawPhotos = singleProduct?.jaw_photos ?? {};
               const fallbackImg = prod.img ?? null;
@@ -1541,7 +1557,7 @@ function StepMaterial({
   gender,
   isLoading,
   error,
-  isNonFixedProduct,
+  categoryShowJawSelection,
   forceArch,
   onPatientNameChange,
   onGenderChange,
@@ -1566,7 +1582,7 @@ function StepMaterial({
   age?: string;
   isLoading?: boolean;
   error?: Error | null;
-  isNonFixedProduct?: boolean;
+  categoryShowJawSelection: boolean;
   forceArch?: "maxillary" | "mandibular";
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
@@ -1617,16 +1633,13 @@ function StepMaterial({
   }, [archPopoverProductId, products]);
 
   useEffect(() => {
-    if (
-      products.length === 1 &&
-      !selected &&
-      (!isNonFixedProduct || forceArch) &&
-      !isLoading
-    ) {
-      const only = products[0];
+    if (products.length !== 1 || selected || isLoading) return;
+    const only = products[0];
+    const needsArchSelection = shouldShowJawArchSelection(only, categoryShowJawSelection);
+    if (!needsArchSelection || forceArch) {
       onSelect(String(only.id), forceArch);
     }
-  }, [products, selected, isNonFixedProduct, forceArch, isLoading, onSelect]);
+  }, [products, selected, categoryShowJawSelection, forceArch, isLoading, onSelect]);
 
   useEffect(() => {
     if (products.length <= 1 && archPopoverProductId) {
@@ -1639,8 +1652,11 @@ function StepMaterial({
     setArchPopoverProductId(initialArchPopoverProductId);
   }, [initialArchPopoverProductId, isLoading]);
 
-  const shouldAutoSelectSingle = products.length === 1 && (!isNonFixedProduct || forceArch);
-  const shouldAskArchOnly = products.length === 1 && isNonFixedProduct && !forceArch && !isLoading;
+  const onlyProduct = products.length === 1 ? products[0] : null;
+  const singleProductNeedsArch =
+    onlyProduct != null && shouldShowJawArchSelection(onlyProduct, categoryShowJawSelection);
+  const shouldAutoSelectSingle = products.length === 1 && (!singleProductNeedsArch || !!forceArch);
+  const shouldAskArchOnly = products.length === 1 && singleProductNeedsArch && !forceArch && !isLoading;
 
   if (error) {
     return (
@@ -1734,7 +1750,8 @@ function StepMaterial({
                 <button
                   ref={(el) => { cardRefs.current[prodId] = el; }}
                   onClick={() => {
-                    if (!isNonFixedProduct || forceArch) {
+                    const productNeedsArch = shouldShowJawArchSelection(prod, categoryShowJawSelection);
+                    if (!productNeedsArch || forceArch) {
                       onSelect(prodId, forceArch);
                     } else {
                       if (archPopoverProductId === prodId) {
@@ -2199,7 +2216,11 @@ export default function NewCaseWizard({
       setShouldAutoAdvanceProducts(false);
       setProductSearch("");
 
-      const needsArchSelection = !hasRetentionOptions(product);
+      const categoryShowJaw = categoryShowsJawSelection(
+        product.subcategory?.category ??
+          categoriesAsWizard.find((c) => c.id === categoryId),
+      );
+      const needsArchSelection = shouldShowJawArchSelection(product, categoryShowJaw);
       const productId = String(product.id);
 
       if (needsArchSelection && !forceArch) {
@@ -2235,7 +2256,10 @@ export default function NewCaseWizard({
 
     if (productsAsWizard.length === 1) {
       const only = productsAsWizard[0];
-      const needsArchSelection = !hasRetentionOptions(only);
+      const categoryShowJaw = categoryShowsJawSelection(
+        categoriesAsWizard.find((c) => c.id === selectedCategory),
+      );
+      const needsArchSelection = shouldShowJawArchSelection(only, categoryShowJaw);
       if (needsArchSelection && !forceArch && !selectedArch) {
         setArchPopoverSubId(selectedSubProduct);
       } else {
@@ -2478,6 +2502,9 @@ export default function NewCaseWizard({
             categoryId={selectedCategory}
             subProducts={subcategoriesByCategoryId[selectedCategory] ?? []}
             categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
+            categoryShowJawSelection={categoryShowsJawSelection(
+              categoriesAsWizard.find((c) => c.id === selectedCategory),
+            )}
             selected={selectedSubProduct}
             onSelect={(id) => {
               setSelectedSubProduct(id);
@@ -2516,10 +2543,9 @@ export default function NewCaseWizard({
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
           const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-          const activeProduct =
-            productsAsWizard.find((p) => String(p.id) === String(selectedMaterial)) ??
-            productsAsWizard[0];
-          const isNonFixedProduct = activeProduct ? !hasRetentionOptions(activeProduct) : false;
+          const categoryShowJaw = categoryShowsJawSelection(
+            categoriesAsWizard.find((c) => c.id === selectedCategory),
+          );
           return (
             <StepMaterial
               categoryName={selectedCategoryName}
@@ -2530,7 +2556,7 @@ export default function NewCaseWizard({
               selected={selectedMaterial}
               isLoading={productsLoading}
               error={productsError}
-              isNonFixedProduct={isNonFixedProduct}
+              categoryShowJawSelection={categoryShowJaw}
               forceArch={forceArch ?? selectedArch}
               onBack={() => {
                 setShouldAutoAdvanceProducts(false);

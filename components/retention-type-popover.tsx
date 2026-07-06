@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { resolveRetentionOptionImageUrl } from '@/components/case-design-center/utils/retentionOptionImage'
+import { buildRetentionPopoverOptions } from '@/components/case-design-center/utils/retentionPopoverOptions'
 import {
-  resolveRetentionOptionChartTypeOrDefault,
   type RetentionChartType,
 } from '@/components/case-design-center/utils/retentionOptionChartType'
 
@@ -66,8 +65,12 @@ export interface ExtractionStatusOption {
 
 interface RetentionTypePopoverProps {
   toothNumber: number
-  onSelectRetentionType: (type: RetentionChartType) => void
+  onSelectRetentionType?: (type: RetentionChartType) => void
+  /** When set, called with the specific retention option id (for per-option tooth images). */
+  onSelectRetentionOption?: (optionId: number, type: RetentionChartType) => void
   selectedType?: RetentionChartType | null
+  /** When set, highlights the exact retention option (needed when multiple options share a chart type). */
+  selectedRetentionOptionId?: number | null
   onClose?: () => void
   onDeselectTooth?: () => void
   retentionOptions?: RetentionOptionItem[]
@@ -94,10 +97,6 @@ interface RetentionTypePopoverProps {
   onSelectExtractionStatus?: (code: string) => void
 }
 
-function getOptionName(opt: RetentionOptionItem): string {
-  return opt.name || opt.retention_option?.name || opt.lab_retention_option?.name || 'Unknown'
-}
-
 function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
   const arch = (toothNumber <= 16) ? 'maxillary' : 'mandibular'
   return (
@@ -113,43 +112,12 @@ function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
   )
 }
 
-function buildRetentionPopoverOptions(
-  retentionOptions: RetentionOptionItem[] | undefined,
-  toothNumber: number,
-  allowPontic: boolean
-): Array<{ id: number; toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
-  if (!retentionOptions?.length) return []
-
-  // Every active retention option from the product (fully data-driven).
-  const mapped = [...retentionOptions]
-    .filter((opt) => (opt.status || 'Active') === 'Active')
-    .map((opt) => ({
-      id: opt.id,
-      toothChartType: resolveRetentionOptionChartTypeOrDefault(opt),
-      name: getOptionName(opt),
-      imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
-      sequence: opt.sequence ?? Number.MAX_SAFE_INTEGER,
-    }))
-
-  // A Pontic needs an abutment first: hide Pontic options until the product has one,
-  // but only when the product actually offers abutment (Prep/Implant) options.
-  const hasAbutmentOption = mapped.some((o) => o.toothChartType !== 'Pontic')
-  const visible =
-    allowPontic || !hasAbutmentOption
-      ? mapped
-      : mapped.filter((o) => o.toothChartType !== 'Pontic')
-
-  // Order: abutment options (Prep/Implant) first, Pontic last; then by sequence.
-  const rank = (t: RetentionChartType) => (t === 'Pontic' ? 1 : 0)
-  return visible
-    .sort((a, b) => rank(a.toothChartType) - rank(b.toothChartType) || a.sequence - b.sequence)
-    .map(({ sequence: _sequence, ...opt }) => opt)
-}
-
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   toothNumber,
   onSelectRetentionType,
+  onSelectRetentionOption,
   selectedType,
+  selectedRetentionOptionId,
   onClose,
   onDeselectTooth,
   retentionOptions,
@@ -163,15 +131,20 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handlePointerDownOutside = (event: PointerEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         onClose?.()
       }
     }
 
-    document.addEventListener('click', handleClickOutside)
+    // Defer so the opening tooth click does not immediately dismiss the popover.
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside)
+    }, 0)
+
     return () => {
-      document.removeEventListener('click', handleClickOutside)
+      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', handlePointerDownOutside)
     }
   }, [onClose])
 
@@ -189,13 +162,31 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   )
   const hasExtractionGroup = extractionItems.length > 0
 
-  // The chart stores/renders by category, so highlight the first option matching
-  // the selected category (the representative the chart draws), not every variant.
-  const selectedOptionId = selectedType
-    ? options.find((opt) => opt.toothChartType === selectedType)?.id
-    : undefined
+  // Highlight the exact option when id is known; otherwise fall back to chart type.
+  const selectedOptionId =
+    selectedRetentionOptionId ??
+    (selectedType ? options.find((opt) => opt.toothChartType === selectedType)?.id : undefined)
+
+  const applyRetentionSelection = (
+    optionId: number,
+    type: RetentionChartType,
+  ) => {
+    onSelectRetentionOption?.(optionId, type)
+    onSelectRetentionType?.(type)
+  }
+
+  const applyExtractionSelection = (code: string) => {
+    onSelectExtractionStatus?.(code)
+  }
 
   const showArrow = typeof arrowOffsetX === 'number'
+
+  const popoverButtonPointerProps = {
+    onPointerDownCapture: (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+    },
+  } as const
 
   const arrowStyle: React.CSSProperties =
     arrowDirection === 'down'
@@ -211,7 +202,13 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
         }
 
   return (
-    <div ref={popoverRef} className="relative" style={{ overflow: 'visible' }}>
+    <div
+      ref={popoverRef}
+      data-tooth-chart-popover="true"
+      className="relative"
+      style={{ overflow: 'visible' }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       {showArrow && (
         <div
           aria-hidden="true"
@@ -236,9 +233,10 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => {
-                  onSelectRetentionType(opt.toothChartType)
-                  onClose?.()
+                {...popoverButtonPointerProps}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  applyRetentionSelection(opt.id, opt.toothChartType)
                 }}
                 className={
                   isSelected
@@ -288,9 +286,10 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
               <button
                 key={`ext-${opt.code}`}
                 type="button"
-                onClick={() => {
-                  onSelectExtractionStatus?.(opt.code)
-                  onClose?.()
+                {...popoverButtonPointerProps}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  applyExtractionSelection(opt.code)
                 }}
                 className={
                   isSelected
@@ -324,7 +323,9 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
           {onDeselectTooth && (
             <button
               type="button"
-              onClick={() => {
+              {...popoverButtonPointerProps}
+              onClick={(e) => {
+                e.stopPropagation()
                 onDeselectTooth()
                 onClose?.()
               }}

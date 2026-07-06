@@ -48,6 +48,7 @@ import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedP
 import { buildRushArchSlots } from "../utils/rushModalContext";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
+import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 import { getExtractionTypeColor } from "@/lib/extraction-type-colors";
 import {
   findOppositeArchProductDonor,
@@ -177,7 +178,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // without an explicit tooth selection, and the "select a tooth to proceed" gate
   // must not apply.
   const card0ExtractionSelectionOptional = canSkipExtractionToothSelection(
-    state.initialProductDetails?.extractions
+    state.initialProductDetails?.extractions,
+    state.initialProductDetails as Record<string, unknown> | null | undefined,
+  );
+  const card0DefaultToothChartEnabled = shouldSkipLegacyDefaultExtractionAutoSelect(
+    state.initialProductDetails as Record<string, unknown> | null | undefined,
   );
 
   // Center badge: show the product's default extraction (name + its color) when one is
@@ -208,10 +213,22 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
   const activeProductIsFixed = hasRetentionOptions(state.initialProductDetails);
   const activeProductIsRemovable = initialProductIsNonFixed;
-  const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes)
-    .some(tn => state.getToothProductCard("maxillary", Number(tn)) === 0);
-  const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
-    .some(tn => state.getToothProductCard("mandibular", Number(tn)) === 0);
+  const maxillaryHasFixedCard0 =
+    activeProductIsFixed &&
+    ((card0DefaultToothChartEnabled &&
+      !!props.selectedProductId &&
+      (props.initialArch === "maxillary" || props.initialArch === "both")) ||
+      Object.keys(state.maxillaryRetentionTypes).some(
+        (tn) => state.getToothProductCard("maxillary", Number(tn)) === 0,
+      ));
+  const mandibularHasFixedCard0 =
+    activeProductIsFixed &&
+    ((card0DefaultToothChartEnabled &&
+      !!props.selectedProductId &&
+      (props.initialArch === "mandibular" || props.initialArch === "both")) ||
+      Object.keys(state.mandibularRetentionTypes || {}).some(
+        (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
+      ));
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
   const guidedBothArchSlipCreation =
     !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId;
@@ -1402,6 +1419,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
+          slipInitialArch={props.initialArch ?? "maxillary"}
           activeAccordionKey={state.activeAccordionKey}
           forceOwnArchChartEnabled={false}
           guidedHideCard0Fields={guidedHideMaxillaryCard0Fields}
@@ -1549,6 +1567,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
+          slipInitialArch={props.initialArch ?? "maxillary"}
           activeAccordionKey={state.activeAccordionKey}
           forceOwnArchChartEnabled={false}
           guidedHideCard0Fields={guidedHideMandibularCard0Fields}

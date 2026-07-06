@@ -52,6 +52,10 @@ import {
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
+import {
+  applyDefaultToothChartToPayload,
+  hydrateDefaultToothChartFromProduct,
+} from "@/lib/product-default-tooth-chart"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -90,9 +94,9 @@ import { GumShadeSection } from "@/components/product-management/add-lab-product
 import { TeethShadeSection } from "@/components/product-management/add-lab-product-modal/TeethShadeSection"
 import { MaterialSection } from "@/components/product-management/add-lab-product-modal/MaterialSection"
 import { AddOnsSection } from "@/components/product-management/add-lab-product-modal/AddOnsSection"
-import { RetentionSection, type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
+import { type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { AdvanceFieldsSection, type AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
-import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
+import { ToothChartConfigurationsSection } from "@/components/product-management/add-lab-product-modal/ToothChartConfigurationsSection"
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 import { AddFieldModal } from "@/components/advance-mode"
@@ -146,9 +150,8 @@ const LAB_PRODUCT_TABS: { id: string; label: string; sectionKey: string | null }
   { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
   { id: "material", label: "Material", sectionKey: "material" },
   { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
-  { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "toothChartConfigurations", label: "Tooth Chart Configurations", sectionKey: "toothChartConfigurations" },
   { id: "advanceFields", label: "Advance Field", sectionKey: "advanceField" },
-  { id: "extractions", label: "Extractions", sectionKey: "extractions" },
   { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
 ]
 
@@ -522,6 +525,8 @@ export function AddLabProductModal({
     enable_tooth_count_variation: "No",
     tooth_count_variations: [],
     show_jaw_photo: "No",
+    enable_default_tooth_chart: "No",
+    default_tooth_chart: [],
   }), [officeCustomers, stages])
 
   const {
@@ -779,7 +784,7 @@ export function AddLabProductModal({
       )
     }
 
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       return (
         collectRetentionsStepErrors(
           { retentions: watchedRetentionsSlip } as Record<string, unknown>,
@@ -941,7 +946,7 @@ export function AddLabProductModal({
       }
     }
 
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       const record = getValues() as Record<string, unknown>
       const err = collectRetentionsStepErrors(record, { retentionSectionEnabled: sections.retention })
       setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", err))
@@ -1588,6 +1593,19 @@ export function AddLabProductModal({
         max_days_to_process: editingProduct.max_days_to_process ?? null,
         teeth_pricing_type: strategyForm,
         advance_fields: hydrateAdvanceFieldsFormFromProduct(editingProduct as Record<string, unknown>),
+        enable_default_tooth_chart:
+          editingProduct.has_default_tooth_chart === "Yes" ||
+          editingProduct.enable_default_tooth_chart === "Yes"
+            ? "Yes"
+            : "No",
+        default_tooth_chart: hydrateDefaultToothChartFromProduct(
+          editingProduct as Record<string, unknown>,
+          (() => {
+            const exts = editingProduct.extractions || []
+            const def = exts.find((e: { is_default?: string }) => e.is_default === "Yes")
+            return def ? Number((def as { extraction_id: number }).extraction_id) : null
+          })(),
+        ),
         ...teethHydrate,
         ...variationForm,
       }
@@ -2289,6 +2307,7 @@ export function AddLabProductModal({
     finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
       variation: sections.variation,
     })
+    applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
 
     let saveResult: ProductSaveResult = { success: false }
     try {
@@ -2411,6 +2430,17 @@ export function AddLabProductModal({
       teethShade: ["teeth_shades", "teeth_shade_group_id"],
       material: ["materials", "material_group_id"],
       addOns: ["addons", "addon_group_id", "link_all_addons"],
+      toothChartConfigurations: [
+        "retentions",
+        "retention_options",
+        "apply_retention_mechanism",
+        "retention_type",
+        "extractions",
+        "opposite_extractions",
+        "apply_same_status_to_opposing",
+        "enable_default_tooth_chart",
+        "default_tooth_chart",
+      ],
       retention: ["retentions", "retention_options", "apply_retention_mechanism", "retention_type"],
       advanceFields: ["advance_fields"],
       extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
@@ -2518,7 +2548,7 @@ export function AddLabProductModal({
       variation: "variation",
       grades: "grades", stages: "stages", impressions: "impressions",
       gumShade: "gumShade", teethShade: "teethShade", material: "material",
-      addOns: "addOns", retention: "retention", advanceFields: "advanceField", extractions: "extractions",
+      addOns: "addOns", toothChartConfigurations: "toothChartConfigurations", advanceFields: "advanceField",
     }
     const sectionKey = tabToSectionKey[activeTab]
     if (!sectionKey) return false
@@ -2596,7 +2626,7 @@ export function AddLabProductModal({
       }
 
       // Collect fields from ALL tabs so no changes are lost
-      const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "visibility"]
+      const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "toothChartConfigurations", "visibility"]
       const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
 
       // Create a subset of formData with all tab fields
@@ -2975,6 +3005,7 @@ export function AddLabProductModal({
       finalizeLibraryProductApiPayload(payload as Record<string, unknown>, formData, {
         variation: sections.variation,
       })
+      applyDefaultToothChartToPayload(payload as Record<string, unknown>, formData)
 
       // When section flags are false: send empty arrays so backend deletes relations
       if (!sections.stages) payload.stages = []
@@ -3390,8 +3421,8 @@ export function AddLabProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="retention" className="mt-0 p-6 focus-visible:outline-none">
-                  <RetentionSection
+                <TabsContent value="toothChartConfigurations" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
+                  <ToothChartConfigurationsSection
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -3407,6 +3438,10 @@ export function AddLabProductModal({
                     catalogCustomerId={retentionOptionsCatalogCustomerId}
                     retentionOptionsCatalog={retentionOptionsCatalog}
                     onRequestRetentionOptionCreate={handleRequestRetentionOptionCreate}
+                    allExtractions={allExtractions}
+                    isExtractionsLoading={isExtractionsLoading}
+                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
+                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 
@@ -3420,25 +3455,6 @@ export function AddLabProductModal({
                     sectionHasErrors={sectionHasErrors}
                     listCustomerId={customerId}
                     onRequestAdvanceFieldEditor={handleRequestAdvanceFieldEditor}
-                  />
-                </TabsContent>
-
-                <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
-                  <ExtractionsSection
-                    key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
-                    control={control}
-                    watch={watch}
-                    setValue={setValue}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    expandedSections={expandedSections}
-                    toggleExpanded={toggleExpanded}
-                    allExtractions={allExtractions}
-                    isExtractionsLoading={isExtractionsLoading}
-                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
-                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 

@@ -33,6 +33,8 @@ interface ToothStatusBoxesProps {
   isRemovable?: boolean;
   /** When true, case has been submitted — hide blue active border on status boxes */
   submitted?: boolean;
+  /** When true, do not auto-select all arch teeth for catalog default extraction (default tooth chart owns defaults). */
+  skipDefaultAutoSelect?: boolean;
   /** When true, hide the default (Teeth in mouth) box — it's shown in the center navigation instead */
   hideDefaultBox?: boolean;
   /** When true, suppress the "Required: select at least N tooth" validation outline and message */
@@ -157,6 +159,7 @@ export function ToothStatusBoxes({
   isRemovable = false,
   submitted = false,
   hideDefaultBox = false,
+  skipDefaultAutoSelect = false,
   disableRequiredValidation = false,
   grayed = false,
   displayTeethByCode,
@@ -174,7 +177,9 @@ export function ToothStatusBoxes({
 
   // Auto-select all arch teeth when a is_default extraction first appears (check unfiltered list)
   const hasAutoSelected = useRef(false);
-  const shouldAutoSelectDefaultTeeth = shouldAutoSelectArchForDefaultExtraction(allActiveExtractions);
+  const shouldAutoSelectDefaultTeeth =
+    !skipDefaultAutoSelect &&
+    shouldAutoSelectArchForDefaultExtraction(allActiveExtractions);
   useEffect(() => {
     if (shouldAutoSelectDefaultTeeth && !hasAutoSelected.current && selectedTeeth.length === 0) {
       hasAutoSelected.current = true;

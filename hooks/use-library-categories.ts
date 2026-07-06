@@ -24,6 +24,7 @@ export interface LibraryCategoryApi {
   sequence: number
   status?: string
   image_url: string | null
+  show_jaw_selection?: "Yes" | "No" | string | null
   subcategories: LibrarySubcategoryApi[]
 }
 
@@ -43,6 +44,7 @@ export interface WizardCategoryShape {
   id: number
   name: string
   img: string
+  show_jaw_selection: "Yes" | "No"
 }
 
 export interface WizardSubcategoryShape {
@@ -195,6 +197,11 @@ export function useLibraryCategories(options: {
         id: cat.id,
         name: cat.name,
         img: cat.image_url || getCategoryFallbackImg(cat.name, cat.code),
+        show_jaw_selection:
+          cat.show_jaw_selection === "No" ||
+          String(cat.show_jaw_selection ?? "").trim().toLowerCase() === "no"
+            ? ("No" as const)
+            : ("Yes" as const),
       })),
     [query.data]
   )

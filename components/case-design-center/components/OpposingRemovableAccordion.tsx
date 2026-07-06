@@ -32,6 +32,7 @@ import {
   archHasOpposingImpressionSelections,
   resolveOpposingImpressionProductId,
 } from "../utils/opposingImpressionReadiness";
+import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 
 function OpposingImpressionSkippedNotice() {
   return (
@@ -215,6 +216,9 @@ export function OpposingRemovableAccordion({
     opposingProductData.extractions
   );
   const opposingIsSingleDefaultOnly = isSingleDefaultOnlyExtractionList(opposingExtractions);
+  const skipLegacyDefaultAutoSelect = shouldSkipLegacyDefaultExtractionAutoSelect(
+    opposingProductData as Record<string, unknown>,
+  );
   const cardIsFullDenture = isFullDentureProduct(opposingProductData.extractions);
   const rawDisplayTeeth = cardIsFullDenture
     ? opposingArchTeeth
@@ -350,6 +354,7 @@ export function OpposingRemovableAccordion({
                       isRemovable
                       submitted={caseSubmitted}
                       hideDefaultBox
+                      skipDefaultAutoSelect={skipLegacyDefaultAutoSelect}
                       disableRequiredValidation
                     />
                   )}
@@ -487,6 +492,7 @@ export function OpposingRemovableAccordion({
                         isRemovable
                         submitted={caseSubmitted}
                         hideDefaultBox
+                        skipDefaultAutoSelect={skipLegacyDefaultAutoSelect}
                         disableRequiredValidation
                       />
                     )}

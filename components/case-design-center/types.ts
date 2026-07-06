@@ -654,6 +654,13 @@ export interface ProductApiData {
     status?: string;
   }>;
   has_impression?: "Yes" | "No" | null;
+  has_default_tooth_chart?: "Yes" | "No" | null;
+  default_tooth_chart?: Array<{
+    tooth_number: number
+    retention_option_id?: number | null
+    extraction_id?: number | null
+    chart_type?: "Implant" | "Prep" | "Pontic" | null
+  }>;
   has_variation?: string | boolean | null;
   variations?: Array<{
     id?: number;

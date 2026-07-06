@@ -126,21 +126,30 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handlePointerDownOutside = (event: PointerEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         onClose?.()
       }
     }
-    document.addEventListener('click', handleClickOutside)
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside)
+    }, 0)
     return () => {
-      document.removeEventListener('click', handleClickOutside)
+      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', handlePointerDownOutside)
     }
   }, [onClose])
 
   const showArrow = typeof arrowOffsetX === 'number'
 
   return (
-    <div ref={popoverRef} className="relative" style={{ overflow: 'visible' }}>
+    <div
+      ref={popoverRef}
+      data-tooth-chart-popover="true"
+      className="relative"
+      style={{ overflow: 'visible' }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       {showArrow && (
         <div
           aria-hidden="true"
