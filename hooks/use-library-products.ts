@@ -13,6 +13,7 @@ export interface LibraryProductCategoryApi {
   sequence: number
   status?: string
   image_url?: string | null
+  show_jaw_selection?: "Yes" | "No" | string | null
 }
 
 export interface LibraryProductCasePanApi {
@@ -68,6 +69,8 @@ export interface LibraryProductApi {
   /** Drives fixed vs removables slip routing in the wizard. */
   has_retention?: string | boolean | null
   retention_options?: unknown[]
+  has_default_tooth_chart?: "Yes" | "No" | string | null
+  enable_default_tooth_chart?: "Yes" | "No" | string | null
 }
 
 export interface LibraryProductsApiResponse {
@@ -99,6 +102,8 @@ export interface WizardProductShape {
   img: string
   has_retention?: string | boolean | null
   retention_options?: unknown[]
+  has_default_tooth_chart?: "Yes" | "No" | string | null
+  enable_default_tooth_chart?: "Yes" | "No" | string | null
   /** Per-arch images for removable restoration hover popover. Populated from API when available. */
   arch_images: ArchImages
   /** Whether to use jaw_photos as arch popover images instead of arch_images */
@@ -292,6 +297,8 @@ export function useLibraryProducts(options: {
       },
       has_retention: p.has_retention,
       retention_options: p.retention_options,
+      has_default_tooth_chart: p.has_default_tooth_chart ?? null,
+      enable_default_tooth_chart: p.enable_default_tooth_chart ?? null,
     }))
 
   return {

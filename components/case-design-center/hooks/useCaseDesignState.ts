@@ -25,7 +25,7 @@ import {
   resolveFixedGroupRepTooth,
   resolveFixedMirrorTarget,
 } from "../utils/fixedArchMirror";
-import { resolveRetentionOptionChartTypeOrDefault } from "../utils/retentionOptionChartType";
+import { buildRetentionPopoverOptions } from "../utils/retentionPopoverOptions";
 import type { RetentionOptionItem } from "@/components/retention-type-popover";
 import {
   hasRetentionOptions,
@@ -2347,37 +2347,56 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // instead of opening the popover. Runs only as a response to the click event — never
   // from a render effect — so it cannot cause an update loop. Because the popover-open
   // and this selection both batch in the same event, the popover never actually shows.
+  // When the product also has extractions, the combined popover still appears whenever
+  // more than one retention option is selectable; a single retention option is applied
+  // immediately and the user can re-open the popover to pick an extraction instead.
   const autoSelectSingleRetention = (arch: Arch, toothNumber: number) => {
     const productId = getActiveProductId();
-    const product = productId ? cachedProductRef.current.get(productId) : undefined;
+    if (productId == null) return;
+
+    const product =
+      (() => {
+        const cached = cachedProductRef.current.get(productId);
+        if (cached && hasRetentionOptions(cached)) return cached;
+        if (
+          initialProductDetails?.id === productId &&
+          hasRetentionOptions(initialProductDetails)
+        ) {
+          return initialProductDetails;
+        }
+        if (activeProductCardId !== 0) {
+          const ap = products.addedProducts.find((p) => p.id === activeProductCardId);
+          const fromAdded = ap?.product as ProductApiData | undefined;
+          if (
+            fromAdded &&
+            (fromAdded.id === productId || ap?.productId === productId) &&
+            hasRetentionOptions(fromAdded)
+          ) {
+            return fromAdded;
+          }
+        }
+        return cached ?? (initialProductDetails?.id === productId ? initialProductDetails : null);
+      })();
+
     if (!product || !hasRetentionOptions(product)) return;
 
-    const active = (product.retention_options ?? []).filter(
-      (o) => ((o as { status?: string }).status ?? "Active") === "Active"
-    );
-    if (active.length === 0) return;
-
-    const chartTypes = active.map((o) =>
-      resolveRetentionOptionChartTypeOrDefault(o as unknown as RetentionOptionItem)
-    );
-    const hasAbutmentOption = chartTypes.some((t) => t !== "Pontic");
-
-    // Pontic is selectable only once the product already has an abutment tooth
-    // (Prep/Implant) other than this one.
     const retTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
-    const hasAbutmentTooth = Object.entries(retTypes).some(([tnStr, arr]) => {
+    const productScopeId = product.id ?? productId;
+    const allowPontic = Object.entries(retTypes).some(([tnStr, arr]) => {
       const tn = Number(tnStr);
       if (tn === toothNumber) return false;
       const p = toothFieldProgress.getToothProduct(arch, tn);
-      if (product.id != null && p?.id != null && p.id !== product.id) return false;
+      if (p?.id != null && p.id !== productScopeId) return false;
       return arr?.includes("Prep") || arr?.includes("Implant");
     });
 
-    const selectable = chartTypes.filter((t) =>
-      hasAbutmentOption && !hasAbutmentTooth ? t !== "Pontic" : true
+    const selectable = buildRetentionPopoverOptions(
+      product.retention_options as RetentionOptionItem[] | undefined,
+      toothNumber,
+      allowPontic,
     );
     if (selectable.length === 1) {
-      handleSelectRetentionType(arch, toothNumber, selectable[0] as RetentionType);
+      handleSelectRetentionType(arch, toothNumber, selectable[0].toothChartType);
     }
   };
 

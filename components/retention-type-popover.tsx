@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { resolveRetentionOptionImageUrl } from '@/components/case-design-center/utils/retentionOptionImage'
+import { buildRetentionPopoverOptions } from '@/components/case-design-center/utils/retentionPopoverOptions'
 import {
-  resolveRetentionOptionChartTypeOrDefault,
   type RetentionChartType,
 } from '@/components/case-design-center/utils/retentionOptionChartType'
 
@@ -98,10 +97,6 @@ interface RetentionTypePopoverProps {
   onSelectExtractionStatus?: (code: string) => void
 }
 
-function getOptionName(opt: RetentionOptionItem): string {
-  return opt.name || opt.retention_option?.name || opt.lab_retention_option?.name || 'Unknown'
-}
-
 function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
   const arch = (toothNumber <= 16) ? 'maxillary' : 'mandibular'
   return (
@@ -115,39 +110,6 @@ function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
       }}
     />
   )
-}
-
-function buildRetentionPopoverOptions(
-  retentionOptions: RetentionOptionItem[] | undefined,
-  toothNumber: number,
-  allowPontic: boolean
-): Array<{ id: number; toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
-  if (!retentionOptions?.length) return []
-
-  // Every active retention option from the product (fully data-driven).
-  const mapped = [...retentionOptions]
-    .filter((opt) => (opt.status || 'Active') === 'Active')
-    .map((opt) => ({
-      id: opt.id,
-      toothChartType: resolveRetentionOptionChartTypeOrDefault(opt),
-      name: getOptionName(opt),
-      imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
-      sequence: opt.sequence ?? Number.MAX_SAFE_INTEGER,
-    }))
-
-  // A Pontic needs an abutment first: hide Pontic options until the product has one,
-  // but only when the product actually offers abutment (Prep/Implant) options.
-  const hasAbutmentOption = mapped.some((o) => o.toothChartType !== 'Pontic')
-  const visible =
-    allowPontic || !hasAbutmentOption
-      ? mapped
-      : mapped.filter((o) => o.toothChartType !== 'Pontic')
-
-  // Order: abutment options (Prep/Implant) first, Pontic last; then by sequence.
-  const rank = (t: RetentionChartType) => (t === 'Pontic' ? 1 : 0)
-  return visible
-    .sort((a, b) => rank(a.toothChartType) - rank(b.toothChartType) || a.sequence - b.sequence)
-    .map(({ sequence: _sequence, ...opt }) => opt)
 }
 
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({

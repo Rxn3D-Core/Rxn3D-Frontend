@@ -1817,6 +1817,7 @@ export function MandibularPanel({
                       code,
                       activeMandibularProduct?.extractions
                     );
+                    setRetentionPopoverState({ arch: null, toothNumber: null });
                   }}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {

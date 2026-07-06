@@ -1861,6 +1861,7 @@ export function MaxillaryPanel({
                       code,
                       activeMaxillaryProduct?.extractions
                     );
+                    setRetentionPopoverState({ arch: null, toothNumber: null });
                   }}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
