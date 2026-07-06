@@ -176,6 +176,11 @@ import {
   getPreferredLabTeethShade,
   canAutoApplyPreferredGum,
 } from "@/lib/product-shade-preferences";
+import {
+  mergeProductDefaultToothChartForSlipSvgDisplay,
+  resolveSlipDefaultChartProduct,
+} from "@/lib/product-default-tooth-chart-slip-display";
+import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -589,6 +594,8 @@ function AdvanceFieldSelect({
 }
 
 interface MandibularPanelProps {
+  /** Wizard arch for the initial card-0 product (upper / lower / both). */
+  slipInitialArch?: "maxillary" | "mandibular" | "both";
   showMandibular: boolean;
   setShowMandibular: (v: boolean) => void;
   showDetails: boolean;
@@ -786,6 +793,7 @@ function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; has
 }
 
 export function MandibularPanel({
+  slipInitialArch = "mandibular",
   activeAccordionKey,
   forceOwnArchChartEnabled = false,
   guidedHideCard0Fields = false,
@@ -898,6 +906,17 @@ export function MandibularPanel({
   // False after Done is clicked; true when extraction box or plus icon is activated.
   const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
 
+  const card0SkipsLegacyDefaults = shouldSkipLegacyDefaultExtractionAutoSelect(
+    card0InitialProduct as Record<string, unknown> | null,
+  );
+  const activeProductSkipsChartSetup =
+    activeProductCardId === 0
+      ? card0SkipsLegacyDefaults
+      : shouldSkipLegacyDefaultExtractionAutoSelect(
+          (addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "mandibular")
+            ?.product ?? null) as Record<string, unknown> | null,
+        );
+
   const teethCount = activeProductCardId !== null
     ? (activeProductCardId !== 0
         ? MANDIBULAR_ALL_TEETH.filter(tn => getToothProductCard("mandibular", tn) === activeProductCardId).length
@@ -923,7 +942,7 @@ export function MandibularPanel({
   const skipsRemovableToothSelectionHint =
     activeProductIsRemovables && !hasConfiguredExtractions(activeRemovableExtractionsForHint);
 
-  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && !skipsRemovableToothSelectionHint && (
+  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && !skipsRemovableToothSelectionHint && !activeProductSkipsChartSetup && (
     teethCount === 0 || isSelectionModeActive
   );
 
@@ -938,6 +957,7 @@ export function MandibularPanel({
   useEffect(() => {
     if (!activeProductIsRemovables) return;
     let exts: ProductExtraction[] = [];
+    let productForSkip: ProductApiData | null | undefined = card0InitialProduct;
     if (activeProductCardId === 0) {
       exts = card0Extractions ?? [];
     } else {
@@ -945,6 +965,9 @@ export function MandibularPanel({
         (p) => p.id === activeProductCardId && p.arch === "mandibular"
       );
       if (!ap) return;
+      productForSkip =
+        (ap.product as ProductApiData | undefined) ??
+        getToothProduct("mandibular", -ap.id);
       const cardTeeth = MANDIBULAR_ALL_TEETH.filter(
         (tn) => getToothProductCard("mandibular", tn) === ap.id
       );
@@ -955,6 +978,7 @@ export function MandibularPanel({
         (ap.product as import("../types").ProductApiData | undefined)?.extractions ??
         [];
     }
+    if (shouldSkipLegacyDefaultExtractionAutoSelect(productForSkip)) return;
     if (!isSingleDefaultOnlyExtractionList(exts)) return;
     const active = exts.filter(
       (e) => e.status === "Active" && e.name != null && e.code != null
@@ -966,6 +990,7 @@ export function MandibularPanel({
     activeProductIsRemovables,
     activeProductCardId,
     card0Extractions,
+    card0InitialProduct,
     addedProducts,
     getToothProduct,
     getToothProductCard,
@@ -982,8 +1007,9 @@ export function MandibularPanel({
   // acknowledged ("Done"). Only meaningful when the product actually needs acknowledgement.
   const card0ExtractionsAcked =
     !caseSubmitted &&
-    requiresExtractionsAcknowledgement(card0Extractions) &&
-    isExtractionsSetupComplete(card0Extractions, 0, caseSubmitted);
+    (card0SkipsLegacyDefaults ||
+      (requiresExtractionsAcknowledgement(card0Extractions, card0InitialProduct) &&
+        isExtractionsSetupComplete(card0Extractions, 0, caseSubmitted)));
   const prevCard0AckedRef = useRef(card0ExtractionsAcked);
   useEffect(() => {
     if (card0ExtractionsAcked && !prevCard0AckedRef.current) {
@@ -1265,6 +1291,21 @@ export function MandibularPanel({
 
   const useMandibularArchSharedRemovable = false;
 
+  useEffect(() => {
+    if (caseSubmitted || !card0SkipsLegacyDefaults) return;
+    setExtractionsSetupComplete(0, true);
+    setFixedRetentionSetupComplete(true);
+    if (useMandibularArchSharedRemovable) {
+      setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, true);
+    }
+  }, [
+    caseSubmitted,
+    card0SkipsLegacyDefaults,
+    useMandibularArchSharedRemovable,
+    setExtractionsSetupComplete,
+    setFixedRetentionSetupComplete,
+  ]);
+
   const mandibularFixedCard0GroupCount = useMemo(
     () =>
       mandibularHasFixedCard0
@@ -1515,13 +1556,48 @@ export function MandibularPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mandibularAssignmentSig]);
 
-  const activeMandibularSvgState = (() => {
-    return {
-      toothExtractionMap: opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap,
-      toothStatusByTooth: opposingProductData ? opposingToothExtractionMap : mandibularToothExtractionMap,
-      claspTeeth: opposingProductData ? opposingClaspTeeth : mandibularClaspTeeth,
-    };
-  })();
+  const mandibularDefaultChartProduct = useMemo(
+    () =>
+      resolveSlipDefaultChartProduct({
+        arch: "mandibular",
+        activeProduct: activeMandibularProduct as Record<string, unknown> | null,
+        card0InitialProduct: card0InitialProduct as Record<string, unknown> | null,
+        slipInitialArch,
+        isOpposingMirrorPanel: !!opposingProductData,
+      }),
+    [activeMandibularProduct, card0InitialProduct, slipInitialArch, opposingProductData],
+  );
+
+  const mandibularSlipSvgDisplay = useMemo(
+    () =>
+      mergeProductDefaultToothChartForSlipSvgDisplay({
+        product: mandibularDefaultChartProduct,
+        arch: "mandibular",
+        userToothExtractionMap: opposingProductData
+          ? opposingToothExtractionMap
+          : mandibularToothExtractionMap,
+        userClaspTeeth: opposingProductData ? opposingClaspTeeth : mandibularClaspTeeth,
+        userRetentionTypesByTooth: mandibularRetentionTypes,
+      }),
+    [
+      mandibularDefaultChartProduct,
+      opposingProductData,
+      opposingToothExtractionMap,
+      mandibularToothExtractionMap,
+      opposingClaspTeeth,
+      mandibularClaspTeeth,
+      mandibularRetentionTypes,
+    ],
+  );
+
+  const activeMandibularSvgState = {
+    toothExtractionMap: mandibularSlipSvgDisplay.toothExtractionMap,
+    toothStatusByTooth: opposingProductData
+      ? opposingToothExtractionMap
+      : mandibularToothExtractionMap,
+    claspTeeth: mandibularSlipSvgDisplay.claspTeeth,
+    retentionTypesByTooth: mandibularSlipSvgDisplay.retentionTypesByTooth,
+  };
   const useScopedRetentionMode = shouldUseScopedRetentionMode({
     activeProductCardId,
     activeProductIsRemovables,
@@ -1620,6 +1696,7 @@ export function MandibularPanel({
   // replace/flipper/count above the chart; reference hint above status boxes in the accordion.
   const mandibularToothHint: { kind: "replace" | "reference" | "flipper" | "count"; text: string; className: string } | null = (() => {
     if (!showMandibular) return null;
+    if (activeProductSkipsChartSetup) return null;
     if (activeProductIsRemovables) {
       const activeExtractions = activeProductCardId !== 0
         ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions
@@ -1900,7 +1977,7 @@ export function MandibularPanel({
                     !toothChartInteractionEnabled
                   }
                   className="w-full"
-                  retentionTypesByTooth={mandibularRetentionTypes}
+                  retentionTypesByTooth={activeMandibularSvgState.retentionTypesByTooth}
                   showRetentionPopover={
                     !isActiveMandibularProductDetailPending &&
                     retentionPopoverState.arch === "mandibular" &&
@@ -1915,6 +1992,7 @@ export function MandibularPanel({
                   retentionOptions={activeMandibularRetentionOptions}
                   getRetentionOptionsForTooth={(toothNumber) =>
                     getToothProduct("mandibular", toothNumber)?.retention_options ??
+                    (mandibularDefaultChartProduct as ProductApiData | null)?.retention_options ??
                     activeMandibularRetentionOptions
                   }
                   toothExtractionMap={activeMandibularSvgState.toothExtractionMap}
@@ -1948,6 +2026,8 @@ export function MandibularPanel({
                     }))}
                   extractionsByCode={(() => {
                     const allExts: ProductExtraction[] = [];
+                    const defaultChartExts = (mandibularDefaultChartProduct as ProductApiData | null)?.extractions;
+                    if (defaultChartExts?.length) allExts.push(...defaultChartExts);
                     for (const tn of MANDIBULAR_ALL_TEETH) {
                       const p = getToothProduct("mandibular", tn);
                       if (p?.extractions) allExts.push(...p.extractions);
@@ -1973,6 +2053,8 @@ export function MandibularPanel({
                   })()}
                   extractionImagesByCode={(() => {
                     const allExts: ProductExtraction[] = [];
+                    const defaultChartExts = (mandibularDefaultChartProduct as ProductApiData | null)?.extractions;
+                    if (defaultChartExts?.length) allExts.push(...defaultChartExts);
                     for (const tn of MANDIBULAR_ALL_TEETH) {
                       const p = getToothProduct("mandibular", tn);
                       if (p?.extractions) allExts.push(...p.extractions);
@@ -2480,6 +2562,9 @@ export function MandibularPanel({
                                 allArchTeeth={MANDIBULAR_ALL_TEETH}
                                 toothExtractionMap={mandibularToothExtractionMap}
                                 claspTeeth={mandibularClaspTeeth}
+                                skipDefaultAutoSelect={shouldSkipLegacyDefaultExtractionAutoSelect(
+                                  apProduct as Record<string, unknown> | null,
+                                )}
                                 displayTeethByCode={getToothStatusBoxDisplayMap({
                                   extractions: useMandibularArchSharedRemovable
                                     ? mandibularMergedExtractions
@@ -3280,7 +3365,9 @@ export function MandibularPanel({
                 const card0ShowFixedFieldsContent =
                   card0ShowFixedFields && !guidedHideCard0Fields;
                 const showFixedRetentionDone =
-                  hasRetentionOptions(selectedProduct) && !caseSubmitted;
+                  hasRetentionOptions(selectedProduct) &&
+                  !caseSubmitted &&
+                  !card0SkipsLegacyDefaults;
                 const card0FixedExpanded = isCardAccordionExpanded(slotId);
                 return (
                   <ProductAccordionCard
@@ -3758,7 +3845,8 @@ export function MandibularPanel({
                       showExtractionsDone={requiresExtractionsAcknowledgement(
                         useMandibularArchSharedRemovable
                           ? mandibularMergedExtractions
-                          : cardExtractions
+                          : cardExtractions,
+                        card0InitialProduct,
                       )}
                       extractionsAcknowledged={
                         useMandibularArchSharedRemovable
@@ -3804,6 +3892,7 @@ export function MandibularPanel({
                             allArchTeeth={MANDIBULAR_ALL_TEETH}
                             toothExtractionMap={mandibularToothExtractionMap}
                             claspTeeth={mandibularClaspTeeth}
+                            skipDefaultAutoSelect={card0SkipsLegacyDefaults}
                             displayTeethByCode={getToothStatusBoxDisplayMap({
                               extractions: useMandibularArchSharedRemovable
                                 ? mandibularMergedExtractions
@@ -3901,7 +3990,8 @@ export function MandibularPanel({
                     );
                     const card0ShowRemovableFields = useMandibularArchSharedRemovable
                       ? mandibularArchExtractionsReady
-                      : isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                      : card0SkipsLegacyDefaults ||
+                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
                     // Guided both-arch flow: suppress card-0 field content until this arch's
                     // fields phase (chart + teeth selection above remain visible).
                     if (guidedHideCard0Fields) {
@@ -3910,7 +4000,7 @@ export function MandibularPanel({
                     if (
                       !card0ShowRemovableFields &&
                       !useMandibularArchSharedRemovable &&
-                      requiresExtractionsAcknowledgement(cardExtractions)
+                      requiresExtractionsAcknowledgement(cardExtractions, card0InitialProduct)
                     ) {
                       return null;
                     }

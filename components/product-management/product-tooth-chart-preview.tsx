@@ -9,12 +9,8 @@ import {
   isOverlayExtractionCode,
   isSingleDefaultOnlyExtractionList,
   isTimExtractionRow,
-  shouldAutoSelectArchForDefaultExtraction,
   toothHasTimBaseExtraction,
 } from "@/components/case-design-center/utils/extractionHelpers"
-import {
-  getChartTeethForArch,
-} from "@/components/case-design-center/utils/retentionChartImage"
 import type { RetentionChartType } from "@/components/case-design-center/utils/retentionOptionChartType"
 import type { Extraction } from "@/lib/schemas"
 import { chartStatusTeethFromExtractionDisplay } from "@/lib/virtual-slip-extraction-display"
@@ -22,7 +18,7 @@ import {
   applyProductRetentionSelection,
   buildChartToothExtractionMap,
   buildInteractiveToothExtractionMap,
-  buildProductConfigChartPreview,
+  buildProductExtractionCatalog,
   buildProductExtractionImagesByCode,
   buildProductExtractionPopoverOptions,
   buildProductExtractionPopoverOptionsForTooth,
@@ -258,49 +254,14 @@ function ProductToothChartPreviewInner({
     allExtractions,
   ])
 
-  const configPreview = useMemo(
+  const extractionImagesByCode = useMemo(
     () =>
-      buildProductConfigChartPreview({
-        retentionEnabled,
-        extractionsEnabled,
-        linkedRetentionOptionIds,
-        retentionCatalog,
-        productExtractions,
-        allExtractions,
-        toothImagesByExtractionId,
-      }),
-    [
-      retentionEnabled,
-      extractionsEnabled,
-      linkedRetentionOptionIds,
-      retentionCatalog,
-      productExtractions,
-      allExtractions,
-      toothImagesByExtractionId,
-    ],
+      buildProductExtractionImagesByCode(resolvedExtractions, toothImagesByExtractionId),
+    [resolvedExtractions, toothImagesByExtractionId],
   )
 
-  const extractionImagesByCode = useMemo(() => {
-    const base = buildProductExtractionImagesByCode(
-      resolvedExtractions,
-      toothImagesByExtractionId,
-    )
-    const merged = { ...base }
-    for (const arch of [configPreview.maxillary, configPreview.mandibular]) {
-      for (const [code, byTooth] of Object.entries(arch.extractionImagesByCode)) {
-        merged[code] = { ...(merged[code] ?? {}), ...byTooth }
-      }
-    }
-    return merged
-  }, [resolvedExtractions, toothImagesByExtractionId, configPreview])
-
-  const getCatalogDefaultExtractionMap = useCallback(
-    (arch: PreviewArch) =>
-      arch === "maxillary"
-        ? configPreview.maxillary.toothExtractionMap
-        : configPreview.mandibular.toothExtractionMap,
-    [configPreview.maxillary.toothExtractionMap, configPreview.mandibular.toothExtractionMap],
-  )
+  /** Default tooth chart owns baseline display — do not overlay catalog default extraction stamps. */
+  const getCatalogDefaultExtractionMap = useCallback((_arch: PreviewArch) => ({}), [])
 
   const getInteractiveExtractionMap = useCallback(
     (arch: PreviewArch) =>
@@ -329,15 +290,6 @@ function ProductToothChartPreviewInner({
     [resolvedExtractions],
   )
 
-  const previewConfigKey = useMemo(() => {
-    const extKey = resolvedExtractions
-      .map((row) => `${row.extraction_id}:${row.is_default ?? "No"}:${row.max_teeth ?? ""}`)
-      .join("|")
-    const retKey = [...linkedRetentionOptionIds].sort((a, b) => a - b).join(",")
-    return `${retentionEnabled}:${extractionsEnabled}:${extKey}:${retKey}`
-  }, [resolvedExtractions, linkedRetentionOptionIds, retentionEnabled, extractionsEnabled])
-
-  const hasAutoSelectedDefaultArch = useRef(false)
   const isHydratingDefaultChart = useRef(false)
   const lastEmittedDefaultChartSig = useRef("")
 
@@ -409,20 +361,6 @@ function ProductToothChartPreviewInner({
     catalogDefaultExtractionId,
   ])
 
-  useEffect(() => {
-    hasAutoSelectedDefaultArch.current = false
-  }, [previewConfigKey])
-
-  useEffect(() => {
-    if (!extractionsEnabled || isSingleDefaultOnly) return
-    if (retentionEnabled) return
-    if (!shouldAutoSelectArchForDefaultExtraction(resolvedExtractions)) return
-    if (hasAutoSelectedDefaultArch.current) return
-    hasAutoSelectedDefaultArch.current = true
-    setMaxillarySelectedTeeth(getChartTeethForArch("maxillary"))
-    setMandibularSelectedTeeth(getChartTeethForArch("mandibular"))
-  }, [extractionsEnabled, isSingleDefaultOnly, retentionEnabled, resolvedExtractions, previewConfigKey])
-
   const useExtractionOnlyPopover = extractionsEnabled && !retentionEnabled
   const useCombinedPopover = retentionEnabled && extractionsEnabled
   const useRetentionPopover = retentionEnabled && (!extractionsEnabled || useCombinedPopover)
@@ -446,13 +384,40 @@ function ProductToothChartPreviewInner({
     [resolvedExtractions, toothImagesByExtractionId],
   )
 
-  const extractionsByCode = useMemo(
-    () => ({
-      ...configPreview.maxillary.extractionsByCode,
-      ...configPreview.mandibular.extractionsByCode,
-    }),
-    [configPreview.maxillary.extractionsByCode, configPreview.mandibular.extractionsByCode],
-  )
+  const extractionsByCode = useMemo(() => {
+    if (!extractionsEnabled) return {}
+    const catalog = buildProductExtractionCatalog(
+      resolvedExtractions,
+      toothImagesByExtractionId,
+    )
+    const result: Record<
+      string,
+      {
+        code: string
+        name: string
+        visibility_type: string
+        color: string | null
+        overlay?: string
+      }
+    > = {}
+    for (const row of catalog) {
+      if (String(row.status ?? "Active").trim().toLowerCase() === "inactive") continue
+      if (!row.code) continue
+      const hasImageCatalog =
+        (row.images?.length ?? 0) > 0 ||
+        (row.image_url != null && String(row.image_url).trim() !== "")
+      result[row.code] = {
+        code: row.code,
+        name: row.name,
+        visibility_type:
+          row.visibility_type ??
+          (hasImageCatalog || isTimExtractionRow(row) ? "Image" : "Color"),
+        color: row.color ?? null,
+        overlay: row.overlay,
+      }
+    }
+    return result
+  }, [extractionsEnabled, resolvedExtractions, toothImagesByExtractionId])
 
   const getChartToothExtractionMap = useCallback(
     (arch: PreviewArch) => {
@@ -471,15 +436,8 @@ function ProductToothChartPreviewInner({
   )
   const getMergedClaspTeeth = useCallback(
     (arch: PreviewArch) =>
-      arch === "maxillary"
-        ? [...new Set([...configPreview.maxillary.claspTeeth, ...maxillaryClaspTeeth])]
-        : [...new Set([...configPreview.mandibular.claspTeeth, ...mandibularClaspTeeth])],
-    [
-      configPreview.maxillary.claspTeeth,
-      configPreview.mandibular.claspTeeth,
-      maxillaryClaspTeeth,
-      mandibularClaspTeeth,
-    ],
+      arch === "maxillary" ? maxillaryClaspTeeth : mandibularClaspTeeth,
+    [maxillaryClaspTeeth, mandibularClaspTeeth],
   )
 
   const getRetentionOptionsForTooth = useCallback(

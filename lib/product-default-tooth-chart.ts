@@ -310,4 +310,20 @@ export function resolveCatalogDefaultExtractionId(
   return tim ? Number(tim.extraction_id) : null
 }
 
+export function productHasDefaultToothChartEnabled(
+  product: Record<string, unknown> | null | undefined,
+): boolean {
+  return (
+    product?.has_default_tooth_chart === "Yes" ||
+    product?.enable_default_tooth_chart === "Yes"
+  )
+}
+
+/** Skip catalog default extraction/retention auto-select; `default_tooth_chart` is the source of truth. */
+export function shouldSkipLegacyDefaultExtractionAutoSelect(
+  product: Record<string, unknown> | null | undefined,
+): boolean {
+  return productHasDefaultToothChartEnabled(product)
+}
+
 export { EMPTY_PREVIEW as EMPTY_DEFAULT_TOOTH_CHART_PREVIEW }
