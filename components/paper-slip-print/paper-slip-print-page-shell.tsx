@@ -8,6 +8,7 @@ import { PaperSlipPrintDocument } from "@/components/paper-slip-print/paper-slip
 import { waitForImageLikes } from "@/lib/paper-slip-image-readiness";
 import { buildPaperSlipPrintSlipVM, type PaperSlipPrintableSlipVM } from "@/lib/paper-slip-print-view-model";
 import { buildPaperSlipPrintActionState } from "@/components/paper-slip-print/paper-slip-print-page-shell-state";
+import { isEmbeddedWebView } from "@/lib/webview-detect";
 
 function PaperSlipStateCard({
   title,
@@ -149,6 +150,9 @@ export function PaperSlipPrintPageShell({
       } else if (window.opener) {
         window.opener.postMessage({ type: "PAPER_SLIP_PRINT_READY", html }, window.location.origin);
         window.close();
+      } else if (isEmbeddedWebView()) {
+        // App WebViews can't print(); just leave the document visible and let
+        // the native shell's share/print handle output.
       } else {
         if (typeof window.print === "function") window.print();
         window.close();
@@ -187,7 +191,8 @@ export function PaperSlipPrintPageShell({
   return (
     // ponytail: invisible until print fires; print media ignores visibility
     <div ref={printRootRef} className={printed ? undefined : "invisible"}>
-      {showPrintButton ? (
+      {/* ponytail: window.print() is a no-op in app WebViews — hide the dead button there */}
+      {showPrintButton && !isEmbeddedWebView() ? (
         <div className="fixed right-6 top-6 z-50 print:hidden">
           <Button
             className="shadow-[0_14px_34px_rgba(15,23,42,0.16)]"
