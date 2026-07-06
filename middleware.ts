@@ -13,6 +13,10 @@ function cspHttpApiConnectExtra(): string {
 }
 
 function cspUpgradeInsecureRequests(): string {
+  // Dev serves plain http://localhost — WebKit/Safari honors this directive even
+  // for localhost (Chrome exempts it) and upgrades every asset to https://,
+  // which fails TLS and blank-screens the page in iOS Safari / simulators.
+  if (process.env.NODE_ENV === 'development') return '';
   const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!raw) return '; upgrade-insecure-requests';
   try {
