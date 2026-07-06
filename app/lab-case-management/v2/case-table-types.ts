@@ -70,6 +70,7 @@ export interface V2RowActions {
   onAttachment: (row: V2CaseRowData) => void
   onCopy: (row: V2CaseRowData) => void
   onEdit: (row: V2CaseRowData) => void
+  onHold: (row: V2CaseRowData) => void
   onChangeDueDate: (row: V2CaseRowData) => void
   onDriverHistory: (row: V2CaseRowData) => void
   onReadyToSend: (row: V2CaseRowData) => void

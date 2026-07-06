@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { forwardRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 
@@ -14,8 +14,10 @@ interface Props {
   onClose: () => void
 }
 
-export function V3RowActionsPopover({ row, actions, canPrintStatement, canSendBack, onClose }: Props) {
-  const ref = useRef<HTMLDivElement>(null)
+export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
+  { row, actions, canPrintStatement, canSendBack, onClose },
+  ref,
+) {
   const [kebabOpen, setKebabOpen] = useState(false)
 
   function act(fn: () => void) {
@@ -33,7 +35,7 @@ export function V3RowActionsPopover({ row, actions, canPrintStatement, canSendBa
   const btns: { label: string; icon: string; onClick: (e: React.MouseEvent) => void; disabled?: boolean }[] = [
     locationBtn(),
     { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) },
-    { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onEdit(row)) },
+    { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onHold(row)) },
     { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)) },
     { label: "Send Back", icon: `${VS}/send-back-to-office.svg`, onClick: act(() => actions.onSendBack(row)), disabled: !canSendBack },
     { label: "Print", icon: `/icons/virtual-slip-actions/printer.svg`, onClick: act(() => actions.onPrintPaperSlip(row)) },
@@ -153,7 +155,7 @@ export function V3RowActionsPopover({ row, actions, canPrintStatement, canSendBa
       <MobileActionsSheet ref={ref} btns={btns} onClose={onClose} />
     </>
   )
-}
+})
 
 interface SheetBtn {
   label: string

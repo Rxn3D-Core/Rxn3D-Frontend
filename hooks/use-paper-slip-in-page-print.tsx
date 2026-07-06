@@ -3,18 +3,50 @@
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PaperSlipPrintPageShell } from "@/components/paper-slip-print/paper-slip-print-page-shell";
-import { isEmbeddedWebView } from "@/lib/webview-detect";
-
-export function buildPaperSlipPrintRoute(slipIds: number[], caseIds: number[]): string {
-  const params = new URLSearchParams();
-  if (slipIds.length > 0) params.set("slip_ids", slipIds.join(","));
-  if (caseIds.length > 0) params.set("case_ids", caseIds.join(","));
-  return `/paper-slip/print?${params.toString()}`;
-}
 
 interface PrintJob {
   slipIds: number[];
   caseIds: number[];
+}
+
+// ponytail: width ≤1024 covers phones + tablets; avoids UA sniffing
+function isMobileOrTablet(): boolean {
+  return window.innerWidth <= 1024 ||
+    /android|ipad|iphone|ipod|mobile/i.test(navigator.userAgent);
+}
+
+const MOBILE_PRINT_ROOT_ID = "paper-slip-mobile-print-root";
+
+// iOS Safari's iframe.contentWindow.print() prints the parent page, not the
+// iframe content, so the desktop hidden-iframe flow prints an empty page on
+// mobile. Instead, mount the slip visibly on the current page and print the
+// page itself, with CSS that hides everything else during print — no
+// navigation, no new tab, no iframe.
+function printHtmlInPlace(html: string): void {
+  document.getElementById(MOBILE_PRINT_ROOT_ID)?.remove();
+  document.getElementById(`${MOBILE_PRINT_ROOT_ID}-style`)?.remove();
+
+  const style = document.createElement("style");
+  style.id = `${MOBILE_PRINT_ROOT_ID}-style`;
+  style.textContent = `
+    @media print {
+      body > :not(#${MOBILE_PRINT_ROOT_ID}) { display: none !important; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  const root = document.createElement("div");
+  root.id = MOBILE_PRINT_ROOT_ID;
+  root.innerHTML = html;
+  document.body.appendChild(root);
+
+  // iOS fires `afterprint` every time the print sheet's preview re-renders —
+  // e.g. when the user changes paper size — not just once at the very end.
+  // Cleaning up on that event removed the injected slip mid-interaction,
+  // which made the sheet fall back to printing the real page underneath.
+  // Instead, leave the (hidden, print-only) node in place; the next print()
+  // call removes and replaces it, and it has no effect on the visible page.
+  window.print();
 }
 
 function printHtmlInIframe(html: string): void {
@@ -47,19 +79,16 @@ export function usePaperSlipInPagePrint() {
 
   const handleReady = useCallback((html: string) => {
     setJob(null);
-    printHtmlInIframe(html);
+    // iOS Safari's iframe.contentWindow.print() prints the parent page, not the
+    // iframe content, so mobile prints the current page in place instead.
+    if (isMobileOrTablet()) {
+      printHtmlInPlace(html);
+    } else {
+      printHtmlInIframe(html);
+    }
   }, []);
 
   const print = useCallback((slipIds: number[], caseIds: number[]) => {
-    // App WebViews (WKWebView/Android WebView) implement window.print() as a
-    // no-op, so the hidden-iframe flow shows nothing. Navigate to the
-    // standalone document page so the slip is at least visible; printing there
-    // goes through the native shell's share/print.
-    if (isEmbeddedWebView()) {
-      window.location.href = buildPaperSlipPrintRoute(slipIds, caseIds);
-      return;
-    }
-
     if (!mountNodeRef.current) {
       const node = document.createElement("div");
       node.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;";

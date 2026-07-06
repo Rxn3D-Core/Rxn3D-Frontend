@@ -60,11 +60,11 @@ const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
   { key: "slip", label: "Slip #", width: 130 },
   { key: "panProduct", label: "Pan / Product", width: 180 },
   { key: "location", label: "Location", width: 300 },
-  { key: "dueDate", label: "Due Date", width: 150 },
   { key: "status", label: "Status", width: 150 },
   { key: "office", label: "Office", width: 200 },
   { key: "caseNo", label: "Case #", width: 130 },
   { key: "timestamp", label: "Time stamp", width: 190 },
+  { key: "dueDate", label: "Due Date", width: 150 },
 ]
 
 function buildDesktopColumns(visibleColumns: Set<ColumnKey>): DesktopColumn[] {
@@ -73,14 +73,24 @@ function buildDesktopColumns(visibleColumns: Set<ColumnKey>): DesktopColumn[] {
 
 export function V3CaseTable(props: Props) {
   const [popoverRow, setPopoverRow] = useState<number | null>(null)
-  const popoverRef = useRef<HTMLTableRowElement>(null)
+  // Separate refs: the mobile card list and desktop table both render for
+  // every row (one hidden via CSS per breakpoint), so both a mobile and a
+  // desktop V3RowActionsPopover mount at once for the same popoverRow. A
+  // single shared ref gets overwritten by whichever mounts last, making the
+  // outside-click check test the wrong (hidden) node and close the visible
+  // one on every tap inside it.
+  const mobilePopoverRef = useRef<HTMLDivElement>(null)
+  const desktopPopoverRef = useRef<HTMLTableRowElement>(null)
   const desktopColumns = buildDesktopColumns(props.visibleColumns)
   const columnCount = desktopColumns.length + 2
 
   useEffect(() => {
     if (popoverRow === null) return
     function onPointerDown(e: PointerEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const insideMobile = mobilePopoverRef.current?.contains(target) ?? false
+      const insideDesktop = desktopPopoverRef.current?.contains(target) ?? false
+      if (!insideMobile && !insideDesktop) {
         setPopoverRow(null)
       }
     }
@@ -171,6 +181,7 @@ export function V3CaseTable(props: Props) {
                       </button>
                       {popoverRow === row.id && (
                         <V3RowActionsPopover
+                          ref={mobilePopoverRef}
                           row={row}
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
@@ -314,7 +325,7 @@ export function V3CaseTable(props: Props) {
               return (
                 <tr
                   key={row.id}
-                  ref={popoverRow === row.id ? popoverRef : undefined}
+                  ref={popoverRow === row.id ? desktopPopoverRef : undefined}
                   style={{
                     backgroundColor: rowBg,
                     borderLeft: "1px solid #C8C8C8",
@@ -326,9 +337,11 @@ export function V3CaseTable(props: Props) {
                     if (!isLocked) {
                       e.currentTarget.querySelectorAll("td").forEach((td) => { (td as HTMLElement).style.backgroundColor = "#e8e8e8" })
                     }
+                    setPopoverRow(row.id)
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.querySelectorAll("td").forEach((td) => { (td as HTMLElement).style.backgroundColor = rowBg })
+                    setPopoverRow((cur) => (cur === row.id ? null : cur))
                   }}
                 >
                   {/* Checkbox */}
@@ -370,6 +383,7 @@ export function V3CaseTable(props: Props) {
                     </div>
                     {popoverRow === row.id && (
                       <V3RowActionsPopover
+                        ref={desktopPopoverRef}
                         row={row}
                         actions={props.rowActions}
                         canPrintStatement={props.canPrintStatement(row)}
