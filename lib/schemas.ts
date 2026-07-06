@@ -612,6 +612,17 @@ export const ProductCreateFormSchema = z
     ).optional(),
     apply_same_status_to_opposing: z.boolean().default(true),
     request_opposing_extraction: z.boolean().default(false).optional(),
+    enable_default_tooth_chart: z.enum(["Yes", "No"]).default("No").optional(),
+    default_tooth_chart: z
+      .array(
+        z.object({
+          tooth_number: z.number().int().min(1).max(32),
+          retention_option_id: z.number().nullable().optional(),
+          extraction_id: z.number().nullable().optional(),
+          chart_type: z.enum(["Implant", "Prep", "Pontic"]).nullable().optional(),
+        }),
+      )
+      .optional(),
     min_days_to_process: z.number().nullable().optional(),
     max_days_to_process: z.number().nullable().optional(),
   })
@@ -657,6 +668,11 @@ export const ProductPaginationSchema = z.object({
 export type ProductPagination = z.infer<typeof ProductPaginationSchema>
 
 // Extractions API Schemas
+export const ExtractionToothImageSchema = z.object({
+  tooth_number: z.coerce.number(),
+  image_url: z.string().nullable().optional(),
+})
+
 export const ExtractionSchema = z.object({
   id: z.number(),
   name: z.string(),
@@ -678,6 +694,8 @@ export const ExtractionSchema = z.object({
   is_image_extraction: z.enum(["Yes", "No"]).optional(),
   /** Public URL for the extraction image when present. */
   image_url: z.string().nullable().optional(),
+  /** Per-tooth chart images returned by the extractions list API. */
+  images: z.array(ExtractionToothImageSchema).optional(),
   created_at: z.string(),
   updated_at: z.string(),
   deleted_at: z.string().nullable(),
@@ -753,6 +771,7 @@ export const ExtractionsFiltersSchema = z.object({
 })
 
 // Type exports
+export type ExtractionToothImage = z.infer<typeof ExtractionToothImageSchema>
 export type Extraction = z.infer<typeof ExtractionSchema>
 export type ExtractionsPagination = z.infer<typeof ExtractionsPaginationSchema>
 export type ExtractionsListResponse = z.infer<typeof ExtractionsListResponseSchema>

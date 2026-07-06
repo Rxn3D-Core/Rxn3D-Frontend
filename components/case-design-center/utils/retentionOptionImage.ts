@@ -16,7 +16,7 @@ function imageFromToothImages(
   toothNumber: number
 ): string | null {
   if (!images?.length) return null;
-  const match = images.find((img) => img.tooth_number === toothNumber);
+  const match = images.find((img) => Number(img.tooth_number) === toothNumber);
   if (!match) return null;
   return nonEmptyUrl(match.image_url) ?? nonEmptyUrl(match.image);
 }

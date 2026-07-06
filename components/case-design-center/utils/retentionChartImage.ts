@@ -1,4 +1,5 @@
 import type { RetentionOptionItem } from "@/components/retention-type-popover";
+import { resolveRetentionOptionImageUrl } from "./retentionOptionImage.ts";
 import {
   normalizeRetentionChartType,
   retentionOptionMatchesChartType,
@@ -112,6 +113,60 @@ export function getRetentionChartImageUrl(
   // Selector-shape options have no images array entries, so toothImageFromImagesArray returns null
   // and the selector-shape path in getRetentionSelectorShape takes over as before.
   return toothImageFromImagesArray(opt.images, toothNumber);
+}
+
+/**
+ * Product preview / read-only views: use per-tooth `images[]` first, then popover-style
+ * fallbacks (`image_url`, global sample) so catalog tooth_images from the API still render.
+ */
+export function findRetentionOptionById(
+  retentionOptions: RetentionOptionItem[] | undefined,
+  optionId: number | null | undefined,
+): RetentionOptionItem | null {
+  if (optionId == null || !retentionOptions?.length) return null;
+  return retentionOptions.find((opt) => Number(opt.id) === Number(optionId)) ?? null;
+}
+
+export function getRetentionChartImageUrlForOptionId(
+  toothNumber: number,
+  optionId: number | null | undefined,
+  retentionOptions: RetentionOptionItem[] | undefined,
+): string | null {
+  const opt = findRetentionOptionById(retentionOptions, optionId);
+  if (!opt) return null;
+  const fromImages = toothImageFromImagesArray(opt.images, toothNumber);
+  if (fromImages) return fromImages;
+  return resolveRetentionOptionImageUrl(opt, toothNumber);
+}
+
+export function getRetentionChartImageUrlWithFallback(
+  toothNumber: number,
+  retentionTypesByTooth: Record<number, Array<RetentionChartType>> | undefined,
+  retentionOptions: RetentionOptionItem[] | undefined,
+  retentionOptionIdByTooth?: Record<number, number>,
+): string | null {
+  const optionId = retentionOptionIdByTooth?.[toothNumber];
+  if (optionId != null) {
+    const byId = getRetentionChartImageUrlForOptionId(
+      toothNumber,
+      optionId,
+      retentionOptions,
+    );
+    if (byId) return byId;
+  }
+
+  const fromImages = getRetentionChartImageUrl(
+    toothNumber,
+    retentionTypesByTooth,
+    retentionOptions
+  );
+  if (fromImages) return fromImages;
+
+  const chartType = getRetentionChartTypeForTooth(retentionTypesByTooth, toothNumber);
+  if (!chartType) return null;
+
+  const opt = findRetentionOptionForChartType(retentionOptions, chartType);
+  return opt ? resolveRetentionOptionImageUrl(opt, toothNumber) : null;
 }
 
 /** Selector shape for chart when the arch does not have a full 16-tooth image set. */

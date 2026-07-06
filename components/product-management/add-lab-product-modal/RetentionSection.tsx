@@ -43,6 +43,10 @@ export function RetentionSection({
   catalogCustomerId = null,
   retentionOptionsCatalog,
   onRequestRetentionOptionCreate,
+  embedded = false,
+  layout = "default",
+  hideToggle = false,
+  compact = false,
 }: {
   control: any
   watch: any
@@ -64,6 +68,14 @@ export function RetentionSection({
    * Otherwise falls back to navigating to the retention-option library page.
    */
   onRequestRetentionOptionCreate?: (ctx: RetentionOptionCreateRequestContext) => void
+  /** When true, render only the inner panels (parent provides toggles/header). */
+  embedded?: boolean
+  /** `stacked` = types box above options box; `default` = side-by-side on xl. */
+  layout?: "default" | "stacked"
+  /** Hide the section enable switch (used when parent owns toggles). */
+  hideToggle?: boolean
+  /** Tighter layout for narrow tooth-chart configuration column. */
+  compact?: boolean
 }) {
   const watchedRetentions = watch("retentions") || []
   const watchedRetentionOptions = (watch("retention_options") || []) as RetentionOptionFormRow[]
@@ -144,18 +156,196 @@ export function RetentionSection({
     })
   }, [])
 
+  const showContent = embedded || expandedSections.retention
+  const typesPanel = (
+                <div className={cn(layout === "stacked" && "rounded-lg border border-gray-200 bg-white", compact ? "p-2" : layout === "stacked" && "p-3")}>
+                  <Label className={cn("font-medium mb-2 block", compact ? "text-xs" : "text-sm")}>
+                    {compact ? "Retention types" : "Select how this restoration will be retained"}
+                  </Label>
+                  <div className={cn("flex flex-col", compact ? "gap-2" : "gap-3")}>
+                    {retentions.map((retention: { id: number; name: string }) => {
+                      const isSelected = isRetentionSelected(retention.id)
+                      const selectedRetention = getSelectedRetention(retention.id)
+
+                      return (
+                        <div key={retention.id} className={cn("flex flex-col", compact ? "gap-1" : "gap-2")}>
+                          <label className="flex items-start gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              value={retention.id}
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const isChecked = e.target.checked
+                                if (isChecked) {
+                                  const newRetention: Record<string, unknown> = {
+                                    retention_id: retention.id,
+                                    sequence: watchedRetentions.length + 1,
+                                    status: "Active",
+                                  }
+                                  if (isLabAdmin) newRetention.price = 0
+                                  setValue(
+                                    "retentions",
+                                    [...watchedRetentions, newRetention],
+                                    { shouldDirty: true },
+                                  )
+                                } else {
+                                  const updatedRetentions = watchedRetentions
+                                    .filter((ret: Record<string, unknown>) => Number(ret.retention_id) !== retention.id)
+                                    .map((ret: Record<string, unknown>, index: number) => ({
+                                      ...ret,
+                                      sequence: index + 1,
+                                    }))
+                                  setValue("retentions", updatedRetentions, { shouldDirty: true })
+                                }
+                              }}
+                              className={cn("accent-[#1162a8] shrink-0 mt-0.5", compact ? "w-4 h-4" : "w-5 h-5")}
+                            />
+                            <span className={cn("leading-snug break-words", compact ? "text-xs" : "text-sm")}>{retention.name}</span>
+                          </label>
+                          {isSelected && isLabAdmin && selectedRetention && (
+                            <div className={cn("flex flex-col gap-1", compact ? "ml-5" : "ml-7")}>
+                              <Label
+                                htmlFor={`retention-price-${retention.id}`}
+                                className={cn("text-gray-600", compact ? "text-[10px]" : "text-sm w-20")}
+                              >
+                                {compact ? "Price:" : "Additional price:"}
+                              </Label>
+                              <div className={cn("relative", compact ? "w-full max-w-[88px]" : "w-36")}>
+                                <span className={cn("absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground", compact ? "text-[10px]" : "text-sm")}>
+                                  $
+                                </span>
+                                <Input
+                                  id={`retention-price-${retention.id}`}
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={(() => {
+                                    const raw = (selectedRetention as { price?: unknown }).price
+                                    if (raw === undefined || raw === null || raw === "") return ""
+                                    const n =
+                                      typeof raw === "number"
+                                        ? raw
+                                        : parseFloat(String(raw).replace(/,/g, ""))
+                                    return Number.isFinite(n) ? n : ""
+                                  })()}
+                                  onChange={(e) => handlePriceChange(retention.id, e.target.value)}
+                                  placeholder="0.00"
+                                  className={cn("pl-7", compact && "h-7 text-xs pl-5")}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                </div>
+  )
+
+  const optionsPanel = (
+                <div
+                  className={cn(
+                    "rounded-lg border border-gray-100 bg-muted/20 min-h-[200px]",
+                    compact ? "p-2 min-h-0" : "p-4",
+                    layout === "stacked" && "border-gray-200 bg-white",
+                  )}
+                >
+                  <Label className={cn("font-medium mb-2 block text-gray-900", compact ? "text-xs" : "text-sm")}>
+                    {compact ? "Options linked" : "Retention options linked"}
+                  </Label>
+                  {!compact ? (
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Choose which implant / prep / pontic behaviors apply. Tags show linked retention types from the catalog.
+                    </p>
+                  ) : null}
+                  {optionsLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+                      <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+                      Loading options…
+                    </div>
+                  ) : optionsError ? (
+                    <p className="text-sm text-destructive py-4">{optionsError}</p>
+                  ) : retentionCatalog.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">No active retention options in this catalog.</p>
+                  ) : (
+                    <ul className={cn("flex flex-col", compact ? "gap-2" : "gap-3")}>
+                      {retentionCatalog.map((opt) => {
+                        const linked = retentionOptionLinkedSet.has(Number(opt.id))
+                        const tags = retentionTagLabels(opt)
+                        return (
+                          <li
+                            key={opt.id}
+                            className={cn(
+                              "rounded-lg border bg-white transition-colors",
+                              compact ? "px-2 py-1.5" : "px-3 py-2",
+                              linked ? "border-[#1162a8]/40" : "border-gray-200",
+                            )}
+                          >
+                            <label className="flex items-start gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={linked}
+                                onChange={(e) => toggleRetentionOption(opt.id, e.target.checked)}
+                                className={cn("accent-[#1162a8] mt-0.5 shrink-0", compact ? "w-4 h-4" : "w-5 h-5")}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <span className={cn("font-medium text-gray-900 leading-snug break-words", compact ? "text-xs" : "text-sm")}>{opt.name}</span>
+                                {tags.length > 0 ? (
+                                  <div className={cn("flex flex-wrap gap-0.5", compact ? "mt-1" : "mt-2")}>
+                                    {tags.map((t, i) => (
+                                      <Badge key={`${opt.id}-${i}`} variant="secondary" className={cn("font-normal", compact ? "text-[10px] px-1 py-0" : "text-xs")}>
+                                        {t}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : compact ? null : (
+                                  <p className="text-xs text-muted-foreground mt-1">No retention types linked on catalog row.</p>
+                                )}
+                              </div>
+                            </label>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+  )
+
+  const panels = (
+    <div
+      className={cn(
+        layout === "stacked" ? cn("flex flex-col", compact ? "gap-2" : "gap-4") : "grid grid-cols-1 xl:grid-cols-2 gap-6",
+      )}
+    >
+      {typesPanel}
+      {optionsPanel}
+    </div>
+  )
+
+  if (embedded) {
+    return (
+      <div className={cn(compact ? "space-y-2" : "space-y-3")}>
+        {panels}
+        <ValidationError message={getValidationError("retentions")} />
+      </div>
+    )
+  }
+
   return (
     <div className="border-t">
       <div className="px-6 py-4 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <Switch
-            checked={sections.retention !== false}
-            onCheckedChange={(checked) => {
-              toggleSection("retention")
-              setValue("apply_retention_mechanism", checked ? "Yes" : "No", { shouldDirty: true })
-            }}
-            className="data-[state=checked]:bg-[#1162a8]"
-          />
+          {!hideToggle ? (
+            <Switch
+              checked={sections.retention !== false}
+              onCheckedChange={(checked) => {
+                toggleSection("retention")
+                setValue("apply_retention_mechanism", checked ? "Yes" : "No", { shouldDirty: true })
+              }}
+              className="data-[state=checked]:bg-[#1162a8]"
+            />
+          ) : null}
           <span className="font-medium">Retention</span>
           {sectionHasErrors(["retentions"]) && <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />}
           <TooltipProvider delayDuration={200}>
@@ -237,160 +427,15 @@ export function RetentionSection({
           />
         </div>
       </div>
-      {expandedSections.retention && (
+      {showContent && (
         <div className="px-6 pb-6">
-          {/* Keep lists visible when switched off — match spec: faded + non-interactive, do not hide. */}
           <div
             className={cn(
               "rounded-lg border border-dashed border-muted-foreground/25 p-4 transition-colors",
               sections.retention === false && "opacity-50 pointer-events-none select-none saturate-[0.65]",
             )}
           >
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {/* Left — retention types (product links) */}
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Select how this restoration will be retained
-                  </Label>
-                  <div className="flex flex-col gap-3">
-                    {retentions.map((retention: { id: number; name: string }) => {
-                      const isSelected = isRetentionSelected(retention.id)
-                      const selectedRetention = getSelectedRetention(retention.id)
-
-                      return (
-                        <div key={retention.id} className="flex flex-col gap-2">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              value={retention.id}
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const isChecked = e.target.checked
-                                if (isChecked) {
-                                  const newRetention: Record<string, unknown> = {
-                                    retention_id: retention.id,
-                                    sequence: watchedRetentions.length + 1,
-                                    status: "Active",
-                                  }
-                                  if (isLabAdmin) newRetention.price = 0
-                                  setValue(
-                                    "retentions",
-                                    [...watchedRetentions, newRetention],
-                                    { shouldDirty: true },
-                                  )
-                                } else {
-                                  const updatedRetentions = watchedRetentions
-                                    .filter((ret: Record<string, unknown>) => Number(ret.retention_id) !== retention.id)
-                                    .map((ret: Record<string, unknown>, index: number) => ({
-                                      ...ret,
-                                      sequence: index + 1,
-                                    }))
-                                  setValue("retentions", updatedRetentions, { shouldDirty: true })
-                                }
-                              }}
-                              className="accent-[#1162a8] w-5 h-5"
-                            />
-                            <span>{retention.name}</span>
-                          </label>
-                          {isSelected && isLabAdmin && selectedRetention && (
-                            <div className="ml-7 flex items-center gap-2">
-                              <Label
-                                htmlFor={`retention-price-${retention.id}`}
-                                className="text-sm text-gray-600 w-20"
-                              >
-                                Additional price:
-                              </Label>
-                              <div className="relative w-36">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                                  $
-                                </span>
-                                <Input
-                                  id={`retention-price-${retention.id}`}
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={(() => {
-                                    const raw = (selectedRetention as { price?: unknown }).price
-                                    if (raw === undefined || raw === null || raw === "") return ""
-                                    const n =
-                                      typeof raw === "number"
-                                        ? raw
-                                        : parseFloat(String(raw).replace(/,/g, ""))
-                                    return Number.isFinite(n) ? n : ""
-                                  })()}
-                                  onChange={(e) => handlePriceChange(retention.id, e.target.value)}
-                                  placeholder="0.00"
-                                  className="pl-7"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                </div>
-
-                {/* Right — retention options (catalog checkboxes → retention_options payload) */}
-                <div className="rounded-lg border border-gray-100 bg-muted/20 p-4 min-h-[200px]">
-                  <Label className="text-sm font-medium mb-2 block text-gray-900">
-                    Retention options linked
-                  </Label>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Choose which implant / prep / pontic behaviors apply. Tags show linked retention types from the catalog.
-                  </p>
-                  {optionsLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
-                      <Loader2 className="h-5 w-5 animate-spin shrink-0" />
-                      Loading options…
-                    </div>
-                  ) : optionsError ? (
-                    <p className="text-sm text-destructive py-4">{optionsError}</p>
-                  ) : retentionCatalog.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4">No active retention options in this catalog.</p>
-                  ) : (
-                    <ul className="flex flex-col gap-3">
-                      {retentionCatalog.map((opt) => {
-                        const linked = retentionOptionLinkedSet.has(Number(opt.id))
-                        const tags = retentionTagLabels(opt)
-                        return (
-                          <li
-                            key={opt.id}
-                            className={cn(
-                              "rounded-lg border px-3 py-2 bg-white transition-colors",
-                              linked ? "border-[#1162a8]/40" : "border-gray-200",
-                            )}
-                          >
-                            <label className="flex items-start gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={linked}
-                                onChange={(e) => toggleRetentionOption(opt.id, e.target.checked)}
-                                className="accent-[#1162a8] w-5 h-5 mt-0.5 shrink-0"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <span className="font-medium text-gray-900">{opt.name}</span>
-                                {tags.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1 mt-2">
-                                    {tags.map((t, i) => (
-                                      <Badge key={`${opt.id}-${i}`} variant="secondary" className="text-xs font-normal">
-                                        {t}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground mt-1">No retention types linked on catalog row.</p>
-                                )}
-                              </div>
-                            </label>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-            </div>
+            {panels}
           </div>
           <ValidationError message={getValidationError("retentions")} />
         </div>

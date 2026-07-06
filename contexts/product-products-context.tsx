@@ -11,6 +11,7 @@ import {
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
+import { applyDefaultToothChartToPayload } from "@/lib/product-default-tooth-chart"
 import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
@@ -601,7 +602,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     const sectionFlags = [
       "has_stage", "has_grade", "has_gum_shade", "has_teeth_shade",
       "has_impression", "has_extraction", "has_retention", "has_material", "has_addon",
-      "has_advance_field", "has_variation"
+      "has_advance_field", "has_variation", "has_default_tooth_chart",
     ] as const
     for (const flag of sectionFlags) {
       if (form[flag] !== undefined) {
@@ -617,6 +618,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     if (form.is_teeth_based_price !== undefined) {
       payload.is_teeth_based_price = form.is_teeth_based_price
     }
+
+    applyDefaultToothChartToPayload(payload, form)
 
     return payload
   }

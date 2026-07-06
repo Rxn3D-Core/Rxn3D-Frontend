@@ -52,6 +52,10 @@ import { useAuth } from "@/contexts/auth-context"
 import { getCustomerId } from "@/lib/dashboard-widgets"
 import { hydrateAdvanceFieldsFormFromProduct, serializeAdvanceFieldsForApi } from "@/lib/product-advance-fields-form"
 import {
+  applyDefaultToothChartToPayload,
+  hydrateDefaultToothChartFromProduct,
+} from "@/lib/product-default-tooth-chart"
+import {
   hydrateRetentionOptionsFromProduct,
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
@@ -73,10 +77,10 @@ import { GumShadeSection } from "@/components/product-management/add-lab-product
 import { TeethShadeSection } from "@/components/product-management/add-lab-product-modal/TeethShadeSection"
 import { MaterialSection } from "@/components/product-management/add-lab-product-modal/MaterialSection"
 import { AddOnsSection } from "@/components/product-management/add-lab-product-modal/AddOnsSection"
-import { RetentionSection, type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
+import { type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { AdvanceFieldsSection } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
 import type { AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
-import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
+import { ToothChartConfigurationsSection } from "@/components/product-management/add-lab-product-modal/ToothChartConfigurationsSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 
 interface AddProductModalProps {
@@ -103,9 +107,8 @@ const ADD_PRODUCT_MODAL_TABS: { id: string; label: string; sectionKey: string | 
   { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
   { id: "material", label: "Material", sectionKey: "material" },
   { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
-  { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "toothChartConfigurations", label: "Tooth Chart Configurations", sectionKey: "toothChartConfigurations" },
   { id: "advanceFields", label: "Advance Field", sectionKey: "advanceField" },
-  { id: "extractions", label: "Extractions", sectionKey: "extractions" },
 ]
 
 function replaceSlipFieldErrors(
@@ -455,6 +458,8 @@ export function AddProductModal({
     enable_tooth_count_variation: "No",
     tooth_count_variations: [],
     show_jaw_photo: "No",
+    enable_default_tooth_chart: "No",
+    default_tooth_chart: [],
   }), [])
 
   const {
@@ -645,7 +650,7 @@ export function AddProductModal({
       if (aErr.length > 0) return
     }
 
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       const values = getValues() as Record<string, unknown>
       const rErr = collectRetentionsStepErrors(values, { retentionSectionEnabled: sections.retention })
       setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", rErr))
@@ -1002,6 +1007,19 @@ export function AddProductModal({
         : (editingProduct.show_jaw_photo || "No"),
       teeth_pricing_type: strategyForm,
       advance_fields: hydrateAdvanceFieldsFormFromProduct(editingProduct as Record<string, unknown>),
+      enable_default_tooth_chart:
+        editingProduct.has_default_tooth_chart === "Yes" ||
+        editingProduct.enable_default_tooth_chart === "Yes"
+          ? "Yes"
+          : "No",
+      default_tooth_chart: hydrateDefaultToothChartFromProduct(
+        editingProduct as Record<string, unknown>,
+        (() => {
+          const exts = editingProduct.extractions || []
+          const def = exts.find((e: { is_default?: string }) => e.is_default === "Yes")
+          return def ? Number((def as { extraction_id: number }).extraction_id) : null
+        })(),
+      ),
       ...teethHydrate,
       ...variationForm,
     }
@@ -1599,6 +1617,7 @@ export function AddProductModal({
       finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
         variation: sections.variation,
       })
+      applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
 
       saveResult = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
@@ -1667,6 +1686,7 @@ export function AddProductModal({
       finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
         variation: sections.variation,
       })
+      applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
 
       saveResult = await createProduct(payload)
     }
@@ -1964,7 +1984,7 @@ export function AddProductModal({
     if (activeTab === "addOns" && sections.addOns) {
       return addonsStepErrsPreview.length === 0
     }
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       return retentionsStepErrsPreview.length === 0
     }
     if (activeTab === "variation" && watchedIsTeethBased === "Yes" && sections.variation) {
@@ -2277,8 +2297,8 @@ export function AddProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="retention" className="mt-0 p-6 focus-visible:outline-none">
-                  <RetentionSection
+                <TabsContent value="toothChartConfigurations" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
+                  <ToothChartConfigurationsSection
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2294,6 +2314,10 @@ export function AddProductModal({
                     catalogCustomerId={retentionOptionsCatalogCustomerId}
                     retentionOptionsCatalog={retentionOptionsCatalog}
                     onRequestRetentionOptionCreate={handleRequestRetentionOptionCreate}
+                    allExtractions={allExtractions}
+                    isExtractionsLoading={isExtractionsLoading}
+                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
+                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 
@@ -2307,25 +2331,6 @@ export function AddProductModal({
                     sectionHasErrors={sectionHasErrors}
                     listCustomerId={pricingScope === "lab" ? (customerId ?? null) : null}
                     onRequestAdvanceFieldEditor={onRequestAdvanceFieldEditor}
-                  />
-                </TabsContent>
-
-                <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
-                  <ExtractionsSection
-                    key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
-                    control={control}
-                    watch={watch}
-                    setValue={setValue}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    expandedSections={expandedSections}
-                    toggleExpanded={toggleExpanded}
-                    allExtractions={allExtractions}
-                    isExtractionsLoading={isExtractionsLoading}
-                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
-                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
               </div>

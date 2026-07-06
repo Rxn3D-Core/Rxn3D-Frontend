@@ -29,6 +29,12 @@ interface ExtractionsSectionProps {
   apiOppositeExtractionCount?: number
   /** Stable key when switching products (e.g. editingProduct.id) to reset apply-same override. */
   editingProductKey?: string | number | null
+  /** When true, render only the inner table (parent provides toggles/header). */
+  embedded?: boolean
+  /** Smaller table layout for combined tooth chart tab. */
+  compact?: boolean
+  /** Hide the section enable switch (used when parent owns toggles). */
+  hideToggle?: boolean
 }
 
 export function ExtractionsSection({
@@ -45,6 +51,9 @@ export function ExtractionsSection({
   isExtractionsLoading = false,
   apiOppositeExtractionCount = 0,
   editingProductKey = null,
+  embedded = false,
+  compact = false,
+  hideToggle = false,
 }: ExtractionsSectionProps) {
   // Fallback internal state when parent doesn't pass sections (e.g. used elsewhere)
   const [internalEnabled, setInternalEnabled] = useState(true)
@@ -596,16 +605,270 @@ export function ExtractionsSection({
     (status) => status.is_active === true
   ).length
 
+  const showContent = embedded || isExpanded
+  const cellPad = compact ? "py-1.5 px-1" : "py-3 px-3"
+  const headerPad = compact ? "py-1 px-1" : "py-2 px-3"
+  const inputClass = compact ? "w-16 h-7 text-center text-xs" : "w-20 h-8 text-center"
+  const compactStatusHeader = compact ? "Status" : "Extraction Status"
+  const compactDefaultHeader = compact ? "Def" : "Default"
+  const compactRequiredHeader = compact ? "Req" : "Required"
+  const compactOptionalHeader = compact ? "Opt" : "Optional"
+
+  const extractionBody = (
+    <div className={cn(embedded ? (compact ? "p-2" : "p-3") : "mt-4", !isEnabled && "opacity-50 pointer-events-none select-none")}>
+      {!compact ? (
+        <div className="text-sm text-gray-600 mb-4">
+          <p>All available extraction statuses will be visible. User can toggle them on if they want it configured, off if not.</p>
+          <p>Once user choose between Default, required and optional, checkboxes will be disabled.</p>
+        </div>
+      ) : (
+        <div className="mb-3">
+          <h4 className="text-sm font-medium text-gray-900">Extractions</h4>
+          {!compact ? (
+            <p className="text-xs text-muted-foreground mt-1">
+              Toggle extraction statuses for this product. Default selection drives the tooth chart preview.
+            </p>
+          ) : null}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="text-center py-4">Loading extractions...</div>
+      ) : (
+        <div className="space-y-4">
+          <div className={cn("flex items-center gap-2 mb-4", compact && "mb-2")}>
+            <Checkbox
+              id={embedded ? "apply-same-status-embedded" : "apply-same-status"}
+              checked={watchedApplySameStatus}
+              onCheckedChange={handleApplySameStatusChange}
+            />
+            <Label
+              htmlFor={embedded ? "apply-same-status-embedded" : "apply-same-status"}
+              className={cn(compact && "text-xs leading-snug")}
+            >
+              Apply same status to opposing
+            </Label>
+          </div>
+
+          <div className={`${!watchedApplySameStatus ? "flex gap-4 items-start" : ""}`}>
+            <div
+              className={cn(
+                "flex flex-col h-full min-w-0",
+                compact ? "overflow-x-hidden" : "overflow-x-auto",
+                !watchedApplySameStatus && "flex-1 border-r border-gray-300 pr-4",
+              )}
+            >
+              {!embedded ? (
+                <div className="mb-2">
+                  <h3 className="font-medium text-gray-900">Main Product Fields</h3>
+                  <span
+                    className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${activeExtractionsCount === 0 ? "opacity-80" : ""}`}
+                  >
+                    <strong>{activeExtractionsCount} selected</strong>
+                  </span>
+                </div>
+              ) : null}
+              <table className={cn("border-collapse w-full", compact ? "table-fixed text-[11px]" : "table-auto", !compact && "text-xs")}>
+                {compact ? (
+                  <colgroup>
+                    <col className="w-[38%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[26%]" />
+                  </colgroup>
+                ) : null}
+                <thead>
+                  <tr className="border-b">
+                    <th className={cn("text-left font-medium text-gray-700", !compact && "whitespace-nowrap", headerPad)}>
+                      {compactStatusHeader}
+                    </th>
+                    <th className={cn("text-center font-medium text-gray-700", headerPad)}>{compactDefaultHeader}</th>
+                    <th className={cn("text-center font-medium text-gray-700", headerPad)}>{compactRequiredHeader}</th>
+                    <th className={cn("text-center font-medium text-gray-700", headerPad)}>{compactOptionalHeader}</th>
+                    {!compact ? (
+                      <>
+                        <th className={cn("text-center font-medium text-gray-700 w-32", headerPad)}>Min Teeth</th>
+                        <th className={cn("text-center font-medium text-gray-700 w-32", headerPad)}>Max Teeth</th>
+                      </>
+                    ) : null}
+                    <th className={cn("text-center font-medium text-gray-700", headerPad)}>Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extractionStatuses.map((status) => (
+                    <tr key={status.extraction_id} className="border-b">
+                      <td className={cellPad}>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <div
+                            className={cn("rounded flex-shrink-0", compact ? "w-3 h-3" : "w-4 h-4")}
+                            style={{ backgroundColor: status.color }}
+                          />
+                          <span
+                            className={cn("font-medium min-w-0", compact ? "truncate text-[11px] leading-tight" : "whitespace-nowrap")}
+                            title={status.name}
+                          >
+                            {status.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className={cn("text-center", cellPad)}>
+                        <Checkbox
+                          checked={status.is_default}
+                          onCheckedChange={(checked) =>
+                            handleStatusChange(status.extraction_id, "is_default", checked)
+                          }
+                          disabled={!status.is_active}
+                        />
+                      </td>
+                      <td className={cn("text-center", cellPad)}>
+                        <Checkbox
+                          checked={status.is_required}
+                          onCheckedChange={(checked) =>
+                            handleStatusChange(status.extraction_id, "is_required", checked)
+                          }
+                          disabled={!status.is_active}
+                        />
+                      </td>
+                      <td className={cn("text-center", cellPad)}>
+                        <Checkbox
+                          checked={status.is_optional}
+                          onCheckedChange={(checked) =>
+                            handleStatusChange(status.extraction_id, "is_optional", checked)
+                          }
+                          disabled={!status.is_active}
+                        />
+                      </td>
+                      {!compact ? (
+                        <>
+                          <td className={cn("text-center w-32", cellPad)}>
+                            <div className="flex justify-center">
+                              <Input
+                                type="number"
+                                min="0"
+                                max="16"
+                                value={status.min_teeth !== null ? status.min_teeth : ""}
+                                onChange={(e) => handleMinTeethChange(status.extraction_id, e.target.value)}
+                                className={inputClass}
+                                placeholder="Min"
+                                disabled={!status.is_active}
+                              />
+                            </div>
+                          </td>
+                          <td className={cn("text-center w-32", cellPad)}>
+                            <div className="flex justify-center">
+                              <Input
+                                type="number"
+                                min={status.min_teeth === 16 ? undefined : "0"}
+                                max={status.min_teeth === 16 ? undefined : "16"}
+                                value={status.max_teeth !== null ? status.max_teeth : ""}
+                                onChange={(e) => handleMaxTeethChange(status.extraction_id, e.target.value)}
+                                onBlur={(e) => handleMaxTeethBlur(status.extraction_id, e.target.value)}
+                                className={inputClass}
+                                placeholder={status.min_teeth === 16 ? "0 or 16" : "Max"}
+                                disabled={!status.is_active}
+                              />
+                            </div>
+                          </td>
+                        </>
+                      ) : null}
+                      <td className={cn("text-center", cellPad)}>
+                        <div className={cn("flex justify-center", compact && "scale-90 origin-center")}>
+                          <Switch
+                            checked={status.is_active}
+                            onCheckedChange={(checked) =>
+                              handleStatusChange(status.extraction_id, "is_active", checked)
+                            }
+                            className="data-[state=checked]:bg-blue-600"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {!watchedApplySameStatus && (
+              <div className="overflow-x-auto flex flex-col h-full pl-4">
+                <div className="mb-2">
+                  <h3 className="font-medium text-gray-900">Opposing</h3>
+                  <span
+                    className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${activeOpposingExtractionsCount === 0 ? "opacity-80" : ""}`}
+                  >
+                    <strong>{activeOpposingExtractionsCount} selected</strong>
+                  </span>
+                </div>
+                <table className={cn("border-collapse table-auto", compact && "text-xs")}>
+                  <thead>
+                    <tr className="border-b">
+                      <th className={cn("text-left font-medium text-gray-700 whitespace-nowrap", headerPad)}>
+                        Extraction Status
+                      </th>
+                      <th className={cn("text-center font-medium text-gray-700 w-20", headerPad)}>Default</th>
+                      <th className={cn("text-center font-medium text-gray-700 w-20", headerPad)}>Active</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {opposingExtractionStatuses.map((status) => (
+                      <tr key={status.extraction_id} className="border-b">
+                        <td className={cellPad}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-4 h-4 rounded flex-shrink-0"
+                              style={{ backgroundColor: status.color }}
+                            />
+                            <span className="font-medium whitespace-nowrap">{status.name}</span>
+                          </div>
+                        </td>
+                        <td className={cn("text-center w-20", cellPad)}>
+                          <Checkbox
+                            checked={status.is_default}
+                            onCheckedChange={(checked) =>
+                              handleOpposingStatusChange(status.extraction_id, "is_default", checked)
+                            }
+                            disabled={!status.is_active}
+                          />
+                        </td>
+                        <td className={cn("text-center w-20", cellPad)}>
+                          <Switch
+                            checked={status.is_active}
+                            onCheckedChange={(checked) =>
+                              handleOpposingStatusChange(status.extraction_id, "is_active", checked)
+                            }
+                            className="data-[state=checked]:bg-blue-600"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <ValidationError message={getValidationError("extractions")} />
+        </div>
+      )}
+    </div>
+  )
+
+  if (embedded) {
+    return showContent ? extractionBody : null
+  }
+
   return (
     <div className="border-t">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Switch
-              checked={isEnabled}
-              onCheckedChange={() => (toggleSection ? toggleSection("extractions") : setInternalEnabled((v) => !v))}
-              className="data-[state=checked]:bg-blue-600"
-            />
+            {!hideToggle ? (
+              <Switch
+                checked={isEnabled}
+                onCheckedChange={() => (toggleSection ? toggleSection("extractions") : setInternalEnabled((v) => !v))}
+                className="data-[state=checked]:bg-blue-600"
+              />
+            ) : null}
             <span className="font-medium text-gray-900">Main Product Fields</span>
             {hasErrors ? (
               <AlertCircle className="h-4 w-4 text-red-500" />
@@ -636,197 +899,7 @@ export function ExtractionsSection({
           </div>
         </div>
 
-        {isExpanded && (
-          <div className={cn("mt-4", !isEnabled && "opacity-50 pointer-events-none select-none")}>
-            <div className="text-sm text-gray-600 mb-4">
-              <p>All available extraction statuses will be visible. User can toggle them on if they want it configured, off if not.</p>
-              <p>Once user choose between Default, required and optional, checkboxes will be disabled.</p>
-            </div>
-
-            {isLoading ? (
-              <div className="text-center py-4">Loading extractions...</div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Checkbox
-                    id="apply-same-status"
-                    checked={watchedApplySameStatus}
-                    onCheckedChange={handleApplySameStatusChange}
-                  />
-                  <Label htmlFor="apply-same-status" className="text-sm">
-                    Apply same status to opposing
-                  </Label>
-                </div>
-
-                <div className={`${!watchedApplySameStatus ? 'flex gap-4 items-start' : ''}`}>
-                  {/* Main Extractions Table */}
-                  <div className={`overflow-x-auto flex flex-col h-full ${!watchedApplySameStatus ? 'flex-1 border-r border-gray-300 pr-4' : ''}`}>
-                    <div className="mb-2">
-                      <h3 className="font-medium text-gray-900">Main Product Fields</h3>
-                      <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${activeExtractionsCount === 0 ? "opacity-80" : ""}`}
-                      >
-                        <strong>{activeExtractionsCount} selected</strong>
-                      </span>
-                    </div>
-                    <table className="border-collapse table-auto">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-3 font-medium text-gray-700 whitespace-nowrap">Extraction Status</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-700">Default</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-700">Required</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-700">Optional</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-700 w-32">Min Teeth</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-700 w-32">Max Teeth</th>
-                          <th className="text-center py-2 px-3 font-medium text-gray-700">Active</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {extractionStatuses.map((status) => (
-                          <tr key={status.extraction_id} className="border-b">
-                            <td className="py-3 px-3">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="w-4 h-4 rounded flex-shrink-0"
-                                  style={{ backgroundColor: status.color }}
-                                />
-                                <span className="text-sm font-medium whitespace-nowrap">{status.name}</span>
-                              </div>
-                            </td>
-                            <td className="text-center py-3 px-3">
-                              <Checkbox
-                                checked={status.is_default}
-                                onCheckedChange={(checked) =>
-                                  handleStatusChange(status.extraction_id, "is_default", checked)
-                                }
-                                disabled={!status.is_active}
-                              />
-                            </td>
-                            <td className="text-center py-3 px-3">
-                              <Checkbox
-                                checked={status.is_required}
-                                onCheckedChange={(checked) =>
-                                  handleStatusChange(status.extraction_id, "is_required", checked)
-                                }
-                                disabled={!status.is_active}
-                              />
-                            </td>
-                            <td className="text-center py-3 px-3">
-                              <Checkbox
-                                checked={status.is_optional}
-                                onCheckedChange={(checked) =>
-                                  handleStatusChange(status.extraction_id, "is_optional", checked)
-                                }
-                                disabled={!status.is_active}
-                              />
-                            </td>
-                            <td className="text-center py-3 px-3 w-32">
-                              <div className="flex justify-center">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="16"
-                                  value={status.min_teeth !== null ? status.min_teeth : ""}
-                                  onChange={(e) => handleMinTeethChange(status.extraction_id, e.target.value)}
-                                  className="w-20 h-8 text-center"
-                                  placeholder="Min"
-                                  disabled={!status.is_active}
-                                />
-                              </div>
-                            </td>
-                            <td className="text-center py-3 px-3 w-32">
-                              <div className="flex justify-center">
-                                <Input
-                                  type="number"
-                                  min={status.min_teeth === 16 ? undefined : "0"}
-                                  max={status.min_teeth === 16 ? undefined : "16"}
-                                  value={status.max_teeth !== null ? status.max_teeth : ""}
-                                  onChange={(e) => handleMaxTeethChange(status.extraction_id, e.target.value)}
-                                  onBlur={(e) => handleMaxTeethBlur(status.extraction_id, e.target.value)}
-                                  className="w-20 h-8 text-center"
-                                  placeholder={status.min_teeth === 16 ? "0 or 16" : "Max"}
-                                  disabled={!status.is_active}
-                                />
-                              </div>
-                            </td>
-                            <td className="text-center py-3 px-3">
-                              <Switch
-                                checked={status.is_active}
-                                onCheckedChange={(checked) =>
-                                  handleStatusChange(status.extraction_id, "is_active", checked)
-                                }
-                                className="data-[state=checked]:bg-blue-600"
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Opposing Extractions Table - Only show when checkbox is unchecked */}
-                  {!watchedApplySameStatus && (
-                    <div className="overflow-x-auto flex flex-col h-full pl-4">
-                      <div className="mb-2">
-                        <h3 className="font-medium text-gray-900">Opposing</h3>
-                        <span
-                          className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${activeOpposingExtractionsCount === 0 ? "opacity-80" : ""}`}
-                        >
-                          <strong>{activeOpposingExtractionsCount} selected</strong>
-                        </span>
-                      </div>
-                      <table className="border-collapse table-auto">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">Extraction Status</th>
-                            <th className="text-center py-2 px-2 font-medium text-gray-700 w-20">Default</th>
-                            <th className="text-center py-2 px-2 font-medium text-gray-700 w-20">Active</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {opposingExtractionStatuses.map((status) => (
-                            <tr key={status.extraction_id} className="border-b">
-                              <td className="py-3 px-2">
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-4 h-4 rounded flex-shrink-0"
-                                    style={{ backgroundColor: status.color }}
-                                  />
-                                  <span className="text-sm font-medium whitespace-nowrap">{status.name}</span>
-                                </div>
-                              </td>
-                              <td className="text-center py-3 px-2 w-20">
-                                <Checkbox
-                                  checked={status.is_default}
-                                  onCheckedChange={(checked) =>
-                                    handleOpposingStatusChange(status.extraction_id, "is_default", checked)
-                                  }
-                                  disabled={!status.is_active}
-                                />
-                              </td>
-                              <td className="text-center py-3 px-2 w-20">
-                                <Switch
-                                  checked={status.is_active}
-                                  onCheckedChange={(checked) =>
-                                    handleOpposingStatusChange(status.extraction_id, "is_active", checked)
-                                  }
-                                  className="data-[state=checked]:bg-blue-600"
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* Display validation errors for extractions */}
-                <ValidationError message={getValidationError("extractions")} />
-              </div>
-            )}
-          </div>
-        )}
+        {showContent && extractionBody}
       </div>
     </div>
   )
