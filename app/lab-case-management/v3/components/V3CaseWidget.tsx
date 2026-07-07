@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { useState } from "react"
 import { V3FilterBar, DEFAULT_VISIBLE, type ColumnKey } from "./V3FilterBar"
-import { V3CaseTable } from "./V3CaseTable"
+import { V3CaseTable, type SortDirection } from "./V3CaseTable"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 
 interface Props {
@@ -38,6 +38,11 @@ interface Props {
   totalCount: number
   itemsPerPage: number
   onPageChange: (page: number) => void
+  // whole-table sorting
+  sortKey: ColumnKey | null
+  sortDirection: SortDirection
+  onSortChange: (key: ColumnKey) => void
+  rushCasePanColor: string | null
 }
 
 export function V3CaseWidget(props: Props) {
@@ -82,6 +87,10 @@ export function V3CaseWidget(props: Props) {
         totalCount={props.totalCount}
         statusFilter={props.statuses}
         onStatusFilterChange={props.onStatusChange}
+        sortKey={props.sortKey}
+        sortDirection={props.sortDirection}
+        onSortChange={props.onSortChange}
+        rushCasePanColor={props.rushCasePanColor}
       />
       <div className="border-t border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

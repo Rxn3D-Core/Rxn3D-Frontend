@@ -24,6 +24,8 @@ const KEBAB_SVG = (
   </svg>
 )
 
+export type SortDirection = "asc" | "desc"
+
 interface Props {
   rows: V2CaseRowData[]
   loading: boolean
@@ -47,6 +49,12 @@ interface Props {
   // mobile status filter
   statusFilter: string[]
   onStatusFilterChange: (status: string) => void
+  // whole-table sorting
+  sortKey: ColumnKey | null
+  sortDirection: SortDirection
+  onSortChange: (key: ColumnKey) => void
+  // Case Pan Tracking's designated rush-group pan color, applied to rush rows' pan chip
+  rushCasePanColor: string | null
 }
 
 type DesktopColumn = {
@@ -182,6 +190,7 @@ export function V3CaseTable(props: Props) {
                       {popoverRow === row.id && (
                         <V3RowActionsPopover
                           ref={mobilePopoverRef}
+                          variant="mobile"
                           row={row}
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
@@ -248,7 +257,12 @@ export function V3CaseTable(props: Props) {
                         {row.pan && (
                           <div
                             className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
-                            style={{ background: PAN_BG, height: 24 }}
+                            style={{
+                              background: PAN_BG,
+                              height: 24,
+                              ...row.panColorStyle,
+                              ...(row.rush && props.rushCasePanColor ? { backgroundColor: props.rushCasePanColor } : null),
+                            }}
                           >
                             <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Helvetica, Arial, sans-serif" }}>
                               {row.pan}
@@ -282,7 +296,7 @@ export function V3CaseTable(props: Props) {
             {desktopColumns.map((column) => (
               <th
                 key={column.key}
-                className={`px-[10px] py-0 text-left`}
+                className="px-[10px] py-0 text-left select-none cursor-pointer"
                 style={{
                   width: column.width,
                   height: 41,
@@ -291,8 +305,15 @@ export function V3CaseTable(props: Props) {
                   lineHeight: "21px",
                   color: "#000000",
                 }}
+                onClick={() => props.onSortChange(column.key)}
+                aria-sort={props.sortKey === column.key ? (props.sortDirection === "asc" ? "ascending" : "descending") : "none"}
               >
-                {column.label}
+                <span className="inline-flex items-center gap-1">
+                  {column.label}
+                  <span style={{ fontSize: 12, color: props.sortKey === column.key ? "#000" : "#9ca3af" }}>
+                    {props.sortKey === column.key ? (props.sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                  </span>
+                </span>
               </th>
             ))}
             <th className="w-[40px] px-[10px] py-0" style={{ height: 41 }} aria-hidden="true" />
@@ -364,6 +385,7 @@ export function V3CaseTable(props: Props) {
                       row={row}
                       rowActions={props.rowActions}
                       rowBg={rowBg}
+                      rushCasePanColor={props.rushCasePanColor}
                     />
                   ))}
 
@@ -384,6 +406,7 @@ export function V3CaseTable(props: Props) {
                     {popoverRow === row.id && (
                       <V3RowActionsPopover
                         ref={desktopPopoverRef}
+                        variant="desktop"
                         row={row}
                         actions={props.rowActions}
                         canPrintStatement={props.canPrintStatement(row)}
@@ -409,12 +432,14 @@ function DesktopCell({
   row,
   rowActions,
   rowBg,
+  rushCasePanColor,
 }: {
   column: DesktopColumn
   dueDateColor: string
   row: V2CaseRowData
   rowActions: V2RowActions
   rowBg: string
+  rushCasePanColor: string | null
 }) {
   if (column.key === "patient") {
     return (
@@ -464,7 +489,15 @@ function DesktopCell({
         <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
           <div
             className="flex items-center justify-center"
-            style={{ background: PAN_BG, borderRadius: 6, width: 94, height: 24, gap: 10, ...row.panColorStyle }}
+            style={{
+              background: PAN_BG,
+              borderRadius: 6,
+              width: 94,
+              height: 24,
+              gap: 10,
+              ...row.panColorStyle,
+              ...(row.rush && rushCasePanColor ? { backgroundColor: rushCasePanColor } : null),
+            }}
           >
             <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
               {row.pan || "—"}

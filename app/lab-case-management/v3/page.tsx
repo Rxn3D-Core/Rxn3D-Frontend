@@ -50,6 +50,8 @@ import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "./components/V3CaseWidget"
+import type { SortDirection } from "./components/V3CaseTable"
+import type { ColumnKey } from "./components/V3FilterBar"
 import type { V2CaseRowData } from "@/app/lab-case-management/v2/case-table-types"
 
 function formatYmd(d: Date): string {
@@ -66,6 +68,46 @@ function canSendBackToOffice(row: { locationId?: number; location: string }): bo
 
 function canPrintStatement(row: { billingId?: number | null }): boolean {
   return typeof row.billingId === "number" && Number.isFinite(row.billingId)
+}
+
+function getSortValue(row: V2CaseRowData, key: ColumnKey): string | number {
+  switch (key) {
+    case "patient":
+      return (row.patient || "").toLowerCase()
+    case "slip":
+      return (row.slipNumber || "").toLowerCase()
+    case "panProduct":
+      return (row.product || row.pan || "").toLowerCase()
+    case "location":
+      return (row.location || "").toLowerCase()
+    case "status":
+      return (row.status || "").toLowerCase()
+    case "office":
+      return (row.officeCode || "").toLowerCase()
+    case "caseNo":
+      return (row.caseNumber || "").toLowerCase()
+    case "timestamp":
+      return new Date(row.createdAt).getTime() || 0
+    case "dueDate": {
+      if (!row.dueDate) return Number.POSITIVE_INFINITY
+      const time = new Date(row.dueDate).getTime()
+      return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+    }
+    default:
+      return ""
+  }
+}
+
+function sortRows(rows: V2CaseRowData[], key: ColumnKey | null, direction: SortDirection): V2CaseRowData[] {
+  if (!key) return rows
+  const sorted = [...rows].sort((a, b) => {
+    const aValue = getSortValue(a, key)
+    const bValue = getSortValue(b, key)
+    if (aValue < bValue) return -1
+    if (aValue > bValue) return 1
+    return 0
+  })
+  return direction === "asc" ? sorted : sorted.reverse()
 }
 
 function normalizeStatusFilterValue(status: string): string {
@@ -99,6 +141,8 @@ export default function LabSlipV3Page() {
   const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [userFilter, setUserFilter] = useState("All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
+  const [sortKey, setSortKey] = useState<ColumnKey | null>("dueDate")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
 
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
@@ -137,7 +181,7 @@ export default function LabSlipV3Page() {
   const {
     slips, loading, fetchLabSlips, fetchDriverPrintData,
     createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates,
-    readyToSend, labListingPagination, updateSlipAttachmentState,
+    readyToSend, labListingPagination, updateSlipAttachmentState, rushCasePanColor,
   } = useSlipContext()
   const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
@@ -190,19 +234,41 @@ export default function LabSlipV3Page() {
     })
   }, [filterSig, currentPage, itemsPerPage, fetchLabSlips, selectedLocations, selectedStatuses, officeFilter, showWithAttachments, productType, dateRange.start, dateRange.end])
 
-  const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode))), [slips])
-  const allStatuses = useMemo(() => {
-    const fromSlips = slips.map((s) => s.status).filter(Boolean) as string[]
-    return Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...fromSlips]))
+  // Advanced-filter dropdown options accumulate across fetches instead of being
+  // derived solely from the latest (already-filtered) `slips` response — otherwise
+  // narrowing one filter (e.g. product type) shrinks `slips` and makes every other
+  // dropdown's option list (and possibly its selected value) disappear.
+  const seenOfficesRef = useRef<Set<string>>(new Set())
+  const seenDoctorsRef = useRef<Set<string>>(new Set())
+  const seenUsersRef = useRef<Set<string>>(new Set())
+  const seenProductTypesRef = useRef<Set<string>>(new Set())
+  const seenStagesRef = useRef<Set<string>>(new Set())
+  const seenStatusesRef = useRef<Set<string>>(new Set())
+
+  useMemo(() => {
+    slips.forEach((s) => {
+      if (s.officeCode) seenOfficesRef.current.add(s.officeCode)
+      seenDoctorsRef.current.add(s.doctor || "Unknown")
+      seenUsersRef.current.add(s.user || "Unknown")
+      seenProductTypesRef.current.add(s.productType || "Unknown")
+      if (s.product) seenStagesRef.current.add(s.product)
+      if (s.status) seenStatusesRef.current.add(s.status)
+    })
   }, [slips])
-  const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
-  const allUsers = useMemo(() => Array.from(new Set(slips.map((s) => s.user || "Unknown"))), [slips])
-  const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
-  const allStages = useMemo(() => Array.from(new Set(slips.map((s) => s.product).filter(Boolean))), [slips])
+
+  const allOffices = useMemo(() => Array.from(seenOfficesRef.current), [slips])
+  const allStatuses = useMemo(
+    () => Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...seenStatusesRef.current])),
+    [slips]
+  )
+  const allDoctors = useMemo(() => Array.from(seenDoctorsRef.current), [slips])
+  const allUsers = useMemo(() => Array.from(seenUsersRef.current), [slips])
+  const allProductTypes = useMemo(() => Array.from(seenProductTypesRef.current), [slips])
+  const allStages = useMemo(() => Array.from(seenStagesRef.current), [slips])
 
   const slipsPage = useMemo(() => {
     const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
-    return slips.filter((slip) => {
+    const filtered = slips.filter((slip) => {
       if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
         return false
       }
@@ -220,7 +286,17 @@ export default function LabSlipV3Page() {
       }
       return true
     })
-  }, [selectedLocations, selectedStatuses, slips, doctorFilter, userFilter, stageFilter])
+    return sortRows(filtered, sortKey, sortDirection)
+  }, [selectedLocations, selectedStatuses, slips, doctorFilter, userFilter, stageFilter, sortKey, sortDirection])
+
+  const handleSortChange = useCallback((key: ColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection((currentDirection) => (currentDirection === "asc" ? "desc" : "asc"))
+    } else {
+      setSortKey(key)
+      setSortDirection("asc")
+    }
+  }, [sortKey])
   const clientFiltering = doctorFilter !== "All" || userFilter !== "All" || stageFilter !== "All"
   const totalListingCount = clientFiltering ? slipsPage.length : labListingPagination?.total ?? slips.length
   const maxPage = clientFiltering ? 1 : Math.max(1, labListingPagination?.last_page ?? 1)
@@ -730,6 +806,10 @@ export default function LabSlipV3Page() {
           totalCount={totalListingCount}
           itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSortChange={handleSortChange}
+          rushCasePanColor={rushCasePanColor}
         />
 
         {/* Archive Confirm */}

@@ -276,14 +276,34 @@ export default function LabSlipPage() {
     })
   }, [filterSig, currentPage, itemsPerPage, fetchLabSlips])
 
-  const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode))), [slips])
-  const allStatuses = useMemo(() => {
-    const fromSlips = slips.map((s) => s.status).filter(Boolean) as string[]
-    return Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...fromSlips]))
+  // Advanced-filter dropdown options accumulate across fetches instead of being
+  // derived solely from the latest (already-filtered) `slips` response — otherwise
+  // narrowing one filter (e.g. product type) shrinks `slips` and makes every other
+  // dropdown's option list (and possibly its selected value) disappear.
+  const seenOfficesRef = useRef<Set<string>>(new Set())
+  const seenDoctorsRef = useRef<Set<string>>(new Set())
+  const seenUsersRef = useRef<Set<string>>(new Set())
+  const seenProductTypesRef = useRef<Set<string>>(new Set())
+  const seenStatusesRef = useRef<Set<string>>(new Set())
+
+  useMemo(() => {
+    slips.forEach((s) => {
+      if (s.officeCode) seenOfficesRef.current.add(s.officeCode)
+      seenDoctorsRef.current.add(s.doctor || "Unknown")
+      seenUsersRef.current.add(s.user || "Unknown")
+      seenProductTypesRef.current.add(s.productType || "Unknown")
+      if (s.status) seenStatusesRef.current.add(s.status)
+    })
   }, [slips])
-  const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
-  const allUsers = useMemo(() => Array.from(new Set(slips.map((s) => s.user || "Unknown"))), [slips])
-  const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
+
+  const allOffices = useMemo(() => Array.from(seenOfficesRef.current), [slips])
+  const allStatuses = useMemo(
+    () => Array.from(new Set([...LAB_SLIP_STATUS_OPTIONS, ...seenStatusesRef.current])),
+    [slips]
+  )
+  const allDoctors = useMemo(() => Array.from(seenDoctorsRef.current), [slips])
+  const allUsers = useMemo(() => Array.from(seenUsersRef.current), [slips])
+  const allProductTypes = useMemo(() => Array.from(seenProductTypesRef.current), [slips])
 
   const clientFilteredSlips = useMemo(() => {
     let result = slips

@@ -12,10 +12,16 @@ interface Props {
   canPrintStatement: boolean
   canSendBack: boolean
   onClose: () => void
+  // The mobile card list and desktop table both mount a popover instance for
+  // the same row.id (one CSS-hidden per breakpoint, never unmounted), so
+  // rendering both halves unconditionally would portal two stacked bottom
+  // sheets into document.body for a single tap. Each call site renders only
+  // the half it owns.
+  variant: "desktop" | "mobile"
 }
 
 export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
-  { row, actions, canPrintStatement, canSendBack, onClose },
+  { row, actions, canPrintStatement, canSendBack, onClose, variant },
   ref,
 ) {
   const [kebabOpen, setKebabOpen] = useState(false)
@@ -46,13 +52,15 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     { label: "Attach", icon: `${VS}/attachments.svg`, onClick: act(() => actions.onAttachment(row)) },
   ]
 
+  if (variant === "mobile") {
+    return <MobileActionsSheet ref={ref} btns={btns} onClose={onClose} />
+  }
+
   return (
-    <>
-      {/* ── Desktop horizontal popover (md+) ── */}
-      <div
-        ref={ref}
-        className="hidden md:flex"
-        style={{
+    <div
+      ref={ref}
+      className="hidden md:flex"
+      style={{
           position: "absolute",
           right: 0,
           top: "50%",
@@ -150,10 +158,6 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
           )}
         </div>
       </div>
-
-      {/* ── Mobile bottom sheet (< md) ── */}
-      <MobileActionsSheet ref={ref} btns={btns} onClose={onClose} />
-    </>
   )
 })
 

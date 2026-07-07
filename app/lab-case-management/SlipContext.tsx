@@ -117,6 +117,7 @@ type SlipContextType = {
   slipNotes: SlipNote[];
   loading: boolean;
   labListingPagination: LabListingPagination | null;
+  rushCasePanColor: string | null;
   fetchLabSlips: (customerId: number, query?: LabListingQuery) => Promise<void>;
   fetchOfficeSlips: (customerId: number) => Promise<void>;
   fetchCallLogs: () => Promise<void>;
@@ -140,6 +141,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   const [slipNotes, setSlipNotes] = useState<SlipNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [labListingPagination, setLabListingPagination] = useState<LabListingPagination | null>(null);
+  const [rushCasePanColor, setRushCasePanColor] = useState<string | null>(null);
   const router = useRouter();
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -278,6 +280,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       const api = await res.json();
       const arr = api?.data?.data || [];
       setSlips(arr.map(mapApiSlip));
+      setRushCasePanColor(api?.data?.rush_casepan_color ?? null);
       const p = api?.data?.pagination;
       if (p && typeof p.total === "number") {
         setLabListingPagination({
@@ -738,6 +741,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       slipNotes,
       loading,
       labListingPagination,
+      rushCasePanColor,
       fetchLabSlips,
       fetchOfficeSlips,
       fetchCallLogs,
