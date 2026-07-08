@@ -2647,10 +2647,33 @@ export function AddLabProductModal({
 
       // Calculate only the changed fields in this section
       const changes = calculateChanges(initialSectionData, sectionData)
-      
+
+      // Detect products whose Stages tab has grade prices typed in (e.g. Standard/Premium
+      // columns) that never made it into stage_grade_details from the backend — this is the
+      // "saved before the stage_grades payload fix existed" case. Force a save through even
+      // when the form otherwise looks unchanged, so re-opening + hitting Save actually backfills it.
+      // ponytail: one-time bridge for pre-fix products; safe to remove once all products are backfilled
+      const needsStageGradesBackfill = (() => {
+        const persistedStageGrades = (editingProduct as any)?.stage_grade_details
+        if (Array.isArray(persistedStageGrades) && persistedStageGrades.length > 0) return false
+        const stages = (formData.stages || []) as any[]
+        return stages.some((stage) => {
+          const gradePrices = stage?.grade_prices
+          if (!gradePrices || typeof gradePrices !== "object") return false
+          return Object.values(gradePrices).some((v) => v !== undefined && v !== null && v !== "")
+        })
+      })()
+
       // If no changes (including releasing stage changes, image, and section toggles), show message and return
       const hasImageChange = imageBase64 !== null && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')
-      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange && !hasSectionToggleChanges && !sectionWasToggled) {
+      if (
+        Object.keys(changes).length === 0 &&
+        !hasReleasingStageChanges &&
+        !hasImageChange &&
+        !hasSectionToggleChanges &&
+        !sectionWasToggled &&
+        !(needsStageGradesBackfill && activeTab === "stages")
+      ) {
         toast({
           title: "No Changes",
           description: "No changes detected in this section.",
@@ -2659,8 +2682,8 @@ export function AddLabProductModal({
         return
       }
 
-      // If only releasing stages changed, ensure stages are included in changes
-      if (Object.keys(changes).length === 0 && hasReleasingStageChanges) {
+      // If only releasing stages changed (or a stage_grades backfill is needed), ensure stages are included in changes
+      if (Object.keys(changes).length === 0 && (hasReleasingStageChanges || (needsStageGradesBackfill && activeTab === "stages"))) {
         changes.stages = sectionData.stages
       }
 
@@ -2675,7 +2698,8 @@ export function AddLabProductModal({
         stagesSectionToggleChanged ||
         changes.stages !== undefined ||
         changes.is_single_stage !== undefined ||
-        (!!dirtyFields.stages && activeTab === "stages")
+        (!!dirtyFields.stages && activeTab === "stages") ||
+        (needsStageGradesBackfill && activeTab === "stages")
 
       // Determine if customer_id will be in the final payload (needed for stage formatting)
       // This must be determined before processing stages
@@ -2900,7 +2924,7 @@ export function AddLabProductModal({
       }
 
       // Special handling for stages: include current stages if dirty on the stages tab (and we're syncing stages)
-      if (dirtyFields.stages && shouldIncludeStagePayload) {
+      if ((dirtyFields.stages || needsStageGradesBackfill) && shouldIncludeStagePayload) {
         // Even if changes doesn't have stages (due to comparison issues), include current stages
         const currentStages = formData.stages || []
         if (currentStages.length > 0) {
@@ -2962,6 +2986,27 @@ export function AddLabProductModal({
 
       // Always include releasingStageIds since we now send all tab changes
       const releasingIds = releasingStageIds
+
+      // Send every grade's price per stage, not just the default grade's — the
+      // stage-price collapse above only carries one grade through `payload.stages[i].price`.
+      // ponytail: mirrors the stage_grades builder in product-products-context.tsx buildProductPayload
+      if (Array.isArray(payload.stages) && payload.stages.length > 0) {
+        const stageGrades: Array<{ stage_id: any; grade_id: number; price: number; status: string }> = []
+        for (const stage of payload.stages as any[]) {
+          const gradePrices = stage?.grade_prices
+          if (!gradePrices || typeof gradePrices !== "object") continue
+          for (const [gradeIdStr, price] of Object.entries(gradePrices)) {
+            if (price === undefined || price === null || price === "") continue
+            const gradeId = Number(gradeIdStr)
+            const priceValue = typeof price === "string" ? parseFloat(price) : Number(price)
+            if (isNaN(gradeId) || isNaN(priceValue) || priceValue < 0) continue
+            stageGrades.push({ stage_id: stage.stage_id, grade_id: gradeId, price: priceValue, status: "Active" })
+          }
+        }
+        if (stageGrades.length > 0) {
+          payload.stage_grades = stageGrades
+        }
+      }
 
       // Debug logging for stages
       if (activeTab === "stages") {

@@ -335,7 +335,7 @@ export interface BillingStatistics {
 
 export interface BulkBillingActionBody {
   billing_ids: number[]
-  action: "mark_checked" | "mark_billed" | "mark_refund" | "refresh_charges" | "send_statement"
+  action: "mark_checked" | "mark_pending" | "mark_billed" | "mark_refund" | "refresh_charges" | "send_statement"
   notes?: string
   email_template?: string
   send_email?: boolean
