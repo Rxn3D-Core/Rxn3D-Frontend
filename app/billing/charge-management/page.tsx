@@ -686,10 +686,17 @@ export default function ChargeManagementPage() {
   const isError = activeSource === "advanced" ? false : listError
   const error = listErr
 
+  // Billed items clutter the default view, so hide them unless the user is
+  // actively searching or has explicitly asked to see billed items.
+  const isSearchingOrFilteringBilled =
+    debouncedSearch.trim().length > 0 || advItemStatus === "billed"
+
   const charges: ChargeRow[] = useMemo(() => {
     if (!displayResult?.data?.length) return []
-    return displayResult.data.flatMap((inv) => billingInvoiceToRows(inv))
-  }, [displayResult])
+    const rows = displayResult.data.flatMap((inv) => billingInvoiceToRows(inv))
+    if (isSearchingOrFilteringBilled) return rows
+    return rows.filter((row) => row.status !== "Billed")
+  }, [displayResult, isSearchingOrFilteringBilled])
   const sendToOfficeCharge = useMemo(
     () => charges.find((charge) => charge.billingInvoiceId === sendToOfficeBillingId) ?? null,
     [charges, sendToOfficeBillingId],
@@ -1043,7 +1050,7 @@ export default function ChargeManagementPage() {
       case "Checked":
         return "bg-[#D4F4DD] text-[#14804A]"
       case "Billed":
-        return "bg-[#CCE0FF] text-[#004FC4]"
+        return "bg-[#E5E7EB] text-[#6B7280]"
       case "Paid":
       case "Pending":
         return "bg-[#D4F4DD] text-[#14804A]"
@@ -1075,9 +1082,9 @@ export default function ChargeManagementPage() {
     await refetchList()
   }, [activeSource, advancedBody, advancedPage, advancedSearch, refetchList, toast])
 
-  // ponytail: this only flips local intent now — actually marking billing as
-  // billed happens server-side via auto_mark_billed on generate, so flipping
-  // the switch (including cancelling the modal) never mutates data on its own.
+  // ponytail: this only flips local intent — auto_mark_billed is carried
+  // through generate and only applied server-side once the statement is
+  // actually sent, so flipping the switch never mutates data on its own.
   const handleStatementAutoMarkBilledToggle = useCallback(() => {
     setStatementAutoMarkBilled((value) => !value)
   }, [])
@@ -1685,8 +1692,8 @@ export default function ChargeManagementPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="p-4 border-b border-gray-100">
+        <div className="bg-white rounded-lg mb-4">
+          <div className="px-4 py-2">
             <div className="flex flex-nowrap items-center gap-2 md:gap-3 min-w-0 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5">
               <div className="relative min-w-[200px] max-w-xl flex-1 shrink-0">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10 pointer-events-none" />

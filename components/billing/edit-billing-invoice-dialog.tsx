@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import {
   useGetBillingInvoiceByIdQuery,
   useUpdateBillingInvoicePricingMutation,
@@ -245,9 +246,9 @@ export function EditBillingInvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] w-[min(92vw,54rem)] overflow-x-hidden overflow-y-auto">
         {billingInvoiceId != null && billingInvoiceId > 0 && (
-          <>
+          <div className="min-w-0">
             {loading && (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -258,24 +259,48 @@ export function EditBillingInvoiceDialog({
               <p className="text-sm text-destructive">Could not load invoice. Try again.</p>
             )}
             {!loading && invoice && invoiceHeader && (
-              <div className="space-y-4 text-sm">
-                <div className="rounded-md border bg-muted/30 px-3 py-2 grid grid-cols-2 gap-2">
+              <div className="min-w-0 space-y-4 text-sm">
+                {/* Stacked label/value rows on mobile; horizontal table from sm: up. */}
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-md border bg-muted/30 px-3 py-2 sm:hidden">
                   <div>
-                    <span className="text-muted-foreground">Patient</span>
-                    <p className="font-medium">{invoiceHeader.patient}</p>
+                    <dt className="text-muted-foreground">Patient</dt>
+                    <dd className="font-medium">{invoiceHeader.patient}</dd>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Office</span>
-                    <p className="font-medium">{invoiceHeader.office}</p>
+                    <dt className="text-muted-foreground">Office</dt>
+                    <dd className="font-medium">{invoiceHeader.office}</dd>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Invoice</span>
-                    <p className="font-medium">{invoiceHeader.invNo}</p>
+                    <dt className="text-muted-foreground">Invoice</dt>
+                    <dd className="font-medium">{invoiceHeader.invNo}</dd>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Current total</span>
-                    <p className="font-medium">{formatMoneyPreview(invoiceHeader.total)}</p>
+                    <dt className="text-muted-foreground">Current total</dt>
+                    <dd className="font-medium">{formatMoneyPreview(invoiceHeader.total)}</dd>
                   </div>
+                </dl>
+
+                <div className="hidden min-w-0 max-w-full rounded-md border bg-muted/30 overflow-x-auto sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="whitespace-nowrap">Patient</TableHead>
+                        <TableHead className="whitespace-nowrap">Office</TableHead>
+                        <TableHead className="whitespace-nowrap">Invoice</TableHead>
+                        <TableHead className="whitespace-nowrap">Current total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell className="whitespace-nowrap font-medium">{invoiceHeader.patient}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium">{invoiceHeader.office}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium">{invoiceHeader.invNo}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium">
+                          {formatMoneyPreview(invoiceHeader.total)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </div>
 
                 <div className="space-y-2">
@@ -300,7 +325,7 @@ export function EditBillingInvoiceDialog({
                     {productEdits.map((edit, idx) => (
                       <div key={edit.productId} className="rounded-lg border p-4 space-y-3">
                         <p className="font-medium text-foreground">{edit.label}</p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                           <div className="space-y-1.5">
                             <Label htmlFor={`base-${edit.productId}`}>Base price</Label>
                             <Input
@@ -529,7 +554,7 @@ export function EditBillingInvoiceDialog({
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
 
         <DialogFooter className="gap-2 sm:gap-0">
