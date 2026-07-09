@@ -23,11 +23,11 @@ interface ToothStatusPopoverProps {
   arrowDirection?: 'down' | 'up'
 }
 
-function isMissingCode(code: string, name: string): boolean {
+export function isMissingCode(code: string, name: string): boolean {
   return code.toUpperCase() === 'MT' || name.toLowerCase().includes('missing')
 }
 
-function isWillExtractCode(code: string, name: string): boolean {
+export function isWillExtractCode(code: string, name: string): boolean {
   const c = code.toUpperCase()
   const n = name.toLowerCase()
   return c === 'WED' || c === 'WEOD' || n.includes('will extract')
@@ -63,7 +63,7 @@ function ToothImage({ toothNumber, style, className }: { toothNumber: number; st
   )
 }
 
-function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
+export function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
   const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
     <div className="w-full h-[90px] flex items-center justify-center">
@@ -80,7 +80,7 @@ function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
   )
 }
 
-function WillExtractToothDisplay({ toothNumber }: { toothNumber: number }) {
+export function WillExtractToothDisplay({ toothNumber }: { toothNumber: number }) {
   const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
     <div className="relative w-full h-[90px] overflow-hidden">

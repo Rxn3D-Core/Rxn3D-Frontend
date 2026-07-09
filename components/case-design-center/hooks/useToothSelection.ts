@@ -192,6 +192,8 @@ export function useToothSelection(
 
     const setter = arch === "maxillary" ? setMaxillaryToothExtractionMap : setMandibularToothExtractionMap;
     const claspSetter = arch === "maxillary" ? setMaxillaryClaspTeeth : setMandibularClaspTeeth;
+    const retentionSetter =
+      arch === "maxillary" ? setMaxillaryRetentionTypes : setMandibularRetentionTypes;
     setter((prev) => {
       if (prev[toothNumber] === extractionCode) {
         // Already in this extraction → move back to default; also clear any clasp assignment
@@ -209,6 +211,13 @@ export function useToothSelection(
       }
       // Clear any prior clasp assignment before reassigning to a new exclusive code
       claspSetter((c) => c.filter((t) => t !== toothNumber));
+      // Mutual exclusivity: a tooth is either a retention type OR an extraction status —
+      // assigning a status clears any retention type (mirror of handleSelectRetentionType).
+      retentionSetter((r) => {
+        if (!(toothNumber in r)) return r;
+        const { [toothNumber]: _removed, ...rest } = r;
+        return rest;
+      });
       // Assign to this extraction
       return { ...prev, [toothNumber]: extractionCode };
     });
