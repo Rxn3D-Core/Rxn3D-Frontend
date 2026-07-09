@@ -1470,6 +1470,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           shadeGuideOptions={state.shadeGuideOptions}
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
+          setSelectedShades={state.setSelectedShades}
           handleShadeFieldClick={state.handleShadeFieldClick}
           migrateFixedShadeProductId={state.migrateFixedShadeProductId}
           // Expansion
@@ -1628,6 +1629,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           shadeGuideOptions={state.shadeGuideOptions}
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
+          setSelectedShades={state.setSelectedShades}
           handleShadeFieldClick={state.handleShadeFieldClick}
           migrateFixedShadeProductId={state.migrateFixedShadeProductId}
           // Rush

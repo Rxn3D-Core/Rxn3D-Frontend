@@ -3,6 +3,12 @@ import { buildRetentionPopoverOptions } from '@/components/case-design-center/ut
 import {
   type RetentionChartType,
 } from '@/components/case-design-center/utils/retentionOptionChartType'
+import {
+  isMissingCode,
+  isWillExtractCode,
+  MissingToothDisplay,
+  WillExtractToothDisplay,
+} from './tooth-status-popover'
 
 export interface RetentionOptionToothImage {
   tooth_number: number
@@ -61,6 +67,8 @@ export interface ExtractionStatusOption {
   code: string
   name: string
   imageUrl?: string | null
+  /** Per-tooth image URLs from the extraction's images (visibility_type "Image"); wins over imageUrl. */
+  imagesByTooth?: Record<number, string | null>
 }
 
 interface RetentionTypePopoverProps {
@@ -282,6 +290,7 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
 
           {extractionItems.map((opt) => {
             const isSelected = opt.code === selectedExtractionCode
+            const extractionImageUrl = opt.imagesByTooth?.[toothNumber] ?? opt.imageUrl ?? null
             return (
               <button
                 key={`ext-${opt.code}`}
@@ -299,9 +308,9 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
                 title={opt.name}
               >
                 <div className="w-full h-[90px] flex items-center justify-center">
-                  {opt.imageUrl ? (
+                  {extractionImageUrl ? (
                     <img
-                      src={opt.imageUrl}
+                      src={extractionImageUrl}
                       alt={opt.name}
                       className="w-full h-full object-contain"
                       onError={(e) => {
@@ -309,6 +318,10 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
                         img.style.opacity = '0'
                       }}
                     />
+                  ) : isMissingCode(opt.code, opt.name) ? (
+                    <MissingToothDisplay toothNumber={toothNumber} />
+                  ) : isWillExtractCode(opt.code, opt.name) ? (
+                    <WillExtractToothDisplay toothNumber={toothNumber} />
                   ) : (
                     <ToothImageFallback toothNumber={toothNumber} />
                   )}

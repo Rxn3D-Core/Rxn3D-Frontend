@@ -60,6 +60,7 @@ import {
   getShadeFieldType,
   areFixedProductShadesComplete,
   getDisplayedShadeGuideFields,
+  getFirstMissingShadeGuideField,
   isStumpLikeShadeField,
   getShadeGuideOptionsFromProduct,
   resolveFixedShadeProductId,
@@ -577,6 +578,9 @@ export function RetentionProductFields({
     isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const hasAutoOpenedImpressionRef = useRef(false);
   const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Key of the shade field last auto-opened, so each newly revealed field opens once. */
+  const autoOpenedShadeKeyRef = useRef<string | null>(null);
+  const shadeAutoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
    * Shade UI can be complete (named shade guide / selectedShades) while the progressive
@@ -675,10 +679,111 @@ export function RetentionProductFields({
     isExpanded,
   ]);
 
+  /**
+   * Auto-open the shade picker for the first empty shade field so the user
+   * doesn't have to click it — mirrors the impression auto-open above.
+   * Waits for stage selection (when the product has stages) so it doesn't
+   * compete with the stage modal.
+   */
+  useEffect(() => {
+    const clearShadeTimer = () => {
+      if (shadeAutoOpenTimerRef.current) {
+        clearTimeout(shadeAutoOpenTimerRef.current);
+        shadeAutoOpenTimerRef.current = null;
+      }
+    };
+    if (caseSubmitted) return;
+    if (!isExpanded) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+    // A shade picker is already open (here or on another card) — don't stomp it.
+    if (shadeSelectionState?.fieldType != null) return;
+
+    const stageValue =
+      selectedStages[groupStageProductIdFixed] ||
+      getFieldValue(arch, groupStageToothNumber, "fixed_stage");
+    const stageComplete =
+      isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") ||
+      !!(stageValue && stageValue.trim());
+    if (!shouldSkipStageSelection(selectedProduct) && !stageComplete) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+
+    const firstMissingNamed = usesNamedShadeGuideFields
+      ? getFirstMissingShadeGuideField(
+          selectedProduct?.advance_fields,
+          fixedShadeProductId,
+          arch,
+          getSelectedShadeForDisplay
+        )
+      : null;
+    const legacyTeethShadeMissing =
+      !usesNamedShadeGuideFields &&
+      isFixed("fixed_shade_trio") &&
+      hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) &&
+      !getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+
+    const target = firstMissingNamed
+      ? {
+          key: `${fixedShadeProductId}|${arch}|${firstMissingNamed.id}`,
+          fieldType: firstMissingNamed.fieldType,
+          options: {
+            advanceFieldId: firstMissingNamed.id,
+            advanceFieldLabel: firstMissingNamed.name,
+            storageToothNumber: firstToothNumber,
+          },
+        }
+      : legacyTeethShadeMissing
+        ? {
+            key: `${fixedShadeProductId}|${arch}|tooth_shade`,
+            fieldType: "tooth_shade" as ShadeFieldType,
+            options: { storageToothNumber: firstToothNumber },
+          }
+        : null;
+    if (!target) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+    if (autoOpenedShadeKeyRef.current === target.key) return;
+
+    autoOpenedShadeKeyRef.current = target.key;
+    clearShadeTimer();
+    shadeAutoOpenTimerRef.current = setTimeout(() => {
+      shadeAutoOpenTimerRef.current = null;
+      handleShadeFieldClick(arch, target.fieldType, fixedShadeProductId, target.options);
+    }, 150);
+  }, [
+    arch,
+    caseSubmitted,
+    firstToothNumber,
+    fixedShadeProductId,
+    getFieldValue,
+    getSelectedShade,
+    getSelectedShadeForDisplay,
+    groupStageProductIdFixed,
+    groupStageToothNumber,
+    handleShadeFieldClick,
+    isExpanded,
+    isFieldCompleted,
+    isFixed,
+    selectedProduct,
+    selectedStages,
+    shadeSelectionState?.fieldType,
+    usesNamedShadeGuideFields,
+  ]);
+
   useEffect(() => {
     return () => {
       if (impressionTimerRef.current) {
         clearTimeout(impressionTimerRef.current);
+      }
+      if (shadeAutoOpenTimerRef.current) {
+        clearTimeout(shadeAutoOpenTimerRef.current);
       }
     };
   }, []);
