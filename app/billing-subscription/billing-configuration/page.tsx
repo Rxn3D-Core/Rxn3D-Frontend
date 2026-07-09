@@ -152,7 +152,12 @@ const LEAD_PRICE_FREQUENCY_ORDER: PriceFrequency[] = ["monthly", "quarterly", "s
 /** Price shown on plan cards: default tier if flagged, else first known frequency in a stable order. */
 function pickLeadPriceRow(prices: PlanPriceRow[] | undefined): PlanPriceRow | null {
   if (!prices?.length) return null
-  return prices[0] ?? null
+  const defaultRow = prices.find((p) => p.is_default)
+  if (defaultRow) return defaultRow
+  const byFrequencyOrder = LEAD_PRICE_FREQUENCY_ORDER
+    .map((frequency) => prices.find((p) => p.frequency === frequency))
+    .find((p): p is PlanPriceRow => Boolean(p))
+  return byFrequencyOrder ?? prices[0] ?? null
 }
 
 function formatLeadPlanPrice(currency: string | undefined, entry: PlanPriceRow | null): string {
@@ -1684,30 +1689,33 @@ export default function BillingConfigurationPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Module Selection</p>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={moduleSearch}
-                      onChange={(e) => setModuleSearch(e.target.value)}
-                      placeholder="Search module"
-                      className="pl-9"
-                    />
+                {/* ponytail: hidden per request, not deleted — flip to true to restore */}
+                {false && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">Module Selection</p>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={moduleSearch}
+                        onChange={(e) => setModuleSearch(e.target.value)}
+                        placeholder="Search module"
+                        className="pl-9"
+                      />
+                    </div>
+                    <div className="grid max-h-56 gap-2 overflow-auto rounded-md border p-3 md:grid-cols-2">
+                      {filteredModules.map((moduleName) => (
+                        <label key={moduleName} className="inline-flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={selectedModules.includes(moduleName)}
+                            onCheckedChange={(checked) => toggleModule(moduleName, checked === true)}
+                          />
+                          {moduleName}
+                        </label>
+                      ))}
+                    </div>
+                    {formErrors.selectedModules ? <p className="text-xs text-[#CF0202]">{formErrors.selectedModules}</p> : null}
                   </div>
-                  <div className="grid max-h-56 gap-2 overflow-auto rounded-md border p-3 md:grid-cols-2">
-                    {filteredModules.map((moduleName) => (
-                      <label key={moduleName} className="inline-flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={selectedModules.includes(moduleName)}
-                          onCheckedChange={(checked) => toggleModule(moduleName, checked === true)}
-                        />
-                        {moduleName}
-                      </label>
-                    ))}
-                  </div>
-                  {formErrors.selectedModules ? <p className="text-xs text-[#CF0202]">{formErrors.selectedModules}</p> : null}
-                </div>
+                )}
 
                 <div className="space-y-2 border-t pt-3">
                   <p className="text-sm font-semibold">Enforcement behavior</p>

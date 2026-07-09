@@ -31,6 +31,30 @@ export interface StorageTierCheckoutPayload {
   cancel_url: string
 }
 
+function unwrapList<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw
+  if (raw && typeof raw === "object" && Array.isArray((raw as { data?: T[] }).data)) {
+    return (raw as { data: T[] }).data
+  }
+  return []
+}
+
+export interface CatalogStorageTier {
+  id: number
+  name: string
+  storage_gb: number | string
+  monthly_fee: number | string
+  active?: boolean
+}
+
+/** GET /v1/billing-catalog/storage-tiers?customer_id={id} */
+export async function listBillingCatalogStorageTiers(customerId: number): Promise<CatalogStorageTier[]> {
+  const response = await apiClient.get<unknown>("/billing-catalog/storage-tiers", {
+    params: { customer_id: customerId },
+  })
+  return unwrapList<CatalogStorageTier>(response.data)
+}
+
 /** GET /v1/customer-storage-tier?customer_id={id} */
 export async function getCustomerStorageTier(
   customerId: number
