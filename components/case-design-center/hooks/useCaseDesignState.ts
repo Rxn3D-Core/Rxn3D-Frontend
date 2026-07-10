@@ -331,8 +331,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
       : defaultActiveAccordionKey(props.initialArch)
   );
 
-  /** Both-arch slip creation: upper selection → lower selection → upper fields → lower fields. */
-  const guidedBothArches = props.initialArch === "both" && !props.caseSubmitted;
+  /** Both-arch slip creation: upper selection → lower selection → upper fields → lower fields.
+   *  Disabled for preloaded states (add-new-stage / edit-slip) where teeth are already configured. */
+  const guidedBothArches = props.initialArch === "both" && !props.caseSubmitted && !props.preloadInitialSlipState;
   const [guidedBothArchPhase, setGuidedBothArchPhase] =
     useState<GuidedBothArchPhase>("upper-selection");
   const crossArchFlowRef = useRef({
