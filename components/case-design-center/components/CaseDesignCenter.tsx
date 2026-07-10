@@ -136,6 +136,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     focusAccordion: state.focusAccordion,
     handleOpenStageModal: state.handleOpenStageModal,
     isStageModalOpen: state.isStageModalOpen,
+    getToothProduct: state.getToothProduct,
   });
 
   const addStageStageHistoryForModal =
@@ -241,7 +242,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const guidedHideMaxillaryCard0Fields =
     guidedBothArchSlipCreation && guidedSelectionPhase;
   const guidedHideMandibularCard0Fields =
-    guidedBothArchSlipCreation && guidedBothArchPhase !== "lower-fields";
+    guidedBothArchSlipCreation &&
+    guidedBothArchPhase !== "lower-fields" &&
+    guidedBothArchPhase !== "both-active";
   // Show accordion when card 0 initial product is Removable/Ortho — show immediately once product is selected,
   // no need to wait for teeth to be assigned (the accordion lets the user select teeth).
   // Gate each panel to its own arch so the opposite panel doesn't show a duplicate card 0 accordion
@@ -1967,10 +1970,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             is_default: s.is_default,
             image_url: s.image_url ?? null,
             stage_id: s.stage_id ?? s.id,
+            sequence: s.sequence,
           }));
         })()}
         handleStageSelect={state.handleStageSelect}
         stageHistory={addStageStageHistoryForModal}
+        disableStageAutoSelect={Boolean(props.addStageContext?.promptStagesOnLoad)}
         caseSubmitted={props.caseSubmitted}
         onStageConfirm={(stageName, stageId) => {
           const arch = state.currentStageArch;

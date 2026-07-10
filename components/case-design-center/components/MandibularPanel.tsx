@@ -1231,17 +1231,23 @@ export function MandibularPanel({
       const activeAp = addedProducts.find(
         (p) => p.id === activeProductCardId && (p.arch === "mandibular" || p.arch === "both")
       );
-      if (!activeAp) return false;
-      const assignedTooth = MANDIBULAR_ALL_TEETH.find(
-        (tn) => getToothProductCard("mandibular", tn) === activeProductCardId && !!getToothProduct("mandibular", tn)
-      );
-      const resolvedProduct =
-        (assignedTooth ? getToothProduct("mandibular", assignedTooth) : null) ??
-        getToothProduct("mandibular", -activeAp.id) ??
-        activeAp.product ??
-        null;
-      if (resolvedProduct) return !hasRetentionOptions(resolvedProduct);
-      return !hasRetentionOptions(activeAp.product);
+      if (activeAp) {
+        const assignedTooth = MANDIBULAR_ALL_TEETH.find(
+          (tn) => getToothProductCard("mandibular", tn) === activeProductCardId && !!getToothProduct("mandibular", tn)
+        );
+        const resolvedProduct =
+          (assignedTooth ? getToothProduct("mandibular", assignedTooth) : null) ??
+          getToothProduct("mandibular", -activeAp.id) ??
+          activeAp.product ??
+          null;
+        if (resolvedProduct) return !hasRetentionOptions(resolvedProduct);
+        return !hasRetentionOptions(activeAp.product);
+      }
+      // Active card lives on the other arch — clicks here land on this arch's own
+      // card-0 product, so fall through to the card-0 resolution below.
+      if (!addedProducts.some((p) => p.id === activeProductCardId)) {
+        return false;
+      }
     }
     if (activeFixedGroupProductId !== null) return false;
     const card0Tn = MANDIBULAR_ALL_TEETH.find(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0) ?? -1;
@@ -1339,7 +1345,23 @@ export function MandibularPanel({
     [allowAccordionCollapse, isAccordionEnabled]
   );
 
+  /** Single-product arch: that product's card stays activated for tooth status. */
+  const mandibularSingleProductCardId = (() => {
+    const archAps = addedProducts.filter(
+      (p) => p.arch === "mandibular" || p.arch === "both"
+    );
+    const hasCard0 = mandibularHasFixedCard0 || mandibularHasRemovablesCard0;
+    if (hasCard0 && archAps.length === 0) return 0;
+    if (!hasCard0 && archAps.length === 1) return archAps[0].id;
+    return null;
+  })();
+
   const isCardActiveForToothStatus = (cardId: number) => {
+    // The only product on this arch is always selection-ready — its status boxes
+    // and hints stay visible even when the other arch's card holds global focus.
+    if (mandibularSingleProductCardId !== null && cardId === mandibularSingleProductCardId) {
+      return true;
+    }
     if (activeProductCardId !== cardId) return false;
     if (cardId === 0) {
       if (mandibularHasFixedCard0 && !mandibularHasRemovablesCard0) return true;
@@ -1758,12 +1780,18 @@ export function MandibularPanel({
     if (!showMandibular) return null;
     if (activeProductSkipsChartSetup) return null;
     if (activeProductIsRemovables) {
-      const activeExtractions = activeProductCardId !== 0
-        ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions
-        : (() => {
-          const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
-          return t ? getToothProduct("mandibular", t)?.extractions : undefined;
-        })();
+      const hintActiveAp = activeProductCardId !== 0
+        ? addedProducts.find(ap => ap.id === activeProductCardId && (ap.arch === "mandibular" || ap.arch === "both"))
+        : undefined;
+      // Active card on the other arch → hint describes this arch's own card-0 product.
+      const hintUsesArchCard0 = activeProductCardId === 0 || !hintActiveAp;
+      const hintCard0Product = (() => {
+        const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
+        return t ? getToothProduct("mandibular", t) : undefined;
+      })();
+      const activeExtractions = hintUsesArchCard0
+        ? hintCard0Product?.extractions
+        : hintActiveAp?.product?.extractions;
       if (isFullDentureProduct(activeExtractions)) return null;
       const hintExtractions = (
         useMandibularArchSharedRemovable
@@ -1773,13 +1801,10 @@ export function MandibularPanel({
       if (!hasConfiguredExtractions(hintExtractions)) return null;
       const hintAckCardId = useMandibularArchSharedRemovable
         ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
-        : activeProductCardId !== 0 ? activeProductCardId : 0;
-      const baseProductName = activeProductCardId !== 0
-        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "")
-        : (() => {
-            const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0);
-            return t ? (getToothProduct("mandibular", t)?.name ?? "") : "";
-          })();
+        : hintUsesArchCard0 ? 0 : activeProductCardId;
+      const baseProductName = hintUsesArchCard0
+        ? (hintCard0Product?.name ?? "")
+        : (hintActiveAp?.product?.name ?? "");
       if (
         isFlipperOrStayplateProduct(baseProductName) &&
         isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
@@ -1889,21 +1914,48 @@ export function MandibularPanel({
                       if (!ownArchToothChartEnabled) {
                         return;
                       }
-                      if (!isCardActiveForToothStatus(activeProductCardId)) {
+                      // Active card on the other arch: land the click on this arch's own
+                      // card-0 product and move focus to it.
+                      const clickCardAppliesToArch =
+                        activeProductCardId === 0 ||
+                        addedProducts.some(
+                          (p) =>
+                            p.id === activeProductCardId &&
+                            (p.arch === "mandibular" || p.arch === "both")
+                        );
+                      const archHasCard0 =
+                        mandibularHasRemovablesCard0 || mandibularHasFixedCard0;
+                      if (!clickCardAppliesToArch && !archHasCard0) {
+                        return;
+                      }
+                      const effectiveToothStatusCardId = clickCardAppliesToArch
+                        ? activeProductCardId
+                        : 0;
+                      if (!clickCardAppliesToArch) {
+                        setActiveProductCardId(0);
+                      }
+                      // Cross-arch redirect: this arch's lone card-0 product is always
+                      // selection-ready, so process the click immediately (single click)
+                      // instead of only moving focus and requiring a second click.
+                      const cardActiveForClick = clickCardAppliesToArch
+                        ? isCardActiveForToothStatus(activeProductCardId)
+                        : true;
+                      if (!cardActiveForClick) {
                         return;
                       }
                       // If the user has clicked Done (acknowledged), reset Done state so they
                       // can continue editing — the click proceeds normally and Done reappears.
-                      const currentAckExtractions = activeProductCardId !== 0
-                        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.extractions ?? [])
+                      const currentAckExtractions = effectiveToothStatusCardId !== 0
+                        ? (addedProducts.find(ap => ap.id === effectiveToothStatusCardId && ap.arch === "mandibular")?.product?.extractions ?? [])
                         : card0Extractions;
-                      const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : activeProductCardId;
+                      const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : effectiveToothStatusCardId;
                       if (isExtractionsSetupComplete(currentAckExtractions, ackCardId, caseSubmitted)) {
                         setExtractionsSetupComplete(ackCardId, false);
                         setIsSelectionModeActive(true);
                       }
-                      // Rule 1: active box selected → assign directly, skip popover
-                      if (activeExtractionCode) {
+                      // Rule 1: active box selected → assign directly, skip popover.
+                      // Skipped on cross-arch clicks — the active box belongs to the other arch.
+                      if (activeExtractionCode && clickCardAppliesToArch) {
                         const activeExt = activeExtractions.find((e) => e.code === activeExtractionCode);
                         if (
                           isOverlayExtractionCode(activeExtractionCode, activeExtractions) &&
@@ -1936,7 +1988,7 @@ export function MandibularPanel({
                       const exts = resolveRemovablePopoverExtractionsForActiveCard({
                         useArchSharedRemovable: useMandibularArchSharedRemovable,
                         mergedExtractions: mandibularMergedExtractions,
-                        activeProductCardId,
+                        activeProductCardId: effectiveToothStatusCardId,
                         addedProducts,
                         arch: "mandibular",
                         allArchTeeth: MANDIBULAR_ALL_TEETH,

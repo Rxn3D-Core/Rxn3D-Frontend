@@ -59,6 +59,39 @@ test("filters select-all teeth to exclude teeth owned elsewhere", () => {
   assert.deepEqual(blocked, [9]);
 });
 
+test("does not lock an auto-selected tooth (never explicitly assigned)", () => {
+  // Tooth 9 is in maxillaryTeeth (auto-selected by single-default extraction for card 0)
+  // but setToothProductCard was never called → isToothExplicitlyAssigned returns false.
+  // An added product (card 22) should be able to claim it without an ownership conflict.
+  const locked = isToothLockedByAnotherProduct({
+    arch: "maxillary",
+    toothNumber: 9,
+    activeProductCardId: 22,
+    getToothProductCard: () => 0,
+    isToothExplicitlyAssigned: () => false,
+    maxillaryTeeth: [9],
+    mandibularTeeth: [],
+  });
+
+  assert.equal(locked, false);
+});
+
+test("locks a tooth that was explicitly assigned to card 0 when an added product is active", () => {
+  // Tooth 9 was explicitly selected by the user for card 0 (setToothProductCard called).
+  // An added product (card 22) should not be able to claim it.
+  const locked = isToothLockedByAnotherProduct({
+    arch: "maxillary",
+    toothNumber: 9,
+    activeProductCardId: 22,
+    getToothProductCard: () => 0,
+    isToothExplicitlyAssigned: () => true,
+    maxillaryTeeth: [9],
+    mandibularTeeth: [],
+  });
+
+  assert.equal(locked, true);
+});
+
 test("builds a readable conflict message", () => {
   assert.equal(
     buildToothOwnershipConflictMessage(9, "3 teeth Flipper"),

@@ -59,9 +59,12 @@ export type GuidedBothArchPhase =
   | "upper-selection"
   | "lower-selection"
   | "upper-fields"
-  | "lower-fields";
+  | "lower-fields"
+  /** Both arches are fully configured — user can freely edit either arch. */
+  | "both-active";
 
 export function guidedPhaseAllowsArch(phase: GuidedBothArchPhase, arch: Arch): boolean {
+  if (phase === "both-active") return true;
   if (phase === "upper-selection" || phase === "upper-fields") return arch === "maxillary";
   return arch === "mandibular";
 }
