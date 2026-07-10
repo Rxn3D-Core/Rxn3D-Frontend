@@ -316,8 +316,11 @@ export default function VirtualSlipV2Page() {
     }
   };
 
-  const caseOnHold = isSlipCaseOnHold(vm.header.caseStatus);
-  const caseCancelled = isSlipCaseCancelled(vm.header.caseStatus);
+  // Hold/cancel is recorded on the slip's own status (holdSlip/cancelSlip act on
+  // the slip) — case_status may lag or aggregate other slips, so check slipStatus.
+  // slipStatus already falls back to case_status when the slip status is empty.
+  const caseOnHold = isSlipCaseOnHold(vm.header.slipStatus);
+  const caseCancelled = isSlipCaseCancelled(vm.header.slipStatus);
 
   const { notes: caseNotes } = useCaseSlipNotes(caseId, {
     refreshKey: notesRefreshKey,
