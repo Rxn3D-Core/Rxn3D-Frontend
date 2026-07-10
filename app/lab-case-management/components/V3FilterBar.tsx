@@ -32,15 +32,13 @@ type ColumnDefinition = {
 }
 
 export const ALL_COLUMNS: readonly ColumnDefinition[] = [
-  { key: "patient",    label: "Patient",        default: true },
-  { key: "slip",       label: "Slip #",         default: true },
+  { key: "patient",    label: "Patient / Slip", default: true, required: true },
   { key: "panProduct", label: "Pan / Product",  default: true, required: true },
   { key: "location",   label: "Location",       default: true },
   { key: "dueDate",    label: "Due date",       default: true },
   { key: "status",     label: "Status",         default: true, required: true },
   { key: "office",     label: "Office",         default: false },
   { key: "caseNo",     label: "Case #",         default: false },
-  { key: "timestamp",  label: "Time stamp",     default: false },
 ]
 
 const DEFAULT_VISIBLE = new Set(ALL_COLUMNS.filter((c) => c.default || c.required).map((c) => c.key)) as Set<ColumnKey>

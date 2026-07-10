@@ -64,14 +64,12 @@ type DesktopColumn = {
 }
 
 const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
-  { key: "patient", label: "Patient", width: 220 },
-  { key: "slip", label: "Slip #", width: 130 },
+  { key: "patient", label: "Patient / Slip", width: 260 },
   { key: "panProduct", label: "Pan / Product", width: 180 },
-  { key: "location", label: "Location", width: 300 },
+  { key: "location", label: "Location", width: 150 },
   { key: "status", label: "Status", width: 150 },
   { key: "office", label: "Office", width: 200 },
   { key: "caseNo", label: "Case #", width: 130 },
-  { key: "timestamp", label: "Time stamp", width: 190 },
   { key: "dueDate", label: "Due Date", width: 150 },
 ]
 
@@ -222,7 +220,7 @@ export function V3CaseTable(props: Props) {
                         >
                           <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
                           <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                            {formatDueDate(row.dueDate)}
+                            {formatDueDate(row.dueDate, row.status)}
                           </span>
                         </button>
                       </div>
@@ -461,22 +459,9 @@ function DesktopCell({
               <img src="/icons/rush-bolt.svg" alt="Rush" aria-label="Rush" style={{ width: 14, height: 24, flexShrink: 0 }} />
             )}
           </div>
-        </button>
-      </td>
-    )
-  }
-
-  if (column.key === "slip") {
-    return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <button
-          className="flex h-full w-full items-center text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-          style={{ padding: "10px 15px" }}
-          type="button"
-          onClick={() => rowActions.onOpen(row)}
-        >
-          <span style={{ fontSize: 16, lineHeight: "18px", color: "#575757" }}>
+          <span className="truncate" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af", maxWidth: column.width - 30 }}>
             {row.slipNumber || `#${row.id}`}
+            {row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
           </span>
         </button>
       </td>
@@ -517,8 +502,8 @@ function DesktopCell({
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
           {locationIcon(row.locationId)}
           <button
-            className="truncate text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", maxWidth: column.width - 70 }}
+            className="whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer" }}
             title={isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
             type="button"
             onClick={(e) => {
@@ -544,7 +529,7 @@ function DesktopCell({
             type="button"
             onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
           >
-            {formatDueDate(row.dueDate)}
+            {formatDueDate(row.dueDate, row.status)}
           </button>
         </div>
       </td>
@@ -602,7 +587,7 @@ function StatusPill({ status }: { status: string }) {
 function mobileLocationIcon(locationId?: number): string {
   if (locationId === 1 || locationId === 4) return `${VS}/pick-up.svg`
   if (locationId === 2 || locationId === 5) return `${VS}/drop-off.svg`
-  if (locationId === 3) return `${VS}/ready-to-send.svg`
+  if (locationId === 3) return `/images/paper-airplane.svg`
   if (locationId === 6) return `${VS}/in-office.png`
   return `${VS}/pick-up.svg`
 }
@@ -611,7 +596,7 @@ function locationIcon(locationId?: number) {
   const imgProps = { style: { width: 28, height: 28, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
   if (locationId === 1 || locationId === 4) return <img src={`${VS}/pick-up.svg`} {...imgProps} />
   if (locationId === 2 || locationId === 5) return <img src={`${VS}/drop-off.svg`} {...imgProps} />
-  if (locationId === 3) return <img src={`${VS}/ready-to-send.svg`} {...imgProps} />
+  if (locationId === 3) return <img src={`/images/paper-airplane.svg`} {...imgProps} />
   if (locationId === 6) return <img src={`${VS}/in-office.png`} {...imgProps} />
   return <LabLocationIcon className="h-4 w-4 shrink-0 opacity-60" />
 }
@@ -649,7 +634,8 @@ function dueDateTextColor(dueDate: string, rush?: boolean): string {
   return due.getTime() <= today.getTime() ? "#347B4E" : "#2BA5DE"
 }
 
-function formatDueDate(dueDate: string): string {
+function formatDueDate(dueDate: string, status?: string): string {
+  if (isSlipCaseFinished(status)) return "Delivered"
   if (!dueDate) return "—"
   const due = new Date(dueDate)
   if (isNaN(due.getTime())) return dueDate

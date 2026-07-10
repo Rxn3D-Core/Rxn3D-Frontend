@@ -324,15 +324,16 @@ function computeDateRangeFromPreset(preset: string): { from: string; to: string 
   return null
 }
 
+// Backend only accepts these date_range values (see AdvancedBillingRequest::rules).
+// Presets like "this_week"/"this_month"/"this_year" have no backend equivalent —
+// they're sent as "custom" with concrete date_from/date_to instead.
 function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBody["date_range"] {
   switch (preset) {
     case "today":
     case "yesterday":
-    case "this_week":
+    case "last_7_days":
     case "last_week":
-    case "this_month":
     case "last_month":
-    case "this_year":
     case "last_year":
       return preset
     default:
@@ -573,10 +574,11 @@ export default function ChargeManagementPage() {
     }
     if (debouncedSearch) {
       params.patient_name = debouncedSearch
+    } else {
+      if (dateFrom) params.date_from = dateFrom
+      if (dateTo) params.date_to = dateTo
+      params.client_date_preset = advDateRange
     }
-    if (dateFrom) params.date_from = dateFrom
-    if (dateTo) params.date_to = dateTo
-    params.client_date_preset = advDateRange
     if (isLabScope && officeFilter !== "all") {
       const oid = parseInt(officeFilter, 10)
       if (!Number.isNaN(oid)) params.office_id = oid
@@ -781,8 +783,10 @@ export default function ChargeManagementPage() {
   }, [charges, selectedItems])
 
   const selectedGrossTotal = useMemo(() => {
-    return charges.reduce((sum, charge) => sum + statementSignedAmount(charge), 0)
-  }, [charges])
+    return charges
+      .filter((charge) => selectedItems.includes(charge.id))
+      .reduce((sum, charge) => sum + statementSignedAmount(charge), 0)
+  }, [charges, selectedItems])
 
   const currentSendStatement = generatedStatements[sendQueueIndex] ?? null
   const currentSendGroup = useMemo(() => {
@@ -832,12 +836,16 @@ export default function ChargeManagementPage() {
       const o = officesAsLabsRef.current.find((x) => String(x.id) === officeFilter)
       officeName = o?.name
     }
+    const patientName = debouncedSearch.trim() || searchInput.trim() || undefined
+    // A search term means the user wants to find a specific charge regardless
+    // of when it happened — a leftover date filter (e.g. "Yesterday") would
+    // otherwise silently hide matches instead of searching across all dates.
     const body: AdvancedBillingSearchBody = {
       page: 1,
-      patient_name: debouncedSearch.trim() || searchInput.trim() || undefined,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      date_range: resolveAdvancedDateRangeValue(advDateRange),
+      patient_name: patientName,
+      date_from: patientName ? undefined : dateFrom || undefined,
+      date_to: patientName ? undefined : dateTo || undefined,
+      date_range: patientName ? undefined : resolveAdvancedDateRangeValue(advDateRange),
       office_name: officeName,
     }
     if (advCategoryId != null) body.category_id = advCategoryId
@@ -1109,14 +1117,15 @@ export default function ChargeManagementPage() {
   }
 
   const handleMarkCheckedForRow = async (charge: ChargeRow) => {
-    if (charge.status.toLowerCase() !== "pending") return
+    const isChecked = charge.status.toLowerCase() === "checked"
+    if (!isChecked && charge.status.toLowerCase() !== "pending") return
     setMarkingCheckedChargeId(charge.id)
     try {
-      await bulkAction({ billing_ids: [charge.billingInvoiceId], action: "mark_checked" }).unwrap()
+      await bulkAction({ billing_ids: [charge.billingInvoiceId], action: isChecked ? "mark_pending" : "mark_checked" }).unwrap()
       await onRefresh()
     } catch (e: unknown) {
       toast({
-        title: "Could not mark as checked",
+        title: isChecked ? "Could not unmark as checked" : "Could not mark as checked",
         description: e instanceof Error ? e.message : "Request failed",
         variant: "destructive",
       })
@@ -1648,7 +1657,7 @@ export default function ChargeManagementPage() {
         )}
 
         {customerId && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalInvoices", { defaultValue: "Total invoices" })}
@@ -1692,7 +1701,7 @@ export default function ChargeManagementPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg mb-4">
+        <div className="bg-white rounded-lg mb-3">
           <div className="px-4 py-2">
             <div className="flex flex-nowrap items-center gap-2 md:gap-3 min-w-0 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5">
               <div className="relative min-w-[200px] max-w-xl flex-1 shrink-0">
@@ -1973,21 +1982,26 @@ export default function ChargeManagementPage() {
                     disabled={charges.length === 0}
                   />
                 </TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Office Code</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Patient</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">U/L</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Product</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Grade</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Stage</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">Gross</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Due Date</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Status</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Actions</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Office Code</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Patient</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">U/L</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Product</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Grade</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Stage</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">
+                  Gross
+                  {selectedItems.length > 0 && (
+                    <div className="mt-0.5 text-sm font-bold text-black">{formatMoney(selectedGrossTotal)}</div>
+                  )}
+                </TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Due Date</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Status</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2052,7 +2066,7 @@ export default function ChargeManagementPage() {
                       <Badge className={getStatusColor(charge.status)}>{charge.status}</Badge>
                     </TableCell>
                     <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -2072,10 +2086,13 @@ export default function ChargeManagementPage() {
                               : "text-gray-400 hover:text-gray-500"
                           }`}
                           type="button"
-                          disabled={charge.status.toLowerCase() !== "pending" || markingCheckedChargeId === charge.id}
+                          disabled={
+                            (charge.status.toLowerCase() !== "pending" && charge.status.toLowerCase() !== "checked") ||
+                            markingCheckedChargeId === charge.id
+                          }
                           title={
                             charge.status.toLowerCase() === "checked"
-                              ? "Already marked as checked"
+                              ? "Click to unmark as checked"
                               : t("chargeManagement.markChecked", { defaultValue: "Mark Checked" })
                           }
                           onClick={() => void handleMarkCheckedForRow(charge)}
@@ -2145,10 +2162,10 @@ export default function ChargeManagementPage() {
             {allChargesSelected && (
               <TableFooter>
                 <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                  <TableCell colSpan={12} className="py-3 text-right text-sm font-semibold text-gray-700">
+                  <TableCell colSpan={12} className="py-3 text-right text-base font-bold text-black">
                     Total:
                   </TableCell>
-                  <TableCell className="py-3 text-sm font-semibold text-purple-700">
+                  <TableCell className="py-3 text-base font-bold text-black">
                     {formatMoney(selectedGrossTotal)}
                   </TableCell>
                   <TableCell colSpan={3} />

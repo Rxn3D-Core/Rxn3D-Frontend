@@ -136,11 +136,12 @@ export function DoctorDashboard() {
                   <p className="text-blue-100 text-xs">Manage your patient cases</p>
                 </div>
                 <Button
-                  className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                  variant="ghost"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                 >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">New Case</span>
-                  <span className="sm:hidden">New</span>
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">New Case</span>
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                 </Button>
               </div>
             </div>
@@ -255,11 +256,12 @@ export function DoctorDashboard() {
                   <p className="text-blue-100 text-xs">View and manage your schedule</p>
                 </div>
                 <Button
-                  className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                  variant="ghost"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                 >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">New Appointment</span>
-                  <span className="sm:hidden">New</span>
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">New Appointment</span>
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                 </Button>
               </div>
             </div>

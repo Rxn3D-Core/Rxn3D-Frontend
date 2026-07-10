@@ -2,6 +2,7 @@
 
 import { forwardRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { isSlipCaseCancelled } from "@/lib/slip-case-status"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 
 const VS = "/icons/virtual-slip-center"
@@ -32,7 +33,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
 
   function locationBtn(): { label: string; icon: string; onClick: (e: React.MouseEvent) => void } {
     const id = row.locationId
-    if (id === 3) return { label: "Ready to Send", icon: `${VS}/ready-to-send.svg`, onClick: act(() => actions.onReadyToSend(row)) }
+    if (id === 3) return { label: "Ready to Send", icon: `/images/paper-airplane.svg`, onClick: act(() => actions.onReadyToSend(row)) }
     if (id === 2 || id === 5) return { label: "Drop Off", icon: `${VS}/drop-off.svg`, onClick: act(() => actions.onDriverHistory(row)) }
     if (id === 6) return { label: "In Office", icon: `${VS}/in-office.png`, onClick: act(() => actions.onDriverHistory(row)) }
     return { label: "Pick Up", icon: `${VS}/pick-up.svg`, onClick: act(() => actions.onDriverHistory(row)) }
@@ -42,7 +43,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     locationBtn(),
     { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) },
     { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onHold(row)) },
-    { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)) },
+    { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)), disabled: isSlipCaseCancelled(row.status) },
     { label: "Send Back", icon: `${VS}/send-back-to-office.svg`, onClick: act(() => actions.onSendBack(row)), disabled: !canSendBack },
     { label: "Print", icon: `/icons/virtual-slip-actions/printer.svg`, onClick: act(() => actions.onPrintPaperSlip(row)) },
     { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)), disabled: !canPrintStatement },
@@ -52,8 +53,10 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     { label: "Attach", icon: `${VS}/attachments.svg`, onClick: act(() => actions.onAttachment(row)) },
   ]
 
+  const visibleBtns = btns.filter((b) => !b.disabled)
+
   if (variant === "mobile") {
-    return <MobileActionsSheet ref={ref} btns={btns} onClose={onClose} />
+    return <MobileActionsSheet ref={ref} btns={visibleBtns} onClose={onClose} />
   }
 
   return (
@@ -66,26 +69,25 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
           top: "50%",
           transform: "translateY(-50%)",
           zIndex: 50,
-          width: 551,
+          width: "fit-content",
           height: 56,
           background: "#FFFFFF",
           border: "1px solid #E2E4E8",
           boxShadow: "0px 4px 4px rgba(0,0,0,0.25)",
           borderRadius: 7,
           flexDirection: "row",
-          justifyContent: "center",
+          justifyContent: "flex-start",
           alignItems: "center",
           padding: "10px 15px",
           gap: 18,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {btns.map(({ label, icon, onClick, disabled }) => (
+        {visibleBtns.map(({ label, icon, onClick }) => (
           <button
             key={label}
             aria-label={label}
             title={label}
-            disabled={disabled}
             type="button"
             onClick={onClick}
             style={{
@@ -97,11 +99,10 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
               borderRadius: 6,
               border: "none",
               background: "none",
-              cursor: disabled ? "not-allowed" : "pointer",
-              opacity: disabled ? 0.35 : 1,
+              cursor: "pointer",
               flexShrink: 0,
             }}
-            onMouseEnter={(e) => { if (!disabled) (e.currentTarget as HTMLElement).style.background = "#F2F3F4" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#F2F3F4" }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none" }}
           >
             <img src={icon} alt={label} style={{ width: 28, height: 28, objectFit: "contain" }} />
@@ -210,15 +211,13 @@ const MobileActionsSheet = React.forwardRef<HTMLDivElement, { btns: SheetBtn[]; 
 
           {/* 4-column icon grid */}
           <div className="grid grid-cols-4 gap-x-2 gap-y-5 px-5 py-6">
-            {btns.map(({ label, icon, onClick, disabled }) => (
+            {btns.map(({ label, icon, onClick }) => (
               <button
                 key={label}
                 type="button"
                 aria-label={label}
-                disabled={disabled}
                 onClick={onClick}
                 className="flex flex-col items-center gap-2 focus-visible:outline-none"
-                style={{ opacity: disabled ? 0.35 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
               >
                 <div className="flex h-[72px] w-[72px] items-center justify-center rounded-2xl bg-[#F3F4F6]">
                   <img src={icon} alt="" style={{ width: 40, height: 40, objectFit: "contain" }} />

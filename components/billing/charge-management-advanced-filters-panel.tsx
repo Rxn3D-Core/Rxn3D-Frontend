@@ -234,7 +234,7 @@ export function ChargeManagementAdvancedFiltersPanel({
   if (!open) return null
 
   return (
-    <div className="border-t border-gray-200 bg-slate-50/60 px-4 py-4">
+    <div className="border-t border-gray-200 bg-slate-50/60 px-4 pt-4 pb-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
         <p className="text-sm font-semibold text-gray-900">
           {t("chargeManagement.advancedPanelTitle", { defaultValue: "Advance filters" })}

@@ -148,6 +148,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
   /** Preserves last lab listing query so refetches (ready-to-send, driver submit, etc.) keep filters */
   const lastLabListingRef = useRef<{ customerId: number; query: LabListingQuery } | null>(null);
+  const labListingRequestIdRef = useRef(0);
 
   // Helper to get token from localStorage
   const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") : null);
@@ -212,14 +213,19 @@ export function SlipProvider({ children }: { children: ReactNode }) {
           : {};
     lastLabListingRef.current = { customerId, query: { ...effectiveQuery } };
 
+    const requestId = ++labListingRequestIdRef.current;
+    const isStale = () => labListingRequestIdRef.current !== requestId;
+
     setLoading(true);
     try {
       if (!API_BASE_URL) {
         console.error(
           "fetchLabSlips: NEXT_PUBLIC_API_BASE_URL is not set. Copy .env.example to .env.local and restart the dev server."
         );
-        setSlips([]);
-        setLabListingPagination(null);
+        if (!isStale()) {
+          setSlips([]);
+          setLabListingPagination(null);
+        }
         return;
       }
 
@@ -272,12 +278,15 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         console.error(`fetchLabSlips: HTTP ${res.status} for ${url}`);
-        setSlips([]);
-        setLabListingPagination(null);
+        if (!isStale()) {
+          setSlips([]);
+          setLabListingPagination(null);
+        }
         return;
       }
 
       const api = await res.json();
+      if (isStale()) return;
       const arr = api?.data?.data || [];
       setSlips(arr.map(mapApiSlip));
       setRushCasePanColor(api?.data?.rush_casepan_color ?? null);
@@ -299,10 +308,12 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("fetchLabSlips: network or request error", error);
-      setSlips([]);
-      setLabListingPagination(null);
+      if (!isStale()) {
+        setSlips([]);
+        setLabListingPagination(null);
+      }
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [API_BASE_URL]);
 
