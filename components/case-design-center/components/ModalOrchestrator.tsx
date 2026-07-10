@@ -98,13 +98,16 @@ interface ModalOrchestratorProps {
   currentStageProductId: string;
   currentStageArch: Arch;
   currentStageToothNumber: number | null;
-  currentStageOptions: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number }[] | null;
+  currentStageOptions: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number; sequence?: number }[] | null;
   /** Product for the current stage step — used to resolve skip/auto when options are empty */
   currentStageProduct?: ProductApiData | null;
   handleStageSelect: (stageName: string) => void;
   onStageConfirm: (stageName: string, stageId?: number) => void;
   /** Prior slips/stages for this arch (add-new-stage). */
   stageHistory?: NewStageEligibilityStageRef[];
+  /** When true, always show the stage selection modal — never auto-select a single/default stage.
+   *  Used in the add-new-stage flow so the user must actively choose. */
+  disableStageAutoSelect?: boolean;
   /** When true (virtual slip / read-only view), all modals are suppressed */
   caseSubmitted?: boolean;
 }
@@ -135,24 +138,29 @@ function AutoSkipEmptyStages({
   return null;
 }
 
-/** When only 1 stage is available or a default stage exists, auto-selects it and closes — skipping the modal entirely. */
+/** When only 1 stage is available or a default stage exists, auto-selects it and closes — skipping the modal entirely.
+ *  Pass `disableAutoSelect` to always show the modal instead (e.g. add-new-stage flow). */
 function AutoSelectSingleStage({
   stages,
   hasExistingSelection,
+  disableAutoSelect,
   onAutoSelect,
   onClose,
   children,
 }: {
   stages: { name: string; letter: string; is_default?: string; image_url?: string | null; stage_id?: number }[];
   hasExistingSelection: boolean;
+  disableAutoSelect?: boolean;
   onAutoSelect: (stageName: string, stageId?: number) => void;
   onClose: () => void;
   children: React.ReactNode;
 }) {
   const didAutoSelect = useRef(false);
   const defaultStage = stages.find((s) => s.is_default === "Yes");
-  // Only auto-select when the user hasn't already picked a stage (first-time auto-open)
-  const shouldAutoSelect = !hasExistingSelection && (stages.length === 1 || !!defaultStage);
+  // Only auto-select when the user hasn't already picked a stage, there is exactly 1
+  // option or a default, AND auto-selection is not explicitly disabled.
+  const shouldAutoSelect =
+    !disableAutoSelect && !hasExistingSelection && (stages.length === 1 || !!defaultStage);
 
   useEffect(() => {
     if (!didAutoSelect.current && shouldAutoSelect) {
@@ -229,6 +237,7 @@ export function ModalOrchestrator({
   handleStageSelect,
   onStageConfirm,
   stageHistory,
+  disableStageAutoSelect = false,
   caseSubmitted = false,
 }: ModalOrchestratorProps) {
   const [attachViewerOpen, setAttachViewerOpen] = useState(false)
@@ -373,11 +382,12 @@ export function ModalOrchestrator({
         archSlots={addOnArchSlots}
       />
 
-      {/* Stage Selection Modal — auto-selects when only 1 stage is available */}
+      {/* Stage Selection Modal — auto-selects when only 1 stage is available (disabled in add-new-stage flow) */}
       {isStageModalOpen && currentStageOptions && currentStageOptions.length > 0 && (
         <AutoSelectSingleStage
           stages={currentStageOptions}
           hasExistingSelection={!!(currentStageProductId && selectedStages[currentStageProductId])}
+          disableAutoSelect={disableStageAutoSelect}
           onAutoSelect={(stageName, stageId) => {
             handleStageSelect(stageName);
             onStageConfirm(stageName, stageId);
@@ -393,6 +403,25 @@ export function ModalOrchestrator({
               onStageConfirm(stageName, stageId);
             }}
             onClose={() => setIsStageModalOpen(false)}
+            archLabel={
+              disableStageAutoSelect
+                ? currentStageArch === "maxillary"
+                  ? "Upper"
+                  : "Lower"
+                : undefined
+            }
+            lastCompletedStageId={(() => {
+              if (!disableStageAutoSelect || !stageHistory?.length) return undefined;
+              return stageHistory.reduce((best, h) =>
+                h.stage_sequence > best.stage_sequence ? h : best
+              ).stage_id;
+            })()}
+            lastCompletedSequence={(() => {
+              if (!disableStageAutoSelect || !stageHistory?.length) return undefined;
+              return stageHistory.reduce((best, h) =>
+                h.stage_sequence > best.stage_sequence ? h : best
+              ).stage_sequence;
+            })()}
           />
         </AutoSelectSingleStage>
       )}

@@ -410,9 +410,6 @@ export default function VirtualSlipV2Page() {
       setCaseStatusModal(null);
       await fetchVirtualSlipDetails(slipId);
       setNotesRefreshKey((key) => key + 1);
-      if (action === "cancel") {
-        goToCaseList();
-      }
     } catch (err) {
       toast({
         title: "Error",

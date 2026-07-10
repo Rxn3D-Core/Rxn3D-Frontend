@@ -5,6 +5,17 @@ export type ArchToothOwnershipContext = {
   toothNumber: number;
   activeProductCardId: number;
   getToothProductCard: (arch: Arch, toothNumber: number) => number;
+  /**
+   * Optional: returns true only when `setToothProductCard` was explicitly
+   * called for this tooth (i.e. the tooth has a real card assignment stored
+   * in the map, not the fallback default of 0).
+   *
+   * When provided, teeth that have never been explicitly assigned are treated
+   * as unclaimed — they are not considered "locked" even if they appear in the
+   * arch selection list (e.g. auto-selected via single-default extractions).
+   * Callers that do not supply this function retain the original behaviour.
+   */
+  isToothExplicitlyAssigned?: (arch: Arch, toothNumber: number) => boolean;
   maxillaryTeeth: readonly number[];
   mandibularTeeth: readonly number[];
 };
@@ -15,11 +26,18 @@ export function isToothLockedByAnotherProduct({
   toothNumber,
   activeProductCardId,
   getToothProductCard,
+  isToothExplicitlyAssigned,
   maxillaryTeeth,
   mandibularTeeth,
 }: ArchToothOwnershipContext): boolean {
   const selectedOnArch = arch === "maxillary" ? maxillaryTeeth : mandibularTeeth;
   if (!selectedOnArch.includes(toothNumber)) return false;
+  // A tooth that has never been explicitly assigned to any card was populated
+  // by auto-selection (e.g. single-default extractions). It is not "owned" by
+  // the initial product card — any focused added product can claim it freely.
+  if (isToothExplicitlyAssigned && !isToothExplicitlyAssigned(arch, toothNumber)) {
+    return false;
+  }
   const ownerCardId = getToothProductCard(arch, toothNumber);
   return ownerCardId !== activeProductCardId;
 }

@@ -284,15 +284,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
   const MANDIBULAR_ALL = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
 
+  const isCard0NonRetentionForArch = (arch: Arch): boolean => {
+    if (initialProductDetails === null) return false;
+    if (hasRetentionOptions(initialProductDetails)) return false;
+    if (props.initialArch === "maxillary" && arch === "mandibular") return false;
+    if (props.initialArch === "mandibular" && arch === "maxillary") return false;
+    return true;
+  };
+
   const isActiveNonRetentionProduct = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
-      if (initialProductDetails === null) return false;
-      if (hasRetentionOptions(initialProductDetails)) return false;
-      if (props.initialArch === "maxillary" && arch === "mandibular") return false;
-      if (props.initialArch === "mandibular" && arch === "maxillary") return false;
-      return true;
+      return isCard0NonRetentionForArch(arch);
     }
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+    // Active card lives on the other arch — clicks on this arch land on its own
+    // card-0 product, so derive selection-only mode from that product instead.
+    if (ap && !addedProductAppliesToArch(ap, arch)) {
+      return isCard0NonRetentionForArch(arch);
+    }
     if (!addedProductAppliesToArch(ap, arch)) return false;
     if (hasRetentionOptions(ap?.product)) return false;
     if (ap?.productId) {
@@ -330,6 +339,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     upperDoneJumped: false,
     lowerDoneJumped: false,
     upperFieldsDoneJumped: false,
+    lowerFieldsDoneJumped: false,
   });
 
   const isGuidedArchInteractive = useCallback(
@@ -570,6 +580,54 @@ export function useCaseDesignState(props: CaseDesignProps) {
     setGuidedBothArchPhase("lower-fields");
     focusArchCard0("mandibular");
   }, [guidedBothArches, upperCard0FieldsComplete, focusArchCard0]);
+
+  /**
+   * True once card-0 on the mandibular arch has its required fields complete.
+   * Mirrors `upperCard0FieldsComplete` for the lower side. Used to advance
+   * from "lower-fields" → "both-active" so the upper arch becomes interactive again.
+   */
+  const lowerCard0FieldsComplete = useMemo(() => {
+    if (!guidedBothArches) return false;
+    const repTooth = findCard0RepTooth("mandibular");
+    if (repTooth == null) return false;
+    const product = toothFieldProgress.getToothProduct("mandibular", repTooth);
+    if (!product) return false;
+    const chain = hasRetentionOptions(product)
+      ? getRetentionFieldChain(product.advance_fields, product)
+      : getSelectionFieldChain(product);
+    const requiredChain = chain.filter(
+      (step) => step !== "addons" && step !== "fixed_addons"
+    );
+    if (requiredChain.length === 0) return false;
+    const impressionStep: FieldStep | null = requiredChain.includes("fixed_impression")
+      ? "fixed_impression"
+      : requiredChain.includes("impression")
+      ? "impression"
+      : null;
+    const completionChain = impressionStep ? [impressionStep] : requiredChain;
+    return completionChain.every((step) =>
+      toothFieldProgress.isFieldCompleted("mandibular", repTooth, step as FieldStep)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    guidedBothArches,
+    findCard0RepTooth,
+    toothFieldProgress.completedFields,
+    toothFieldProgress.fieldValues,
+    toothFieldProgress.toothProducts,
+    toothFieldProgress.toothProductCardMap,
+    teeth.mandibularRetentionTypes,
+  ]);
+
+  // Once lower fields are done, advance to "both-active" so the user can freely
+  // edit teeth on either arch (e.g. add more upper teeth after completing lower fields).
+  useEffect(() => {
+    if (!guidedBothArches) return;
+    if (!lowerCard0FieldsComplete) return;
+    if (crossArchFlowRef.current.lowerFieldsDoneJumped) return;
+    crossArchFlowRef.current.lowerFieldsDoneJumped = true;
+    setGuidedBothArchPhase("both-active");
+  }, [guidedBothArches, lowerCard0FieldsComplete]);
 
   // Single-default removable card 0, or default tooth chart: no tooth-chart Done step —
   // auto-advance past upper/lower selection to field entry.
@@ -1498,6 +1556,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     (productId: string, arch?: Arch, toothNumber?: number) => {
       const resolvedArch = arch ?? "maxillary";
       const resolvedTooth = resolveStageToothNumber(productId, toothNumber);
+      // In the add-new-stage flow the user must pick every stage manually — never auto-resolve.
+      const forceOpenModal = Boolean(props.addStageContext?.promptStagesOnLoad);
       if (resolvedTooth != null) {
         const product = toothFieldProgress.getToothProduct(resolvedArch, resolvedTooth);
         if (product) {
@@ -1512,8 +1572,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
             Boolean(modals.selectedStages?.[stageKey]) ||
             Boolean(modals.selectedStages?.[productId]);
 
-          // Stage already set — open picker only when this product supports multiple stages.
+          // Stage already set — open picker only when this product supports stage selection.
           if (hasExistingStage) {
+            if (!shouldSkipStageSelection(product)) {
+              modals.handleOpenStageModal(productId, arch, toothNumber);
+            }
+            return;
+          }
+
+          // When forcing the user to pick manually, skip all auto-resolution and open the modal
+          // directly as long as the product actually has a stage field.
+          if (forceOpenModal) {
             if (!shouldSkipStageSelection(product)) {
               modals.handleOpenStageModal(productId, arch, toothNumber);
             }
@@ -1541,6 +1610,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       applyResolvedStage,
       buildStageSelectionKey,
       modals,
+      props.addStageContext?.promptStagesOnLoad,
       resolveStageToothNumber,
       toothFieldProgress,
     ]
@@ -1804,6 +1874,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     () => ({
       activeProductCardId,
       getToothProductCard: toothFieldProgress.getToothProductCard,
+      isToothExplicitlyAssigned: toothFieldProgress.isToothExplicitlyAssigned,
       maxillaryTeeth: teeth.maxillaryTeeth,
       mandibularTeeth: teeth.mandibularTeeth,
     }),
@@ -1812,6 +1883,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       teeth.maxillaryTeeth,
       teeth.mandibularTeeth,
       toothFieldProgress.getToothProductCard,
+      toothFieldProgress.isToothExplicitlyAssigned,
     ]
   );
 
@@ -1841,6 +1913,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
   const canModifyToothForActiveProduct = useCallback(
     (arch: Arch, toothNumber: number): boolean => {
+      // If the active product card is an added product that applies to a different arch,
+      // it cannot legitimately conflict with a tooth's owner on this arch.
+      // A single product per arch should never trigger the ownership warning.
+      if (activeProductCardId !== 0) {
+        const activeAp = (props.addedProducts ?? []).find(
+          (p) => p.id === activeProductCardId
+        );
+        if (activeAp && !addedProductAppliesToArch(activeAp, arch)) {
+          return true;
+        }
+      }
       if (
         !isToothLockedByAnotherProduct({
           arch,
@@ -1853,7 +1936,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
       notifyToothOwnershipConflict(arch, toothNumber);
       return false;
     },
-    [notifyToothOwnershipConflict, toothOwnershipContext]
+    [
+      activeProductCardId,
+      props.addedProducts,
+      notifyToothOwnershipConflict,
+      toothOwnershipContext,
+    ]
   );
 
   /**
@@ -2151,6 +2239,20 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
       if (activeProductCardId !== 0) {
         const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+        // Active card lives on the other arch — land the tooth on this arch's own
+        // card-0 product instead of dropping the assignment.
+        if (ap && !addedProductAppliesToArch(ap, arch)) {
+          const card0CoversArch =
+            props.initialArch === arch || props.initialArch === "both";
+          if (!card0CoversArch || !props.selectedProductId) return;
+          toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
+          void fetchAndAssignProduct(arch, toothNumber, props.selectedProductId).then(() => {
+            if (isRemovableActive) {
+              backfillRemovableFromOppositeArch(arch, toothNumber);
+            }
+          });
+          return;
+        }
         if (!ap?.productId || !addedProductAppliesToArch(ap, arch)) return;
 
         toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
@@ -2184,6 +2286,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       isActiveNonRetentionProduct,
       migrateRemovableVirtualProgressToTooth,
       props.addedProducts,
+      props.initialArch,
       props.selectedProductId,
       toothFieldProgress,
     ]
@@ -2198,6 +2301,13 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [canModifyToothForActiveProduct, teeth]
   );
 
+  /** True when the active card is card 0 or an added product covering this arch. */
+  const activeCardAppliesToArch = (arch: Arch): boolean => {
+    if (activeProductCardId === 0) return true;
+    const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+    return !ap || addedProductAppliesToArch(ap, arch);
+  };
+
   const handleMaxillaryToothClick = (toothNumber: number) => {
     if (!isGuidedArchInteractive("maxillary")) return;
     if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
@@ -2205,7 +2315,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
     teeth.handleMaxillaryToothClick(toothNumber);
     if (isAdding) {
       assignToothToActiveProduct("maxillary", toothNumber);
-      autoSelectSingleRetention("maxillary", toothNumber);
+      // Cross-arch click lands on this arch's card 0 — the active card's retention
+      // options belong to the other arch, so skip its auto-select.
+      if (activeCardAppliesToArch("maxillary")) {
+        autoSelectSingleRetention("maxillary", toothNumber);
+      }
     }
   };
 
@@ -2216,7 +2330,11 @@ export function useCaseDesignState(props: CaseDesignProps) {
     teeth.handleMandibularToothClick(toothNumber);
     if (isAdding) {
       assignToothToActiveProduct("mandibular", toothNumber);
-      autoSelectSingleRetention("mandibular", toothNumber);
+      // Cross-arch click lands on this arch's card 0 — the active card's retention
+      // options belong to the other arch, so skip its auto-select.
+      if (activeCardAppliesToArch("mandibular")) {
+        autoSelectSingleRetention("mandibular", toothNumber);
+      }
     }
   };
 
