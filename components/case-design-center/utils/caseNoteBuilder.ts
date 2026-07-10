@@ -522,6 +522,21 @@ function appendExtractionStatusLines(
   }
 }
 
+function resolveFixedShadeForNote(
+  product: ProductApiData | null,
+  shadeName: string,
+  shadeGuide?: string,
+): ShadeNoteInfo | null {
+  if (!shadeName) return null;
+  let systemName = shadeGuide?.trim() ?? "";
+  const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
+  if (!systemName && shades.length > 0) {
+    const match = shades.find((row) => row.name === shadeName) ?? null;
+    systemName = match?.brand?.system_name?.trim() ?? "";
+  }
+  return { name: shadeName, systemName };
+}
+
 export function buildFixedProductNote(ctx: ProductNoteContext): string {
   const {
     arch,
@@ -530,71 +545,49 @@ export function buildFixedProductNote(ctx: ProductNoteContext): string {
     repTooth,
     getFieldValue,
     getSelectedShade,
-    getImpressionDisplayText,
     selectedStages,
   } = ctx;
   const productName = product?.name || "restoration";
   const teethStr = formatTeethNumbers(teeth);
   const minTooth = teeth.length ? Math.min(...teeth) : repTooth;
-  const stageName = resolveFixedStageName(arch, minTooth, repTooth, getFieldValue, selectedStages);
 
+  const grade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "grade"));
+  const stageName = resolveFixedStageName(arch, minTooth, repTooth, getFieldValue, selectedStages);
   const productShadeId = resolveFixedShadeProductId(product?.id, minTooth);
 
-  const retentionTypes =
-    arch === "maxillary" ? ctx.maxillaryRetentionTypes ?? {} : ctx.mandibularRetentionTypes ?? {};
-
-  const retentionArr = retentionTypes[minTooth] || retentionTypes[teeth[0]] || [];
-  const primaryRetention: RetentionType = retentionArr[0] || "Prep";
-
-  const lines: string[] = [];
-  lines.push(
-    stageName
-      ? `Please fabricate a ${productName} for teeth ${teethStr} in the ${stageName} stage.`
-      : `Please fabricate a ${productName} for teeth ${teethStr}.`,
-  );
-
-  appendFixedShadeLines(lines, product, productShadeId, arch, getSelectedShade);
-
-  const perToothRetention = buildPerToothRetentionSummary(teeth, retentionTypes);
-  if (perToothRetention) lines.push(perToothRetention);
-  else if (primaryRetention) {
-    const label = primaryRetention === "Implant" ? "Screw-retained" : primaryRetention.toLowerCase();
-    lines.push(`Retention type: ${label}.`);
-  }
-
-  if (primaryRetention === "Implant") {
-    const panelDetails = [ctx.panelImplantBrand, ctx.panelImplantPlatform].filter(Boolean).join(", ");
-    if (panelDetails || ctx.panelImplantInclusion) {
-      lines.push(
-        `Implant (panel): ${panelDetails}${ctx.panelImplantInclusion ? `, with ${ctx.panelImplantInclusion}` : ""}.`,
-      );
+  const shadeFields = getShadeGuideAdvanceFields(product?.advance_fields);
+  let shadeClause = "";
+  if (shadeFields.length > 0) {
+    const primaryField = shadeFields[0];
+    const fieldType = getShadeFieldType(primaryField);
+    const shadeName = getSelectedShade(productShadeId, arch, fieldType, primaryField.id);
+    if (shadeName) {
+      const info = resolveFixedShadeForNote(product, shadeName, ctx.shadeGuide);
+      if (info) {
+        shadeClause = `, shade ${info.systemName ? `${info.systemName} ` : ""}${info.name}`.trimEnd();
+      }
     }
-    lines.push("For design, please open virtual slip.");
+  } else {
+    const toothShadeName = getSelectedShade(productShadeId, arch, "tooth_shade");
+    if (toothShadeName) {
+      const info = resolveFixedShadeForNote(product, toothShadeName, ctx.shadeGuide);
+      if (info) {
+        shadeClause = `, shade ${info.systemName ? `${info.systemName} ` : ""}${info.name}`.trimEnd();
+      }
+    }
   }
 
-  const implantDetailLine = buildImplantDetailSummary(ctx.implantDetailByTooth, teeth);
-  if (implantDetailLine) lines.push(implantDetailLine);
+  const gradeBit = grade ? `${grade} ` : "";
+  let line = `Please fabricate ${gradeBit}${productName}`;
+  if (teethStr) line += ` for ${teethStr}`;
+  if (stageName) line += ` for ${stageName}`;
+  line += shadeClause;
 
-  for (const step of FIXED_MULTI_FIELD_STEPS) {
-    appendFixedAdvanceFieldLines(lines, arch, repTooth, step, getFieldValue, product);
-  }
-  for (const { step, fallbackLabel } of FIXED_SIMPLE_FIELD_STEPS) {
-    appendLabeledLines(lines, fallbackLabel, getFieldValue(arch, repTooth, step));
-  }
-
-  const impressionKey = `fixed_${minTooth}`;
-  const impressionText = getImpressionDisplayText?.(impressionKey, arch, minTooth);
-  if (impressionText) lines.push(`Impression: ${impressionText}.`);
-  else appendDetailLine(lines, "Impression", getFieldValue(arch, repTooth, "fixed_impression"));
-
-  appendDetailLine(lines, "Add-ons", getFieldValue(arch, minTooth, "fixed_addons"));
-
-  return lines.join(" ");
+  return `${line}.`;
 }
 
 export function buildRemovableProductNote(ctx: ProductNoteContext): string {
-  const { arch, teeth, product, repTooth, getFieldValue, getImpressionDisplayText, selectedStages } = ctx;
-  const allCardTeeth = ctx.allCardTeeth ?? teeth;
+  const { arch, teeth, product, repTooth, getFieldValue, selectedStages } = ctx;
   const productName = product?.name || "removable";
   const grade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "grade"));
   const stageKey = `${arch}_prep_${repTooth}`;
@@ -608,37 +601,17 @@ export function buildRemovableProductNote(ctx: ProductNoteContext): string {
     getFieldValue(arch, repTooth, "teeth_shade"),
     ctx.shadeGuide,
   );
-  const gumShade = resolveGumShadeForNote(product, getFieldValue(arch, repTooth, "gum_shade"));
-  const addons = getFieldValue(arch, repTooth, "addons");
 
-  const extractionMap =
-    arch === "maxillary" ? ctx.maxillaryToothExtractionMap ?? {} : ctx.mandibularToothExtractionMap ?? {};
-
-  const parts: string[] = [];
   const gradeBit = grade ? `${grade} ` : "";
-  const stageBit = stageName ? ` ${stageName}` : "";
-  let fabricate = `Please fabricate, ${gradeBit}${productName}${stageBit}`;
-  if (teeth.length > 0) {
-    fabricate += ` for ${formatTeethNumbersWithAnd(teeth)}`;
-  }
-  parts.push(fabricate);
-
-  const shadeClause = buildRemovableShadeClause(teethShade, gumShade);
-  if (shadeClause) parts.push(shadeClause);
-
-  const impressionText = getImpressionDisplayText?.(`prep_${repTooth}`, arch, repTooth);
-  if (impressionText) parts.push(`Impression: ${impressionText}`);
-  else {
-    const impressionValue = formatFieldValueForNote(getFieldValue(arch, repTooth, "impression"));
-    if (impressionValue) parts.push(`Impression: ${impressionValue}`);
+  let line = `Please fabricate ${gradeBit}${productName}`;
+  if (teeth.length > 0) line += ` for ${formatTeethNumbers(teeth)}`;
+  if (stageName) line += ` for ${stageName}`;
+  if (teethShade) {
+    const shadeStr = `${teethShade.systemName ? `${teethShade.systemName} ` : ""}${teethShade.name}`.trim();
+    if (shadeStr) line += `, shade ${shadeStr}`;
   }
 
-  const addonsDisplay = formatFieldValueForNote(addons);
-  if (addonsDisplay) parts.push(`Add-ons: ${addonsDisplay}`);
-
-  parts.push(...buildExtractionClauses(allCardTeeth, extractionMap, product));
-
-  return `${parts.filter(Boolean).join(", ")}.`;
+  return `${line}.`;
 }
 
 export function buildOrthodonticProductNote(ctx: ProductNoteContext): string {
@@ -648,14 +621,9 @@ export function buildOrthodonticProductNote(ctx: ProductNoteContext): string {
   const stageName =
     selectedStages?.[stageKey] ?? parseFieldDisplayValue(getFieldValue(arch, repTooth, "stage")) ?? null;
 
-  const lines: string[] = [];
-  const stageSuffix = stageName ? ` in the ${stageName} stage` : "";
-  lines.push(`Please fabricate an orthodontic ${productName}${stageSuffix}.`);
-
-  appendDetailLine(lines, "Add-ons", getFieldValue(arch, repTooth, "addons"));
-  appendDetailLine(lines, "Impression", getFieldValue(arch, repTooth, "impression"));
-
-  return lines.join(" ");
+  let line = `Please fabricate ${productName}`;
+  if (stageName) line += ` for ${stageName}`;
+  return `${line}.`;
 }
 
 export function buildProductNoteFromContext(ctx: ProductNoteContext): string {

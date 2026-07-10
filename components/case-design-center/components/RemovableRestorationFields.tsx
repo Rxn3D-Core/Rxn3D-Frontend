@@ -492,6 +492,11 @@ interface RemovableRestorationFieldsProps {
   showProgressiveFields?: boolean;
   /** Implant details from the opposite arch for cross-arch mirroring. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
+  /** Opposite-arch implant completion state for more accurate source-tooth selection during mirror. */
+  peerImplantCompleteByTooth?: Record<number, boolean>;
+  /** Arch-level: only one implant detail accordion open at a time on this side. */
+  expandedImplantTooth?: number;
+  onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -523,6 +528,9 @@ export function SelectionProductFields({
   noOpposingNeeded = {},
   showProgressiveFields = true,
   peerImplantDetailByTooth,
+  peerImplantCompleteByTooth,
+  expandedImplantTooth,
+  onExpandedImplantToothChange,
 }: RemovableRestorationFieldsProps) {
   const removableChain = getSelectionFieldChain(selectedProduct);
   const implantTeeth = useMemo(
@@ -533,9 +541,8 @@ export function SelectionProductFields({
   useCrossArchImplantMirror({
     arch,
     implantTeeth,
-    retentionTypesMap,
-    retentionOptions: selectedProduct?.retention_options,
     peerImplantDetailByTooth,
+    peerImplantCompleteByTooth,
     implantDetailByTooth,
     setImplantDetailByTooth,
     implantDetailCompleteByTooth,
@@ -579,6 +586,8 @@ export function SelectionProductFields({
         advanceFields={selectedProduct?.advance_fields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        expandedImplantTooth={expandedImplantTooth}
+        onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
 
       {/* Step 1: Grade / Stage */}

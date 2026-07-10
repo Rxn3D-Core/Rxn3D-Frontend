@@ -87,6 +87,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const [mandibularImplantDetailPeer, setMandibularImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
   >({});
+  const [maxillaryImplantCompletePeer, setMaxillaryImplantCompletePeer] = useState<Record<number, boolean>>({});
+  const [mandibularImplantCompletePeer, setMandibularImplantCompletePeer] = useState<Record<number, boolean>>({});
   // Tracks when the user explicitly hides the mandibular panel while it's force-shown by the opposing condition.
   const [userHidMandibular, setUserHidMandibular] = useState(false);
   const [showSelectTeethToReplaceMaxillary, setShowSelectTeethToReplaceMaxillary] = useState(false);
@@ -231,8 +233,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
       ));
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
+  // Disabled for preloaded states (add-new-stage / edit-slip) where teeth and fields are
+  // already configured — both panels must be visible and interactive from the start.
   const guidedBothArchSlipCreation =
-    !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId;
+    !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId && !props.preloadInitialSlipState;
   const guidedBothArchPhase = state.guidedBothArchPhase;
   const guidedSelectionPhase =
     guidedBothArchPhase === "upper-selection" ||
@@ -1267,6 +1271,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     props.onReadinessChange?.(slipValidationComplete);
   }, [slipValidationComplete]);
 
+  // When maxillary shade/impression completes (maxillaryIncomplete: true → false) in any
+  // both-arch case, advance to the lower-fields phase or focus the mandibular accordion.
+  const prevMaxillaryIncompleteRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const prev = prevMaxillaryIncompleteRef.current;
+    prevMaxillaryIncompleteRef.current = maxillaryIncomplete;
+    if (prev !== true || maxillaryIncomplete) return;
+    if (props.initialArch !== "both" || !hasMandibularProducts) return;
+    if (state.guidedBothArches) {
+      // Guided create-slip flow: advance from "upper-fields" → "lower-fields" and focus mandibular.
+      state.triggerLowerFieldsPhase();
+    } else {
+      // Preloaded flow (add-new-stage): both panels already visible — just focus mandibular.
+      state.focusAccordion("mandibular", "removable0", 0);
+    }
+  }, [maxillaryIncomplete, props.initialArch, hasMandibularProducts, state.guidedBothArches, state.triggerLowerFieldsPhase, state.focusAccordion]);
+
   const maxillaryAtProductLimit = isArchAtProductLimit("maxillary", {
     initialArch: props.initialArch,
     selectedProductId: props.selectedProductId,
@@ -1548,10 +1569,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             maxillaryImplantDetailRef.current = detail;
             setMaxillaryImplantDetailPeer(detail);
           }}
+          onImplantDetailCompleteChange={(complete) => setMaxillaryImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             maxillarySplintLinksRef.current = linksByKey;
           }}
           peerImplantDetailByTooth={mandibularImplantDetailPeer}
+          peerImplantCompleteByTooth={mandibularImplantCompletePeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
           addStageStageHistory={props.addStageContext?.historyByArch?.maxillary}
@@ -1704,10 +1727,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             mandibularImplantDetailRef.current = detail;
             setMandibularImplantDetailPeer(detail);
           }}
+          onImplantDetailCompleteChange={(complete) => setMandibularImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             mandibularSplintLinksRef.current = linksByKey;
           }}
           peerImplantDetailByTooth={maxillaryImplantDetailPeer}
+          peerImplantCompleteByTooth={maxillaryImplantCompletePeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
           addStageStageHistory={props.addStageContext?.historyByArch?.mandibular}
