@@ -8,17 +8,15 @@ import {
   getImplantMirrorSourceTooth,
   isImplantDetailFilled,
 } from "../utils/implantDetailHelpers";
-import { hasImplantRetention } from "../utils/implantHelpers";
-
 /**
  * When the same fixed/removable product exists on both arches, copy completed implant
  * detail from the peer arch into empty implant teeth on this arch (tooth numbers may differ).
+ * Works in both directions (upper→lower and lower→upper): whichever arch fills first,
+ * the data clones to the other. User can override after the first-time clone.
  */
 export function useCrossArchImplantMirror({
   arch,
   implantTeeth,
-  retentionTypesMap,
-  retentionOptions,
   peerImplantDetailByTooth,
   peerImplantCompleteByTooth,
   implantDetailByTooth,
@@ -29,7 +27,9 @@ export function useCrossArchImplantMirror({
 }: {
   arch: Arch;
   implantTeeth: number[];
-  retentionTypesMap: Record<number, string[]>;
+  /** @deprecated No longer used — implantTeeth already pre-filtered to Implant teeth. Kept for call-site compatibility. */
+  retentionTypesMap?: Record<number, string[]>;
+  /** @deprecated No longer used — retentionOptions availability was an unreliable guard. Kept for call-site compatibility. */
   retentionOptions?: ProductApiData["retention_options"];
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
   peerImplantCompleteByTooth?: Record<number, boolean>;
@@ -43,8 +43,8 @@ export function useCrossArchImplantMirror({
 
   useEffect(() => {
     if (caseSubmitted) return;
+    // implantTeeth is already filtered to teeth with "Implant" retention type.
     if (implantTeeth.length === 0) return;
-    if (!hasImplantRetention(implantTeeth, retentionTypesMap, retentionOptions)) return;
     if (!peerImplantDetailByTooth || Object.keys(peerImplantDetailByTooth).length === 0) return;
 
     const peerImplantTeeth = Object.keys(peerImplantDetailByTooth)
@@ -90,8 +90,6 @@ export function useCrossArchImplantMirror({
     arch,
     caseSubmitted,
     implantTeeth,
-    retentionTypesMap,
-    retentionOptions,
     peerImplantDetailByTooth,
     peerImplantCompleteByTooth,
     implantDetailByTooth,

@@ -54,6 +54,9 @@ interface ImplantDetailSectionProps {
   /** From product details payload (`abutments`); no separate API call. */
   productAbutments?: ProductAbutment[];
   defaultCollapsed?: boolean;
+  /** When set with onExpandedChange, expansion is controlled by the parent (single-open accordion). */
+  isExpanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 function getActiveOptions(field: ProductAdvanceField): Array<{ id: number; name: string }> {
@@ -73,8 +76,20 @@ export function ImplantDetailSection({
   customerId,
   productAbutments = [],
   defaultCollapsed = true,
+  isExpanded: isExpandedProp,
+  onExpandedChange,
 }: ImplantDetailSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
+  const [internalExpanded, setInternalExpanded] = useState(!defaultCollapsed);
+  const isExpansionControlled = isExpandedProp !== undefined && onExpandedChange !== undefined;
+  const isExpanded = isExpansionControlled ? isExpandedProp : internalExpanded;
+  const setIsExpanded = (next: boolean | ((prev: boolean) => boolean)) => {
+    if (isExpansionControlled) {
+      const resolved = typeof next === "function" ? next(isExpandedProp!) : next;
+      onExpandedChange!(resolved);
+    } else {
+      setInternalExpanded(next);
+    }
+  };
   const [localData, setLocalData] = useState(defaultImplantDetailData());
   const isControlled = value !== undefined && onChange !== undefined;
   const data = isControlled ? value : localData;

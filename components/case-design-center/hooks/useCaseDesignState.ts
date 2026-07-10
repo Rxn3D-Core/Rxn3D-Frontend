@@ -583,6 +583,20 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, [guidedBothArches, upperCard0FieldsComplete, focusArchCard0]);
 
   /**
+   * Manually advance from "upper-fields" → "lower-fields" and focus the mandibular accordion.
+   * Called by CaseDesignCenter when maxillary shade completes (via maxillaryIncomplete watch),
+   * as an external trigger that complements the internal upperCard0FieldsComplete check.
+   */
+  const triggerLowerFieldsPhase = useCallback(() => {
+    if (!guidedBothArches) return;
+    if (crossArchFlowRef.current.upperFieldsDoneJumped) return;
+    if (!crossArchFlowRef.current.lowerDoneJumped) return;
+    crossArchFlowRef.current.upperFieldsDoneJumped = true;
+    setGuidedBothArchPhase("lower-fields");
+    focusArchCard0("mandibular");
+  }, [guidedBothArches, focusArchCard0]);
+
+  /**
    * True once card-0 on the mandibular arch has its required fields complete.
    * Mirrors `upperCard0FieldsComplete` for the lower side. Used to advance
    * from "lower-fields" → "both-active" so the upper arch becomes interactive again.
@@ -631,7 +645,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, [guidedBothArches, lowerCard0FieldsComplete]);
 
   // Single-default removable card 0, or default tooth chart: no tooth-chart Done step —
-  // auto-advance past upper/lower selection to field entry.
+  // auto-advance past upper/lower selection AND the sequential field-gating phases.
+  // For these products both arches should be immediately visible and interactive.
   useEffect(() => {
     if (!guidedBothArches) return;
     if (!initialProductDetails || initialProductDetailsPending) return;
@@ -644,6 +659,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
       advanceGuidedSelectionDone("maxillary");
     } else if (guidedBothArchPhase === "lower-selection") {
       advanceGuidedSelectionDone("mandibular");
+    } else if (guidedBothArchPhase === "upper-fields") {
+      // Both selection phases were auto-skipped — also skip the sequential field gating
+      // so both arches are immediately interactive and their fields are visible.
+      crossArchFlowRef.current.upperFieldsDoneJumped = true;
+      crossArchFlowRef.current.lowerFieldsDoneJumped = true;
+      setGuidedBothArchPhase("both-active");
     }
   }, [
     guidedBothArches,
@@ -2941,6 +2962,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     focusAccordion,
     handleArchExtractionsDone,
     handleArchRetentionDone,
+    triggerLowerFieldsPhase,
     guidedBothArches,
     guidedBothArchPhase,
     // Expansion

@@ -743,10 +743,14 @@ interface MandibularPanelProps {
   onCheckedTeethChange?: (teeth: number[]) => void;
   /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
+  /** Called whenever implant completion state changes (so the peer arch can use it for cross-arch mirroring). */
+  onImplantDetailCompleteChange?: (completeByTooth: Record<number, boolean>) => void;
   /** Called whenever splint link state changes (so CaseDesignCenter can include it in the slip snapshot). */
   onSplintLinksChange?: (splintLinksByKey: Record<string, number[]>) => void;
   /** Opposite-arch implant details for mirroring when the same product is on both sides. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
+  /** Opposite-arch implant completion state for cross-arch mirroring. */
+  peerImplantCompleteByTooth?: Record<number, boolean>;
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
@@ -888,8 +892,10 @@ export function MandibularPanel({
   onSelectAllOpposingTeeth,
   onCheckedTeethChange,
   onImplantDetailChange,
+  onImplantDetailCompleteChange,
   onSplintLinksChange,
   peerImplantDetailByTooth,
+  peerImplantCompleteByTooth,
   onBackToCategories,
   onShowSelectTeethToReplaceChange,
   confirmDetailsChecked = false,
@@ -1044,9 +1050,21 @@ export function MandibularPanel({
     onCheckedTeethChange?.(teeth);
   }, [onCheckedTeethChange]);
   /** Tracks implant detail completion per tooth so we can block impression modal until complete. */
-  const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
+  const [implantDetailCompleteByTooth, setImplantDetailCompleteByToothRaw] = useState<Record<number, boolean>>({});
+  const setImplantDetailCompleteByTooth = useCallback(
+    (updater: Record<number, boolean> | ((prev: Record<number, boolean>) => Record<number, boolean>)) => {
+      setImplantDetailCompleteByToothRaw((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        onImplantDetailCompleteChange?.(next);
+        return next;
+      });
+    },
+    [onImplantDetailCompleteChange]
+  );
   /** Persists implant detail form data per tooth so it survives accordion collapse/expand. */
   const [implantDetailByTooth, setImplantDetailByToothRaw] = useState<Record<number, ImplantDetailData>>({});
+  /** Only one implant detail accordion open at a time on this arch. */
+  const [expandedImplantTooth, setExpandedImplantTooth] = useState<number | undefined>(undefined);
   const setImplantDetailByTooth = useCallback((updater: Record<number, ImplantDetailData> | ((prev: Record<number, ImplantDetailData>) => Record<number, ImplantDetailData>)) => {
     setImplantDetailByToothRaw((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -1854,7 +1872,7 @@ export function MandibularPanel({
   })();
 
   return (
-    <div className="flex-1 min-w-0 px-0 order-3 lg:order-none relative">
+    <div className={`flex-1 min-w-0 px-0 order-3 lg:order-none relative ${disabled ? "invisible" : "visible"}`}>
       {/* Eye toggle + Teeth row */}
       <div className="relative">
         <button
@@ -3341,6 +3359,9 @@ export function MandibularPanel({
                             selectedImpressions={selectedImpressions}
                             setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                             peerImplantDetailByTooth={peerImplantDetailByTooth}
+                            peerImplantCompleteByTooth={peerImplantCompleteByTooth}
+                            expandedImplantTooth={expandedImplantTooth}
+                            onExpandedImplantToothChange={setExpandedImplantTooth}
                           />
                         </>
                       );
@@ -3775,6 +3796,9 @@ export function MandibularPanel({
                         selectedImpressions={selectedImpressions}
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
+                        peerImplantCompleteByTooth={peerImplantCompleteByTooth}
+                        expandedImplantTooth={expandedImplantTooth}
+                        onExpandedImplantToothChange={setExpandedImplantTooth}
                       />
                     ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
@@ -3811,6 +3835,9 @@ export function MandibularPanel({
                               )
                         }
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
+                        peerImplantCompleteByTooth={peerImplantCompleteByTooth}
+                        expandedImplantTooth={expandedImplantTooth}
+                        onExpandedImplantToothChange={setExpandedImplantTooth}
                       />
                     ) : null}
                     <ScrollToBottom />

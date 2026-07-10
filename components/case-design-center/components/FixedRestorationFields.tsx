@@ -382,6 +382,11 @@ interface FixedRestorationFieldsProps {
   migrateFixedShadeProductId?: (fromProductId: string, toProductId: string, arch: Arch) => void;
   /** Implant details from the opposite arch (same product) for cross-arch mirroring. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
+  /** Opposite-arch implant completion state for more accurate source-tooth selection during mirror. */
+  peerImplantCompleteByTooth?: Record<number, boolean>;
+  /** Arch-level: only one implant detail accordion open at a time on this side. */
+  expandedImplantTooth?: number;
+  onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
   /** Arch-wide impression qty grid (shared by all fixed/removable products on this jaw). */
   selectedImpressions?: SlipImpressionSelections;
 }
@@ -431,6 +436,9 @@ export function RetentionProductFields({
   setPanelGumShadePicker,
   migrateFixedShadeProductId,
   peerImplantDetailByTooth,
+  peerImplantCompleteByTooth,
+  expandedImplantTooth,
+  onExpandedImplantToothChange,
   selectedImpressions = { maxillary: [], mandibular: [] },
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
@@ -441,9 +449,8 @@ export function RetentionProductFields({
   useCrossArchImplantMirror({
     arch,
     implantTeeth,
-    retentionTypesMap,
-    retentionOptions: selectedProduct?.retention_options,
     peerImplantDetailByTooth,
+    peerImplantCompleteByTooth,
     implantDetailByTooth,
     setImplantDetailByTooth,
     implantDetailCompleteByTooth,
@@ -1242,6 +1249,8 @@ export function RetentionProductFields({
         advanceFields={selectedProduct?.advance_fields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        expandedImplantTooth={expandedImplantTooth}
+        onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
 
       {/* Step 4: Dynamic characterization advance fields */}
