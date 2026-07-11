@@ -49,7 +49,7 @@ export function useCrossArchImplantMirror({
 
     const peerImplantTeeth = Object.keys(peerImplantDetailByTooth)
       .map(Number)
-      .filter((tn) => (peerImplantCompleteByTooth?.[tn] || isImplantDetailFilled(peerImplantDetailByTooth[tn])));
+      .filter((tn) => peerImplantCompleteByTooth?.[tn] === true);
 
     if (peerImplantTeeth.length === 0) return;
 
