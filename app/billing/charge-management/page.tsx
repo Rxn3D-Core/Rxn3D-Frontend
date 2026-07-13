@@ -174,6 +174,11 @@ function isRefundLikeStatus(status: string | null | undefined): boolean {
   return normalized === "refund" || normalized === "refunded"
 }
 
+function isDeletedLikeStatus(status: string | null | undefined): boolean {
+  const normalized = (status ?? "").trim().toLowerCase()
+  return normalized === "deleted" || normalized === "delete" || normalized === "removed"
+}
+
 function parseMoneyValue(value: string | null | undefined): number {
   if (!value) return 0
   const n = Number.parseFloat(value.replace(/[^0-9.-]/g, ""))
@@ -695,7 +700,10 @@ export default function ChargeManagementPage() {
 
   const charges: ChargeRow[] = useMemo(() => {
     if (!displayResult?.data?.length) return []
-    const rows = displayResult.data.flatMap((inv) => billingInvoiceToRows(inv))
+    const rows = displayResult.data
+      .filter((inv) => !isDeletedLikeStatus(inv.status))
+      .flatMap((inv) => billingInvoiceToRows(inv))
+      .filter((row) => !isDeletedLikeStatus(row.status))
     if (isSearchingOrFilteringBilled) return rows
     return rows.filter((row) => row.status !== "Billed")
   }, [displayResult, isSearchingOrFilteringBilled])
@@ -1544,16 +1552,17 @@ export default function ChargeManagementPage() {
     updateStatementJobStatus,
   ])
 
-  const handlePreviewEmailInNewTab = useCallback(async () => {
+  const handlePreviewEmailInNewTab = useCallback(() => {
     if (!currentSendStatement) return
-    const previewWindow = window.open("", "_blank", "noopener,noreferrer")
+    const html = sendPreviewHtml || "<p>No preview available.</p>"
+    const blob = new Blob([html], { type: "text/html" })
+    const url = URL.createObjectURL(blob)
+    const previewWindow = window.open(url, "_blank", "noopener,noreferrer")
     try {
-      const html = sendPreviewHtml || "<p>No preview available.</p>"
       if (!previewWindow) throw new Error("Preview window was blocked")
-      previewWindow.document.open()
-      previewWindow.document.write(html)
-      previewWindow.document.close()
+      window.setTimeout(() => URL.revokeObjectURL(url), 180_000)
     } catch (error) {
+      URL.revokeObjectURL(url)
       previewWindow?.close()
       toast({
         title: "Unable to preview email",
