@@ -34,6 +34,7 @@ import {
   mapApiVariationsToForm,
   jawPhotosStateFromProduct,
   productHasAnyJawPhotoUrls,
+  mergeStageGradeDetailsIntoStages,
 } from "@/lib/library-product-api-mapping"
 import { normalizeSinglePreferredShadeRow } from "@/lib/product-shade-preferences"
 import { ExtractionsApi } from "@/lib/api-service"
@@ -471,7 +472,7 @@ export function AddProductModal({
     setValue,
     getValues,
     trigger,
-    formState: { isDirty, dirtyFields, isValid, isSubmitting, errors },
+    formState: { isDirty, isValid, isSubmitting, errors },
   } = useForm<ProductCreateForm>({
     resolver: zodResolver(ProductCreateFormSchema),
     defaultValues: initialFormValues,
@@ -962,7 +963,21 @@ export function AddProductModal({
       sequence: editingProduct.sequence || 1,
       description: editingProduct.description || "",
       grades: mappedGrades,
-      stages: mapWithStatus(editingProduct.stages || [], "stage_id"),
+      stages: (() => {
+        const stageSource =
+          Array.isArray(editingProduct.stage_details) && editingProduct.stage_details.length > 0
+            ? editingProduct.stage_details
+            : editingProduct.stages || []
+        const mapped = mapWithStatus(stageSource, "stage_id")
+        // API stores prices in flat stage_grade_details — fold into each stage so Update
+        // can resend the full stage×grade matrix, not only cells the user just edited.
+        return mergeStageGradeDetailsIntoStages(
+          mapped,
+          (editingProduct as { stage_grade_details?: Parameters<typeof mergeStageGradeDetailsIntoStages>[1] })
+            .stage_grade_details,
+          { overwriteExisting: true },
+        )
+      })(),
       impressions: mapWithStatus(editingProduct.impressions || [], "impression_id"),
       gum_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.gum_shades || [], "gum_shade_id") as any),
       teeth_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.teeth_shades || [], "teeth_shade_id") as any),
@@ -1487,31 +1502,22 @@ export function AddProductModal({
     }
 
     if (editingProduct && editingProduct.id) {
-      // Build partial payload with only changed fields for update
-      const payload: any = {}
-
-      // Always include identifying fields
-      payload.name = data.name
-      payload.code = data.code
-      payload.subcategory_id = data.subcategory_id
-      payload.status = data.status
-      payload.type = data.type
-
-      // Include only dirty fields
-      const dirty = dirtyFields as Record<string, any>
-      for (const key of Object.keys(dirty)) {
-        if (dirty[key] && key in data) {
-          payload[key] = (data as any)[key]
-        }
-      }
-
-      // When releasing stages changed, always include stages in the payload
-      if (hasReleasingStageChanges && !payload.stages && data.stages) {
-        payload.stages = data.stages
-      }
-
-      // Remove UI-only field
+      // Always send the full form on update (same shape as create) — not only dirty fields
+      const payload: any = { ...data }
       delete payload.category_id
+
+      // Ensure every stage keeps prior grade prices from the API, then overlay current form edits
+      payload.stages = mergeStageGradeDetailsIntoStages(
+        Array.isArray(payload.stages) ? payload.stages : [],
+        (editingProduct as { stage_grade_details?: Parameters<typeof mergeStageGradeDetailsIntoStages>[1] })
+          .stage_grade_details,
+        { overwriteExisting: false },
+      )
+      // Also pass raw details so buildProductPayload can fill any remaining gaps
+      payload.stage_grade_details =
+        (editingProduct as { stage_grade_details?: unknown }).stage_grade_details ?? []
+
+      console.log("🔄 Update Mode: Sending full form fields", payload)
 
       // Always include price — backend requires it when customer_id is present (lab_admin).
       // useProductMutations adds customer_id for lab_admin, so we must send price too.
@@ -1548,6 +1554,7 @@ export function AddProductModal({
 
       // show_jaw_photo
       payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+      payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
 
       // jaw_photos: only send new uploads or explicit removals
       const jawPhotoPayload: Record<string, string | null> = {}
@@ -1568,6 +1575,8 @@ export function AddProductModal({
         })
       if (hasJawPhotoChange) {
         payload.jaw_photos = jawPhotoPayload
+      } else {
+        delete payload.jaw_photos
       }
 
       // Always include has_* section flags
@@ -1595,8 +1604,7 @@ export function AddProductModal({
       payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
       // Preserve linked advance field IDs when section is off; backend uses has_advance_field only.
       payload.advance_fields = serializeAdvanceFieldsForApi(
-        ((payload.advance_fields !== undefined ? payload.advance_fields : data.advance_fields) ||
-          []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
+        (data.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
       )
       if (!sections.extractions) {
         payload.extractions = []
