@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { useQueries } from "@tanstack/react-query"
 import type { ToothStatusOption } from "@/components/tooth-status-popover"
 import { ProductMaxillaryTeethSVG } from "@/components/product-management/product-tooth-chart/product-maxillary-teeth-svg"
@@ -43,6 +43,7 @@ import {
   buildDefaultToothChartFromPreviewState,
   defaultToothChartSignature,
   parseDefaultToothChartToPreviewState,
+  resolveCatalogDefaultExtractionAssignment,
   resolveCatalogDefaultExtractionId,
   type ProductDefaultToothChartEntry,
 } from "@/lib/product-default-tooth-chart"
@@ -298,6 +299,45 @@ function ProductToothChartPreviewInner({
     [resolvedExtractions],
   )
 
+  const catalogDefaultExtractionAssignment = useMemo(
+    () => resolveCatalogDefaultExtractionAssignment(resolvedExtractions),
+    [resolvedExtractions],
+  )
+
+  /** Clear retention/overlays and put the Def extraction back on the tooth. */
+  const restoreCatalogDefaultExtractionOnTooth = useCallback(
+    (
+      setExtractionMap: Dispatch<SetStateAction<Record<number, string>>>,
+      setTimOverride: Dispatch<SetStateAction<number[]>>,
+      toothNumber: number,
+    ) => {
+      const assignment = catalogDefaultExtractionAssignment
+      if (assignment.kind === "code") {
+        setTimOverride((prev) => prev.filter((t) => t !== toothNumber))
+        setExtractionMap((prev) => ({ ...prev, [toothNumber]: assignment.code }))
+        return
+      }
+      if (assignment.kind === "tim") {
+        setExtractionMap((prev) => {
+          if (!(toothNumber in prev)) return prev
+          const { [toothNumber]: _, ...rest } = prev
+          return rest
+        })
+        setTimOverride((prev) =>
+          prev.includes(toothNumber) ? prev : [...prev, toothNumber],
+        )
+        return
+      }
+      setExtractionMap((prev) => {
+        if (!(toothNumber in prev)) return prev
+        const { [toothNumber]: _, ...rest } = prev
+        return rest
+      })
+      setTimOverride((prev) => prev.filter((t) => t !== toothNumber))
+    },
+    [catalogDefaultExtractionAssignment],
+  )
+
   const defaultChartSignature = useMemo(
     () => defaultToothChartSignature(defaultToothChart),
     [defaultToothChart],
@@ -440,19 +480,15 @@ function ProductToothChartPreviewInner({
     [maxillaryClaspTeeth, mandibularClaspTeeth],
   )
 
+  /**
+   * Always return the full linked retention catalog for each tooth.
+   * Narrowing to the selected option hid Pontic/Prep/etc. when reopening the
+   * popover on a tooth that already had Implant (or any other type) selected.
+   * Chart image resolution uses `retentionOptionIdByTooth` separately.
+   */
   const getRetentionOptionsForTooth = useCallback(
-    (arch: PreviewArch, toothNumber: number, options: RetentionOptionItem[]) => {
-      const optionId =
-        arch === "maxillary"
-          ? maxillaryRetention.optionIdByTooth[toothNumber]
-          : mandibularRetention.optionIdByTooth[toothNumber]
-      if (optionId) {
-        const match = options.find((opt) => Number(opt.id) === Number(optionId))
-        if (match) return [match]
-      }
-      return options
-    },
-    [maxillaryRetention.optionIdByTooth, mandibularRetention.optionIdByTooth],
+    (_arch: PreviewArch, _toothNumber: number, options: RetentionOptionItem[]) => options,
+    [],
   )
 
   const getChartStatusTeeth = useCallback(
@@ -558,15 +594,12 @@ function ProductToothChartPreviewInner({
 
       setSelectedTeeth((prev) => prev.filter((t) => t !== toothNumber))
       setRetention((prev) => clearRetentionOnTooth(prev, toothNumber))
-      setExtractionMap((prev) => {
-        const { [toothNumber]: _, ...rest } = prev
-        return rest
-      })
-      setTimOverride((prev) => prev.filter((t) => t !== toothNumber))
       setClaspTeeth((prev) => prev.filter((t) => t !== toothNumber))
+      // Product default chart: Remove always restores Def extraction (never leave blank).
+      restoreCatalogDefaultExtractionOnTooth(setExtractionMap, setTimOverride, toothNumber)
       closePopovers()
     },
-    [closePopovers],
+    [closePopovers, restoreCatalogDefaultExtractionOnTooth],
   )
 
   const handleExtractionToggle = useCallback(
@@ -602,19 +635,15 @@ function ProductToothChartPreviewInner({
 
       const displayedCode = displayMap[toothNumber]
 
-      setExtractionMap((prev) => {
-        if (displayedCode === extractionCode) {
-          setClaspTeeth((c) => c.filter((t) => t !== toothNumber))
-          if (prev[toothNumber] === extractionCode) {
-            const { [toothNumber]: _, ...rest } = prev
-            return rest
-          }
-          setTimOverride((tim) =>
-            tim.includes(toothNumber) ? tim : [...tim, toothNumber],
-          )
-          return prev
-        }
+      if (displayedCode === extractionCode) {
+        setClaspTeeth((c) => c.filter((t) => t !== toothNumber))
+        // Clearing an extraction returns the tooth to catalog Def (Missing, TIM, etc.).
+        restoreCatalogDefaultExtractionOnTooth(setExtractionMap, setTimOverride, toothNumber)
+        closePopovers()
+        return
+      }
 
+      setExtractionMap((prev) => {
         const maxTeeth = getMaxTeethForCode(extractionCode, resolvedExtractions)
         const currentCount = Object.values({ ...displayMap, ...prev }).filter(
           (code) => code === extractionCode,
@@ -631,7 +660,12 @@ function ProductToothChartPreviewInner({
 
       closePopovers()
     },
-    [closePopovers, getInteractiveExtractionMap, resolvedExtractions],
+    [
+      closePopovers,
+      getInteractiveExtractionMap,
+      resolvedExtractions,
+      restoreCatalogDefaultExtractionOnTooth,
+    ],
   )
 
   const handleCombinedSelectExtraction = useCallback(
@@ -658,24 +692,8 @@ function ProductToothChartPreviewInner({
     [handleExtractionToggle],
   )
 
-  const canSelectMaxillaryPontic = useCallback(
-    (toothNumber: number) =>
-      Object.entries(maxillaryRetention.typesByTooth).some(
-        ([tooth, types]) =>
-          Number(tooth) !== toothNumber && (types.includes("Prep") || types.includes("Implant")),
-      ),
-    [maxillaryRetention.typesByTooth],
-  )
-
-  const canSelectMandibularPontic = useCallback(
-    (toothNumber: number) =>
-      Object.entries(mandibularRetention.typesByTooth).some(
-        ([tooth, types]) =>
-          Number(tooth) !== toothNumber && (types.includes("Prep") || types.includes("Implant")),
-      ),
-    [mandibularRetention.typesByTooth],
-  )
-
+  // Pontic is always shown in product default-chart popovers (hardcoded in product SVG
+  // charts). Slip / case-design still gates Pontic behind Prep/Implant abutments.
   const sharedCatalogProps = {
     className: "w-full",
     disabled: !chartInteractive,
@@ -781,7 +799,6 @@ function ProductToothChartPreviewInner({
             onClosePopover={closePopovers}
             onDeselectTooth={(toothNumber) => handleToothDeselect("maxillary", toothNumber)}
             onToothClick={(toothNumber) => handleToothClick("maxillary", toothNumber)}
-            canSelectPontic={canSelectMaxillaryPontic}
             hideSelectionIndicators={useExtractionOnlyPopover || isSingleDefaultOnly}
           />
         </div>
@@ -850,7 +867,6 @@ function ProductToothChartPreviewInner({
             onClosePopover={closePopovers}
             onDeselectTooth={(toothNumber) => handleToothDeselect("mandibular", toothNumber)}
             onToothClick={(toothNumber) => handleToothClick("mandibular", toothNumber)}
-            canSelectPontic={canSelectMandibularPontic}
             hideSelectionIndicators={useExtractionOnlyPopover || isSingleDefaultOnly}
           />
         </div>

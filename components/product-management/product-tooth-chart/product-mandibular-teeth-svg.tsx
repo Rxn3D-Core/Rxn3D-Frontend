@@ -101,7 +101,10 @@ interface ProductMandibularTeethSVGProps {
   retentionOptions?: RetentionOptionItem[]
   /** Per-tooth retention options (e.g. from getToothProduct); preferred over retentionOptions for chart overlays. */
   getRetentionOptionsForTooth?: (toothNumber: number) => RetentionOptionItem[] | undefined
-  /** Whether Pontic may be offered for a tooth (false until the product has an abutment). */
+  /**
+   * Unused for product default chart — Pontic is always offered from the first click.
+   * Kept optional for API compatibility; slip/case-design uses mandibular-teeth-svg instead.
+   */
   canSelectPontic?: (toothNumber: number) => boolean
   /** Extraction statuses to show in the retention popover ("both" products). Omit for retention-only. */
   retentionPopoverExtractionOptions?: ExtractionStatusOption[]
@@ -187,7 +190,6 @@ export const ProductMandibularTeethSVG: React.FC<ProductMandibularTeethSVGProps>
   splintedLinks = [],
   onToggleSplintLink,
   wingTeeth = [],
-  canSelectPontic,
   retentionPopoverExtractionOptions,
   getRetentionPopoverExtractionOptionsForTooth,
   onSelectExtractionStatus,
@@ -834,7 +836,7 @@ export const ProductMandibularTeethSVG: React.FC<ProductMandibularTeethSVGProps>
             }
             selectedType={selectedType || undefined}
             selectedRetentionOptionId={selectedRetentionOptionId}
-            allowPontic={canSelectPontic ? canSelectPontic(retentionPopoverTooth) : true}
+            allowPontic={true}
             extractionOptions={
               getRetentionPopoverExtractionOptionsForTooth?.(retentionPopoverTooth) ??
               retentionPopoverExtractionOptions

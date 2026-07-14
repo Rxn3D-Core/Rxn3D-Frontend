@@ -310,6 +310,26 @@ export function resolveCatalogDefaultExtractionId(
   return tim ? Number(tim.extraction_id) : null
 }
 
+/**
+ * How to restore a tooth after Clear/Remove in the product default tooth chart:
+ * always fall back to the catalog Def extraction (or TIM), never leave blank.
+ */
+export type CatalogDefaultExtractionAssignment =
+  | { kind: "none" }
+  | { kind: "code"; code: string }
+  | { kind: "tim" }
+
+export function resolveCatalogDefaultExtractionAssignment(
+  resolvedExtractions: ResolvedProductExtraction[],
+): CatalogDefaultExtractionAssignment {
+  const defaultRow = resolvedExtractions.find(
+    (row) => String(row.is_default ?? "").trim().toLowerCase() === "yes",
+  )
+  if (!defaultRow?.code) return { kind: "none" }
+  if (isTimExtractionRow(defaultRow)) return { kind: "tim" }
+  return { kind: "code", code: defaultRow.code }
+}
+
 export function productHasDefaultToothChartEnabled(
   product: Record<string, unknown> | null | undefined,
 ): boolean {

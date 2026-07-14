@@ -615,13 +615,8 @@ export function ExtractionsSection({
   const compactOptionalHeader = compact ? "Opt" : "Optional"
 
   const extractionBody = (
-    <div className={cn(embedded ? (compact ? "p-2" : "p-3") : "mt-4", !isEnabled && "opacity-50 pointer-events-none select-none")}>
-      {!compact ? (
-        <div className="text-sm text-gray-600 mb-4">
-          <p>All available extraction statuses will be visible. User can toggle them on if they want it configured, off if not.</p>
-          <p>Once user choose between Default, required and optional, checkboxes will be disabled.</p>
-        </div>
-      ) : (
+    <div className={cn(embedded ? (compact ? "p-2.5" : "p-4") : "mt-4", !isEnabled && "opacity-50 pointer-events-none select-none")}>
+      {embedded ? (
         <div className="mb-3">
           <h4 className="text-sm font-medium text-gray-900">Extractions</h4>
           {!compact ? (
@@ -630,13 +625,18 @@ export function ExtractionsSection({
             </p>
           ) : null}
         </div>
+      ) : (
+        <div className="text-sm text-gray-600 mb-4">
+          <p>All available extraction statuses will be visible. User can toggle them on if they want it configured, off if not.</p>
+          <p>Once user choose between Default, required and optional, checkboxes will be disabled.</p>
+        </div>
       )}
 
       {isLoading ? (
         <div className="text-center py-4">Loading extractions...</div>
       ) : (
-        <div className="space-y-4">
-          <div className={cn("flex items-center gap-2 mb-4", compact && "mb-2")}>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
             <Checkbox
               id={embedded ? "apply-same-status-embedded" : "apply-same-status"}
               checked={watchedApplySameStatus}
@@ -650,36 +650,47 @@ export function ExtractionsSection({
             </Label>
           </div>
 
-          <div className={`${!watchedApplySameStatus ? "flex gap-4 items-start" : ""}`}>
+          <div
+            className={cn(
+              !watchedApplySameStatus &&
+                (compact
+                  ? "flex flex-col gap-3"
+                  : "grid grid-cols-1 xl:grid-cols-2 gap-4"),
+            )}
+          >
             <div
               className={cn(
-                "flex flex-col h-full min-w-0",
+                "flex flex-col min-w-0",
+                !watchedApplySameStatus &&
+                  "rounded-md border border-gray-200 bg-gray-50/40 p-3",
                 compact ? "overflow-x-hidden" : "overflow-x-auto",
-                !watchedApplySameStatus && "flex-1 border-r border-gray-300 pr-4",
               )}
             >
-              {!embedded ? (
-                <div className="mb-2">
-                  <h3 className="font-medium text-gray-900">Main Product Fields</h3>
-                  <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${activeExtractionsCount === 0 ? "opacity-80" : ""}`}
-                  >
-                    <strong>{activeExtractionsCount} selected</strong>
-                  </span>
-                </div>
-              ) : null}
-              <table className={cn("border-collapse w-full", compact ? "table-fixed text-[11px]" : "table-auto", !compact && "text-xs")}>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <h3 className={cn("font-medium text-gray-900", compact ? "text-xs" : "text-sm")}>
+                  Main
+                </h3>
+                <span
+                  className={cn(
+                    "text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8]",
+                    activeExtractionsCount === 0 && "opacity-80",
+                  )}
+                >
+                  <strong>{activeExtractionsCount} selected</strong>
+                </span>
+              </div>
+              <table className={cn("border-collapse w-full", compact ? "table-fixed text-[11px]" : "table-auto text-xs")}>
                 {compact ? (
                   <colgroup>
-                    <col className="w-[38%]" />
+                    <col className="w-[36%]" />
                     <col className="w-[12%]" />
                     <col className="w-[12%]" />
                     <col className="w-[12%]" />
-                    <col className="w-[26%]" />
+                    <col className="w-[28%]" />
                   </colgroup>
                 ) : null}
                 <thead>
-                  <tr className="border-b">
+                  <tr className="border-b border-gray-200">
                     <th className={cn("text-left font-medium text-gray-700", !compact && "whitespace-nowrap", headerPad)}>
                       {compactStatusHeader}
                     </th>
@@ -688,8 +699,8 @@ export function ExtractionsSection({
                     <th className={cn("text-center font-medium text-gray-700", headerPad)}>{compactOptionalHeader}</th>
                     {!compact ? (
                       <>
-                        <th className={cn("text-center font-medium text-gray-700 w-32", headerPad)}>Min Teeth</th>
-                        <th className={cn("text-center font-medium text-gray-700 w-32", headerPad)}>Max Teeth</th>
+                        <th className={cn("text-center font-medium text-gray-700 w-28", headerPad)}>Min Teeth</th>
+                        <th className={cn("text-center font-medium text-gray-700 w-28", headerPad)}>Max Teeth</th>
                       </>
                     ) : null}
                     <th className={cn("text-center font-medium text-gray-700", headerPad)}>Active</th>
@@ -697,9 +708,9 @@ export function ExtractionsSection({
                 </thead>
                 <tbody>
                   {extractionStatuses.map((status) => (
-                    <tr key={status.extraction_id} className="border-b">
+                    <tr key={status.extraction_id} className="border-b border-gray-100 last:border-b-0">
                       <td className={cellPad}>
-                        <div className="flex items-center gap-1 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           <div
                             className={cn("rounded flex-shrink-0", compact ? "w-3 h-3" : "w-4 h-4")}
                             style={{ backgroundColor: status.color }}
@@ -741,7 +752,7 @@ export function ExtractionsSection({
                       </td>
                       {!compact ? (
                         <>
-                          <td className={cn("text-center w-32", cellPad)}>
+                          <td className={cn("text-center w-28", cellPad)}>
                             <div className="flex justify-center">
                               <Input
                                 type="number"
@@ -755,7 +766,7 @@ export function ExtractionsSection({
                               />
                             </div>
                           </td>
-                          <td className={cn("text-center w-32", cellPad)}>
+                          <td className={cn("text-center w-28", cellPad)}>
                             <div className="flex justify-center">
                               <Input
                                 type="number"
@@ -790,38 +801,65 @@ export function ExtractionsSection({
             </div>
 
             {!watchedApplySameStatus && (
-              <div className="overflow-x-auto flex flex-col h-full pl-4">
-                <div className="mb-2">
-                  <h3 className="font-medium text-gray-900">Opposing</h3>
+              <div
+                className={cn(
+                  "flex flex-col min-w-0 rounded-md border border-gray-200 bg-gray-50/40 p-3",
+                  compact ? "overflow-x-hidden" : "overflow-x-auto",
+                )}
+              >
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 className={cn("font-medium text-gray-900", compact ? "text-xs" : "text-sm")}>
+                    Opposing
+                  </h3>
                   <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8] ${activeOpposingExtractionsCount === 0 ? "opacity-80" : ""}`}
+                    className={cn(
+                      "text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-[#1162a8]",
+                      activeOpposingExtractionsCount === 0 && "opacity-80",
+                    )}
                   >
                     <strong>{activeOpposingExtractionsCount} selected</strong>
                   </span>
                 </div>
-                <table className={cn("border-collapse table-auto", compact && "text-xs")}>
+                <table className={cn("border-collapse w-full", compact ? "table-fixed text-[11px]" : "table-auto text-xs")}>
+                  {compact ? (
+                    <colgroup>
+                      <col className="w-[52%]" />
+                      <col className="w-[24%]" />
+                      <col className="w-[24%]" />
+                    </colgroup>
+                  ) : null}
                   <thead>
-                    <tr className="border-b">
-                      <th className={cn("text-left font-medium text-gray-700 whitespace-nowrap", headerPad)}>
-                        Extraction Status
+                    <tr className="border-b border-gray-200">
+                      <th className={cn("text-left font-medium text-gray-700", headerPad)}>
+                        {compactStatusHeader}
                       </th>
-                      <th className={cn("text-center font-medium text-gray-700 w-20", headerPad)}>Default</th>
-                      <th className={cn("text-center font-medium text-gray-700 w-20", headerPad)}>Active</th>
+                      <th className={cn("text-center font-medium text-gray-700", headerPad)}>
+                        {compactDefaultHeader}
+                      </th>
+                      <th className={cn("text-center font-medium text-gray-700", headerPad)}>Active</th>
                     </tr>
                   </thead>
                   <tbody>
                     {opposingExtractionStatuses.map((status) => (
-                      <tr key={status.extraction_id} className="border-b">
+                      <tr key={status.extraction_id} className="border-b border-gray-100 last:border-b-0">
                         <td className={cellPad}>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             <div
-                              className="w-4 h-4 rounded flex-shrink-0"
+                              className={cn("rounded flex-shrink-0", compact ? "w-3 h-3" : "w-4 h-4")}
                               style={{ backgroundColor: status.color }}
                             />
-                            <span className="font-medium whitespace-nowrap">{status.name}</span>
+                            <span
+                              className={cn(
+                                "font-medium min-w-0",
+                                compact ? "truncate text-[11px] leading-tight" : "whitespace-nowrap",
+                              )}
+                              title={status.name}
+                            >
+                              {status.name}
+                            </span>
                           </div>
                         </td>
-                        <td className={cn("text-center w-20", cellPad)}>
+                        <td className={cn("text-center", cellPad)}>
                           <Checkbox
                             checked={status.is_default}
                             onCheckedChange={(checked) =>
@@ -830,14 +868,16 @@ export function ExtractionsSection({
                             disabled={!status.is_active}
                           />
                         </td>
-                        <td className={cn("text-center w-20", cellPad)}>
-                          <Switch
-                            checked={status.is_active}
-                            onCheckedChange={(checked) =>
-                              handleOpposingStatusChange(status.extraction_id, "is_active", checked)
-                            }
-                            className="data-[state=checked]:bg-blue-600"
-                          />
+                        <td className={cn("text-center", cellPad)}>
+                          <div className={cn("flex justify-center", compact && "scale-90 origin-center")}>
+                            <Switch
+                              checked={status.is_active}
+                              onCheckedChange={(checked) =>
+                                handleOpposingStatusChange(status.extraction_id, "is_active", checked)
+                              }
+                              className="data-[state=checked]:bg-blue-600"
+                            />
+                          </div>
                         </td>
                       </tr>
                     ))}
