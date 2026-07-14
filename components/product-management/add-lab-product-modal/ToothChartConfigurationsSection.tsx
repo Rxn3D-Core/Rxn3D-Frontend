@@ -159,17 +159,28 @@ export function ToothChartConfigurationsSection({
   ).length
 
   const contentGridClass = useMemo(() => {
+    if (defaultToothChartEnabled) {
+      if (retentionEnabled && extractionsEnabled) {
+        return "xl:grid-cols-[minmax(168px,192px)_minmax(260px,0.72fr)_minmax(360px,1.45fr)]"
+      }
+      if (retentionEnabled) {
+        return "xl:grid-cols-[minmax(168px,192px)_minmax(360px,1fr)]"
+      }
+      if (extractionsEnabled) {
+        return "xl:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1.15fr)]"
+      }
+      return "xl:grid-cols-1"
+    }
+
+    // Chart off: hide preview column and let retention / extractions use the full row.
     if (retentionEnabled && extractionsEnabled) {
-      return "xl:grid-cols-[minmax(168px,192px)_minmax(260px,0.72fr)_minmax(340px,1.45fr)]"
-    }
-    if (retentionEnabled) {
-      return "xl:grid-cols-[minmax(168px,192px)_minmax(360px,1fr)]"
-    }
-    if (extractionsEnabled) {
-      return "xl:grid-cols-[minmax(260px,0.72fr)_minmax(340px,1.45fr)]"
+      return "xl:grid-cols-[minmax(200px,260px)_minmax(0,1fr)]"
     }
     return "xl:grid-cols-1"
-  }, [retentionEnabled, extractionsEnabled])
+  }, [retentionEnabled, extractionsEnabled, defaultToothChartEnabled])
+
+  /** Cramped middle column only when the chart preview is also on. */
+  const extractionsCompact = defaultToothChartEnabled
 
   return (
     <div className="space-y-4">
@@ -312,9 +323,20 @@ export function ToothChartConfigurationsSection({
         ) : null}
       </div>
 
-      <div className={cn("grid grid-cols-1 gap-4 items-start min-h-[360px]", contentGridClass)}>
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-4 items-start",
+          defaultToothChartEnabled ? "min-h-[360px]" : "min-h-0",
+          contentGridClass,
+        )}
+      >
         {retentionEnabled ? (
-          <div className="min-h-[320px] max-w-[192px] w-full xl:max-w-none">
+          <div
+            className={cn(
+              "min-h-[280px] w-full",
+              defaultToothChartEnabled ? "max-w-[192px] xl:max-w-none" : "max-w-none",
+            )}
+          >
             <RetentionSection
               control={control}
               watch={watch}
@@ -334,13 +356,13 @@ export function ToothChartConfigurationsSection({
               embedded
               layout="stacked"
               hideToggle
-              compact
+              compact={defaultToothChartEnabled}
             />
           </div>
         ) : null}
 
         {extractionsEnabled ? (
-          <div className="min-h-[320px] rounded-lg border border-gray-200 bg-white overflow-hidden min-w-0">
+          <div className="min-h-[280px] rounded-lg border border-gray-200 bg-white overflow-hidden min-w-0">
             <ExtractionsSection
               key={editingProductKey != null ? `ext-${editingProductKey}` : "ext-new"}
               control={control}
@@ -357,7 +379,7 @@ export function ToothChartConfigurationsSection({
               apiOppositeExtractionCount={apiOppositeExtractionCount}
               editingProductKey={editingProductKey}
               embedded
-              compact
+              compact={extractionsCompact}
               hideToggle
             />
           </div>
@@ -385,14 +407,9 @@ export function ToothChartConfigurationsSection({
             defaultToothChartEnabled
             defaultToothChart={defaultToothChart}
             onDefaultToothChartChange={handleDefaultToothChartChange}
+            fillAvailable
           />
-        ) : (
-          <div className="rounded-lg border border-dashed border-gray-200 bg-muted/5 p-6 flex items-center justify-center min-h-[320px]">
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Turn on <strong>Default tooth chart</strong> to configure retention or extraction for all 32 teeth and preview how slips will start.
-            </p>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
