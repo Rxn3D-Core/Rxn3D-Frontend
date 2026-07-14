@@ -145,6 +145,19 @@ export function EditBillingInvoiceDialog({
     return { patient, office, invNo, total }
   }, [invoice])
 
+  const modalTitle = useMemo(() => {
+    if (!invoice) return "EDIT"
+
+    const patient = invoice.slip?.case?.patient_name?.trim()
+    const firstProduct = invoice.products?.[0]
+    const product = firstProduct?.product_name?.trim()
+    const stage = firstProduct?.stage_name?.trim()
+    const productStage = [product, stage].filter(Boolean).join(" ")
+    const details = [patient, productStage].filter(Boolean).join(", ")
+
+    return details ? `EDIT - ${details}` : "EDIT"
+  }, [invoice])
+
   const buildPricingBody = (): UpdateBillingInvoicePricingBody | null => {
     if (!productEdits.length) return null
     const products: UpdateBillingInvoicePricingProductLine[] = []
@@ -247,6 +260,12 @@ export function EditBillingInvoiceDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[min(92vw,54rem)] overflow-x-hidden overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="pr-8 text-left text-xl font-semibold leading-tight">
+            {modalTitle}
+          </DialogTitle>
+        </DialogHeader>
+
         {billingInvoiceId != null && billingInvoiceId > 0 && (
           <div className="min-w-0">
             {loading && (

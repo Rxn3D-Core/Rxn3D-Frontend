@@ -98,7 +98,27 @@ function getSortValue(row: V2CaseRowData, key: ColumnKey): string | number {
   }
 }
 
-function sortRows(rows: V2CaseRowData[], key: ColumnKey | null, direction: SortDirection): V2CaseRowData[] {
+const LOCATION_SEQUENCE_ORDER: Record<number, number> = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5 }
+
+function locationSequenceValue(row: V2CaseRowData): number {
+  const id = row.locationId
+  return id != null && id in LOCATION_SEQUENCE_ORDER ? LOCATION_SEQUENCE_ORDER[id] : Number.POSITIVE_INFINITY
+}
+
+function sortRows(rows: V2CaseRowData[], key: ColumnKey | null, direction: SortDirection, groupByLocationSequence: boolean): V2CaseRowData[] {
+  if (groupByLocationSequence) {
+    const sorted = [...rows].sort((a, b) => {
+      const locDiff = locationSequenceValue(a) - locationSequenceValue(b)
+      if (locDiff !== 0) return locDiff
+      if (!key) return 0
+      const aValue = getSortValue(a, key)
+      const bValue = getSortValue(b, key)
+      if (aValue < bValue) return direction === "asc" ? -1 : 1
+      if (aValue > bValue) return direction === "asc" ? 1 : -1
+      return 0
+    })
+    return sorted
+  }
   if (!key) return rows
   const sorted = [...rows].sort((a, b) => {
     const aValue = getSortValue(a, key)
@@ -124,10 +144,10 @@ export default function LabSlipV3Page() {
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
 
   const [search, setSearch] = useState("")
-  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => initialLocation === "All" ? [] : [initialLocation])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => initialLocation === "All" ? ["3"] : [initialLocation])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["In Progress"])
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
+  const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
   const [menuRow, setMenuRow] = useState<number | null>(null)
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
@@ -286,7 +306,7 @@ export default function LabSlipV3Page() {
       }
       return true
     })
-    return sortRows(filtered, sortKey, sortDirection)
+    return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
   }, [selectedLocations, selectedStatuses, slips, doctorFilter, userFilter, stageFilter, sortKey, sortDirection])
 
   const handleSortChange = useCallback((key: ColumnKey) => {
@@ -549,6 +569,39 @@ export default function LabSlipV3Page() {
     } catch { alert("Failed to generate driver labels.") }
   }
 
+  const handleBulkPrintPaperSlip = () => {
+    if (!selected.length) return
+    const selectedRows = slips.filter((slip) => selected.includes(slip.id))
+    const slipIds = selectedRows
+      .map((r) => (typeof r.caseId === "number" && !isNaN(r.caseId) ? r.caseId : (typeof r.id === "number" && !isNaN(r.id) ? r.id : null)))
+      .filter((id): id is number => typeof id === "number" && !isNaN(id))
+    if (!slipIds.length) {
+      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
+      return
+    }
+    printPaperSlip(slipIds, [])
+  }
+
+  const handleBulkDriverPrint = async () => {
+    if (!selected.length) {
+      toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
+      return
+    }
+    try {
+      const data = await fetchDriverPrintData(selected)
+      if (!data?.slips?.length) {
+        toast({ title: "Failed to fetch driver print data.", variant: "destructive" })
+        return
+      }
+      const allSlots = Array.from({ length: 8 }, (_, i) => i)
+      data.slips.forEach((driverSlip, index) => {
+        setTimeout(() => openDriverLabelsWindow(driverSlip, allSlots), index * 500)
+      })
+    } catch {
+      toast({ title: "Failed to bulk print driver labels.", variant: "destructive" })
+    }
+  }
+
   const openDriverLabelsWindow = (driverSlip: any, selectedSlots: number[]) => {
     const iframe = document.createElement("iframe")
     iframe.style.cssText = "position:absolute;left:-9999px;width:0;height:0;border:none"
@@ -797,6 +850,13 @@ export default function LabSlipV3Page() {
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
+          onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
+          onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
+          onBulkPrintStatement={() => {
+            const row = slips.find((s) => s.id === selected[0])
+            if (selected.length === 1 && row) handlePrintStatement(row)
+          }}
+          onBulkArchive={() => setArchiveConfirm(-1)}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}
@@ -805,6 +865,7 @@ export default function LabSlipV3Page() {
           totalPages={maxPage}
           totalCount={totalListingCount}
           itemsPerPage={itemsPerPage}
+          onItemsPerPageChange={(value) => { setItemsPerPage(value); setCurrentPage(1) }}
           onPageChange={setCurrentPage}
           sortKey={sortKey}
           sortDirection={sortDirection}

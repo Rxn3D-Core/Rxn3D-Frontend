@@ -1,167 +1,296 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { createPortal } from "react-dom"
-import { Input } from "@/components/ui/input"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
-import { Filter, Columns, MoreVertical, ChevronDown, Trash2, Eye, Copy, Phone, Printer, Download, X } from "lucide-react"
+import { X } from "lucide-react"
 import { format } from "date-fns"
-import { useOfficeSlipContext } from "@/contexts/office-slip-context"
+import { useOfficeSlipContext, type UISlip } from "@/contexts/office-slip-context"
+import { SlipProvider, useSlipContext } from "@/app/lab-case-management/SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
+import ChangeDateModal from "@/components/change-date-modal"
+import DriverHistoryModal from "@/components/driver-history-modal"
+import ReadyToSendModal from "@/components/ready-to-send-modal"
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import CallLogModal from "@/components/call-log-modal"
-import PrintPreviewModal from "@/components/print-preview-modal"
-import { useSearchParams, useRouter } from "next/navigation"
+import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
+import CaseActionModal from "@/components/CaseActionModal"
+import RushRequestModal from "@/components/rush-request-modal"
+import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
 import { useToast } from "@/components/ui/use-toast"
+import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
-import { SLIP_LISTING_DEFAULT_PER_PAGE } from "@/app/lab-case-management/lab-slip-listing-constants"
-import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
-import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
-import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
 import {
-  SLIP_LISTING_ICON_HOVER_CLASS,
-  SLIP_LISTING_ICON_SIZE_CLASS,
-  slipListingIconButtonClass,
-} from "@/components/slip-listing/slip-listing-icon-hover"
-import { cn } from "@/lib/utils"
-import { SlipListingDueDateLabel } from "@/components/slip-listing/SlipListingDueDateLabel"
-import { SlipListingVirtualSlipLink } from "@/components/slip-listing/SlipListingVirtualSlipLink"
-import {
-  SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON,
-  SlipListingViewSlipLink,
-} from "@/components/slip-listing/SlipListingViewSlipLink"
-import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
-import { formatSlipListingPatientName } from "@/lib/slip-listing-patient-name"
-import { slipListingRowClassName } from "@/lib/slip-listing-row-class"
+  SLIP_LISTING_DEFAULT_PER_PAGE,
+  SLIP_LOCATION_FILTER_OPTIONS,
+} from "@/app/lab-case-management/lab-slip-listing-constants"
 import {
   SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
   SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
-  SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
-import Link from "next/link"
-import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { slipCanSendBackToOffice, slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
+import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
+import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { useDebounce } from "@/lib/performance-utils"
+import { V3CaseWidget } from "@/app/lab-case-management/components/V3CaseWidget"
+import type { SortDirection } from "@/app/lab-case-management/components/V3CaseTable"
+import type { ColumnKey } from "@/app/lab-case-management/components/V3FilterBar"
+import type { V2CaseRowData } from "@/app/lab-case-management/v2/case-table-types"
 
-function buildApiUrl(pathOrUrl: string): string {
-  if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
-    return pathOrUrl
+/** Adapts office's UISlip (from useOfficeSlipContext) to the shared V3 table's row shape. */
+function toCaseRowData(slip: UISlip): V2CaseRowData {
+  return {
+    id: slip.id,
+    createdAt: slip.createdAt,
+    caseId: slip.caseId,
+    caseNumber: slip.caseNumber,
+    billingId: slip.billingId,
+    slipNumber: slip.slipNumber,
+    pan: slip.pan,
+    panColorStyle: slip.panColorStyle,
+    officeCode: slip.officeCode,
+    patient: slip.patient,
+    product: slip.product,
+    status: slip.status,
+    rush: slip.rush,
+    location: slip.location,
+    locationId: slip.locationId,
+    attachment: slip.attachment,
+    dueDate: slip.dueDate,
+    doctor: slip.doctorName,
   }
-
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
-  if (!base && typeof window !== "undefined") {
-    return new URL(pathOrUrl, window.location.origin).toString()
-  }
-  return new URL(pathOrUrl, base.endsWith("/") ? base : `${base}/`).toString()
 }
 
-/** Virtual-slip icon asset folders — same glyphs used on the virtual slip page. */
-const VS_CENTER_ICONS = "/icons/virtual-slip-center"
+function getSortValue(row: V2CaseRowData, key: ColumnKey): string | number {
+  switch (key) {
+    case "patient":
+      return (row.patient || "").toLowerCase()
+    case "slip":
+      return (row.slipNumber || "").toLowerCase()
+    case "panProduct":
+      return (row.product || row.pan || "").toLowerCase()
+    case "location":
+      return (row.location || "").toLowerCase()
+    case "status":
+      return (row.status || "").toLowerCase()
+    case "office":
+      return (row.officeCode || "").toLowerCase()
+    case "caseNo":
+      return (row.caseNumber || "").toLowerCase()
+    case "timestamp":
+      return new Date(row.createdAt).getTime() || 0
+    case "dueDate": {
+      if (!row.dueDate) return Number.POSITIVE_INFINITY
+      const time = new Date(row.dueDate).getTime()
+      return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+    }
+    default:
+      return ""
+  }
+}
 
-export default function SlipPage() {
-  const { slips, loading, error, pagination, fetchOfficeSlips } = useOfficeSlipContext()
+const LOCATION_SEQUENCE_ORDER: Record<number, number> = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5 }
+
+function locationSequenceValue(row: V2CaseRowData): number {
+  const id = row.locationId
+  return id != null && id in LOCATION_SEQUENCE_ORDER ? LOCATION_SEQUENCE_ORDER[id] : Number.POSITIVE_INFINITY
+}
+
+function sortRows(rows: V2CaseRowData[], key: ColumnKey | null, direction: SortDirection, groupByLocationSequence: boolean): V2CaseRowData[] {
+  if (groupByLocationSequence) {
+    const withinGroupSorted = key ? sortRows(rows, key, direction, false) : rows
+    return [...withinGroupSorted].sort((a, b) => locationSequenceValue(a) - locationSequenceValue(b))
+  }
+  if (!key) return rows
+  const sorted = [...rows].sort((a, b) => {
+    const aValue = getSortValue(a, key)
+    const bValue = getSortValue(b, key)
+    if (aValue < bValue) return -1
+    if (aValue > bValue) return 1
+    return 0
+  })
+  return direction === "asc" ? sorted : sorted.reverse()
+}
+
+function normalizeStatusFilterValue(status: string): string {
+  const value = status.trim().toLowerCase()
+  if (value === "on hold" || value === "on-hold") return "on hold"
+  if (value === "cancelled" || value === "canceled") return "cancelled"
+  return value
+}
+
+function canPrintStatement(row: { billingId?: number | null }): boolean {
+  return typeof row.billingId === "number" && Number.isFinite(row.billingId)
+}
+
+function canSendBackToOffice(row: { locationId?: number; location: string }): boolean {
+  return slipCanSendBackToOffice(row)
+}
+
+function OfficeCaseManagementPage() {
   const { toast } = useToast()
-  const searchParams = useSearchParams()
   const router = useRouter()
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint()
 
   const [search, setSearch] = useState("")
-  const [status, setStatus] = useState("All")
-  const [location, setLocation] = useState(() => searchParams.get("location") || "All")
-  const [showWithAttachments, setShowWithAttachments] = useState(false)
-  const [showLabConnect, setShowLabConnect] = useState(false)
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
-  const [showColumnsDialog, setShowColumnsDialog] = useState(false)
-  const [visibleColumns, setVisibleColumns] = useState({
-    timestamp: true,
-    patient: true,
-    product: true,
-    status: true,
-    location: true,
-    attachment: true,
-    viewSlip: true,
-    due: true,
-    actions: true,
-  })
   const [selected, setSelected] = useState<number[]>([])
   const [menuRow, setMenuRow] = useState<number | null>(null)
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
+  const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
-  const [dateRange, setDateRange] = useState<{ start?: Date, end?: Date }>({})
-  const [patientSearch, setPatientSearch] = useState("")
+  const [dateRange, setDateRange] = useState<{ start?: Date; end?: Date }>({})
+  const [officeFilter, setOfficeFilter] = useState("All")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
   const [stageFilter, setStageFilter] = useState("All")
-  const [userFilter, setUserFilter] = useState("All")
+  const [officeLabFilter, setOfficeLabFilter] = useState("All")
+  const [showWithAttachments, setShowWithAttachments] = useState(false)
+  const [sortKey, setSortKey] = useState<ColumnKey | null>("dueDate")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
+
   const [showAttachModal, setShowAttachModal] = useState(false)
-  const [selectedSlipForAttachment, setSelectedSlipForAttachment] = useState<any>(null)
-  const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
+  const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
+    caseId: number; caseNumber: string; patient: string; doctor: string
+  } | null>(null)
+  const [showChangeDateModal, setShowChangeDateModal] = useState(false)
+  const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<V2CaseRowData | null>(null)
+  const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
+  const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<V2CaseRowData | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
-  const [selectedSlipForAddOns, setSelectedSlipForAddOns] = useState<any>(null)
-  // Per-product add-on catalog inputs (same as the virtual slip add-ons popup).
+  const [selectedSlipForAddOns, setSelectedSlipForAddOns] = useState<V2CaseRowData | null>(null)
   const [addonInputs, setAddonInputs] = useState<VirtualSlipAddonInputs | null>(null)
   const [showCallLogModal, setShowCallLogModal] = useState(false)
-  const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<any>(null)
-  const [showPrintPreview, setShowPrintPreview] = useState(false)
-  const [selectedSlipForPrint, setSelectedSlipForPrint] = useState<any>(null)
-  const [selectedSlipForStatement, setSelectedSlipForStatement] = useState<any>(null)
+  const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<V2CaseRowData | null>(null)
+  const [showPrintDriverTags, setShowPrintDriverTags] = useState(false)
+  const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<V2CaseRowData | null>(null)
+  const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
+  const [readyToSendSlip, setReadyToSendSlip] = useState<V2CaseRowData | null>(null)
+  const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
+  const [showRushModal, setShowRushModal] = useState(false)
+  const [selectedSlipForRush, setSelectedSlipForRush] = useState<V2CaseRowData | null>(null)
+  const [showSendBackToOfficeModal, setShowSendBackToOfficeModal] = useState(false)
+  const [selectedSlipForSendBackToOffice, setSelectedSlipForSendBackToOffice] = useState<V2CaseRowData | null>(null)
+  const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] = useState(false)
+  const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
+  const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
+  const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
+  const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
+  const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
+
+  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+
+  const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
+  const { fetchDriverPrintData, readyToSend } = useSlipContext()
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
-  // Fetch data on component mount
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const customerId = resolveListingCustomerId()
-        if (customerId) {
-          await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
-        }
-      } catch (err) {
-        console.error('Error fetching office slips:', err)
-      }
-    }
+  const slips = useMemo(() => officeSlips.map(toCaseRowData), [officeSlips])
 
-    fetchData()
+  const debouncedSearch = useDebounce(search, 400)
+
+  useEffect(() => {
+    const customerId = resolveListingCustomerId()
+    if (!customerId) return
+    void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
   }, [fetchOfficeSlips, currentPage, itemsPerPage])
 
-  // Get unique values for filter dropdowns
-  const allStatuses = Array.from(new Set(slips.map((s) => s.status)))
-  const allLocations = Array.from(new Set(slips.map((s) => s.location)))
-  const allDoctors = Array.from(new Set(slips.map((s) => s.doctorName || "Unknown")))
-  const allUsers = Array.from(new Set(slips.map((s) => (s as any).createdBy || "Unknown")))
-  const allProductTypes = Array.from(new Set(slips.map((s) => (s as any).productType || "Unknown")))
+  const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode).filter(Boolean))), [slips])
+  const allStatuses = useMemo(() => Array.from(new Set(slips.map((s) => s.status).filter(Boolean))), [slips])
+  const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
+  const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
+  const allStages = useMemo(() => Array.from(new Set(slips.map((s) => s.product).filter(Boolean))), [slips])
 
-  // Filtering
-  const filteredSlips = useMemo(() => {
-    let result = slips
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter((s) =>
-        s.patient.toLowerCase().includes(q)
-        || s.product.toLowerCase().includes(q)
-        || (s.doctorName?.toLowerCase().includes(q) ?? false)
-        || (s.caseNumber?.toLowerCase().includes(q) ?? false)
-        || (s.slipNumber?.toLowerCase().includes(q) ?? false)
-      )
+  const slipsPage = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase()
+    const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
+    const filtered = slips.filter((slip) => {
+      if (q) {
+        const haystack = `${slip.patient} ${slip.product} ${slip.doctor ?? ""} ${slip.caseNumber ?? ""} ${slip.slipNumber ?? ""}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
+        return false
+      }
+      if (selectedStatusSet.size > 0 && !selectedStatusSet.has(normalizeStatusFilterValue(slip.status || ""))) {
+        return false
+      }
+      if (officeFilter !== "All" && slip.officeCode !== officeFilter) return false
+      if (doctorFilter !== "All" && slip.doctor !== doctorFilter) return false
+      if (stageFilter !== "All" && slip.product !== stageFilter) return false
+      if (showWithAttachments && !slip.attachment) return false
+      return true
+    })
+    return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
+  }, [slips, debouncedSearch, selectedLocations, selectedStatuses, officeFilter, doctorFilter, stageFilter, showWithAttachments, sortKey, sortDirection])
+
+  const handleSortChange = useCallback((key: ColumnKey) => {
+    if (sortKey === key) {
+      setSortDirection((currentDirection) => (currentDirection === "asc" ? "desc" : "asc"))
+    } else {
+      setSortKey(key)
+      setSortDirection("asc")
     }
-    if (status !== "All") result = result.filter((s) => s.status === status)
-    if (location !== "All") result = result.filter((s) => s.location === location)
-    if (showWithAttachments) result = result.filter((s) => s.attachment)
-    return result
-  }, [slips, search, status, location, showWithAttachments])
+  }, [sortKey])
 
-  // Paging - use filtered slips for display, but API handles pagination
-  const slipsPage = filteredSlips
-  const allOnPageSelected = slipsPage.length && slipsPage.every((s) => selected.includes(s.id))
+  const totalListingCount = pagination?.total ?? slips.length
+  const maxPage = Math.max(1, pagination?.last_page ?? 1)
+
+  const handleLocationFilterChange = (value: string) => {
+    setSelectedLocations((current) => {
+      if (value === "All") return []
+      return current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
+    })
+  }
+
+  const handleStatusFilterChange = (status: string) => {
+    setSelectedStatuses((current) => (
+      current.some((item) => normalizeStatusFilterValue(item) === normalizeStatusFilterValue(status))
+        ? current.filter((item) => normalizeStatusFilterValue(item) !== normalizeStatusFilterValue(status))
+        : [...current, status]
+    ))
+  }
+
+  const handleClearQuickFilters = () => {
+    setSelectedLocations([])
+    setSelectedStatuses([])
+  }
+
+  const handleClearAdvancedFilters = () => {
+    setDateRange({})
+    setSearch("")
+    setProductType("All")
+    setDoctorFilter("All")
+    setStageFilter("All")
+    setOfficeLabFilter("All")
+    setOfficeFilter("All")
+    setShowWithAttachments(false)
+    setSelectedLocations([])
+    setSelectedStatuses([])
+  }
+
+  const allOnPageSelected = slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
   const someOnPageSelected = slipsPage.some((s) => selected.includes(s.id))
-  const maxPage = pagination?.last_page || 1
+  const selectAllHeaderChecked: boolean | "indeterminate" = allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false
 
   const handleSelectAllPage = () => {
     if (allOnPageSelected) {
@@ -171,75 +300,62 @@ export default function SlipPage() {
     }
   }
 
-  const handleColumnChange = (key: keyof typeof visibleColumns) => {
-    setVisibleColumns((prev) => ({ ...prev, [key]: !prev[key] }))
-  }
+  const refreshCurrentListing = useCallback(() => {
+    const customerId = resolveListingCustomerId()
+    if (!customerId) return
+    void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
+  }, [fetchOfficeSlips, currentPage, itemsPerPage])
 
-  // Archive Confirm
-  const handleArchive = (id: number) => {
-    setArchiveConfirm(id)
-    setMenuRow(null)
-  }
-  const closeArchive = () => setArchiveConfirm(null)
-  const confirmArchive = () => {
-    // Implement deletion or archiving logic here
-    closeArchive()
-  }
-
-  const handleAttachmentClick = (slip: any) => {
-    setSelectedSlipForAttachment(slip)
-    setShowAttachModal(true)
-  }
-
-  const handleAttachmentsUploaded = async () => {
+  const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
+    setAddonInputs(null)
+    if (!slipId) return
     try {
-      const customerId = resolveListingCustomerId()
-      if (customerId) {
-        await fetchOfficeSlips(customerId, currentPage, itemsPerPage)
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+      const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
+      const res = await fetch(url.toString(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.status === 401) { window.location.href = "/login"; return }
+      const json = await res.json()
+      setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
+    } catch {
+      setAddonInputs(null)
+    }
+  }, [])
+
+  const handleOpenReadyToSend = (slip: V2CaseRowData) => { setReadyToSendSlip(slip); setShowReadyToSendModal(true) }
+  const handleConfirmReadyToSend = async (signature?: string) => {
+    if (!readyToSendSlip) return
+    setReadyToSendSubmitting(true)
+    try {
+      const res = await readyToSend(readyToSendSlip.id, signature)
+      if (res?.success) {
+        toast({ title: "Success", description: res.message || "Slip marked as ready to send.", duration: 3000 })
+        setShowReadyToSendModal(false); setReadyToSendSlip(null)
+      } else {
+        toast({ title: "Error", description: res?.message ?? "Could not mark slip as ready to send.", variant: "destructive", duration: 5000 })
       }
-    } catch (err) {
-      console.error("Error refreshing slips after attachment upload:", err)
+    } catch {
+      toast({ title: "Error", description: "Could not mark slip as ready to send.", variant: "destructive", duration: 5000 })
+    } finally {
+      setReadyToSendSubmitting(false)
     }
   }
 
-  const handleAddOnsClick = (slip: any) => {
-    setSelectedSlipForAddOns(slip)
-    setShowAddOnsModal(true)
-    setAddonInputs(null)
-    const slipId = slip?.id
-    if (!slipId) return
-    void (async () => {
-      try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
-        const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
-        const res = await fetch(url.toString(), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        if (res.status === 401) {
-          window.location.href = "/login"
-          return
-        }
-        const json = await res.json()
-        setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
-      } catch {
-        setAddonInputs(null)
-      }
-    })()
+  const handlePrintPaperSlip = (slip: V2CaseRowData) => {
+    const idToSend: number | null = typeof slip.caseId === "number" && !isNaN(slip.caseId) ? slip.caseId : null
+    if (idToSend === null) {
+      toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
+      return
+    }
+    printPaperSlip([idToSend], [])
   }
 
-
-  const handleCallLogClick = (slip: any) => {
-    setSelectedSlipForCallLog(slip)
-    setShowCallLogModal(true)
-  }
-
-  const handlePrintStatement = (slip: any) => {
+  const handlePrintStatement = (slip: V2CaseRowData) => {
     void (async () => {
-      setSelectedSlipForStatement(slip)
-
       let billingId = resolveCaseStatementBillingId(slip)
 
-      if (billingId == null && slip?.caseNumber) {
+      if (billingId == null && slip.caseNumber) {
         try {
           const searchResult = await advancedBillingSearch({
             search: slip.slipNumber || slip.caseNumber || slip.patient || undefined,
@@ -259,832 +375,588 @@ export default function SlipPage() {
       }
 
       if (billingId == null) {
-        toast({
-          title: "Statement not available",
-          description: "No billing invoice was found for this case yet.",
-          variant: "destructive",
-        })
+        toast({ title: "Statement not available", description: "No billing invoice was found for this case yet.", variant: "destructive" })
         return
       }
-
-      const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=900")
-      if (!printWindow) {
-        toast({
-          title: "Unable to print statement",
-          description: "Please allow pop-ups and try again.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      printWindow.document.open()
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Preparing statement...</title>
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                min-height: 100vh;
-                display: grid;
-                place-items: center;
-                color: #111827;
-              }
-            </style>
-          </head>
-          <body>Preparing statement...</body>
-        </html>
-      `)
-      printWindow.document.close()
-
       try {
         const result = await generateVirtualStatement(billingId).unwrap()
-        const printUrl = result?.data?.print_url
-        const statementHtml = result?.data?.html
-
-        if (printUrl) {
-          printWindow.location.href = buildApiUrl(printUrl)
+        const html = result?.data?.html
+        if (!html) {
+          toast({ title: "Statement unavailable", description: "The server did not return a statement for this case.", variant: "destructive" })
           return
         }
-
-        if (!statementHtml) {
-          throw new Error(result?.message || "No printable statement content was returned.")
+        const win = window.open("about:blank", "_blank", "width=1200,height=900")
+        if (!win) {
+          toast({ title: "Pop-up blocked", description: "Please allow pop-ups for this site and try again.", variant: "destructive" })
+          return
         }
-
-        printWindow.document.open()
-        printWindow.document.write(statementHtml)
-        printWindow.document.close()
-        printWindow.focus()
-        window.setTimeout(() => {
-          try {
-            printWindow.print()
-          } catch {
-            // Leave preview open if auto-print is blocked.
-          }
-        }, 300)
-      } catch (error) {
-        printWindow.close()
-        toast({
-          title: "Unable to print statement",
-          description: error instanceof Error ? error.message : "Please try again.",
-          variant: "destructive",
-        })
+        const printHtml = html.includes("</body>")
+          ? html.replace("</body>", "<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script></body>")
+          : html + "<script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script>"
+        win.document.open(); win.document.write(printHtml); win.document.close(); win.focus()
+      } catch {
+        toast({ title: "Failed to load statement", description: "Could not retrieve the statement from the server.", variant: "destructive" })
       }
     })()
   }
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="w-full p-6 space-y-4 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading office slips...</p>
-        </div>
-      </div>
-    )
+  const handleOpenRushCase = (slip: V2CaseRowData) => {
+    setSelectedSlipForRush(slip); setShowRushModal(true); void loadAddonInputsForSlip(slip.id)
+  }
+  const handleRemoveRushCase = async () => {
+    if (!selectedSlipForRush?.id) return
+    try {
+      await cancelSlipRush(selectedSlipForRush.id)
+      toast({ title: "Rush removed", description: "The rush request was cancelled.", duration: 3000 })
+      setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to remove rush", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+    }
+  }
+  const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
+    if (!selectedSlipForRush?.id) return
+    if (!rushData?.targetDate) {
+      toast({ title: "Rush date required", description: "Please select a target delivery date first.", variant: "destructive" })
+      return
+    }
+    try {
+      await requestSlipRush(selectedSlipForRush.id, { requested_delivery_date: rushData.targetDate })
+      toast({ title: "Rush case updated", description: "The rush request was submitted successfully.", duration: 3000 })
+      setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to rush case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+    }
   }
 
-  // Show error state
-  if (error) {
-    return (
-      <div className="w-full p-6 space-y-4 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">
-            <svg className="h-12 w-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <p className="text-red-600 mb-4">Error loading office slips</p>
-          <p className="text-gray-600 mb-4">{error}</p>
-          <Button 
-            onClick={() => window.location.reload()} 
-            variant="outline"
-            className="border-red-300 text-red-600 hover:bg-red-50"
-          >
-            Retry
-          </Button>
-        </div>
-      </div>
-    )
+  const handleConfirmSendBackToOffice = async (reason: string) => {
+    if (!selectedSlipForSendBackToOffice?.id || !reason.trim()) return
+    setSendBackToOfficeSubmitting(true)
+    try {
+      await sendBackToOfficeSlip(selectedSlipForSendBackToOffice.id, reason.trim())
+      toast({ title: "Case sent back to office", description: "The case was returned to the office successfully.", duration: 3000 })
+      setShowSendBackToOfficeModal(false); setSelectedSlipForSendBackToOffice(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to send case back", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+    } finally {
+      setSendBackToOfficeSubmitting(false)
+    }
   }
 
-  return (
-    <div className="w-full p-6 space-y-4 bg-gray-50 min-h-screen">
-      {/* Filter Bar */}
-      <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
-        <Input
-          className="w-72 bg-white border-gray-300 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:border-blue-500"
-          placeholder="Search by patient, doctor, case..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && filteredSlips.length === 1) router.push(buildVirtualSlipV2Path(filteredSlips[0].id)) }}
-        />
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All status</SelectItem>
-            {allStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={location} onValueChange={setLocation}>
-          <SelectTrigger className={SLIP_LISTING_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All location" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All location</SelectItem>
-            {allLocations.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Popover open={showColumnsDialog} onOpenChange={setShowColumnsDialog}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="flex items-center gap-2 text-gray-700 border-gray-300">
-              <Columns className="h-4 w-4" />
-              Columns
+  const handleConfirmCancelCase = async (reason: string) => {
+    if (!selectedSlipForCancel?.id || !reason.trim()) return
+    setCancelSlipSubmitting(true)
+    try {
+      await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      toast({ title: "Case cancelled", description: "The case was cancelled successfully.", duration: 3000 })
+      setCancelSlipModalOpen(false); setSelectedSlipForCancel(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+    } finally {
+      setCancelSlipSubmitting(false)
+    }
+  }
+
+  const handleOpenHoldCase = (row: V2CaseRowData) => {
+    if (!slipCanHold({ locationId: row.locationId, location: row.location })) {
+      toast({ title: "Cannot put on hold", description: SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE, variant: "destructive", duration: 5000 })
+      return
+    }
+    setSelectedSlipForHold(row)
+    setHoldSlipModalOpen(true)
+  }
+
+  const handleConfirmHoldCase = async (reason: string) => {
+    if (!selectedSlipForHold?.id || !reason.trim()) return
+    setHoldSlipSubmitting(true)
+    try {
+      await holdSlip(selectedSlipForHold.id, reason.trim())
+      toast({ title: "Case put on hold", description: "The case has been put on hold successfully.", duration: 3000 })
+      setHoldSlipModalOpen(false); setSelectedSlipForHold(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+    } finally {
+      setHoldSlipSubmitting(false)
+    }
+  }
+
+  const handleCopyCaseIdentifier = async (row: V2CaseRowData) => {
+    const value = row.slipNumber || row.caseNumber || String(row.id)
+    try {
+      await navigator.clipboard.writeText(value)
+      toast({ title: "Copied", description: value + " copied to clipboard.", duration: 2500 })
+    } catch {
+      toast({ title: "Copy failed", description: "Could not copy the case identifier.", variant: "destructive" })
+    }
+  }
+
+  const handleDriverPrint = async (slip: V2CaseRowData, slots: number[]) => {
+    try {
+      const data = await fetchDriverPrintData([slip.id])
+      if (!data?.slips?.length) { alert("Failed to fetch driver print data."); return }
+      openDriverLabelsWindow(data.slips[0], slots)
+    } catch { alert("Failed to generate driver labels.") }
+  }
+
+  const handleBulkPrintPaperSlip = () => {
+    if (!selected.length) return
+    const selectedRows = slips.filter((slip) => selected.includes(slip.id))
+    const slipIds = selectedRows
+      .map((r) => (typeof r.caseId === "number" && !isNaN(r.caseId) ? r.caseId : (typeof r.id === "number" && !isNaN(r.id) ? r.id : null)))
+      .filter((id): id is number => typeof id === "number" && !isNaN(id))
+    if (!slipIds.length) {
+      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
+      return
+    }
+    printPaperSlip(slipIds, [])
+  }
+
+  const handleBulkDriverPrint = async () => {
+    if (!selected.length) {
+      toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
+      return
+    }
+    try {
+      const data = await fetchDriverPrintData(selected)
+      if (!data?.slips?.length) {
+        toast({ title: "Failed to fetch driver print data.", variant: "destructive" })
+        return
+      }
+      const allSlots = Array.from({ length: 8 }, (_, i) => i)
+      data.slips.forEach((driverSlip, index) => {
+        setTimeout(() => openDriverLabelsWindow(driverSlip, allSlots), index * 500)
+      })
+    } catch {
+      toast({ title: "Failed to bulk print driver labels.", variant: "destructive" })
+    }
+  }
+
+  const openDriverLabelsWindow = (driverSlip: any, selectedSlots: number[]) => {
+    const iframe = document.createElement("iframe")
+    iframe.style.cssText = "position:absolute;left:-9999px;width:0;height:0;border:none"
+    document.body.appendChild(iframe)
+    const content = Array.from({ length: 8 }, (_, i) =>
+      selectedSlots.includes(i)
+        ? `<div class="driver-label"><div class="header"><div><div class="bold">${driverSlip.lab_name || ""}</div><div>OFC: ${driverSlip.office_code || ""}</div><div>PT: ${driverSlip.pt_name || ""}</div><div>DR: ${driverSlip.doctor_name || ""}</div></div><div class="qr"><img src="${driverSlip.qr_code || ""}" /></div></div><div class="body"><div>Stage: ${driverSlip.stage_code || ""} PAN#: ${driverSlip.case_pan_number || ""}</div><div>CASE#: ${driverSlip.case_number || ""} SLIP#: ${driverSlip.slip_number || ""}</div></div></div>`
+        : '<div class="empty"></div>'
+    ).join("")
+    const html = `<!DOCTYPE html><html><head><style>body{margin:0;padding:20px;font-family:Arial,sans-serif}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}.driver-label{border:2px solid #000;padding:12px;min-height:200px}.empty{border:none}.bold{font-weight:bold}.header{display:flex;justify-content:space-between}.qr img{width:58px;height:58px}.body{border-top:1px solid #ccc;margin-top:10px;padding-top:6px;font-size:11px}@media print{body{margin:0}}</style></head><body><div class="grid">${content}</div><script>setTimeout(()=>{window.print()},500)<\/script></body></html>`
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (doc) { doc.open(); doc.write(html); doc.close() }
+    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
+  }
+
+  const advancedFilterContent = showAdvancedFilter ? (
+    <div className="border-b border-[#e5e7eb] bg-white px-4 py-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-900">Advanced Filters</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-blue-600 hover:text-blue-700"
+          onClick={handleClearAdvancedFilters}
+        >
+          Clear all Filters
         </Button>
+      </div>
+
+      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-6">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
+              <SlipListingCalendarIcon className="mr-2" />
+              {dateRange.start ? format(dateRange.start, "PPP") : <span className="text-gray-500">Start Date</span>}
+            </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-72 p-0 border border-gray-200 rounded-lg shadow-lg">
-            <div className="p-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-200 mb-3">
-                <h3 className="text-lg font-semibold text-gray-900">Show/Hide Columns</h3>
-              </div>
-              <div className="space-y-3">
-                {Object.entries(visibleColumns).map(([key, val]) => {
-                  const labels = {
-                    timestamp: "Time Stamp",
-                    patient: "Patient",
-                    product: "Product",
-                    status: "Status",
-                    location: "Location",
-                    attachment: "Attachment",
-                    viewSlip: "View Slip",
-                    due: "Due Date",
-                    actions: "Actions"
-                  }
-                  const isRequired = key === 'actions' || key === 'patient'
-                  return (
-                    <label key={key} className="flex items-center justify-between cursor-pointer">
-                      <div className="flex items-center gap-3">
-                        <Checkbox
-                          checked={val}
-                          onCheckedChange={() => handleColumnChange(key as keyof typeof visibleColumns)}
-                          disabled={isRequired}
-                          className="border-gray-400"
-                          style={{
-                            accentColor: val ? "#1162A8" : "#fff",
-                            borderColor: "#1162A8",
-                            backgroundColor: val ? "#1162A8" : "transparent"
-                          }}
-                        />
-                        <span className="text-sm text-gray-700">{labels[key as keyof typeof labels]}</span>
-                      </div>
-                      {isRequired && (
-                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Required</span>
-                      )}
-                    </label>
-                  )
-                })}
-                <div className="text-xs text-gray-500 mt-4 pt-3 border-t border-gray-200">
-                  Settings saved automatically
-                </div>
-              </div>
-            </div>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarComponent
+              mode="single"
+              selected={dateRange.start}
+              onSelect={(date) => setDateRange((prev) => ({ ...prev, start: date }))}
+              disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+              initialFocus
+            />
           </PopoverContent>
         </Popover>
-        <Button
-          variant="outline"
-          className="flex items-center gap-2 text-gray-700 border-gray-300"
-          onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
-        >
-          <Filter className="h-4 w-4" /> Advance Filter
-        </Button>
-        <div className="flex items-center gap-4 ml-2">
-          <label className="flex items-center gap-1 text-xs cursor-pointer">
-            <Checkbox checked={showWithAttachments} onCheckedChange={(checked) => setShowWithAttachments(checked === true)} className="border-blue-400" />
-            With attachments
-          </label>
-          <label className="flex items-center gap-1 text-xs cursor-pointer">
-            <Checkbox checked={showLabConnect} onCheckedChange={(checked) => setShowLabConnect(checked === true)} className="border-blue-400" />
-            Lab Connect only
-          </label>
-        </div>
-      </div>
 
-      {/* Advanced Filter Section */}
-      {showAdvancedFilter && (
-        <div className="rounded-lg bg-white shadow-sm px-4 py-4 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-900">Advanced Filters</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-blue-600 hover:text-blue-700"
-              onClick={() => {
-                setDateRange({})
-                setPatientSearch("")
-                setProductType("All")
-                setDoctorFilter("All")
-                setStageFilter("All")
-                setUserFilter("All")
-              }}
-            >
-              Clear all Filters
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
+              <SlipListingCalendarIcon className="mr-2" />
+              {dateRange.end ? format(dateRange.end, "PPP") : <span className="text-gray-500">End Date</span>}
             </Button>
-          </div>
-
-          {/* First Row */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3">
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="group w-full justify-start text-left font-normal text-xs"
-                  >
-                    <SlipListingCalendarIcon className="mr-2" />
-                    {dateRange.start ? (
-                      format(dateRange.start, "PPP")
-                    ) : (
-                      <span className="text-gray-500">Start Date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={dateRange.start}
-                    onSelect={(date) => setDateRange(prev => ({ ...prev, start: date }))}
-                    disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="group w-full justify-start text-left font-normal text-xs"
-                  >
-                    <SlipListingCalendarIcon className="mr-2" />
-                    {dateRange.end ? (
-                      format(dateRange.end, "PPP")
-                    ) : (
-                      <span className="text-gray-500">End Date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={dateRange.end}
-                    onSelect={(date) => setDateRange(prev => ({ ...prev, end: date }))}
-                    disabled={(date) => {
-                      if (date > new Date()) return true
-                      if (date < new Date("1900-01-01")) return true
-                      if (dateRange.start && date < dateRange.start) return true
-                      return false
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <Input
-              placeholder="Search patient name, slip #..."
-              value={patientSearch}
-              onChange={(e) => setPatientSearch(e.target.value)}
-              className="text-xs"
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <CalendarComponent
+              mode="single"
+              selected={dateRange.end}
+              onSelect={(date) => setDateRange((prev) => ({ ...prev, end: date }))}
+              disabled={(date) =>
+                date > new Date() ||
+                date < new Date("1900-01-01") ||
+                Boolean(dateRange.start && date < dateRange.start)
+              }
+              initialFocus
             />
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Status</SelectItem>
-                {allStatuses.filter(s => s).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All users" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All users</SelectItem>
-                {allUsers.filter(u => u).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          </PopoverContent>
+        </Popover>
 
-          {/* Second Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Select value={productType} onValueChange={setProductType}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All product type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All product type</SelectItem>
-                {allProductTypes.filter(p => p).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={stageFilter} onValueChange={setStageFilter}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All Stages" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Stages</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All Doctors" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Doctors</SelectItem>
-                {allDoctors.filter(d => d).map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+        <Input
+          placeholder="Search patient name, slip #..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="text-xs"
+        />
 
-          {/* Third Row - Toggles */}
-          <div className="flex items-center gap-6 mt-3">
-            <Select value={location} onValueChange={setLocation}>
-              <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
-                <SelectValue placeholder="All Location" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Location</SelectItem>
-                {allLocations.filter(l => l).map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <label className="flex items-center gap-2 text-xs">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={showWithAttachments}
-                  onChange={(e) => setShowWithAttachments(e.target.checked)}
-                  className="sr-only"
-                />
-                <div className={`w-11 h-6 rounded-full transition-colors ${showWithAttachments ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${showWithAttachments ? 'translate-x-5' : 'translate-x-0.5'} translate-y-0.5`}></div>
-                </div>
-              </div>
-              Show only cases with attachments
-            </label>
-            <label className="flex items-center gap-2 text-xs hidden">
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={showLabConnect}
-                  onChange={(e) => setShowLabConnect(e.target.checked)}
-                  className="sr-only"
-                />
-                <div className={`w-11 h-6 rounded-full transition-colors ${showLabConnect ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                  <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${showLabConnect ? 'translate-x-5' : 'translate-x-0.5'} translate-y-0.5`}></div>
-                </div>
-              </div>
-              Show only Lab Connect cases
-            </label>
-          </div>
-        </div>
-      )}
+        <Select value={selectedStatuses[0] ?? "All"} onValueChange={(value) => setSelectedStatuses(value === "All" ? [] : [value])}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Status</SelectItem>
+            {allStatuses.filter(Boolean).map((status) => (
+              <SelectItem key={status} value={status}>{status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-      {/* Bulk Action Bar */}
-      {selected.length > 0 && (
-        <div className="sticky top-20 z-20 flex flex-wrap gap-2 items-center px-4 py-3 mb-2 rounded-lg bg-blue-50 border border-blue-200 animate-fade-in">
-          <span className="font-semibold text-blue-700 mr-3">Bulk actions:</span>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100"><Printer className="h-4 w-4" />Print Paper slip</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-blue-700 hover:bg-blue-100" onClick={() => selected.length === 1 ? handlePrintStatement(slipsPage.find((s) => s.id === selected[0])) : undefined}><Printer className="h-4 w-4" />Print Statement</Button>
-          <Button variant="ghost" size="sm" className="flex gap-1 text-red-600 hover:bg-red-50" onClick={() => setArchiveConfirm(-1)}><Trash2 className="h-4 w-4" />Archive case</Button>
-        </div>
-      )}
-
-      {/* Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-4 py-1.5 w-12">
-                <Checkbox
-                  checked={!!allOnPageSelected}
-                  onCheckedChange={(checked) => handleSelectAllPage()}
-                  aria-label="Select all"
-                  className="border-gray-400"
-                />
-              </th>
-              {visibleColumns.timestamp && <th className="px-3 py-1 text-left font-medium text-gray-700 whitespace-nowrap">Timestamp</th>}
-              {visibleColumns.patient && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Patient</th>}
-              {visibleColumns.product && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Product</th>}
-              {visibleColumns.status && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Status</th>}
-              {visibleColumns.location && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Location</th>}
-              {visibleColumns.attachment && (
-                <th className="px-4 py-1.5 text-center align-middle font-medium text-gray-700" scope="col" aria-label="Attachment">
-                  <div className="flex h-[30px] items-center justify-center">
-                    <SlipListingVsIcon
-                      src={`${VS_CENTER_ICONS}/attachments.svg`}
-                      hover={false}
-                    />
-                  </div>
-                </th>
-              )}
-              {visibleColumns.viewSlip && (
-                <th className="px-4 py-1.5 text-center align-middle font-medium text-gray-700" scope="col" aria-label="View virtual slip">
-                  <div className="flex h-[30px] items-center justify-center">
-                    <SlipListingVsIcon
-                      src={SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON}
-                      hover={false}
-                    />
-                  </div>
-                </th>
-              )}
-              {visibleColumns.due && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Due date</th>}
-              {visibleColumns.actions && <th className="px-4 py-1.5 text-left font-medium text-gray-700">Actions</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {slipsPage.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={
-                    1 +
-                    (visibleColumns.timestamp ? 1 : 0) +
-                    (visibleColumns.patient ? 1 : 0) +
-                    (visibleColumns.product ? 1 : 0) +
-                    (visibleColumns.status ? 1 : 0) +
-                    (visibleColumns.location ? 1 : 0) +
-                    (visibleColumns.attachment ? 1 : 0) +
-                    (visibleColumns.viewSlip ? 1 : 0) +
-                    (visibleColumns.due ? 1 : 0) +
-                    (visibleColumns.actions ? 1 : 0)
-                  }
-                  className="py-8 text-center text-gray-500"
-                >
-                  No slips found for selected filters.
-                </td>
-              </tr>
-            ) : (
-              slipsPage.map((row, idx) => (
-                <tr
-                  key={row.id}
-                  className={slipListingRowClassName({
-                    selected: selected.includes(row.id),
-                    rush: row.rush,
-                  })}
-                >
-                  <td className="px-4 py-1.5">
-                    <Checkbox
-                      checked={selected.includes(row.id)}
-                      onCheckedChange={() =>
-                        setSelected(selected.includes(row.id)
-                          ? selected.filter(id => id !== row.id)
-                          : [...selected, row.id])
-                      }
-                      className="border-gray-400"
-                    />
-                  </td>
-                  {visibleColumns.timestamp && (
-                    <td className="px-3 py-1 whitespace-nowrap text-base text-black">
-                      {row.createdAt}
-                    </td>
-                  )}
-                  {visibleColumns.patient && (
-                    <td className="px-4 py-1.5 text-gray-900">
-                      <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
-                        {formatSlipListingPatientName(row.patient)}
-                      </SlipListingVirtualSlipLink>
-                    </td>
-                  )}
-                  {visibleColumns.product && (
-                    <td className="px-4 py-1.5 text-gray-900">
-                      <SlipListingVirtualSlipLink slipId={row.id} variant="cell" cellPadding="comfortable">
-                        {row.product}
-                      </SlipListingVirtualSlipLink>
-                    </td>
-                  )}
-                  {visibleColumns.status &&
-                    <td className="px-4 py-1.5">
-                      <div className="flex gap-2 items-center">
-                        {row.rush && (
-                          <SlipListingStatusBadge tone="rush" size="comfortable" className="border-0">
-                            <svg width="12" height="14" viewBox="0 0 16 19" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1">
-                              <path d="M8.15625 7.91504V2.66504L2.53125 10.915H6.90625L6.90625 16.165L12.5313 7.91504L8.15625 7.91504Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            Rush
-                          </SlipListingStatusBadge>
-                        )}
-                        {row.status === "In Progress" && (
-                          <SlipListingStatusBadge tone="in-progress" size="comfortable">In Progress</SlipListingStatusBadge>
-                        )}
-                        {row.status === "On Hold" && (
-                          <SlipListingStatusBadge tone="on-hold" size="comfortable">On Hold</SlipListingStatusBadge>
-                        )}
-                        {isSlipCaseCancelled(row.status) && (
-                          <SlipListingStatusBadge tone="cancelled" size="comfortable">Cancelled</SlipListingStatusBadge>
-                        )}
-                        {isSlipCaseFinished(row.status) && (
-                          <SlipListingStatusBadge tone="finished" size="comfortable">Finished</SlipListingStatusBadge>
-                        )}
-                      </div>
-                    </td>}
-                  {visibleColumns.location &&
-                    <td className="px-4 py-1.5 text-sm text-gray-700">
-                      {row.location}
-                    </td>}
-                  {visibleColumns.attachment &&
-                    <td className="px-4 py-1.5 text-center align-middle">
-                      <div className="flex h-[30px] items-center justify-center">
-                        {row.attachment ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleAttachmentClick(row)
-                            }}
-                            className={slipListingIconButtonClass(
-                              "h-[30px] w-[30px] items-center justify-center p-0"
-                            )}
-                            title="View attachments"
-                          >
-                            <SlipListingVsIcon src={`${VS_CENTER_ICONS}/attachments.svg`} />
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>}
-                  {visibleColumns.viewSlip &&
-                    <td className="px-4 py-1.5 text-center align-middle">
-                      <div className="flex h-[30px] items-center justify-center">
-                        <SlipListingViewSlipLink slipId={row.id} />
-                      </div>
-                    </td>}
-                  {visibleColumns.due &&
-                    <td className="px-4 py-1.5">
-                      <div className="inline-flex items-center gap-2">
-                        <SlipListingDueDateLabel dueDate={row.dueDate} />
-                        {row.rush && <span className="text-red-500">
-                          <svg width="12" height="14" viewBox="0 0 16 19" fill="none">
-                            <path d="M8.71094 8.41504V3.16504L3.08594 11.415H7.46094L7.46094 16.665L13.0859 8.41504L8.71094 8.41504Z" stroke="#CF0202" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </span>}
-                        {row.overdue && <SlipListingStatusBadge tone="overdue" size="comfortable">Overdue</SlipListingStatusBadge>}
-                      </div>
-                    </td>}
-                  {visibleColumns.actions &&
-                    <td className="px-4 py-1.5">
-                      <Popover open={menuRow === row.id} onOpenChange={open => setMenuRow(open ? row.id : null)}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                              slipListingIconButtonClass("h-[30px] w-[30px] p-0"),
-                              "hover:bg-gray-100"
-                            )}
-                          >
-                            <MoreVertical
-                              className={cn(
-                                SLIP_LISTING_ICON_SIZE_CLASS,
-                                "text-gray-500",
-                                SLIP_LISTING_ICON_HOVER_CLASS
-                              )}
-                            />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-56 p-0 border border-gray-200 rounded-lg shadow-lg">
-                          <div className="py-1 divide-y divide-gray-100">
-                            <Link
-                              href={buildVirtualSlipV2Path(row.id)}
-                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
-                              onClick={() => setMenuRow(null)}
-                            >
-                              <Eye className="h-4 w-4" />View Case
-                            </Link>
-                            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm">
-                              <Copy className="h-4 w-4" />Duplicate
-                            </button>
-                            <button
-                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 text-sm"
-                              onClick={() => {
-                                setMenuRow(null)
-                                handlePrintStatement(row)
-                              }}
-                            >
-                              <Printer className="h-4 w-4" />Print Statement
-                            </button>
-                            <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-red-600 text-sm" onClick={() => handleArchive(row.id)}>
-                              <Trash2 className="h-4 w-4" />Archive Case
-                            </button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </td>}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+        <Select value={officeFilter} onValueChange={setOfficeFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Offices/Lab" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Offices/Lab</SelectItem>
+            {allOffices.filter(Boolean).map((office) => (
+              <SelectItem key={office} value={office}>{office}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-2">
-        <div className="text-sm text-gray-600">
-          Showing {(currentPage - 1) * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE) + 1}
-          -
-          {Math.min(currentPage * (pagination?.per_page || SLIP_LISTING_DEFAULT_PER_PAGE), pagination?.total || 0)}
-          {" "}of {pagination?.total || 0} entries
-        </div>
-        <div className="flex gap-2 items-center">
-          <span className="text-sm text-gray-600 mr-2">Show</span>
-          <Select value={String(itemsPerPage)} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-            <SelectTrigger className="h-8 w-20 bg-white border-gray-300">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {[10, 20, 50].map(n => (
-                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-gray-600 ml-2 mr-4">entries</span>
-          <Button variant="outline" size="sm"
-            onClick={() => {
-              const newPage = Math.max(1, currentPage - 1)
-              setCurrentPage(newPage)
-            }}
-            disabled={currentPage === 1}
-            className="border-gray-300">
-            Prev
-          </Button>
-          <span className="text-sm text-gray-600 mx-2">{currentPage} / {maxPage || 1}</span>
-          <Button variant="outline" size="sm"
-            onClick={() => {
-              const newPage = Math.min(maxPage, currentPage + 1)
-              setCurrentPage(newPage)
-            }}
-            disabled={currentPage === maxPage}
-            className="border-gray-300">
-            Next
-          </Button>
-        </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <Select value={productType} onValueChange={setProductType}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <span className="text-sm">{productType === "All" ? "All product type" : productType}</span>
+          </SelectTrigger>
+          <SelectContent className="[&_[data-radix-select-item-indicator]]:hidden [&_[role=option]]:pl-2">
+            <SelectItem value="All">All product type</SelectItem>
+            {allProductTypes.filter((product) => product && product !== "Unknown").map((product) => (
+              <SelectItem key={product} value={product}>{product}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={stageFilter} onValueChange={setStageFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Stages" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Stages</SelectItem>
+            {allStages.map((stage) => (
+              <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={doctorFilter} onValueChange={setDoctorFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Doctors" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Doctors</SelectItem>
+            {allDoctors.filter(Boolean).map((doctor) => (
+              <SelectItem key={doctor} value={doctor}>{doctor}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Office & Lab" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Office & Lab</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      {/* Columns Dialog */}
-      <Dialog open={showColumnsDialog} onOpenChange={setShowColumnsDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader className="flex flex-row items-center justify-between pb-4 border-b border-gray-200">
-            <DialogTitle className="text-lg font-semibold text-gray-900">Show/Hide Columns</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowColumnsDialog(false)}
-              className="h-6 w-6 hover:bg-gray-100"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            {Object.entries(visibleColumns).map(([key, val]) => {
-              const labels = {
-                timestamp: "Time Stamp",
-                patient: "Patient",
-                product: "Product",
-                status: "Status",
-                location: "Location",
-                attachment: "Attachment",
-                viewSlip: "View Slip",
-                due: "Due Date",
-                actions: "Actions"
-              }
-              const isRequired = key === 'actions'
-              return (
-                <label key={key} className="flex items-center justify-between cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={val}
-                      onCheckedChange={() => handleColumnChange(key as keyof typeof visibleColumns)}
-                      disabled={isRequired}
-                      className="border-gray-400"
-                    />
-                    <span className="text-sm text-gray-700">{labels[key as keyof typeof labels]}</span>
-                  </div>
-                  {isRequired && (
-                    <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">Required</span>
-                  )}
-                </label>
-              )
-            })}
-            <div className="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-200">
-              Settings saved automatically
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-
-      {/* Archive Confirm Dialog */}
-      <Dialog open={archiveConfirm !== null} onOpenChange={v => { if (!v) closeArchive() }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Archive Case</DialogTitle>
-          </DialogHeader>
-          <div className="py-2">
-            Are you sure you want to archive {archiveConfirm === -1 ? 'the selected cases' : 'this case'}?
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="ghost" onClick={closeArchive}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmArchive}>Archive</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* File Attachment Modal */}
-      {showAttachModal && selectedSlipForAttachment && typeof document !== "undefined" && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] bg-white"
-          style={{ width: "100vw", height: "100vh" }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="File Attachments"
+      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+        <Select
+          value={selectedLocations.length === 1 ? selectedLocations[0] : "All"}
+          onValueChange={(value) => setSelectedLocations(value === "All" ? [] : [value])}
         >
-          <FileAttachmentModalContent
-            setShowAttachModal={setShowAttachModal}
-            isCaseSubmitted={selectedSlipForAttachment.status === "Completed" || selectedSlipForAttachment.status === "Cancelled"}
-            slipId={selectedSlipForAttachment.id}
-            doctorName={selectedSlipForAttachment.doctorName}
-            patientName={selectedSlipForAttachment.patientName}
-            onAttachmentsUploaded={handleAttachmentsUploaded}
-          />
-        </div>,
-        document.body
-      )}
+          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
+            <SelectValue placeholder="All Location" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All Location</SelectItem>
+            {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
+              <SelectItem key={loc.id} value={String(loc.id)}>
+                {loc.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-      {/* Add Ons Modal */}
-      <AddOnsModal
-        isOpen={showAddOnsModal}
-        onClose={() => {
-          setShowAddOnsModal(false)
-          setAddonInputs(null)
-        }}
-        onAddAddOns={() => {}}
-        labId={0}
-        productId=""
-        arch="maxillary"
-        products={addonInputs?.addonProducts ?? []}
-        archSlots={addonInputs?.addonArchSlots ?? []}
-        slipId={selectedSlipForAddOns?.id}
-        onSlipAddonsSaved={() => {
-          const customerId = resolveListingCustomerId()
-          if (customerId) void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
-        }}
-      />
-
-      {/* Call Log Modal */}
-      <CallLogModal
-        isOpen={showCallLogModal}
-        onClose={() => setShowCallLogModal(false)}
-        slipNumber={selectedSlipForCallLog?.id ? String(selectedSlipForCallLog.id) : ""}
-      />
-
-      {/* Print Preview Modal */}
-      <PrintPreviewModal
-        isOpen={showPrintPreview}
-        onClose={() => setShowPrintPreview(false)}
-        caseData={
-          selectedSlipForPrint
-            ? {
-                lab: selectedSlipForPrint.labName || "",
-                address: selectedSlipForPrint.labAddress || "",
-                office: selectedSlipForPrint.officeCode || "",
-                doctor: selectedSlipForPrint.doctor || "",
-                patient: selectedSlipForPrint.patient || "",
-                pickupDate: selectedSlipForPrint.pickupDate || "",
-                panNumber: selectedSlipForPrint.panNumber || "",
-                caseNumber: selectedSlipForPrint.caseNumber || "",
-                slipNumber: selectedSlipForPrint.id ? String(selectedSlipForPrint.id) : "",
-                products: selectedSlipForPrint.products || [],
-                contact: selectedSlipForPrint.labContact || "",
-                email: selectedSlipForPrint.labEmail || "",
-              }
-            : {
-                lab: "",
-                address: "",
-                office: "",
-                doctor: "",
-                patient: "",
-                pickupDate: "",
-                panNumber: "",
-                caseNumber: "",
-                slipNumber: "",
-                products: [],
-                contact: "",
-                email: "",
-              }
-        }
-      />
-
+        <label className="flex items-center gap-2 text-base">
+          <span className="relative">
+            <input
+              type="checkbox"
+              checked={showWithAttachments}
+              onChange={(e) => setShowWithAttachments(e.target.checked)}
+              className="sr-only"
+            />
+            <span className={`block h-6 w-11 rounded-full transition-colors ${showWithAttachments ? "bg-blue-600" : "bg-gray-300"}`}>
+              <span className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${showWithAttachments ? "translate-x-5" : "translate-x-0.5"}`} />
+            </span>
+          </span>
+          Show only cases with attachments
+        </label>
+      </div>
     </div>
+  ) : null
+
+  return (
+    <div className="min-h-screen">
+      <div className="px-4 py-2">
+        <HIPAAComplianceBanner variant="default" showDetails={false} />
+      </div>
+
+      <main className="w-full px-4 pb-8">
+        <V3CaseWidget
+          search={search}
+          onSearchChange={setSearch}
+          onSearchEnter={() => {
+            if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
+          }}
+          onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
+          advancedFilterContent={advancedFilterContent}
+          locations={selectedLocations}
+          onLocationChange={handleLocationFilterChange}
+          statuses={selectedStatuses}
+          onStatusChange={handleStatusFilterChange}
+          onClearQuickFilters={handleClearQuickFilters}
+          rows={slipsPage}
+          loading={loading}
+          selected={selected}
+          selectAllChecked={selectAllHeaderChecked}
+          onSelectAll={handleSelectAllPage}
+          onSelectRow={(id) => setSelected((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])}
+          rowActions={{
+            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
+            onPrintPaperSlip: handlePrintPaperSlip,
+            onPrintDriverLabel: (slip) => { setSelectedSlipForDriverTags(slip); setShowPrintDriverTags(true) },
+            onPrintStatement: handlePrintStatement,
+            onCallLog: (slip) => { setSelectedSlipForCallLog(slip); setShowCallLogModal(true) },
+            onAddOns: (slip) => { setSelectedSlipForAddOns(slip); setShowAddOnsModal(true); void loadAddonInputsForSlip(slip.id) },
+            onAttachment: (slip) => {
+              setSelectedCaseForAttachment({ caseId: slip.caseId ?? slip.id, caseNumber: slip.caseNumber ?? "", patient: slip.patient ?? "", doctor: slip.doctor ?? "" })
+              setShowAttachModal(true)
+            },
+            onCopy: (row) => void handleCopyCaseIdentifier(row),
+            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.id)),
+            onHold: handleOpenHoldCase,
+            onChangeDueDate: (slip) => { setSelectedSlipForDateChange(slip); setShowChangeDateModal(true) },
+            onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
+            onReadyToSend: handleOpenReadyToSend,
+            onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
+            onRush: handleOpenRushCase,
+            onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
+          }}
+          canPrintStatement={canPrintStatement}
+          canSendBack={canSendBackToOffice}
+          onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
+          onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
+          onBulkPrintStatement={() => {
+            const row = slips.find((s) => s.id === selected[0])
+            if (selected.length === 1 && row) handlePrintStatement(row)
+          }}
+          onBulkArchive={() => setArchiveConfirm(-1)}
+          printMenuRow={printDropdownOpen}
+          moreMenuRow={menuRow}
+          onPrintMenuRowChange={setPrintDropdownOpen}
+          onMoreMenuRowChange={setMenuRow}
+          currentPage={currentPage}
+          totalPages={maxPage}
+          totalCount={totalListingCount}
+          itemsPerPage={itemsPerPage}
+          onItemsPerPageChange={(value) => { setItemsPerPage(value); setCurrentPage(1) }}
+          onPageChange={setCurrentPage}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSortChange={handleSortChange}
+          rushCasePanColor={null}
+        />
+
+        {/* Archive Confirm */}
+        <Dialog open={archiveConfirm !== null} onOpenChange={(v) => { if (!v) setArchiveConfirm(null) }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Archive Case</DialogTitle></DialogHeader>
+            <div className="py-2">Are you sure you want to archive {archiveConfirm === -1 ? "the selected cases" : "this case"}?</div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="ghost" onClick={() => setArchiveConfirm(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => setArchiveConfirm(null)}>Archive</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {paperSlipPortal}
+        <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
+
+        {showAttachModal && selectedCaseForAttachment && createPortal(
+          <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
+            <FileAttachmentModalContent
+              setShowAttachModal={(show) => { setShowAttachModal(show); if (!show) setSelectedCaseForAttachment(null) }}
+              isCaseSubmitted={false}
+              caseId={selectedCaseForAttachment.caseId}
+              caseNumber={selectedCaseForAttachment.caseNumber}
+              doctorName={selectedCaseForAttachment.doctor}
+              patientName={selectedCaseForAttachment.patient}
+              open={showAttachModal}
+            />
+          </div>,
+          document.body
+        )}
+
+        {selectedSlipForDateChange && (
+          <ChangeDateModal
+            open={showChangeDateModal}
+            onClose={() => { setShowChangeDateModal(false); setSelectedSlipForDateChange(null) }}
+            patient={selectedSlipForDateChange.patient}
+            stage={selectedSlipForDateChange.product || "Unknown Stage"}
+            currentDate={new Date().toLocaleDateString()}
+            deliveryDate={selectedSlipForDateChange.dueDate}
+            deliveryTime="10:00"
+            slipId={selectedSlipForDateChange.id}
+            history={[]}
+            onSaved={refreshCurrentListing}
+          />
+        )}
+
+        <ReadyToSendModal
+          open={showReadyToSendModal}
+          onClose={() => { if (!readyToSendSubmitting) { setShowReadyToSendModal(false); setReadyToSendSlip(null) } }}
+          onConfirm={handleConfirmReadyToSend}
+          submitting={readyToSendSubmitting}
+          slipId={readyToSendSlip?.id ?? 0}
+          office={readyToSendSlip?.officeCode}
+          patientName={readyToSendSlip?.patient}
+          slipNumber={readyToSendSlip?.slipNumber}
+          location={readyToSendSlip?.location}
+          title="Ready to send"
+          signatureRequired={readyToSendRequired}
+        />
+
+        {(() => {
+          const rushSlots = addonInputs?.rushArchSlots ?? []
+          const hasMax = rushSlots.some((s) => s.arch === "maxillary" && s.isRushed)
+          const hasMand = rushSlots.some((s) => s.arch === "mandibular" && s.isRushed)
+          return (
+            <RushRequestModal
+              isOpen={showRushModal}
+              onClose={() => { setShowRushModal(false); setSelectedSlipForRush(null); setAddonInputs(null) }}
+              onConfirm={handleConfirmRushCase}
+              isRushed={(addonInputs?.slipIsRush ?? false) || rushSlots.some((s) => s.isRushed)}
+              existingRushDate={rushSlots.find((s) => s.existingRushDate)?.existingRushDate}
+              onRemoveRush={handleRemoveRushCase}
+              onRemoveRushByKey={() => { void handleRemoveRushCase() }}
+              maxRushed={hasMax}
+              maxExistingRushDate={rushSlots.find((s) => s.arch === "maxillary")?.existingRushDate}
+              mandRushed={hasMand}
+              mandExistingRushDate={rushSlots.find((s) => s.arch === "mandibular")?.existingRushDate}
+              onRemoveMaxRush={hasMax ? handleRemoveRushCase : undefined}
+              onRemoveMandRush={hasMand ? handleRemoveRushCase : undefined}
+              archSlots={rushSlots}
+              hasMaxillary={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "maxillary") : undefined}
+              hasMandibular={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "mandibular") : undefined}
+              product={{
+                name: rushSlots[0]?.productName ?? selectedSlipForRush?.product ?? "Case",
+                stage: rushSlots[0]?.stageName ?? selectedSlipForRush?.product ?? "Unknown Stage",
+                deliveryDate: addonInputs?.deliveryDateIso || selectedSlipForRush?.dueDate || "",
+                price: 0,
+              }}
+            />
+          )
+        })()}
+
+        <SendCaseBackToOfficeModal
+          open={showSendBackToOfficeModal}
+          onClose={() => { if (sendBackToOfficeSubmitting) return; setShowSendBackToOfficeModal(false); setSelectedSlipForSendBackToOffice(null) }}
+          onConfirm={handleConfirmSendBackToOffice}
+          loading={sendBackToOfficeSubmitting}
+        />
+
+        <CaseActionModal
+          open={cancelSlipModalOpen}
+          onClose={() => { if (cancelSlipSubmitting) return; setCancelSlipModalOpen(false); setSelectedSlipForCancel(null) }}
+          onSubmit={handleConfirmCancelCase}
+          actionType="cancel"
+          title="Cancel Case"
+          description="You are cancelling this case. This action cannot be undone and will mark the case as inactive."
+          icon={<X />}
+          iconBgColor="#fdecec"
+          iconColor="#D32F2F"
+          buttonText={cancelSlipSubmitting ? "Cancelling..." : "Cancel Case"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for case cancellation."
+          warning="This action cannot be undone and will archive the case."
+        />
+
+        <CaseActionModal
+          open={holdSlipModalOpen}
+          onClose={() => { if (holdSlipSubmitting) return; setHoldSlipModalOpen(false); setSelectedSlipForHold(null) }}
+          onSubmit={handleConfirmHoldCase}
+          actionType="hold"
+          title="Put Case On Hold"
+          description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+          icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
+          iconBgColor="#FFF3DF"
+          iconColor="#FFB400"
+          buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
+          buttonColor="warning"
+          reasonPlaceholder="Please provide a reason for putting case on hold."
+        />
+
+        <DriverHistoryModal
+          isOpen={showDriverHistoryModal}
+          onClose={() => setShowDriverHistoryModal(false)}
+          slip={selectedSlipForDriverHistory}
+        />
+
+        <AddOnsModal
+          isOpen={showAddOnsModal}
+          onClose={() => { setShowAddOnsModal(false); setAddonInputs(null) }}
+          onAddAddOns={() => {}}
+          labId={0}
+          productId=""
+          arch="maxillary"
+          products={addonInputs?.addonProducts ?? []}
+          archSlots={addonInputs?.addonArchSlots ?? []}
+          slipId={selectedSlipForAddOns?.id}
+          onSlipAddonsSaved={refreshCurrentListing}
+        />
+
+        <CallLogModal
+          isOpen={showCallLogModal}
+          onClose={() => setShowCallLogModal(false)}
+          slipNumber={selectedSlipForCallLog?.id ? String(selectedSlipForCallLog.id) : ""}
+        />
+
+        <PrintDriverTagsModal
+          isOpen={showPrintDriverTags}
+          slip={selectedSlipForDriverTags}
+          onClose={() => setShowPrintDriverTags(false)}
+          onRegularPrint={async (slip, allSlots) => { if (slip) await handleDriverPrint(slip, allSlots.map((v, i) => v ? i : -1).filter((i) => i !== -1)) }}
+          onGenerateLabels={async (slip, selectedSlots) => { if (slip) await handleDriverPrint(slip, selectedSlots.map((v, i) => v ? i : -1).filter((i) => i !== -1)) }}
+        />
+      </main>
+    </div>
+  )
+}
+
+export default function OfficeCaseManagementPageWrapper() {
+  return (
+    <SlipProvider>
+      <OfficeCaseManagementPage />
+    </SlipProvider>
   )
 }
