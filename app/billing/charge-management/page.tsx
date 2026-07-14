@@ -329,16 +329,18 @@ function computeDateRangeFromPreset(preset: string): { from: string; to: string 
   return null
 }
 
-// Backend only accepts these date_range values (see AdvancedBillingRequest::rules).
-// Presets like "this_week"/"this_month"/"this_year" have no backend equivalent —
-// they're sent as "custom" with concrete date_from/date_to instead.
+// Backend computes the date window server-side for every preset except "custom"
+// (see AdvancedBillingRequest::rules / BillingRepository::applyDateRangeFilter).
 function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBody["date_range"] {
   switch (preset) {
     case "today":
     case "yesterday":
     case "last_7_days":
+    case "this_week":
     case "last_week":
+    case "this_month":
     case "last_month":
+    case "this_year":
     case "last_year":
       return preset
     default:
@@ -580,9 +582,11 @@ export default function ChargeManagementPage() {
     if (debouncedSearch) {
       params.patient_name = debouncedSearch
     } else {
-      if (dateFrom) params.date_from = dateFrom
-      if (dateTo) params.date_to = dateTo
-      params.client_date_preset = advDateRange
+      params.date_range = advDateRange as BillingListParams["date_range"]
+      if (advDateRange === "custom") {
+        if (dateFrom) params.date_from = dateFrom
+        if (dateTo) params.date_to = dateTo
+      }
     }
     if (isLabScope && officeFilter !== "all") {
       const oid = parseInt(officeFilter, 10)
@@ -848,12 +852,16 @@ export default function ChargeManagementPage() {
     // A search term means the user wants to find a specific charge regardless
     // of when it happened — a leftover date filter (e.g. "Yesterday") would
     // otherwise silently hide matches instead of searching across all dates.
+    const resolvedDateRange = patientName ? undefined : resolveAdvancedDateRangeValue(advDateRange)
+    // Backend computes the date window server-side for every preset except
+    // "custom" and ignores date_from/date_to otherwise, so only send them
+    // when the range is actually custom.
     const body: AdvancedBillingSearchBody = {
       page: 1,
       patient_name: patientName,
-      date_from: patientName ? undefined : dateFrom || undefined,
-      date_to: patientName ? undefined : dateTo || undefined,
-      date_range: patientName ? undefined : resolveAdvancedDateRangeValue(advDateRange),
+      date_from: resolvedDateRange === "custom" ? dateFrom || undefined : undefined,
+      date_to: resolvedDateRange === "custom" ? dateTo || undefined : undefined,
+      date_range: resolvedDateRange,
       office_name: officeName,
     }
     if (advCategoryId != null) body.category_id = advCategoryId
