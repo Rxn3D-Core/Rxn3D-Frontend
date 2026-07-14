@@ -23,6 +23,8 @@ export function clearSessionStorage(): void {
     "originalUser", // for impersonation
     "originalToken", // for impersonation
     "isImpersonating", // for impersonation
+    "superadmin_lab_context",
+    "superadmin_original_token",
   ]
 
   // Remove all session keys

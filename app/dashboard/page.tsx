@@ -10,7 +10,7 @@ import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 
 export default function Dashboard() {
   const router = useRouter()
-  const { user, setCustomerId } = useAuth()
+  const { user, setCustomerId, isActingAsLabAdmin } = useAuth()
   const {
     isOnboardingComplete,
     isLoading: onboardingLoading,
@@ -34,7 +34,7 @@ export default function Dashboard() {
     if (!user || onboardingLoading) return
 
     const userRoles = user.roles || (user.role ? [user.role] : [])
-    const isSuperAdmin = userRoles.includes("superadmin")
+    const isSuperAdmin = !isActingAsLabAdmin && userRoles.includes("superadmin")
     if (isSuperAdmin) return
 
     let primaryCustomer = null

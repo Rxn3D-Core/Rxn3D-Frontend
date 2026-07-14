@@ -1,7 +1,9 @@
 "use client"
 
 import type React from "react"
-
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/auth-context"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { ProductSidebar } from "@/components/product-management/product-sidebar"
@@ -21,6 +23,25 @@ import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { PermissionRoute } from "@/components/permission-route"
 
+const SUPERADMIN_ONLY = process.env.NEXT_PUBLIC_PRODUCT_MGMT_SUPERADMIN_ONLY === "true"
+
+function ProductManagementGuard({ children }: { children: React.ReactNode }) {
+  const { isActingAsLabAdmin, isSuperadmin, user, isLoading } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isLoading || !user) return
+    // Block regular lab admins when the env flag is on; superadmin acting as lab admin passes
+    if (SUPERADMIN_ONLY && !isActingAsLabAdmin && !isSuperadmin) {
+      router.replace("/dashboard")
+    }
+  }, [isLoading, user, isActingAsLabAdmin, isSuperadmin, router])
+
+  if (SUPERADMIN_ONLY && !isActingAsLabAdmin && !isSuperadmin) return null
+
+  return <>{children}</>
+}
+
 export default function LabProductLibraryLayout({
   children,
 }: {
@@ -28,6 +49,7 @@ export default function LabProductLibraryLayout({
 }) {
   return (
     <ProtectedRoute>
+      <ProductManagementGuard>
       <PermissionRoute
         permissions={["view_product", "create_product", "update_product", "delete_product"]}
       >
@@ -70,6 +92,7 @@ export default function LabProductLibraryLayout({
         </ProductCategoryProvider>
       </ProductLibraryProvider>
       </PermissionRoute>
+      </ProductManagementGuard>
     </ProtectedRoute>
   )
 }
