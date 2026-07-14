@@ -42,7 +42,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     }
   }, [expanded, isMobileOverlay])
 
-  const { user, logout, profilePermissions, isSuperadmin } = useAuth()
+  const { user, logout, profilePermissions, isSuperadmin, isActingAsLabAdmin, profileRole } = useAuth()
   const logoutMutation = useMutation({
     mutationFn: async () => logout(),
     onError(error: any) {
@@ -53,7 +53,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
       toast({ title: 'Signed out', description: 'You have been logged out.', variant: 'default' })
     },
   })
-  const userRole = getPrimaryRole(user)
+  const userRole = isActingAsLabAdmin ? "lab_admin" : getPrimaryRole(user)
   const usesProfilePermissions = PROFILE_SCOPED_ROLES.includes(
     userRole as (typeof PROFILE_SCOPED_ROLES)[number],
   )
@@ -62,9 +62,13 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     const customerType =
       typeof window !== "undefined" ? localStorage.getItem("customerType") : null
     const baseMenu = getMenuForProfile(userRole || "", customerType)
-    const filtered = usesProfilePermissions
-      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin)
+    const SUPERADMIN_ONLY = process.env.NEXT_PUBLIC_PRODUCT_MGMT_SUPERADMIN_ONLY === "true"
+    let filtered = usesProfilePermissions
+      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin || isActingAsLabAdmin)
       : baseMenu
+    if (SUPERADMIN_ONLY && !isActingAsLabAdmin && userRole !== "superadmin") {
+      filtered = filtered.filter((item) => item.id !== "product-management")
+    }
     if (userRole !== "superadmin") return filtered
     const hiddenIds = new Set([
       "billing-dunning",

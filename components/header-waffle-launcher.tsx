@@ -76,10 +76,10 @@ export function HeaderWaffleLauncher() {
   const [open, setOpen] = useState(false)
   const [drilldown, setDrilldown] = useState<MenuItem | null>(null)
   const pathname = usePathname() || ""
-  const { user, profilePermissions, isSuperadmin } = useAuth()
+  const { user, profilePermissions, isSuperadmin, isActingAsLabAdmin } = useAuth()
 
   const topItems = useMemo(() => {
-    const userRole = getPrimaryRole(user)
+    const userRole = isActingAsLabAdmin ? "lab_admin" : getPrimaryRole(user)
     const customerType =
       typeof window !== "undefined" ? localStorage.getItem("customerType") : null
     const baseMenu = getMenuForProfile(userRole || "", customerType)
@@ -87,10 +87,10 @@ export function HeaderWaffleLauncher() {
       userRole as (typeof PROFILE_SCOPED_ROLES)[number],
     )
     const filtered = usesProfilePermissions
-      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin)
+      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin || isActingAsLabAdmin)
       : baseMenu
     return getTopLevelItems(filtered)
-  }, [user, profilePermissions, isSuperadmin])
+  }, [user, profilePermissions, isSuperadmin, isActingAsLabAdmin])
 
   const displayItems = (drilldown ? (drilldown.children ?? []) : topItems).map(withFallbackIcon)
 

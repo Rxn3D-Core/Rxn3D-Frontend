@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw } from "lucide-react"
+import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw, Building2 } from "lucide-react"
+import { searchSuperadminLabCustomers } from "@/lib/api/superadmin-customers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
   Select,
@@ -97,7 +98,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext } = useAuth()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -134,6 +135,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
+  const [superAdminLabs, setSuperAdminLabs] = useState<{ id: number; name: string }[]>([])
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
@@ -148,7 +150,8 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastScannedCodeRef = useRef<string>("");
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
-  const isSuperAdmin = isSuperadmin || userRoles.includes("superadmin")
+  // When acting as lab admin, treat the session as non-superadmin across the whole UI
+  const isSuperAdmin = isActingAsLabAdmin ? false : (isSuperadmin || userRoles.includes("superadmin"))
   const isOfficeAdmin = userRoles.includes("office_admin")
   const canCreateSlip = isSuperAdmin || hasPermission("submit_new_case")
   const canCreateOffice =
@@ -181,6 +184,19 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       cancelled = true
     }
   }, [user?.id, updateSessionUser])
+
+  // Fetch all labs for superadmin location dropdown (also when acting as lab admin so the switcher still works)
+  useEffect(() => {
+    if (!isSuperAdmin && !isActingAsLabAdmin) return
+    let cancelled = false
+    searchSuperadminLabCustomers({ per_page: 100, order_by: "name", sort_by: "asc" })
+      .then((res) => {
+        if (cancelled) return
+        setSuperAdminLabs(res.data.map((lab) => ({ id: lab.id, name: lab.name })))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isSuperAdmin])
 
   // Load scan history from localStorage on mount
   useEffect(() => {
@@ -806,8 +822,8 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   }, [toast])
 
   const getPrimaryRole = () => {
-    if (userRoles.includes("superadmin")) return "Super Admin"
-    if (userRoles.includes("lab_admin")) return "Lab Admin"
+    if (!isActingAsLabAdmin && userRoles.includes("superadmin")) return "Super Admin"
+    if (isActingAsLabAdmin || userRoles.includes("lab_admin")) return "Lab Admin"
     if (userRoles.includes("office_admin")) return "Office Admin"
     if (userRoles.includes("doctor_admin")) return "Doctor Admin"
     if (userRoles.includes("lab_user")) return "Lab User"
@@ -835,8 +851,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     const locationId = Number(value)
     if (!Number.isFinite(locationId) || locationId === selectedLocation) return
 
-    const location = safeLocations.find((loc) => loc.id === locationId)
-    if (!location) return
+    if (!isSuperAdmin) {
+      const location = safeLocations.find((loc) => loc.id === locationId)
+      if (!location) return
+    }
 
     setIsSwitchingProfile(true)
     try {
@@ -979,6 +997,33 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             {/* Right Section - Controls & User */}
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
               {/* Location Selector - Desktop */}
+              {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+                <div className="hidden md:block min-w-0">
+                  <Select
+                    value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
+                    onValueChange={handleLocationChange}
+                  >
+                    <SelectTrigger className="w-[140px] lg:w-[180px] xl:w-[220px] h-8 sm:h-9 md:h-10 text-xs sm:text-sm border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8] dark:bg-gray-800 dark:border-gray-700">
+                      <Building2 className="h-4 w-4 mr-1 flex-shrink-0 text-gray-500" />
+                      <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg shadow-lg">
+                      <SelectGroup>
+                        <SelectLabel className="font-medium text-gray-700 dark:text-gray-300">Labs</SelectLabel>
+                        {superAdminLabs.map((lab) => (
+                          <SelectItem
+                            key={lab.id}
+                            value={lab.id.toString()}
+                            className="hover:bg-blue-50 dark:hover:bg-gray-800"
+                          >
+                            {lab.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {!isSuperAdmin && safeLocations.length > 0 && (
                 <div className="hidden md:block min-w-0">
                   <Select
@@ -992,9 +1037,9 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                       <SelectGroup>
                         <SelectLabel className="font-medium text-gray-700 dark:text-gray-300">Locations</SelectLabel>
                         {safeLocations.map((location) => (
-                          <SelectItem 
-                            key={location.id} 
-                            value={location.id.toString()} 
+                          <SelectItem
+                            key={location.id}
+                            value={location.id.toString()}
                             className="hover:bg-blue-50 dark:hover:bg-gray-800"
                           >
                             {location.name}
@@ -1012,7 +1057,19 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 <LanguageSwitcher />
               </div> */}
 
-{/* Settings Icon */}
+              {/* Exit Lab View - shown when superadmin is acting as lab admin */}
+              {isActingAsLabAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="hidden sm:inline-flex h-8 sm:h-9 text-xs border-orange-400 text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:hover:bg-orange-950"
+                  onClick={exitLabContext}
+                >
+                  Exit Lab View
+                </Button>
+              )}
+
+              {/* Settings Icon */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -1142,6 +1199,30 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               </div>
             )}
             {/* Location Selector - Mobile */}
+            {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+              <Select
+                value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
+                onValueChange={handleLocationChange}
+              >
+                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                  <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg shadow-lg">
+                  <SelectGroup>
+                    <SelectLabel className="font-medium text-gray-700">Labs</SelectLabel>
+                    {superAdminLabs.map((lab) => (
+                      <SelectItem
+                        key={lab.id}
+                        value={lab.id.toString()}
+                        className="hover:bg-blue-50"
+                      >
+                        {lab.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
             {!isSuperAdmin && safeLocations.length > 0 && (
               <Select
                 value={selectedLocation !== null ? selectedLocation.toString() : ""}

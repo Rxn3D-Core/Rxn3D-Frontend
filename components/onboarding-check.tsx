@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 
 export function OnboardingCheck() {
-  const { user, isNewUser } = useAuth()
+  const { user, isNewUser, isActingAsLabAdmin } = useAuth()
   const { isOnboardingComplete, isLoading, onboardingStatus, error } = useOnboardingStatus()
   const router = useRouter()
   const pathname = usePathname()
@@ -23,7 +23,7 @@ export function OnboardingCheck() {
       return
     }
 
-    const isSuperAdmin = user.roles?.includes("superadmin")
+    const isSuperAdmin = !isActingAsLabAdmin && user.roles?.includes("superadmin")
     const isOnOnboardingPage = pathname?.startsWith("/onboarding")
     
     // Finished per setup-status API (only)
