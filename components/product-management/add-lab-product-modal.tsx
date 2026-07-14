@@ -2075,16 +2075,11 @@ export function AddLabProductModal({
     // Remove category_id from payload (it's UI-only for filtering subcategories)
     delete payload.category_id
 
-    // For update operations, calculate only changed fields
-    if (editingProduct && initialFormValues) {
-      const changes = calculateChanges(initialFormValues, data)
-      payload = { ...changes }
-      // Remove category_id from changes as well
-      delete payload.category_id
-      console.log('🔄 Update Mode: Sending only changed fields', payload)
-    } else {
-      console.log('➕ Create Mode: Sending all fields')
-    }
+    // Always send the full form on create and update (no change-diff trimming)
+    console.log(
+      editingProduct ? "🔄 Update Mode: Sending full form fields" : "➕ Create Mode: Sending all fields",
+      payload,
+    )
     
     // Ensure is_teeth_based_price is always set to "Yes" or "No"
     payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
@@ -2114,29 +2109,13 @@ export function AddLabProductModal({
       payload.jaw_photos = jawPhotoPayload
     }
 
-    // Include array in API payload when create mode has rows, or when edit mode processed state differs from baseline.
-    // Important: do not rely on `fieldName in payload` (calculateChanges diff) alone — use full `data` as source so
-    // fields like addons are not wiped when the diff object omits the key but the form actually changed.
-    const shouldIncludeProcessedArray = (
-      processedValue: any[],
-      baselineProcessed: any[],
-    ): boolean => {
-      if (!editingProduct || !initialFormValues) {
-        return Array.isArray(processedValue) && processedValue.length > 0
-      }
-      if (JSON.stringify(processedValue) !== JSON.stringify(baselineProcessed)) {
-        return processedValue.length > 0 || baselineProcessed.length > 0
-      }
-      return false
-    }
-
     // Handle apply_same_status_to_opposing checkbox logic
     // If checked, send empty array for opposite_extractions
     if (data.apply_same_status_to_opposing === true) {
       payload.opposite_extractions = []
     }
 
-    // Only process and include array fields that have meaningful changes
+    // Always process and include all relation arrays from the current form
     const arrayFields = [
       { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
       { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus },
@@ -2161,32 +2140,13 @@ export function AddLabProductModal({
       }
       
       const sourceFromForm = Array.isArray(formRowArrays[key]) ? (formRowArrays[key] as any[]) : []
-      const baselineRaw = Array.isArray(initialFormValues?.[key as keyof ProductCreateForm])
-        ? (initialFormValues[key as keyof ProductCreateForm] as any[])
-        : []
 
-      let baselineProcessed: any[]
       if (processor === ensureExtractions) {
-        baselineProcessed = ensureExtractions(baselineRaw)
+        payload[key] = ensureExtractions(sourceFromForm)
       } else if (processor === ensureOppositeExtractions) {
-        baselineProcessed = ensureOppositeExtractions(baselineRaw)
+        payload[key] = ensureOppositeExtractions(sourceFromForm)
       } else {
-        baselineProcessed = ensureSequenceAndStatus(baselineRaw, idKey)
-      }
-
-      let processedValue: any[]
-      if (processor === ensureExtractions) {
-        processedValue = ensureExtractions(sourceFromForm)
-      } else if (processor === ensureOppositeExtractions) {
-        processedValue = ensureOppositeExtractions(sourceFromForm)
-      } else {
-        processedValue = ensureSequenceAndStatus(sourceFromForm, idKey)
-      }
-
-      if (shouldIncludeProcessedArray(processedValue, baselineProcessed)) {
-        payload[key] = processedValue
-      } else {
-        delete payload[key]
+        payload[key] = ensureSequenceAndStatus(sourceFromForm, idKey)
       }
     })
 
@@ -2194,20 +2154,7 @@ export function AddLabProductModal({
       const key = "advance_fields" as const
       const raw =
         payload[key] !== undefined && payload[key] !== null ? payload[key] : data[key]
-      const processed = serializeAdvanceFieldsForApi(Array.isArray(raw) ? raw : [])
-      if (!sections.advanceField) {
-        payload[key] = processed
-      } else if (!editingProduct || !initialFormValues) {
-        payload[key] = processed
-      } else {
-        const rawInit = initialFormValues.advance_fields ?? []
-        const baselineProcessed = serializeAdvanceFieldsForApi(Array.isArray(rawInit) ? rawInit : [])
-        if (shouldIncludeProcessedArray(processed, baselineProcessed)) {
-          payload[key] = processed
-        } else {
-          delete payload[key]
-        }
-      }
+      payload[key] = serializeAdvanceFieldsForApi(Array.isArray(raw) ? raw : [])
     }
 
     // Add customer_id if user is lab_admin (for both create and update)
@@ -2625,7 +2572,7 @@ export function AddLabProductModal({
         return
       }
 
-      // Collect fields from ALL tabs so no changes are lost
+      // Collect fields from ALL tabs so change-detection covers the whole form
       const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "toothChartConfigurations", "visibility"]
       const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
 
@@ -2645,7 +2592,7 @@ export function AddLabProductModal({
         }
       }
 
-      // Calculate only the changed fields in this section
+      // Diff is only used to decide whether to call the API (and for stage backfill); payload is full form
       const changes = calculateChanges(initialSectionData, sectionData)
 
       // Detect products whose Stages tab has grade prices typed in (e.g. Standard/Premium
@@ -2681,25 +2628,6 @@ export function AddLabProductModal({
         })
         return
       }
-
-      // If only releasing stages changed (or a stage_grades backfill is needed), ensure stages are included in changes
-      if (Object.keys(changes).length === 0 && (hasReleasingStageChanges || (needsStageGradesBackfill && activeTab === "stages"))) {
-        changes.stages = sectionData.stages
-      }
-
-      // Remove category_id from changes (UI-only field)
-      delete changes.category_id
-
-      // Only include stages / has_stage / stage_grades (via buildProductPayload) when this update touches stages
-      const stagesSectionToggleChanged =
-        !!initialSections && initialSections.stages !== sections.stages
-      const shouldIncludeStagePayload =
-        hasReleasingStageChanges ||
-        stagesSectionToggleChanged ||
-        changes.stages !== undefined ||
-        changes.is_single_stage !== undefined ||
-        (!!dirtyFields.stages && activeTab === "stages") ||
-        (needsStageGradesBackfill && activeTab === "stages")
 
       // Determine if customer_id will be in the final payload (needed for stage formatting)
       // This must be determined before processing stages
@@ -2867,23 +2795,36 @@ export function AddLabProductModal({
         })).filter(item => item.extraction_id)
       }
 
-      // Process array fields in changes
-      // Special handling for stages: always send ALL current stages (not just changed ones)
-      // because stage updates need the full array for proper sequencing and relationships
-      const arrayFields = [
-        { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
-        { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus, useCurrentValue: true }, // Always use current value for stages
-        { key: 'impressions', idKey: 'impression_id', processor: ensureSequenceAndStatus },
-        { key: 'gum_shades', idKey: 'gum_shade_id', processor: ensureSequenceAndStatus },
-        { key: 'teeth_shades', idKey: 'teeth_shade_id', processor: ensureSequenceAndStatus },
-        { key: 'materials', idKey: 'material_id', processor: ensureSequenceAndStatus },
-        { key: 'retentions', idKey: 'retention_id', processor: ensureSequenceAndStatus },
-        { key: 'addons', idKey: 'addon_id', processor: ensureSequenceAndStatus },
-        { key: 'extractions', idKey: 'extraction_id', processor: ensureExtractions },
-        { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
-      ]
+      // Always send the full form (all fields currently in the modal), not only dirty diffs
+      const payload: any = { ...formData }
+      delete payload.category_id
 
-      const payload: any = { ...changes }
+      payload.is_teeth_based_price = formData.is_teeth_based_price === "Yes" ? "Yes" : "No"
+      payload.show_jaw_photo = (formData as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+      payload.opposite_impression = formData.request_opposing_extraction ? "Yes" : "No"
+
+      // jaw_photos: only include slots that are new base64 uploads or explicit removals
+      const jawPhotoPayload: Record<string, string | null> = {}
+      let hasJawPhotoChange = false
+      const existingJawFromApi = jawPhotosStateFromProduct(editingProduct ?? null)
+      ;(["upper", "lower", "both"] as const).forEach((slot) => {
+        const val = jawPhotos[slot]
+        if (val && val.startsWith("data:image/")) {
+          jawPhotoPayload[slot] = val
+          hasJawPhotoChange = true
+        } else if (val === null) {
+          const existingUrl = existingJawFromApi[slot]
+          if (existingUrl) {
+            jawPhotoPayload[slot] = null
+            hasJawPhotoChange = true
+          }
+        }
+      })
+      if (hasJawPhotoChange) {
+        payload.jaw_photos = jawPhotoPayload
+      } else {
+        delete payload.jaw_photos
+      }
 
       // Ensure customer_id is included in payload if present in formData or for lab_admin
       if (formData.customer_id !== undefined && formData.customer_id !== null) {
@@ -2923,61 +2864,53 @@ export function AddLabProductModal({
         console.log('💰 Resolved price:', payload.price, 'base_price:', payload.base_price)
       }
 
-      // Special handling for stages: include current stages if dirty on the stages tab (and we're syncing stages)
-      if ((dirtyFields.stages || needsStageGradesBackfill) && shouldIncludeStagePayload) {
-        // Even if changes doesn't have stages (due to comparison issues), include current stages
-        const currentStages = formData.stages || []
-        if (currentStages.length > 0) {
-          // Sort stages by sequence
-          const sortedStages = [...currentStages].sort((a: any, b: any) => {
-            const seqA = a.sequence ?? 0
-            const seqB = b.sequence ?? 0
-            return seqA - seqB
-          })
-          payload.stages = ensureSequenceAndStatus(sortedStages, 'stage_id')
-        }
+      const arrayFields = [
+        { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
+        { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus },
+        { key: 'impressions', idKey: 'impression_id', processor: ensureSequenceAndStatus },
+        { key: 'gum_shades', idKey: 'gum_shade_id', processor: ensureSequenceAndStatus },
+        { key: 'teeth_shades', idKey: 'teeth_shade_id', processor: ensureSequenceAndStatus },
+        { key: 'materials', idKey: 'material_id', processor: ensureSequenceAndStatus },
+        { key: 'retentions', idKey: 'retention_id', processor: ensureSequenceAndStatus },
+        { key: 'addons', idKey: 'addon_id', processor: ensureSequenceAndStatus },
+        { key: 'extractions', idKey: 'extraction_id', processor: ensureExtractions },
+        { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
+      ]
+
+      if (formData.apply_same_status_to_opposing === true) {
+        payload.opposite_extractions = []
       }
 
-      arrayFields.forEach(({ key, idKey, processor, useCurrentValue }) => {
+      arrayFields.forEach(({ key, idKey, processor }) => {
         if (key === 'opposite_extractions' && formData.apply_same_status_to_opposing === true) {
           payload.opposite_extractions = []
           return
         }
-        
-        // For stages, always use current formData value (all stages) if stages changed
-        // This ensures we send the complete stage array with proper sequencing
-        if (key === 'stages' && changes[key] !== undefined && shouldIncludeStagePayload) {
-          // Use current formData stages (all of them) instead of just changed ones
-          const currentStages = formData.stages || []
-          if (currentStages.length > 0) {
-            // Sort stages by sequence
-            const sortedStages = [...currentStages].sort((a: any, b: any) => {
-              const seqA = a.sequence ?? 0
-              const seqB = b.sequence ?? 0
-              return seqA - seqB
-            })
-            payload[key] = processor(sortedStages, idKey)
-          }
-        } else if (changes[key] !== undefined && key !== 'stages') {
-          // Don't process stages here if we already handled them above
-          payload[key] = processor(changes[key] as any[], idKey)
+
+        const sourceFromForm = Array.isArray((formData as any)[key]) ? ((formData as any)[key] as any[]) : []
+
+        if (key === 'stages') {
+          const sortedStages = [...sourceFromForm].sort((a: any, b: any) => {
+            const seqA = a.sequence ?? 0
+            const seqB = b.sequence ?? 0
+            return seqA - seqB
+          })
+          payload[key] = processor(sortedStages, idKey)
+          return
+        }
+
+        if (processor === ensureExtractions) {
+          payload[key] = ensureExtractions(sourceFromForm)
+        } else if (processor === ensureOppositeExtractions) {
+          payload[key] = ensureOppositeExtractions(sourceFromForm)
+        } else {
+          payload[key] = processor(sourceFromForm, idKey)
         }
       })
 
-      if (!sections.advanceField) {
-        payload.advance_fields = serializeAdvanceFieldsForApi(
-          (formData.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
-        )
-      } else if (changes.advance_fields !== undefined) {
-        payload.advance_fields = serializeAdvanceFieldsForApi(
-          (formData.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
-        )
-      }
-
-      // Handle apply_same_status_to_opposing
-      if (changes.apply_same_status_to_opposing !== undefined && formData.apply_same_status_to_opposing === true) {
-        payload.opposite_extractions = []
-      }
+      payload.advance_fields = serializeAdvanceFieldsForApi(
+        (formData.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
+      )
 
       // Include new image if user uploaded one
       if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
@@ -3007,6 +2940,8 @@ export function AddLabProductModal({
           payload.stage_grades = stageGrades
         }
       }
+
+      console.log('🔄 Update Mode: Sending full form fields', payload)
 
       // Debug logging for stages
       if (activeTab === "stages") {
@@ -3100,14 +3035,12 @@ export function AddLabProductModal({
           onProductPersisted(mergedPersistedTab)
         }
 
-        // Update initialFormValues to reflect the changes across all tabs
-        const updatedInitialValues: ProductCreateForm = { ...initialFormValues }
-        for (const field of allFields) {
-          if (changes[field] !== undefined) {
-            (updatedInitialValues as any)[field] = formData[field as keyof typeof formData]
-          }
+        // Sync baseline to the full form after a full-form save
+        try {
+          setInitialFormValues(structuredClone(formData) as ProductCreateForm)
+        } catch {
+          setInitialFormValues(JSON.parse(JSON.stringify(formData)) as ProductCreateForm)
         }
-        setInitialFormValues(updatedInitialValues)
         // Keep section toggle baseline in sync after save (e.g. Main Product Fields / has_extraction)
         setInitialSections({ ...sections })
         setSectionWasToggled(false)
