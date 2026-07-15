@@ -32,6 +32,7 @@ import LoadingOverlay from "@/components/ui/loading-overlay"
 import { useArchSelectionStore } from "@/stores/arch-selection-store"
 import { CustomerLogo } from "@/components/customer-logo"
 import { isValidPatientName } from "@/lib/patient-name-validation"
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
 
 // Dynamic Showing Results Component
 interface ShowingResultsProps {
@@ -2595,17 +2596,20 @@ export function DentalSlipPageContent({
 
                           return (
                             <div className="rounded-full bg-gray-200 flex items-center justify-center overflow-hidden" style={{ width: '103.92px', height: '103.92px' }}>
-                              {(selectedDoctor as any)?.profile_image ? (
-                                <img
-                                  src={(selectedDoctor as any).profile_image}
-                                  alt={addSlipFormData.doctor}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-2xl font-semibold text-[#1162a8]">
-                                  {`${(selectedDoctor as any)?.first_name?.[0] || addSlipFormData.doctor?.[0] || "?"}${(selectedDoctor as any)?.last_name?.[0] || ""}`.toUpperCase()}
-                                </span>
-                              )}
+                              {(() => {
+                                const imageSrc = resolveDoctorImageUrl(selectedDoctor as any)
+                                return imageSrc ? (
+                                  <img
+                                    src={imageSrc}
+                                    alt={addSlipFormData.doctor}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-2xl font-semibold text-[#1162a8]">
+                                    {`${(selectedDoctor as any)?.first_name?.[0] || addSlipFormData.doctor?.[0] || "?"}${(selectedDoctor as any)?.last_name?.[0] || ""}`.toUpperCase()}
+                                  </span>
+                                )
+                              })()}
                             </div>
                           )
                         })()}
@@ -2794,17 +2798,20 @@ export function DentalSlipPageContent({
                           <div className="relative mb-3">
                             <div className={`w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center transition-all duration-200 group-hover:border-4 group-hover:border-blue-500 group-hover:shadow-lg ${isSelected ? 'border-4 border-blue-500' : 'border-2 border-gray-200'
                               }`}>
-                              {(doctor as any).profile_image ? (
-                                <img
-                                  src={(doctor as any).profile_image}
-                                  alt={doctorName}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-3xl font-semibold text-[#1162a8]">
-                                  {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
-                                </span>
-                              )}
+                              {(() => {
+                                const imageSrc = resolveDoctorImageUrl(doctor as any)
+                                return imageSrc ? (
+                                  <img
+                                    src={imageSrc}
+                                    alt={doctorName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-3xl font-semibold text-[#1162a8]">
+                                    {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                                  </span>
+                                )
+                              })()}
                             </div>
                             {/* Selection indicator */}
                             {isSelected && (

@@ -145,7 +145,14 @@ export function buildWizardSeedFromSlipDetails(details: unknown): AddStageWizard
       patient_name?: string;
       gender?: string;
       age?: number | string;
-      doctor?: { id?: number; name?: string; image?: string; signature_url?: string };
+      doctor?: {
+        id?: number
+        name?: string
+        image?: string
+        profile_image?: string
+        avatar?: string
+        signature_url?: string
+      };
       office?: { id?: number; name?: string; logo_url?: string; image?: string };
       lab?: { id?: number; name?: string; logo_url?: string; image?: string };
     };

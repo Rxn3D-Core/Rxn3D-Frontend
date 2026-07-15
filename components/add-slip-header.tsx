@@ -13,6 +13,7 @@ import { useSlipCreation } from "@/contexts/slip-creation-context"
 import FocusedSpotlight from "@/components/focused-spotlight"
 import { useFocusedSpotlight } from "@/hooks/use-focused-spotlight"
 import { CustomerLogo } from "@/components/customer-logo"
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
 interface AddSlipHeaderProps {
   formData: {
     office?: string
@@ -167,10 +168,11 @@ export default function AddSlipHeader({
                     const selectedDoctor = doctorOptions?.find((doc: any) =>
                       String(doc.id) === formData.doctor_id
                     )
+                    const imageSrc = resolveDoctorImageUrl(selectedDoctor)
 
-                    return selectedDoctor?.profile_image ? (
+                    return imageSrc ? (
                       <img
-                        src={selectedDoctor.profile_image}
+                        src={imageSrc}
                         alt={formData.doctor}
                         className="w-full h-full object-cover"
                       />

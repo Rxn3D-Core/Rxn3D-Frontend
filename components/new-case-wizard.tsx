@@ -33,7 +33,7 @@ import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
-import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, getInitials } from "@/utils/avatar-utils";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -73,19 +73,6 @@ function useWizardRole() {
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
-
-/** Multiple fallback images so each doctor gets a different placeholder when they have no avatar */
-const DOCTOR_AVATAR_FALLBACKS = [
-  "/doctors/doctor-1.jpg",
-  "/doctors/doctor-2.jpg",
-  "/doctors/doctor-3.jpg",
-  "/doctors/doctor-4.jpg",
-];
-
-function getDoctorFallbackImg(doctorId: number, index?: number): string {
-  const i = index ?? doctorId;
-  return DOCTOR_AVATAR_FALLBACKS[Math.abs(i) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0];
-}
 
 /* ------------------------------------------------------------------ */
 /*  Fallback image component – shows name text when image is missing   */
@@ -497,28 +484,31 @@ function StepDoctor({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
-        {doctors.map((doc, i) => (
+        {doctors.map((doc) => (
           <button
             key={doc.id}
             onClick={() => onSelect(doc.id)}
             className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
           >
             <div
-              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
+              className={`relative flex items-center justify-center w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
                 ? "border-[4px] border-[#1162A8]"
                 : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
                 }`}
             >
-              <img
-                src={doc.img}
-                alt={doc.name}
-                className="w-full h-full object-cover"
-                data-fallback={getDoctorFallbackImg(doc.id, i)}
-                onError={(e) => {
-                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                  e.currentTarget.src = fallback;
-                }}
-              />
+              <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-[#1162a8]">
+                {getInitials(doc.name) || "?"}
+              </span>
+              {doc.img && (
+                <img
+                  src={doc.img}
+                  alt={doc.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.remove();
+                  }}
+                />
+              )}
             </div>
             <span className="text-[14px] font-weight-700 font-bold text-[#1d1d1b] text-center">
               {doc.name}
@@ -968,17 +958,20 @@ function StepPatientInfo({
         <div className="flex flex-row items-start gap-5">
           {doctor && (
             <div className="flex flex-col items-center gap-1">
-              <div className="w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                <img
-                  src={doctor.img}
-                  alt={doctor.name}
-                  className="w-full h-full object-cover"
-                  data-fallback={getDoctorFallbackImg(doctor.id)}
-                  onError={(e) => {
-                    const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                    e.currentTarget.src = fallback;
-                  }}
-                />
+              <div className="relative w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center text-2xl sm:text-4xl font-semibold text-[#1162a8]">
+                  {getInitials(doctor.name) || "?"}
+                </span>
+                {doctor.img && (
+                  <img
+                    src={doctor.img}
+                    alt={doctor.name}
+                    className="relative w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.remove();
+                    }}
+                  />
+                )}
               </div>
               <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">{doctor.name}</p>
             </div>
@@ -1073,11 +1066,10 @@ function StepPatientInfo({
         </div>
 
         <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
-          <div className="w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-            {createdByImage ? (
-              <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-base sm:text-xl font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+          <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">{getInitials(createdByName) || "?"}</span>
+            {createdByImage && (
+              <img src={createdByImage} onError={(e) => { e.currentTarget.remove(); }} alt="Creator" className="relative w-full h-full object-cover" />
             )}
           </div>
           <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -1092,17 +1084,20 @@ function StepPatientInfo({
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
           <div className="flex flex-col items-center gap-1">
-            <div className="w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
-              <img
-                src={doctor.img}
-                alt={doctor.name}
-                className="w-full h-full object-cover"
-                data-fallback={getDoctorFallbackImg(doctor.id)}
-                onError={(e) => {
-                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                  e.currentTarget.src = fallback;
-                }}
-              />
+            <div className="relative flex items-center justify-center w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
+              <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+                {getInitials(doctor.name) || "?"}
+              </span>
+              {doctor.img && (
+                <img
+                  src={doctor.img}
+                  alt={doctor.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.remove();
+                  }}
+                />
+              )}
             </div>
             <span className="text-[13px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
           </div>
@@ -1198,11 +1193,10 @@ function StepPatientInfo({
         </div>
 
         {/* Row 3: Created By avatar */}
-        <div className="w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
-          {createdByImage ? (
-            <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xl font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+        <div className="relative w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+          <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">{getInitials(createdByName) || "?"}</span>
+          {createdByImage && (
+            <img src={createdByImage} onError={(e) => { e.currentTarget.remove(); }} alt="Creator" className="relative w-full h-full object-cover" />
           )}
         </div>
 
@@ -1910,16 +1904,19 @@ function PatientMiniHeader({
         {doctor && (
           <div className="flex flex-col items-center gap-1 flex-shrink-0">
             <div className="w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative">
-              <img
-                src={doctor.img}
-                alt={doctor.name}
-                className="w-full h-full object-cover"
-                data-fallback={getDoctorFallbackImg(doctor.id)}
-                onError={(e) => {
-                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                  e.currentTarget.src = fallback;
-                }}
-              />
+              <span className="absolute inset-0 flex items-center justify-center text-lg sm:text-xl font-semibold text-[#1162a8]">
+                {getInitials(doctor.name) || "?"}
+              </span>
+              {doctor.img && (
+                <img
+                  src={doctor.img}
+                  alt={doctor.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.remove();
+                  }}
+                />
+              )}
             </div>
             <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">
               {doctor.name}
@@ -1967,21 +1964,19 @@ function PatientMiniHeader({
 
         {/* Created By */}
         <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0 lg:ml-2">
-          <div className="w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-            {createdByImage ? (
+          <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
+              {getInitials(createdByName) || "?"}
+            </span>
+            {createdByImage && (
               <img
                 src={createdByImage}
                 onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = "/images/created-by.png";
+                  e.currentTarget.remove();
                 }}
                 alt="Creator"
-                className="w-full h-full object-cover"
+                className="relative w-full h-full object-cover"
               />
-            ) : (
-              <span className="text-base sm:text-xl font-bold text-gray-500">
-                {createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}
-              </span>
             )}
           </div>
           <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -2137,11 +2132,12 @@ export default function NewCaseWizard({
 
   const doctorsForWizard: WizardDoctorShape[] = useMemo(
     () =>
-      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; signature_url?: string }[]).map(
-        (d, i) => ({
+      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; avatar?: string; signature_url?: string }[]).map(
+        (d) => ({
           id: d.id,
           name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
-          img: resolveDoctorImageUrl(d) || getDoctorFallbackImg(d.id, i),
+          // Empty string when no photo — UI shows initials (never a placeholder image)
+          img: resolveDoctorImageUrl(d) || "",
         })
       ),
     [officeDoctorsRaw]

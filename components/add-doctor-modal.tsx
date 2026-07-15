@@ -12,19 +12,7 @@ import { Search, Plus, CheckCircle, X, ChevronDown, Loader2, AlertCircle } from 
 import { useToast } from "@/hooks/use-toast"
 import { useInvitation } from "@/contexts/invitation-context"
 import { userInvitationService } from "@/services/user-invitation-service"
-
-/** Multiple fallback images so each doctor gets a different placeholder when they have no avatar */
-const DOCTOR_AVATAR_FALLBACKS = [
-  "/doctors/doctor-1.jpg",
-  "/doctors/doctor-2.jpg",
-  "/doctors/doctor-3.jpg",
-  "/doctors/doctor-4.jpg",
-]
-
-function getDoctorFallbackImg(doctorId: string, index: number): string {
-  const numId = parseInt(doctorId, 10) || index
-  return DOCTOR_AVATAR_FALLBACKS[Math.abs(numId) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0]
-}
+import { resolveDoctorImageUrl, getInitials } from "@/utils/avatar-utils"
 
 interface Doctor {
   id: string
@@ -142,7 +130,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         name: user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         email: user.email,
         title: user.title || "DDS",
-        image: user.profile_image || undefined,
+        image: resolveDoctorImageUrl(user) || undefined,
         status: user.status === "Invited" ? "Invited" : "available", // Show invited status
         userStatus: user.status // Store the actual user status
       })) || []
@@ -422,15 +410,20 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                           onClick={() => handleDoctorSelect(doctor)}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
-                              <img
-                                src={doctor.image || getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))}
-                                alt={doctor.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))
-                                }}
-                              />
+                            <div className="relative w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+                              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-[#1162a8]">
+                                {getInitials(doctor.name) || "?"}
+                              </span>
+                              {resolveDoctorImageUrl(doctor) && (
+                                <img
+                                  src={resolveDoctorImageUrl(doctor)}
+                                  alt={doctor.name}
+                                  className="relative w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.remove()
+                                  }}
+                                />
+                              )}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -552,15 +545,20 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   }`}
                   onClick={() => handleDoctorSelect(doctor)}
                 >
-                  <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
-                    <img
-                      src={doctor.image || getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))}
-                      alt={doctor.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.src = getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))
-                      }}
-                    />
+                  <div className="relative w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+                    <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+                      {getInitials(doctor.name) || "?"}
+                    </span>
+                    {resolveDoctorImageUrl(doctor) && (
+                      <img
+                        src={resolveDoctorImageUrl(doctor)}
+                        alt={doctor.name}
+                        className="relative w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.remove()
+                        }}
+                      />
+                    )}
                   </div>
                   <h3 className="font-medium text-base mb-1">{doctor.name}, {doctor.title}</h3>
                   <p className="text-sm text-gray-500 mb-4">{doctor.email}</p>
