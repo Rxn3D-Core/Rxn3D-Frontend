@@ -9,27 +9,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { WizardDoctorShape } from "@/components/new-case-wizard";
-import { resolveDoctorImageUrl, type DoctorImageSource } from "@/utils/avatar-utils";
-
-const DOCTOR_AVATAR_FALLBACKS = [
-  "/doctors/doctor-1.jpg",
-  "/doctors/doctor-2.jpg",
-  "/doctors/doctor-3.jpg",
-  "/doctors/doctor-4.jpg",
-];
-
-function doctorFallbackImg(doctorId: number, index?: number): string {
-  const i = index ?? doctorId;
-  return DOCTOR_AVATAR_FALLBACKS[Math.abs(i) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0];
-}
+import { resolveDoctorImageUrl, getInitials, type DoctorImageSource } from "@/utils/avatar-utils";
 
 export function mapOfficeDoctorsToWizardShape(
   raw: (DoctorImageSource & { id: number; first_name?: string; last_name?: string })[]
 ): WizardDoctorShape[] {
-  return raw.map((d, i) => ({
+  return raw.map((d) => ({
     id: d.id,
     name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
-    img: resolveDoctorImageUrl(d) || doctorFallbackImg(d.id, i),
+    // Empty string when no photo — UI shows initials (never a placeholder image)
+    img: resolveDoctorImageUrl(d) || "",
   }));
 }
 
@@ -81,7 +70,7 @@ export function DoctorEditModal({
                 {doctors.length} {doctors.length === 1 ? "doctor" : "doctors"} found
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 justify-items-center">
-                {doctors.map((doc, i) => {
+                {doctors.map((doc) => {
                   const isSelected = selectedDoctorId === doc.id;
                   return (
                     <button
@@ -92,21 +81,23 @@ export function DoctorEditModal({
                     >
                       <div
                         className={cn(
-                          "w-[88px] h-[88px] sm:w-[100px] sm:h-[100px] rounded-full overflow-hidden flex-shrink-0 bg-[#eef1f4] border-[3px] transition-colors",
+                          "relative flex items-center justify-center w-[88px] h-[88px] sm:w-[100px] sm:h-[100px] rounded-full overflow-hidden flex-shrink-0 bg-[#eef1f4] border-[3px] transition-colors",
                           isSelected ? "border-[#1162A8]" : "border-[#d9d9d9] group-hover:border-[#1162A8]"
                         )}
                       >
-                        <img
-                          src={doc.img}
-                          alt={doc.name}
-                          className="w-full h-full object-cover"
-                          data-fallback={doctorFallbackImg(doc.id, i)}
-                          onError={(e) => {
-                            const fallback =
-                              e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                            e.currentTarget.src = fallback;
-                          }}
-                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+                          {getInitials(doc.name) || "?"}
+                        </span>
+                        {doc.img && (
+                          <img
+                            src={doc.img}
+                            alt={doc.name}
+                            className="relative w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.remove();
+                            }}
+                          />
+                        )}
                       </div>
                       <span className="text-[13px] font-bold text-[#1d1d1b] text-center leading-tight">
                         {doc.name}

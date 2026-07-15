@@ -150,6 +150,12 @@ export interface OfficeDoctor {
   work_number: string
   license_number: string
   signature_url: string
+  /** Profile photo — field name varies by API version */
+  image?: string | null
+  profile_image?: string | null
+  avatar?: string | null
+  avatar_url?: string | null
+  image_url?: string | null
   status: string
   role: string
   is_primary: boolean

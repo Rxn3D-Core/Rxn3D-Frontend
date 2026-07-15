@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search } from "lucide-react"
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
 
 interface Step2DoctorSelectionProps {
   officeDoctors: any[]
@@ -125,17 +126,20 @@ export const Step2DoctorSelection: React.FC<Step2DoctorSelectionProps> = ({
                   <div className="relative mb-3">
                     <div className={`w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center transition-all duration-200 ${isSelected ? 'border-4 border-blue-500' : 'border-2 border-gray-200'
                       }`}>
-                      {doctor.profile_image ? (
-                        <img
-                          src={doctor.profile_image}
-                          alt={doctorName}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-3xl font-semibold text-[#1162a8]">
-                          {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
-                        </span>
-                      )}
+                      {(() => {
+                        const imageSrc = resolveDoctorImageUrl(doctor)
+                        return imageSrc ? (
+                          <img
+                            src={imageSrc}
+                            alt={doctorName}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-3xl font-semibold text-[#1162a8]">
+                            {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                          </span>
+                        )
+                      })()}
                     </div>
                     {/* Selection indicator */}
                     {isSelected && (

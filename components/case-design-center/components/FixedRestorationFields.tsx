@@ -575,6 +575,11 @@ export function RetentionProductFields({
     );
   const isSingleShadeEdit = shadeEditActiveFieldId != null;
   const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
+  const gradeComplete = !productHasGrades(selectedProduct) || isGradeStepCompleteForDisplay(
+    getFieldValue(arch, firstToothNumber, "grade"),
+    isFieldCompleted(arch, firstToothNumber, "grade"),
+    selectedProduct
+  );
   const effectiveShadeGuideOptions =
     shadeGuideOptions.length > 0
       ? shadeGuideOptions
@@ -720,6 +725,15 @@ export function RetentionProductFields({
       return;
     }
 
+    // Wait for grade selection before opening shade — grade modal and shade picker
+    // would overlap if both opened simultaneously, and the ref would already be set
+    // preventing shade from re-opening once grade is chosen.
+    if (!gradeComplete) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+
     const firstMissingNamed = usesNamedShadeGuideFields
       ? getFirstMissingShadeGuideField(
           selectedProduct?.advance_fields,
@@ -772,6 +786,7 @@ export function RetentionProductFields({
     getFieldValue,
     getSelectedShade,
     getSelectedShadeForDisplay,
+    gradeComplete,
     groupStageProductIdFixed,
     groupStageToothNumber,
     handleShadeFieldClick,
