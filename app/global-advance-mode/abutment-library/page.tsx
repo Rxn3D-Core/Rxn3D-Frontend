@@ -167,7 +167,7 @@ export default function AbutmentLibraryPage() {
                 setIsCopyingAbutment(false)
                 setIsAddAbutmentModalOpen(true)
               }}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
               {t("advanceMode.abutmentLibrary.addAbutments", "Add Abutments")}

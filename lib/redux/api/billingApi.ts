@@ -335,7 +335,7 @@ export interface BillingStatistics {
 
 export interface BulkBillingActionBody {
   billing_ids: number[]
-  action: "mark_checked" | "mark_billed" | "mark_refund" | "refresh_charges" | "send_statement"
+  action: "mark_checked" | "mark_pending" | "mark_billed" | "mark_refund" | "refresh_charges" | "send_statement"
   notes?: string
   email_template?: string
   send_email?: boolean
@@ -721,6 +721,17 @@ export const billingApi = apiSlice.injectEndpoints({
       invalidatesTags: [{ type: "Billing", id: "LIST" }],
     }),
 
+    deleteBillingProduct: builder.mutation<
+      { success?: boolean; data?: BillingInvoice; message?: string },
+      number
+    >({
+      query: (productId) => ({
+        url: `/billing/products/${productId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "Billing", id: "LIST" }, { type: "Billing", id: "STATS" }],
+    }),
+
     updateBillingProductPricing: builder.mutation<
       { success?: boolean; data?: unknown; message?: string },
       { productId: number; invoiceId?: number; body: UpdateBillingProductPricingBody }
@@ -890,6 +901,7 @@ export const {
   useUpdateBillingItemStatusMutation,
   useUpdateBillingItemPriceMutation,
   useUpdateBillingProductMutation,
+  useDeleteBillingProductMutation,
   useUpdateBillingProductPricingMutation,
   useUpdateBillingAddonPriceMutation,
   useUpdateBillingRetentionPriceMutation,

@@ -302,7 +302,7 @@ export default function SubCategoryPage() {
           <div className="flex flex-col sm:flex-row gap-3 items-center">
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             >
               <Plus className="h-4 w-4 mr-2" />
               {t("advanceMode.subCategory.addSubcategory", "Add Subcategory")}
@@ -539,7 +539,7 @@ export default function SubCategoryPage() {
                   key={i}
                   className={`h-8 w-8 rounded-full flex items-center justify-center text-xs ${
                     currentPage === pageNum
-                      ? "bg-[#1162a8] text-white"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                   }`}
                   onClick={() => setCurrentPage(pageNum)}
@@ -631,7 +631,7 @@ export default function SubCategoryPage() {
             <Button
               onClick={handleLinkProducts}
               disabled={linkProductsMutation.isPending || selectedProducts.length === 0}
-              className="bg-[#1162a8] hover:bg-[#0f5497]"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
             >
               {linkProductsMutation.isPending ? (
                 <>
@@ -670,7 +670,7 @@ export default function SubCategoryPage() {
             <Button
               onClick={handleLinkCategories}
               disabled={linkCategoriesMutation.isPending || selectedCategories.length === 0}
-              className="bg-[#1162a8] hover:bg-[#0f5497]"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
             >
               {linkCategoriesMutation.isPending ? (
                 <>

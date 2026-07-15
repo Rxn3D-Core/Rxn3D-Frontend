@@ -17,13 +17,13 @@ export function PermissionRoute({
   children,
   redirectTo = "/dashboard",
 }: PermissionRouteProps) {
-  const { user, isLoading, hasAnyPermission, isSuperadmin } = useAuth()
+  const { user, isLoading, hasAnyPermission, isSuperadmin, isActingAsLabAdmin } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const hasRedirectedRef = useRef(false)
 
   const allowed =
-    isSuperadmin || !permissions.length || hasAnyPermission(permissions)
+    isSuperadmin || isActingAsLabAdmin || !permissions.length || hasAnyPermission(permissions)
 
   useEffect(() => {
     if (isLoading || !user) return

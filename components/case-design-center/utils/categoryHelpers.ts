@@ -9,11 +9,17 @@ type ProductForCategoryCheck = {
   retention_options?: unknown[];
   extractions?: unknown[];
   has_retention?: string | boolean | null;
+  has_extraction?: string | boolean | null;
 } | null | undefined;
 
 type ProductWithRetention = { retention_options?: unknown[]; has_retention?: string | boolean | null } | null | undefined;
 
-type AnyProduct = { retention_options?: unknown[]; extractions?: unknown[]; has_retention?: string | boolean | null };
+type AnyProduct = {
+  retention_options?: unknown[];
+  extractions?: unknown[];
+  has_retention?: string | boolean | null;
+  has_extraction?: string | boolean | null;
+};
 
 export function hasRetentionOptions(product: ProductWithRetention | ProductForCategoryCheck): boolean {
   const p = product as AnyProduct | null | undefined;
@@ -31,6 +37,46 @@ export function hasRetentionOptions(product: ProductWithRetention | ProductForCa
 
 export function isNonRetentionCategory(product: ProductForCategoryCheck): boolean {
   return !hasRetentionOptions(product);
+}
+
+/**
+ * Capability check: does this product carry an extraction layer (missing/extract/
+ * clasps/etc.)? Flag-first (`has_extraction`), then falls back to a non-empty
+ * `extractions[]`. Independent of and orthogonal to {@link hasRetentionOptions}.
+ */
+export function hasExtractionOptions(
+  product: ProductForCategoryCheck | ProductWithRetention
+): boolean {
+  const p = product as AnyProduct | null | undefined;
+  if (!p) return false;
+
+  if (p.has_extraction === true || p.has_extraction === "Yes" || p.has_extraction === "yes") {
+    return true;
+  }
+  if (p.has_extraction === false || p.has_extraction === "No" || p.has_extraction === "no") {
+    return false;
+  }
+
+  return Array.isArray(p.extractions) && p.extractions.length > 0;
+}
+
+/**
+ * The two independent, composable chart layers a product can carry. Drive chart
+ * behavior off this — never off category. All four combinations are valid:
+ * retention-only, extraction-only, both, or neither (plain selection).
+ */
+export interface ProductLayers {
+  retention: boolean;
+  extraction: boolean;
+}
+
+export function getProductLayers(
+  product: ProductForCategoryCheck | ProductWithRetention
+): ProductLayers {
+  return {
+    retention: hasRetentionOptions(product),
+    extraction: hasExtractionOptions(product),
+  };
 }
 
 /** Fixed restoration slip flow (retention chart, shades, etc.). */

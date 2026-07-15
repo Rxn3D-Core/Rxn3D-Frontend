@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { resolveRetentionOptionImageUrl } from '@/components/case-design-center/utils/retentionOptionImage'
+import { buildRetentionPopoverOptions } from '@/components/case-design-center/utils/retentionPopoverOptions'
 import {
-  resolveRetentionOptionChartTypeOrDefault,
   type RetentionChartType,
 } from '@/components/case-design-center/utils/retentionOptionChartType'
+import {
+  isMissingCode,
+  isWillExtractCode,
+  MissingToothDisplay,
+  WillExtractToothDisplay,
+} from './tooth-status-popover'
 
 export interface RetentionOptionToothImage {
   tooth_number: number
@@ -53,10 +58,27 @@ export interface RetentionOptionItem {
   }>
 }
 
+/**
+ * A single extraction-status entry for the combined popover (e.g. Missing, Will
+ * extract, Clasps). Shape is intentionally minimal so the panel can map any
+ * `ProductExtraction` into it.
+ */
+export interface ExtractionStatusOption {
+  code: string
+  name: string
+  imageUrl?: string | null
+  /** Per-tooth image URLs from the extraction's images (visibility_type "Image"); wins over imageUrl. */
+  imagesByTooth?: Record<number, string | null>
+}
+
 interface RetentionTypePopoverProps {
   toothNumber: number
-  onSelectRetentionType: (type: RetentionChartType) => void
+  onSelectRetentionType?: (type: RetentionChartType) => void
+  /** When set, called with the specific retention option id (for per-option tooth images). */
+  onSelectRetentionOption?: (optionId: number, type: RetentionChartType) => void
   selectedType?: RetentionChartType | null
+  /** When set, highlights the exact retention option (needed when multiple options share a chart type). */
+  selectedRetentionOptionId?: number | null
   onClose?: () => void
   onDeselectTooth?: () => void
   retentionOptions?: RetentionOptionItem[]
@@ -68,10 +90,19 @@ interface RetentionTypePopoverProps {
    * available. Defaults to true.
    */
   allowPontic?: boolean
-}
-
-function getOptionName(opt: RetentionOptionItem): string {
-  return opt.name || opt.retention_option?.name || opt.lab_retention_option?.name || 'Unknown'
+  /**
+   * Extraction statuses to offer alongside retention types ("both" products). When
+   * provided and non-empty, the popover renders a combined layout: retention options,
+   * a divider, then extraction statuses. Omit for a retention-only popover.
+   */
+  extractionOptions?: ExtractionStatusOption[]
+  /** Currently selected extraction status code for this tooth (mutually exclusive with retention). */
+  selectedExtractionCode?: string | null
+  /**
+   * Called when the user picks an extraction status. The caller is responsible for
+   * enforcing per-tooth exclusivity (clearing any retention type on this tooth).
+   */
+  onSelectExtractionStatus?: (code: string) => void
 }
 
 function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
@@ -89,62 +120,39 @@ function ToothImageFallback({ toothNumber }: { toothNumber: number }) {
   )
 }
 
-function buildRetentionPopoverOptions(
-  retentionOptions: RetentionOptionItem[] | undefined,
-  toothNumber: number,
-  allowPontic: boolean
-): Array<{ id: number; toothChartType: RetentionChartType; name: string; imageUrl: string | null }> {
-  if (!retentionOptions?.length) return []
-
-  // Every active retention option from the product (fully data-driven).
-  const mapped = [...retentionOptions]
-    .filter((opt) => (opt.status || 'Active') === 'Active')
-    .map((opt) => ({
-      id: opt.id,
-      toothChartType: resolveRetentionOptionChartTypeOrDefault(opt),
-      name: getOptionName(opt),
-      imageUrl: resolveRetentionOptionImageUrl(opt, toothNumber),
-      sequence: opt.sequence ?? Number.MAX_SAFE_INTEGER,
-    }))
-
-  // A Pontic needs an abutment first: hide Pontic options until the product has one,
-  // but only when the product actually offers abutment (Prep/Implant) options.
-  const hasAbutmentOption = mapped.some((o) => o.toothChartType !== 'Pontic')
-  const visible =
-    allowPontic || !hasAbutmentOption
-      ? mapped
-      : mapped.filter((o) => o.toothChartType !== 'Pontic')
-
-  // Order: abutment options (Prep/Implant) first, Pontic last; then by sequence.
-  const rank = (t: RetentionChartType) => (t === 'Pontic' ? 1 : 0)
-  return visible
-    .sort((a, b) => rank(a.toothChartType) - rank(b.toothChartType) || a.sequence - b.sequence)
-    .map(({ sequence: _sequence, ...opt }) => opt)
-}
-
 export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
   toothNumber,
   onSelectRetentionType,
+  onSelectRetentionOption,
   selectedType,
+  selectedRetentionOptionId,
   onClose,
   onDeselectTooth,
   retentionOptions,
   arrowOffsetX = null,
   arrowDirection = 'down',
   allowPontic = true,
+  extractionOptions,
+  selectedExtractionCode,
+  onSelectExtractionStatus,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handlePointerDownOutside = (event: PointerEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         onClose?.()
       }
     }
 
-    document.addEventListener('click', handleClickOutside)
+    // Defer so the opening tooth click does not immediately dismiss the popover.
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside)
+    }, 0)
+
     return () => {
-      document.removeEventListener('click', handleClickOutside)
+      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', handlePointerDownOutside)
     }
   }, [onClose])
 
@@ -153,13 +161,40 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
     [retentionOptions, toothNumber, allowPontic]
   )
 
-  // The chart stores/renders by category, so highlight the first option matching
-  // the selected category (the representative the chart draws), not every variant.
-  const selectedOptionId = selectedType
-    ? options.find((opt) => opt.toothChartType === selectedType)?.id
-    : undefined
+  const extractionItems = useMemo(
+    () =>
+      onSelectExtractionStatus
+        ? (extractionOptions ?? []).filter((e) => e.code && e.name)
+        : [],
+    [extractionOptions, onSelectExtractionStatus]
+  )
+  const hasExtractionGroup = extractionItems.length > 0
+
+  // Highlight the exact option when id is known; otherwise fall back to chart type.
+  const selectedOptionId =
+    selectedRetentionOptionId ??
+    (selectedType ? options.find((opt) => opt.toothChartType === selectedType)?.id : undefined)
+
+  const applyRetentionSelection = (
+    optionId: number,
+    type: RetentionChartType,
+  ) => {
+    onSelectRetentionOption?.(optionId, type)
+    onSelectRetentionType?.(type)
+  }
+
+  const applyExtractionSelection = (code: string) => {
+    onSelectExtractionStatus?.(code)
+  }
 
   const showArrow = typeof arrowOffsetX === 'number'
+
+  const popoverButtonPointerProps = {
+    onPointerDownCapture: (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+    },
+  } as const
 
   const arrowStyle: React.CSSProperties =
     arrowDirection === 'down'
@@ -175,7 +210,13 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
         }
 
   return (
-    <div ref={popoverRef} className="relative" style={{ overflow: 'visible' }}>
+    <div
+      ref={popoverRef}
+      data-tooth-chart-popover="true"
+      className="relative"
+      style={{ overflow: 'visible' }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       {showArrow && (
         <div
           aria-hidden="true"
@@ -200,9 +241,10 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => {
-                  onSelectRetentionType(opt.toothChartType)
-                  onClose?.()
+                {...popoverButtonPointerProps}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  applyRetentionSelection(opt.id, opt.toothChartType)
                 }}
                 className={
                   isSelected
@@ -233,16 +275,70 @@ export const RetentionTypePopover: React.FC<RetentionTypePopoverProps> = ({
             )
           })}
 
-          {options.length === 0 && (
+          {options.length === 0 && !hasExtractionGroup && (
             <div className="flex items-center px-2 text-xs text-gray-500">
               No retention options available
             </div>
           )}
 
+          {/* Extraction-status group (combined "both" popover). A vertical divider
+              separates retention types from extraction statuses; per-tooth
+              exclusivity is enforced by the caller's onSelectExtractionStatus. */}
+          {hasExtractionGroup && options.length > 0 && (
+            <div aria-hidden="true" className="self-stretch w-px bg-gray-200 mx-1" />
+          )}
+
+          {extractionItems.map((opt) => {
+            const isSelected = opt.code === selectedExtractionCode
+            const extractionImageUrl = opt.imagesByTooth?.[toothNumber] ?? opt.imageUrl ?? null
+            return (
+              <button
+                key={`ext-${opt.code}`}
+                type="button"
+                {...popoverButtonPointerProps}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  applyExtractionSelection(opt.code)
+                }}
+                className={
+                  isSelected
+                    ? 'flex flex-col items-center gap-0 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm border-blue-500 bg-blue-50'
+                    : 'flex flex-col items-center gap-0 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm border-gray-200 hover:border-gray-300 bg-white'
+                }
+                title={opt.name}
+              >
+                <div className="w-full h-[90px] flex items-center justify-center">
+                  {extractionImageUrl ? (
+                    <img
+                      src={extractionImageUrl}
+                      alt={opt.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement
+                        img.style.opacity = '0'
+                      }}
+                    />
+                  ) : isMissingCode(opt.code, opt.name) ? (
+                    <MissingToothDisplay toothNumber={toothNumber} />
+                  ) : isWillExtractCode(opt.code, opt.name) ? (
+                    <WillExtractToothDisplay toothNumber={toothNumber} />
+                  ) : (
+                    <ToothImageFallback toothNumber={toothNumber} />
+                  )}
+                </div>
+                <span className="text-[10px] font-semibold text-center leading-tight text-black">
+                  #{toothNumber} {opt.name}
+                </span>
+              </button>
+            )
+          })}
+
           {onDeselectTooth && (
             <button
               type="button"
-              onClick={() => {
+              {...popoverButtonPointerProps}
+              onClick={(e) => {
+                e.stopPropagation()
                 onDeselectTooth()
                 onClose?.()
               }}

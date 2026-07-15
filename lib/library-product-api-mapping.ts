@@ -370,6 +370,74 @@ export function stripLibraryProductFormOnlyFields(payload: Record<string, unknow
   delete payload.tooth_count_variations
 }
 
+export type StageGradeDetailLike = {
+  stage_id?: number | string
+  id?: number | string
+  grade_id?: number | string
+  price?: number | string | null
+}
+
+function stageIdsEqual(a: unknown, b: unknown): boolean {
+  if (a === undefined || a === null || b === undefined || b === null) return false
+  return String(a) === String(b) || Number(a) === Number(b)
+}
+
+/** Look up a grade price whether the map used string or number keys. */
+export function lookupStageGradePrice(
+  gradePrices: Record<string | number, unknown> | null | undefined,
+  gradeId: number | string,
+): unknown {
+  if (!gradePrices || typeof gradePrices !== "object") return undefined
+  const strId = String(gradeId)
+  const numId = Number(gradeId)
+  if (Object.prototype.hasOwnProperty.call(gradePrices, gradeId)) return gradePrices[gradeId as keyof typeof gradePrices]
+  if (Object.prototype.hasOwnProperty.call(gradePrices, strId)) return gradePrices[strId]
+  if (!Number.isNaN(numId) && Object.prototype.hasOwnProperty.call(gradePrices, numId)) {
+    return gradePrices[numId]
+  }
+  return undefined
+}
+
+function hasNonEmptyStageGradePrice(v: unknown): boolean {
+  return v !== undefined && v !== null && v !== ""
+}
+
+/**
+ * Fold API `stage_grade_details` into each stage's `grade_prices` map.
+ * Used so Update can send the full stage×grade price matrix, not only cells the user just typed.
+ * Non-empty form prices win unless `overwriteExisting` is true (use that when hydrating from API).
+ */
+export function mergeStageGradeDetailsIntoStages<
+  T extends { stage_id?: unknown; grade_prices?: Record<string | number, unknown> },
+>(
+  stages: T[],
+  stageGradeDetails: StageGradeDetailLike[] | null | undefined,
+  opts?: { overwriteExisting?: boolean },
+): T[] {
+  if (!Array.isArray(stages) || stages.length === 0) return stages
+  if (!Array.isArray(stageGradeDetails) || stageGradeDetails.length === 0) return stages
+
+  const overwrite = opts?.overwriteExisting === true
+
+  return stages.map((stage) => {
+    const gradePrices: Record<string | number, unknown> = { ...(stage.grade_prices || {}) }
+    for (const sgd of stageGradeDetails) {
+      if (!stageIdsEqual(sgd.stage_id ?? sgd.id, stage.stage_id)) continue
+      const gradeId = sgd.grade_id
+      if (gradeId === undefined || gradeId === null) continue
+      const existing = lookupStageGradePrice(gradePrices, gradeId)
+      if (!overwrite && hasNonEmptyStageGradePrice(existing)) continue
+      if (sgd.price === undefined || sgd.price === null) continue
+      // Normalize to a single string key so we do not emit duplicate stage_grades entries
+      const key = String(gradeId)
+      delete gradePrices[gradeId as keyof typeof gradePrices]
+      delete gradePrices[Number(gradeId)]
+      gradePrices[key] = String(sgd.price)
+    }
+    return { ...stage, grade_prices: gradePrices }
+  })
+}
+
 function coerceOppositeImpressionYesNo(v: unknown): "Yes" | "No" | undefined {
   if (v === "Yes" || v === "yes") return "Yes"
   if (v === "No" || v === "no") return "No"

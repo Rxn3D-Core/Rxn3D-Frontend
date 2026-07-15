@@ -32,7 +32,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
         <img
           src="/images/ajax-loader.gif?v=20260602"
           alt="Loading..."
-          className="h-24 w-24 mb-6"
+          className="h-40 w-40 mb-6"
         />
         <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
         <p className="text-sm text-gray-500 text-center">{message}</p>

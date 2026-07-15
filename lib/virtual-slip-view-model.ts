@@ -1,5 +1,6 @@
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
+import { resolveArchProductImage } from "@/components/case-design-center/utils/variationHelpers";
 import {
   isFixedRestorationProduct,
   resolveProductForRetentionCheck,
@@ -519,7 +520,8 @@ function buildProduct(apiProduct: any): ProductVM {
     apiProduct,
     arch: productArch,
     extractionDisplay,
-    image: variationImage ?? productImage,
+    // Variation image wins; otherwise show the arch-specific (upper/lower) image when configured.
+    image: variationImage ?? resolveArchProductImage(product, productArch, productImage),
     title: variationTitle || productTitle,
     teethLabel,
     missingTeeth,
@@ -812,7 +814,10 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
     labName: firstStr(caseObj.lab?.name, safe.lab?.name) || "Lab",
     labLogo: firstStr(caseObj.lab?.logo_url, caseObj.lab?.image) || null,
     doctorName: firstStr(caseObj.doctor?.name, safe.doctor?.name),
-    doctorImage: resolveDoctorImageUrl(caseObj.doctor) || null,
+    doctorImage:
+      resolveDoctorImageUrl(caseObj.doctor) ||
+      resolveDoctorImageUrl(safe.doctor) ||
+      null,
     createdByName: firstStr(safe.created_by?.name, caseObj.created_by?.name),
     createdByImage: firstStr(safe.created_by?.image, caseObj.created_by?.image) || null,
     patientName: firstStr(caseObj.patient_name),

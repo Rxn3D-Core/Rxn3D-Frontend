@@ -141,6 +141,7 @@ export function CaseDesignSummarySection({
         maxillaryImplantDetailByTooth={maxillaryImplantDetailByTooth}
         mandibularImplantDetailByTooth={mandibularImplantDetailByTooth}
         onNotesChange={onCaseSummaryNotesChange}
+        selectedShadeGuide={state.selectedShadeGuide}
       />
     </div>
   );

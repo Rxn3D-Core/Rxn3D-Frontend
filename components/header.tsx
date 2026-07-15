@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw } from "lucide-react"
+import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw, Building2 } from "lucide-react"
+import { searchSuperadminLabCustomers } from "@/lib/api/superadmin-customers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
   Select,
@@ -55,7 +56,15 @@ import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-c
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
 import { cn } from "@/lib/utils"
 
-/** Brand gradient used on primary header actions (#2AA6DE → #82298D → #C9539F). */
+/** New Slip: solid gradient fill, white text */
+const NEW_SLIP_BUTTON_CLASS =
+  "border-none bg-[linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)] hover:brightness-110 text-[#F7F7F7] h-10 w-[120px] rounded-[8px] text-[18px] font-bold leading-[21px] font-[Helvetica] shadow-sm transition-all duration-200 hover:shadow-md px-0"
+
+/** Scan Code: white bg, gradient border — text/icon gradient handled inline */
+const SCAN_CODE_BUTTON_CLASS =
+  "h-10 w-[144px] rounded-[8px] transition-all duration-200 px-0 [background:linear-gradient(white,white)_padding-box,linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)_border-box] border-2 border-transparent hover:brightness-110"
+
+/** Keep for any remaining non-slip/scan header actions */
 const HEADER_ACTION_BUTTON_CLASS =
   "border-none bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 md:px-4 text-xs sm:text-sm font-medium shadow-sm transition-all duration-200 hover:shadow-md"
 
@@ -89,7 +98,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext } = useAuth()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -126,6 +135,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [userProfileData, setUserProfileData] = useState<UserProfileData | null>(null)
   const [isLoadingProfile, setIsLoadingProfile] = useState(false)
   const [isSwitchingProfile, setIsSwitchingProfile] = useState(false)
+  const [superAdminLabs, setSuperAdminLabs] = useState<{ id: number; name: string }[]>([])
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
@@ -140,7 +150,8 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastScannedCodeRef = useRef<string>("");
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
-  const isSuperAdmin = isSuperadmin || userRoles.includes("superadmin")
+  // When acting as lab admin, treat the session as non-superadmin across the whole UI
+  const isSuperAdmin = isActingAsLabAdmin ? false : (isSuperadmin || userRoles.includes("superadmin"))
   const isOfficeAdmin = userRoles.includes("office_admin")
   const canCreateSlip = isSuperAdmin || hasPermission("submit_new_case")
   const canCreateOffice =
@@ -173,6 +184,19 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       cancelled = true
     }
   }, [user?.id, updateSessionUser])
+
+  // Fetch all labs for superadmin location dropdown (also when acting as lab admin so the switcher still works)
+  useEffect(() => {
+    if (!isSuperAdmin && !isActingAsLabAdmin) return
+    let cancelled = false
+    searchSuperadminLabCustomers({ per_page: 100, order_by: "name", sort_by: "asc" })
+      .then((res) => {
+        if (cancelled) return
+        setSuperAdminLabs(res.data.map((lab) => ({ id: lab.id, name: lab.name })))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isSuperAdmin])
 
   // Load scan history from localStorage on mount
   useEffect(() => {
@@ -798,8 +822,8 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   }, [toast])
 
   const getPrimaryRole = () => {
-    if (userRoles.includes("superadmin")) return "Super Admin"
-    if (userRoles.includes("lab_admin")) return "Lab Admin"
+    if (!isActingAsLabAdmin && userRoles.includes("superadmin")) return "Super Admin"
+    if (isActingAsLabAdmin || userRoles.includes("lab_admin")) return "Lab Admin"
     if (userRoles.includes("office_admin")) return "Office Admin"
     if (userRoles.includes("doctor_admin")) return "Doctor Admin"
     if (userRoles.includes("lab_user")) return "Lab User"
@@ -827,8 +851,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     const locationId = Number(value)
     if (!Number.isFinite(locationId) || locationId === selectedLocation) return
 
-    const location = safeLocations.find((loc) => loc.id === locationId)
-    if (!location) return
+    if (!isSuperAdmin) {
+      const location = safeLocations.find((loc) => loc.id === locationId)
+      if (!location) return
+    }
 
     setIsSwitchingProfile(true)
     try {
@@ -865,12 +891,11 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 width={195}
                 height={76}
                 priority
-                className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
+                className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
               />
               {!isSuperAdmin && canCreateSlip && (
                 <Button
-                  size="sm"
-                  className={HEADER_ACTION_BUTTON_CLASS}
+                  className={`${NEW_SLIP_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={() => {
                     clearSlipCreationStorage();
                     clearCaseDesignCenterStateMutation.mutate();
@@ -883,7 +908,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {!isOfficeAdmin && canCreateOffice && (
                 <Button
                   size="sm"
-                  className={HEADER_ACTION_BUTTON_CLASS}
+                  className={`${HEADER_ACTION_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={() => setShowNewOfficeModal(true)}
                 >
                   <span>{t("header.newOffice", "New Office")}</span>
@@ -892,7 +917,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               {isSuperAdmin && (
                 <Button
                   size="sm"
-                  className={HEADER_ACTION_BUTTON_CLASS}
+                  className={`${HEADER_ACTION_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={() => setShowNewLabModal(true)}
                 >
                   <span>{t("header.newLab", "New Lab")}</span>
@@ -900,17 +925,35 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               )}
               {!isSuperAdmin && (
                 <Button
-                  size="sm"
-                  className={cn(HEADER_ACTION_BUTTON_CLASS, "relative")}
+                  variant="ghost"
+                  className={`${SCAN_CODE_BUTTON_CLASS} hidden sm:inline-flex`}
                   onClick={openScanner}
                   aria-label={t("header.openScanner", "Open QR code scanner")}
                 >
-                  <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-4.5 md:h-4.5 mr-1 sm:mr-1.5" />
-                  <span>{t("header.scanCode", "Scan Code")}</span>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-2.5">
+                    <defs>
+                      <linearGradient id="qr-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C9539F" />
+                        <stop offset="51.11%" stopColor="#82298D" />
+                        <stop offset="100%" stopColor="#2AA6DE" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad)" />
+                  </svg>
+                  <span style={{
+                    background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    fontWeight: 700,
+                    fontSize: "18px",
+                    lineHeight: "21px",
+                    fontFamily: "Helvetica, sans-serif",
+                  }}>{t("header.scanCode", "Scan Code")}</span>
                   {scanHistory.length > 0 && (
                     <Badge
                       variant="secondary"
-                      className="ml-1.5 h-4 w-4 sm:h-5 sm:w-5 p-0 flex items-center justify-center text-[10px] sm:text-xs bg-white text-[#82298D] font-semibold rounded-full"
+                      className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
                     >
                       {scanHistory.length}
                     </Badge>
@@ -952,8 +995,35 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             </div>
 
             {/* Right Section - Controls & User */}
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
               {/* Location Selector - Desktop */}
+              {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+                <div className="hidden md:block min-w-0">
+                  <Select
+                    value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
+                    onValueChange={handleLocationChange}
+                  >
+                    <SelectTrigger className="w-[140px] lg:w-[180px] xl:w-[220px] h-8 sm:h-9 md:h-10 text-xs sm:text-sm border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8] dark:bg-gray-800 dark:border-gray-700">
+                      <Building2 className="h-4 w-4 mr-1 flex-shrink-0 text-gray-500" />
+                      <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg shadow-lg">
+                      <SelectGroup>
+                        <SelectLabel className="font-medium text-gray-700 dark:text-gray-300">Labs</SelectLabel>
+                        {superAdminLabs.map((lab) => (
+                          <SelectItem
+                            key={lab.id}
+                            value={lab.id.toString()}
+                            className="hover:bg-blue-50 dark:hover:bg-gray-800"
+                          >
+                            {lab.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {!isSuperAdmin && safeLocations.length > 0 && (
                 <div className="hidden md:block min-w-0">
                   <Select
@@ -967,9 +1037,9 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                       <SelectGroup>
                         <SelectLabel className="font-medium text-gray-700 dark:text-gray-300">Locations</SelectLabel>
                         {safeLocations.map((location) => (
-                          <SelectItem 
-                            key={location.id} 
-                            value={location.id.toString()} 
+                          <SelectItem
+                            key={location.id}
+                            value={location.id.toString()}
                             className="hover:bg-blue-50 dark:hover:bg-gray-800"
                           >
                             {location.name}
@@ -981,17 +1051,25 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 </div>
               )}
 
-              {/* Theme Toggle */}
-              <div className="hidden sm:block">
-                <ThemeToggle />
-              </div>
 
               {/* Language Switcher - Desktop */}
               {/* <div className="hidden lg:block">
                 <LanguageSwitcher />
               </div> */}
 
-{/* Settings Icon */}
+              {/* Exit Lab View - shown when superadmin is acting as lab admin */}
+              {isActingAsLabAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="hidden sm:inline-flex h-8 sm:h-9 text-xs border-orange-400 text-orange-600 hover:bg-orange-50 dark:border-orange-500 dark:text-orange-400 dark:hover:bg-orange-950"
+                  onClick={exitLabContext}
+                >
+                  Exit Lab View
+                </Button>
+              )}
+
+              {/* Settings Icon */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -1066,50 +1144,109 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             </div>
           </div>
 
-          {/* Secondary Row - Mobile Only Elements */}
-          <div className="flex items-center gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
-            {/* Location Selector - Mobile */}
-            {!isSuperAdmin && safeLocations.length > 0 && (
-              <div className="flex-1 min-w-0">
-                <Select
-                  value={selectedLocation !== null ? selectedLocation.toString() : ""}
-                  onValueChange={handleLocationChange}
+          {/* Secondary Row - Mobile Only */}
+          <div className="flex flex-col gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
+            {/* Mobile action buttons: New Slip + Scan Code */}
+            {!isSuperAdmin && (
+              <div className="flex gap-2">
+                {canCreateSlip && (
+                  <Button
+                    className={`${NEW_SLIP_BUTTON_CLASS} flex-1 w-auto`}
+                    onClick={() => {
+                      clearSlipCreationStorage();
+                      clearCaseDesignCenterStateMutation.mutate();
+                      router.replace("/case-design-center");
+                    }}
+                  >
+                    <span>{t("header.newSlip", "+ New Slip")}</span>
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  className={`${SCAN_CODE_BUTTON_CLASS} flex-1 w-auto`}
+                  onClick={openScanner}
+                  aria-label={t("header.openScanner", "Open QR code scanner")}
                 >
-                  <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
-                    <SelectValue placeholder={t("header.selectLocation", "Select location")} />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-lg shadow-lg">
-                    <SelectGroup>
-                      <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
-                      {safeLocations.map((location) => (
-                        <SelectItem 
-                          key={location.id} 
-                          value={location.id.toString()} 
-                          className="hover:bg-blue-50"
-                        >
-                          {location.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-1.5">
+                    <defs>
+                      <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C9539F" />
+                        <stop offset="51.11%" stopColor="#82298D" />
+                        <stop offset="100%" stopColor="#2AA6DE" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
+                  </svg>
+                  <span style={{
+                    background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    fontWeight: 700,
+                    fontSize: "16px",
+                    lineHeight: "21px",
+                    fontFamily: "Helvetica, sans-serif",
+                  }}>{t("header.scanCode", "Scan Code")}</span>
+                  {scanHistory.length > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
+                    >
+                      {scanHistory.length}
+                    </Badge>
+                  )}
+                </Button>
               </div>
             )}
-            
-            {/* Mobile Theme & Language */}
-            <div className="flex items-center gap-1.5">
-              <ThemeToggle />
-              {/* <LanguageSwitcher /> */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                aria-label="Settings"
-                onClick={() => router.push("/dashboard/settings")}
+            {/* Location Selector - Mobile */}
+            {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+              <Select
+                value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
+                onValueChange={handleLocationChange}
               >
-                <Settings className="h-4 w-4 text-gray-600" />
-              </Button>
-            </div>
+                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                  <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg shadow-lg">
+                  <SelectGroup>
+                    <SelectLabel className="font-medium text-gray-700">Labs</SelectLabel>
+                    {superAdminLabs.map((lab) => (
+                      <SelectItem
+                        key={lab.id}
+                        value={lab.id.toString()}
+                        className="hover:bg-blue-50"
+                      >
+                        {lab.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
+            {!isSuperAdmin && safeLocations.length > 0 && (
+              <Select
+                value={selectedLocation !== null ? selectedLocation.toString() : ""}
+                onValueChange={handleLocationChange}
+              >
+                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                  <SelectValue placeholder={t("header.selectLocation", "Select location")} />
+                </SelectTrigger>
+                <SelectContent className="rounded-lg shadow-lg">
+                  <SelectGroup>
+                    <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
+                    {safeLocations.map((location) => (
+                      <SelectItem
+                        key={location.id}
+                        value={location.id.toString()}
+                        className="hover:bg-blue-50"
+                      >
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </header>

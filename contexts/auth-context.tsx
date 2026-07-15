@@ -184,6 +184,8 @@ type AuthContextType = {
   rolePermissions: string[]
   overridePermissions: string[]
   isSuperadmin: boolean
+  isActingAsLabAdmin: boolean
+  exitLabContext: () => void
   refreshProfilePermissions: (customerId?: string) => Promise<string[]>
   hasPermission: (permission: string) => boolean
   hasAnyPermission: (permissions: string[]) => boolean
@@ -251,7 +253,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userRef.current = user
   }, [user])
 
-  const isSuperadmin = userIsSuperadmin(user)
+  const [isActingAsLabAdmin, setIsActingAsLabAdmin] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false
+    return !!localStorage.getItem("superadmin_lab_context")
+  })
+
+  const isSuperadmin = userIsSuperadmin(user) && !isActingAsLabAdmin
 
   const applyPermissionsProfile = useCallback(
     (snapshot: ReturnType<typeof parsePermissionsProfile>) => {
@@ -259,8 +266,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRolePermissions(snapshot.role_permissions)
       setOverridePermissions(snapshot.override_permissions)
       if (snapshot.role) {
-        setProfileRole(snapshot.role)
-        localStorage.setItem("role", snapshot.role)
+        const actingAsLab =
+          typeof window !== "undefined" && !!localStorage.getItem("superadmin_lab_context")
+        // Don't let the API role overwrite "lab_admin" while acting as lab admin
+        if (!actingAsLab || snapshot.role !== "superadmin") {
+          setProfileRole(snapshot.role)
+          localStorage.setItem("role", snapshot.role)
+        }
       }
       if (typeof snapshot.customer_id === "number") {
         setSelectedCustomerId(snapshot.customer_id)
@@ -841,6 +853,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
       setProfileRole(null)
       setRolePermissions([])
       setOverridePermissions([])
+      setIsActingAsLabAdmin(false)
       syncedCustomerIdRef.current = null
       setCustomerIdInFlightRef.current = null
       lastPermissionsFetchKeyRef.current = null
@@ -854,6 +867,23 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         variant: "default",
       })
     }
+  }
+
+  const exitLabContext = () => {
+    const originalToken = localStorage.getItem("superadmin_original_token")
+    if (originalToken) {
+      localStorage.setItem("token", originalToken)
+      localStorage.removeItem("superadmin_original_token")
+    }
+    localStorage.removeItem("superadmin_lab_context")
+    localStorage.removeItem("customerId")
+    localStorage.removeItem("role")
+    localStorage.removeItem("customerType")
+    localStorage.removeItem("selectedLocation")
+    setIsActingAsLabAdmin(false)
+    setSelectedCustomerId(null)
+    setProfileRole(null)
+    window.location.href = "/dashboard"
   }
 
   const forgotPassword = async (email: string): Promise<boolean> => {
@@ -1111,7 +1141,9 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
   const refreshProfilePermissions = useCallback(
     async (customerId?: string): Promise<string[]> => {
-      if (userIsSuperadmin(userRef.current)) {
+      const actingAsLab =
+        typeof window !== "undefined" && !!localStorage.getItem("superadmin_lab_context")
+      if (userIsSuperadmin(userRef.current) && !actingAsLab) {
         applyPermissionsProfile({
           permissions: [],
           role_permissions: [],
@@ -1322,6 +1354,18 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
             if (selectedCustomer) {
               localStorage.setItem("selectedLocation", JSON.stringify(selectedCustomer))
             }
+
+            // When a real superadmin switches into a lab context, act as lab_admin
+            if (userIsSuperadmin(currentUser)) {
+              const prevToken = authToken
+              if (prevToken) localStorage.setItem("superadmin_original_token", prevToken)
+              localStorage.setItem("superadmin_lab_context", String(customerId))
+              localStorage.setItem("role", "lab_admin")
+              localStorage.setItem("customerType", "lab")
+              setProfileRole("lab_admin")
+              setIsActingAsLabAdmin(true)
+            }
+
             const updatedUser = {
               ...currentUser,
               customer_id: customerId,
@@ -1541,6 +1585,8 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         rolePermissions,
         overridePermissions,
         isSuperadmin,
+        isActingAsLabAdmin,
+        exitLabContext,
         refreshProfilePermissions,
         hasPermission,
         hasAnyPermission,

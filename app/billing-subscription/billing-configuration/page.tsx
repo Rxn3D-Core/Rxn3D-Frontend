@@ -152,7 +152,12 @@ const LEAD_PRICE_FREQUENCY_ORDER: PriceFrequency[] = ["monthly", "quarterly", "s
 /** Price shown on plan cards: default tier if flagged, else first known frequency in a stable order. */
 function pickLeadPriceRow(prices: PlanPriceRow[] | undefined): PlanPriceRow | null {
   if (!prices?.length) return null
-  return prices[0] ?? null
+  const defaultRow = prices.find((p) => p.is_default)
+  if (defaultRow) return defaultRow
+  const byFrequencyOrder = LEAD_PRICE_FREQUENCY_ORDER
+    .map((frequency) => prices.find((p) => p.frequency === frequency))
+    .find((p): p is PlanPriceRow => Boolean(p))
+  return byFrequencyOrder ?? prices[0] ?? null
 }
 
 function formatLeadPlanPrice(currency: string | undefined, entry: PlanPriceRow | null): string {
@@ -1172,7 +1177,7 @@ export default function BillingConfigurationPage() {
             <TabsTrigger
               key={id}
               value={id}
-              className="h-8 rounded-md px-3 text-xs font-medium data-[state=active]:bg-[#1162A8] data-[state=active]:text-white data-[state=active]:shadow-sm"
+              className="h-8 rounded-md px-3 text-xs font-medium data-[state=active]:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] data-[state=active]:text-white data-[state=active]:shadow-sm"
             >
               {label}
             </TabsTrigger>
@@ -1197,7 +1202,7 @@ export default function BillingConfigurationPage() {
                 </Button>
                 <Button
                   size="sm"
-                  className="h-9 rounded-lg bg-[#1162A8] px-4 text-[13px] font-medium text-white hover:bg-[#0d4a7e]"
+                  className="h-9 rounded-lg bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 text-[13px] font-medium text-white hover:bg-[#0d4a7e]"
                   type="button"
                   onClick={openCreate}
                 >
@@ -1684,30 +1689,33 @@ export default function BillingConfigurationPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-semibold">Module Selection</p>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={moduleSearch}
-                      onChange={(e) => setModuleSearch(e.target.value)}
-                      placeholder="Search module"
-                      className="pl-9"
-                    />
+                {/* ponytail: hidden per request, not deleted — flip to true to restore */}
+                {false && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold">Module Selection</p>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={moduleSearch}
+                        onChange={(e) => setModuleSearch(e.target.value)}
+                        placeholder="Search module"
+                        className="pl-9"
+                      />
+                    </div>
+                    <div className="grid max-h-56 gap-2 overflow-auto rounded-md border p-3 md:grid-cols-2">
+                      {filteredModules.map((moduleName) => (
+                        <label key={moduleName} className="inline-flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={selectedModules.includes(moduleName)}
+                            onCheckedChange={(checked) => toggleModule(moduleName, checked === true)}
+                          />
+                          {moduleName}
+                        </label>
+                      ))}
+                    </div>
+                    {formErrors.selectedModules ? <p className="text-xs text-[#CF0202]">{formErrors.selectedModules}</p> : null}
                   </div>
-                  <div className="grid max-h-56 gap-2 overflow-auto rounded-md border p-3 md:grid-cols-2">
-                    {filteredModules.map((moduleName) => (
-                      <label key={moduleName} className="inline-flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={selectedModules.includes(moduleName)}
-                          onCheckedChange={(checked) => toggleModule(moduleName, checked === true)}
-                        />
-                        {moduleName}
-                      </label>
-                    ))}
-                  </div>
-                  {formErrors.selectedModules ? <p className="text-xs text-[#CF0202]">{formErrors.selectedModules}</p> : null}
-                </div>
+                )}
 
                 <div className="space-y-2 border-t pt-3">
                   <p className="text-sm font-semibold">Enforcement behavior</p>
@@ -1884,7 +1892,7 @@ export default function BillingConfigurationPage() {
                               {timePickerOpen && (
                                 <div className="absolute right-0 top-[calc(100%+6px)] z-[210] flex w-[183px] flex-col items-center gap-0 rounded-[10px] border border-gray-200 bg-white shadow-[0_4px_20px_rgba(0,0,0,0.15)]">
                                   {/* Header */}
-                                  <div className="w-full rounded-t-[10px] bg-[#1162A8] px-4 py-2 text-center text-xs font-medium text-white">
+                                  <div className="w-full rounded-t-[10px] bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-4 py-2 text-center text-xs font-medium text-white">
                                     Select Time
                                   </div>
 
@@ -1939,7 +1947,7 @@ export default function BillingConfigurationPage() {
                                   <button
                                     type="button"
                                     onClick={() => setTimePickerOpen(false)}
-                                    className="mb-3 rounded-md bg-[#1162A8] px-6 py-1.5 text-sm font-medium text-white hover:bg-[#0E4676]"
+                                    className="mb-3 rounded-md bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-6 py-1.5 text-sm font-medium text-white hover:bg-[#0E4676]"
                                   >
                                     Done
                                   </button>
@@ -2025,7 +2033,7 @@ export default function BillingConfigurationPage() {
                                       className={[
                                         "flex h-[64px] items-center justify-center font-['Inter'] text-[16.07px] font-medium tracking-[-0.02em] transition-colors",
                                         isSelected
-                                          ? "bg-[#1162A8] text-white"
+                                          ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                                           : isWeekend
                                             ? "bg-[#E2E2E2] text-black"
                                             : "bg-[#F2F4F7] text-black",

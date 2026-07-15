@@ -1,3 +1,5 @@
+import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
+
 /**
  * When a product defines exactly one active extraction and marks it as default,
  * there is no meaningful choice — the UI can hide extraction boxes and ignore tooth clicks.
@@ -155,8 +157,10 @@ export function isExtractionSelectionOptional(
  * product, or every configured extraction is optional relative to the default.
  */
 export function canSkipExtractionToothSelection(
-  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null,
+  product?: Record<string, unknown> | null,
 ): boolean {
+  if (product && shouldSkipLegacyDefaultExtractionAutoSelect(product)) return true;
   if (!hasConfiguredExtractions(extractions)) return true;
   return isExtractionSelectionOptional(extractions);
 }
@@ -176,8 +180,10 @@ export function fixedRetentionAckKey(arch: "maxillary" | "mandibular"): string {
  * before grade / shade / impression fields appear.
  */
 export function requiresExtractionsAcknowledgement(
-  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null,
+  product?: Record<string, unknown> | null,
 ): boolean {
+  if (product && shouldSkipLegacyDefaultExtractionAutoSelect(product)) return false;
   const active = (extractions ?? []).filter(isActiveExtractionRow);
   if (active.length === 0) return false;
   return !isSingleDefaultOnlyExtractionList(extractions);
@@ -203,6 +209,19 @@ export function getDefaultExtraction(
     (extraction) => String(extraction.is_default ?? "").trim().toLowerCase() === "yes"
   );
   return defaultExtraction || active[0] || null;
+}
+
+/**
+ * The active extraction explicitly marked as the product default (is_default === "yes"),
+ * or null when none is. Unlike {@link getDefaultExtraction} this never falls back to the
+ * first active row — callers that want "show the default, otherwise show nothing" (e.g. the
+ * center "Teeth in mouth" badge) depend on the null when no default is configured.
+ */
+export function getDefaultExtractionStrict(
+  extractions: ReadonlyArray<ExtractionLike & { color?: string | null }> | undefined | null
+): (ExtractionLike & { color?: string | null }) | null {
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  return active.find(isDefaultExtractionRow) ?? null;
 }
 
 /** Determine text class from a hex background color (dark bg → white text) */

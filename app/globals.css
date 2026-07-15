@@ -1585,3 +1585,6 @@ div[style*="maxHeight: '300px'"]::-webkit-scrollbar-thumb:hover {
   background-color: var(--rxn-error-red);
   color: white;
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { LabBillingPageHeader } from "@/components/billing/lab-billing-page-header"
+import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import {
   Filter,
   Search,
@@ -19,6 +21,7 @@ import {
   X,
   ExternalLink,
   FileText,
+  Check,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +41,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -149,18 +153,6 @@ type StatementOfficeGroup = {
   totalAmount: number
 }
 
-type StatementPreviewItem = {
-  id: string
-  officeId: number
-  officeName: string
-  officeCode: string
-  invoiceLabel: string
-  patient: string
-  product: string
-  chargeCount: number
-  totalAmount: number
-}
-
 type StatementJobStatus = {
   officeId: number
   status: "pending" | "generating" | "generated" | "opened" | "sending" | "sent" | "skipped" | "error"
@@ -180,6 +172,11 @@ function formatMoney(value: number | string | null | undefined): string {
 function isRefundLikeStatus(status: string | null | undefined): boolean {
   const normalized = (status ?? "").trim().toLowerCase()
   return normalized === "refund" || normalized === "refunded"
+}
+
+function isDeletedLikeStatus(status: string | null | undefined): boolean {
+  const normalized = (status ?? "").trim().toLowerCase()
+  return normalized === "deleted" || normalized === "delete" || normalized === "removed"
 }
 
 function parseMoneyValue(value: string | null | undefined): number {
@@ -332,15 +329,16 @@ function computeDateRangeFromPreset(preset: string): { from: string; to: string 
   return null
 }
 
+// Backend only accepts these date_range values (see AdvancedBillingRequest::rules).
+// Presets like "this_week"/"this_month"/"this_year" have no backend equivalent —
+// they're sent as "custom" with concrete date_from/date_to instead.
 function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBody["date_range"] {
   switch (preset) {
     case "today":
     case "yesterday":
-    case "this_week":
+    case "last_7_days":
     case "last_week":
-    case "this_month":
     case "last_month":
-    case "this_year":
     case "last_year":
       return preset
     default:
@@ -428,6 +426,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
 export default function ChargeManagementPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
+  const router = useRouter()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const { user } = useAuth()
   const { fetchCustomerProfile, customerProfile } = useCustomer()
@@ -458,7 +457,6 @@ export default function ChargeManagementPage() {
   const [statementModalOpen, setStatementModalOpen] = useState(false)
   const [statementModalStep, setStatementModalStep] = useState<"confirm" | "generating" | "sending">("confirm")
   const [statementAutoMarkBilled, setStatementAutoMarkBilled] = useState(false)
-  const [statementAutoMarking, setStatementAutoMarking] = useState(false)
   const [statementAttachPdf, setStatementAttachPdf] = useState(true)
   const [statementPreviewOpen, setStatementPreviewOpen] = useState(false)
   const [statementPreviewLoading, setStatementPreviewLoading] = useState(false)
@@ -581,10 +579,11 @@ export default function ChargeManagementPage() {
     }
     if (debouncedSearch) {
       params.patient_name = debouncedSearch
+    } else {
+      if (dateFrom) params.date_from = dateFrom
+      if (dateTo) params.date_to = dateTo
+      params.client_date_preset = advDateRange
     }
-    if (dateFrom) params.date_from = dateFrom
-    if (dateTo) params.date_to = dateTo
-    params.client_date_preset = advDateRange
     if (isLabScope && officeFilter !== "all") {
       const oid = parseInt(officeFilter, 10)
       if (!Number.isNaN(oid)) params.office_id = oid
@@ -626,6 +625,7 @@ export default function ChargeManagementPage() {
   const [regenerateSlipInvoice, { isLoading: regenerateInvoiceLoading }] = useRegenerateSlipInvoiceMutation()
 
   const [regeneratingSlipId, setRegeneratingSlipId] = useState<number | null>(null)
+  const [markingCheckedChargeId, setMarkingCheckedChargeId] = useState<string | null>(null)
   const [generatingStatements, setGeneratingStatements] = useState(false)
 
   const fetchInvoicePdfBlob = useCallback(
@@ -693,10 +693,20 @@ export default function ChargeManagementPage() {
   const isError = activeSource === "advanced" ? false : listError
   const error = listErr
 
+  // Billed items clutter the default view, so hide them unless the user is
+  // actively searching or has explicitly asked to see billed items.
+  const isSearchingOrFilteringBilled =
+    debouncedSearch.trim().length > 0 || advItemStatus === "billed"
+
   const charges: ChargeRow[] = useMemo(() => {
     if (!displayResult?.data?.length) return []
-    return displayResult.data.flatMap((inv) => billingInvoiceToRows(inv))
-  }, [displayResult])
+    const rows = displayResult.data
+      .filter((inv) => !isDeletedLikeStatus(inv.status))
+      .flatMap((inv) => billingInvoiceToRows(inv))
+      .filter((row) => !isDeletedLikeStatus(row.status))
+    if (isSearchingOrFilteringBilled) return rows
+    return rows.filter((row) => row.status !== "Billed")
+  }, [displayResult, isSearchingOrFilteringBilled])
   const sendToOfficeCharge = useMemo(
     () => charges.find((charge) => charge.billingInvoiceId === sendToOfficeBillingId) ?? null,
     [charges, sendToOfficeBillingId],
@@ -772,21 +782,18 @@ export default function ChargeManagementPage() {
     return Array.from(grouped.values())
   }, [charges, selectedBillingInvoices, selectedItems])
 
-  const selectedStatementPreviewItems = useMemo<StatementPreviewItem[]>(() => {
+  const allChargesSelected = charges.length > 0 && selectedItems.length === charges.length
+
+  const selectedChargesAllChecked = useMemo(() => {
+    if (selectedItems.length === 0) return false
+    const selectedChargeRows = charges.filter((charge) => selectedItems.includes(charge.id))
+    return selectedChargeRows.length > 0 && selectedChargeRows.every((charge) => charge.status.toLowerCase() === "checked")
+  }, [charges, selectedItems])
+
+  const selectedGrossTotal = useMemo(() => {
     return charges
       .filter((charge) => selectedItems.includes(charge.id))
-      .map((charge) => ({
-        id: charge.id,
-        officeId:
-          selectedBillingInvoices.find((invoice) => invoice.id === charge.billingInvoiceId)?.office?.id ?? 0,
-        officeName: charge.officeName,
-        officeCode: charge.officeCode,
-        invoiceLabel: charge.invoiceNumber,
-        patient: charge.patient,
-        product: charge.product,
-        chargeCount: 1,
-        totalAmount: statementSignedAmount(charge),
-      }))
+      .reduce((sum, charge) => sum + statementSignedAmount(charge), 0)
   }, [charges, selectedItems])
 
   const currentSendStatement = generatedStatements[sendQueueIndex] ?? null
@@ -837,12 +844,16 @@ export default function ChargeManagementPage() {
       const o = officesAsLabsRef.current.find((x) => String(x.id) === officeFilter)
       officeName = o?.name
     }
+    const patientName = debouncedSearch.trim() || searchInput.trim() || undefined
+    // A search term means the user wants to find a specific charge regardless
+    // of when it happened — a leftover date filter (e.g. "Yesterday") would
+    // otherwise silently hide matches instead of searching across all dates.
     const body: AdvancedBillingSearchBody = {
       page: 1,
-      patient_name: debouncedSearch.trim() || searchInput.trim() || undefined,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      date_range: resolveAdvancedDateRangeValue(advDateRange),
+      patient_name: patientName,
+      date_from: patientName ? undefined : dateFrom || undefined,
+      date_to: patientName ? undefined : dateTo || undefined,
+      date_range: patientName ? undefined : resolveAdvancedDateRangeValue(advDateRange),
       office_name: officeName,
     }
     if (advCategoryId != null) body.category_id = advCategoryId
@@ -1055,7 +1066,7 @@ export default function ChargeManagementPage() {
       case "Checked":
         return "bg-[#D4F4DD] text-[#14804A]"
       case "Billed":
-        return "bg-[#CCE0FF] text-[#004FC4]"
+        return "bg-[#E5E7EB] text-[#6B7280]"
       case "Paid":
       case "Pending":
         return "bg-[#D4F4DD] text-[#14804A]"
@@ -1087,52 +1098,12 @@ export default function ChargeManagementPage() {
     await refetchList()
   }, [activeSource, advancedBody, advancedPage, advancedSearch, refetchList, toast])
 
-  const handleStatementAutoMarkBilledToggle = useCallback(async () => {
-    if (statementAutoMarking) return
-
-    if (statementAutoMarkBilled) {
-      setStatementAutoMarkBilled(false)
-      return
-    }
-
-    const billingIds = Array.from(
-      new Set(selectedStatementGroups.flatMap((group) => group.billingIds)),
-    )
-
-    if (billingIds.length === 0) {
-      toast({
-        title: "No billing lines selected",
-        description: "Select at least one charge before enabling auto mark as billed.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setStatementAutoMarking(true)
-    try {
-      await bulkAction({ billing_ids: billingIds, action: "mark_billed" }).unwrap()
-      setStatementAutoMarkBilled(true)
-      await onRefresh()
-      toast({
-        title: "Selected charges marked as billed",
-      })
-    } catch (error) {
-      toast({
-        title: "Unable to mark charges as billed",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setStatementAutoMarking(false)
-    }
-  }, [
-    bulkAction,
-    onRefresh,
-    selectedStatementGroups,
-    statementAutoMarkBilled,
-    statementAutoMarking,
-    toast,
-  ])
+  // ponytail: this only flips local intent — auto_mark_billed is carried
+  // through generate and only applied server-side once the statement is
+  // actually sent, so flipping the switch never mutates data on its own.
+  const handleStatementAutoMarkBilledToggle = useCallback(() => {
+    setStatementAutoMarkBilled((value) => !value)
+  }, [])
 
   const handleBulk = async (action: BulkBillingActionBody["action"]) => {
     if (selectedBillingIds.length === 0) {
@@ -1150,6 +1121,52 @@ export default function ChargeManagementPage() {
         description: e instanceof Error ? e.message : "Request failed",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleMarkCheckedForRow = async (charge: ChargeRow) => {
+    const isChecked = charge.status.toLowerCase() === "checked"
+    if (!isChecked && charge.status.toLowerCase() !== "pending") return
+    setMarkingCheckedChargeId(charge.id)
+    try {
+      await bulkAction({ billing_ids: [charge.billingInvoiceId], action: isChecked ? "mark_pending" : "mark_checked" }).unwrap()
+      await onRefresh()
+    } catch (e: unknown) {
+      toast({
+        title: isChecked ? "Could not unmark as checked" : "Could not mark as checked",
+        description: e instanceof Error ? e.message : "Request failed",
+        variant: "destructive",
+      })
+    } finally {
+      setMarkingCheckedChargeId(null)
+    }
+  }
+
+  const handleViewInvoicePdf = async (charge: ChargeRow) => {
+    // Open the tab synchronously on click so it counts as a direct user gesture —
+    // opening it after the await below gets blocked as a popup by most browsers.
+    // Must NOT pass noopener/noreferrer here: that severs the `win` reference we
+    // need below to set its location once the PDF blob is ready.
+    const win = window.open("", "_blank")
+    try {
+      const blob = await fetchInvoicePdfBlob(charge.billingInvoiceId)
+      const url = URL.createObjectURL(blob)
+      if (win) {
+        win.location.href = url
+        window.setTimeout(() => URL.revokeObjectURL(url), 180_000)
+      } else {
+        const opened = openBlobInNewTab(blob)
+        if (!opened) {
+          toast({
+            title: "Pop-up blocked",
+            description: "Please allow pop-ups for this site and try again.",
+            variant: "destructive",
+          })
+        }
+      }
+    } catch {
+      win?.close()
+      toast({ title: "Could not open invoice PDF", variant: "destructive" })
     }
   }
 
@@ -1199,22 +1216,6 @@ export default function ChargeManagementPage() {
       })
     } finally {
       setRegeneratingSlipId(null)
-    }
-  }
-
-  const handleViewInvoicePdf = async (charge: ChargeRow) => {
-    try {
-      const blob = await fetchInvoicePdfBlob(charge.billingInvoiceId)
-      const opened = openBlobInNewTab(blob)
-      if (!opened) {
-        toast({
-          title: "Pop-up blocked",
-          description: "Please allow pop-ups for this site and try again.",
-          variant: "destructive",
-        })
-      }
-    } catch {
-      toast({ title: "Could not open invoice PDF", variant: "destructive" })
     }
   }
 
@@ -1551,16 +1552,17 @@ export default function ChargeManagementPage() {
     updateStatementJobStatus,
   ])
 
-  const handlePreviewEmailInNewTab = useCallback(async () => {
+  const handlePreviewEmailInNewTab = useCallback(() => {
     if (!currentSendStatement) return
-    const previewWindow = window.open("", "_blank", "noopener,noreferrer")
+    const html = sendPreviewHtml || "<p>No preview available.</p>"
+    const blob = new Blob([html], { type: "text/html" })
+    const url = URL.createObjectURL(blob)
+    const previewWindow = window.open(url, "_blank", "noopener,noreferrer")
     try {
-      const html = sendPreviewHtml || "<p>No preview available.</p>"
       if (!previewWindow) throw new Error("Preview window was blocked")
-      previewWindow.document.open()
-      previewWindow.document.write(html)
-      previewWindow.document.close()
+      window.setTimeout(() => URL.revokeObjectURL(url), 180_000)
     } catch (error) {
+      URL.revokeObjectURL(url)
       previewWindow?.close()
       toast({
         title: "Unable to preview email",
@@ -1664,7 +1666,7 @@ export default function ChargeManagementPage() {
         )}
 
         {customerId && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalInvoices", { defaultValue: "Total invoices" })}
@@ -1708,8 +1710,8 @@ export default function ChargeManagementPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="p-4 border-b border-gray-100">
+        <div className="bg-white rounded-lg mb-3">
+          <div className="px-4 py-2">
             <div className="flex flex-nowrap items-center gap-2 md:gap-3 min-w-0 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5">
               <div className="relative min-w-[200px] max-w-xl flex-1 shrink-0">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 z-10 pointer-events-none" />
@@ -1900,11 +1902,17 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled}
-                title="Mark selected lines as “Checked”. The review icon will disappear. No changes to billing."
-                onClick={() => void handleBulk("mark_checked")}
+                title={
+                  selectedChargesAllChecked
+                    ? "Move selected lines back to “Pending” status."
+                    : "Mark selected lines as “Checked”. The review icon will disappear. No changes to billing."
+                }
+                onClick={() => void handleBulk(selectedChargesAllChecked ? "mark_pending" : "mark_checked")}
               >
                 {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                {t("chargeManagement.markChecked", { defaultValue: "Mark Checked" })}
+                {selectedChargesAllChecked
+                  ? t("chargeManagement.uncheck", { defaultValue: "Uncheck" })
+                  : t("chargeManagement.markChecked", { defaultValue: "Mark Checked" })}
               </Button>
               <Button
                 variant="outline"
@@ -1983,21 +1991,26 @@ export default function ChargeManagementPage() {
                     disabled={charges.length === 0}
                   />
                 </TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Office Code</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Patient</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">U/L</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Product</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Grade</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Stage</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">Gross</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Due Date</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Status</TableHead>
-                <TableHead className="py-3 text-xs font-semibold text-gray-700">Actions</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Office Code</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Patient</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">U/L</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Product</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Grade</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Stage</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">
+                  Gross
+                  {selectedItems.length > 0 && (
+                    <div className="mt-0.5 text-sm font-bold text-black">{formatMoney(selectedGrossTotal)}</div>
+                  )}
+                </TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Due Date</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Status</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2019,7 +2032,13 @@ export default function ChargeManagementPage() {
                 charges.map((charge, index) => (
                   <TableRow
                     key={charge.id}
-                    className={`border-b border-gray-100 ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
+                    className={`border-b border-gray-100 ${
+                      charge.status.toLowerCase() === "billed"
+                        ? "bg-green-100/70 hover:bg-green-100/70"
+                        : charge.status.toLowerCase() === "checked"
+                        ? "bg-blue-100/70 hover:bg-blue-100/70"
+                        : index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
+                    }`}
                   >
                     <TableCell className="py-3">
                       <Checkbox
@@ -2056,7 +2075,7 @@ export default function ChargeManagementPage() {
                       <Badge className={getStatusColor(charge.status)}>{charge.status}</Badge>
                     </TableCell>
                     <TableCell className="py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-0.5">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -2066,6 +2085,32 @@ export default function ChargeManagementPage() {
                           onClick={() => setEditInvoiceId(charge.billingInvoiceId)}
                         >
                           <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-8 w-8 disabled:opacity-50 ${
+                            charge.status.toLowerCase() === "checked"
+                              ? "text-green-600 hover:text-green-700"
+                              : "text-gray-400 hover:text-gray-500"
+                          }`}
+                          type="button"
+                          disabled={
+                            (charge.status.toLowerCase() !== "pending" && charge.status.toLowerCase() !== "checked") ||
+                            markingCheckedChargeId === charge.id
+                          }
+                          title={
+                            charge.status.toLowerCase() === "checked"
+                              ? "Click to unmark as checked"
+                              : t("chargeManagement.markChecked", { defaultValue: "Mark Checked" })
+                          }
+                          onClick={() => void handleMarkCheckedForRow(charge)}
+                        >
+                          {markingCheckedChargeId === charge.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"
@@ -2092,10 +2137,21 @@ export default function ChargeManagementPage() {
                           size="icon"
                           className="h-8 w-8 text-blue-600 hover:text-blue-800"
                           type="button"
-                          title={t("chargeManagement.viewInvoicePdf", { defaultValue: "View invoice PDF" })}
-                          onClick={() => void handleViewInvoicePdf(charge)}
+                          disabled={!charge.slipId}
+                          title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
+                          onClick={() => router.push(buildVirtualSlipV2Path(charge.slipId))}
                         >
                           <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-amber-600 hover:text-amber-800"
+                          type="button"
+                          title={t("chargeManagement.viewInvoice", { defaultValue: "View invoice" })}
+                          onClick={() => void handleViewInvoicePdf(charge)}
+                        >
+                          <FileText className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -2112,6 +2168,19 @@ export default function ChargeManagementPage() {
                   </TableRow>
                 ))}
             </TableBody>
+            {allChargesSelected && (
+              <TableFooter>
+                <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+                  <TableCell colSpan={12} className="py-3 text-right text-base font-bold text-black">
+                    Total:
+                  </TableCell>
+                  <TableCell className="py-3 text-base font-bold text-black">
+                    {formatMoney(selectedGrossTotal)}
+                  </TableCell>
+                  <TableCell colSpan={3} />
+                </TableRow>
+              </TableFooter>
+            )}
           </Table>
         </div>
 
@@ -2179,7 +2248,7 @@ export default function ChargeManagementPage() {
           }}
         >
           <DialogContent
-            className="flex h-[95vh] max-h-[95vh] w-[min(96vw,68rem)] flex-col gap-0 overflow-hidden rounded-[16px] p-0 sm:h-[92vh] sm:max-h-[92vh] sm:rounded-[20px]"
+            className="flex max-h-[90vh] w-[min(96vw,68rem)] flex-col gap-0 overflow-hidden rounded-[16px] p-0 sm:rounded-[20px]"
             showCloseButton={false}
           >
             <DialogClose className="absolute right-5 top-5 z-10 rounded-sm p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
@@ -2209,21 +2278,21 @@ export default function ChargeManagementPage() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-                    {selectedStatementPreviewItems.map((item) => (
+                    {selectedStatementGroups.map((group) => (
                       <div
-                        key={item.id}
+                        key={group.officeId}
                         className="flex flex-col gap-4 rounded-[18px] border border-gray-100 bg-gray-50/70 px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
                       >
                         <div className="min-w-0">
-                          <h3 className="text-[22px] font-bold text-black sm:text-[24px]">{item.officeName}</h3>
+                          <h3 className="text-[22px] font-bold text-black sm:text-[24px]">{group.officeName}</h3>
                           <p className="mt-2 text-[14px] leading-6 text-gray-400">
-                            {item.invoiceLabel} • {item.officeCode} • {item.patient} • {item.product}
+                            {group.invoiceLabel} • {group.officeCode} • {group.chargeCount} charge{group.chargeCount === 1 ? "" : "s"}
                           </p>
                         </div>
                         <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
                           <div className="text-[15px] text-black sm:text-right">
                             <span className="mr-2.5">Total:</span>
-                            <span className="text-[17px]">{formatMoney(item.totalAmount)}</span>
+                            <span className="text-[17px]">{formatMoney(group.totalAmount)}</span>
                           </div>
                           <Eye className="h-4.5 w-4.5 shrink-0 text-black/80" />
                         </div>
@@ -2236,8 +2305,7 @@ export default function ChargeManagementPage() {
                         className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                           statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
                         }`}
-                        onClick={() => void handleStatementAutoMarkBilledToggle()}
-                        disabled={statementAutoMarking}
+                        onClick={handleStatementAutoMarkBilledToggle}
                       >
                         <span
                           className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
@@ -2246,7 +2314,7 @@ export default function ChargeManagementPage() {
                         />
                       </button>
                       <span className="text-[15px] text-black">
-                        {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
+                        Auto mark as billed
                       </span>
                     </div>
                   </div>
@@ -2487,13 +2555,12 @@ export default function ChargeManagementPage() {
                         className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:w-14 ${
                           statementAutoMarkBilled ? "bg-[#1565b3]" : "bg-slate-300"
                         }`}
-                        onClick={() => void handleStatementAutoMarkBilledToggle()}
-                        disabled={statementAutoMarking}
+                        onClick={handleStatementAutoMarkBilledToggle}
                       >
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform sm:h-5 sm:w-5 ${statementAutoMarkBilled ? "translate-x-7 sm:translate-x-8" : "translate-x-1"}`} />
                       </button>
                       <span className="text-sm text-black sm:text-[15px] lg:text-[18px]">
-                        {statementAutoMarking ? "Marking as billed..." : "Auto mark as billed"}
+                        Auto mark as billed
                       </span>
                     </div>
                   </div>

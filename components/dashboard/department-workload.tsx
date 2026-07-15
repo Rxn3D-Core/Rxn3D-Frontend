@@ -226,7 +226,7 @@ function PaginationButton({ number, icon, active = false }: PaginationButtonProp
   return (
     <button
       className={`h-6 w-6 rounded-full flex items-center justify-center text-xs ${
-        active ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#a19d9d]"
+        active ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" : "bg-[#f0f0f0] text-[#a19d9d]"
       }`}
     >
       {number !== undefined ? number : icon}

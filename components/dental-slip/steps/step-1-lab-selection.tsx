@@ -79,7 +79,7 @@ export const Step1LabSelection: React.FC<Step1LabSelectionProps> = ({
 
               {/* Add Lab button on the right */}
               <Button 
-                className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
                 onClick={() => setShowAddNewLabModal(true)}
               >
                 + {addLabel}

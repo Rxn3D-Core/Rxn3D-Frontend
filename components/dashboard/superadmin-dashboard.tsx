@@ -347,12 +347,13 @@ export function SuperAdminDashboard() {
                   <p className="text-blue-100 text-xs">Manage all practice connections</p>
                 </div>
                 <Button
-                  className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                  variant="ghost"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                   onClick={() => setShowPracticeForm(!showPracticeForm)}
                 >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">{tDashboard("newPractice", "New Practice")}</span>
-                  <span className="sm:hidden">New</span>
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">{tDashboard("newPractice", "New Practice")}</span>
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                 </Button>
               </div>
             </div>
@@ -381,28 +382,26 @@ export function SuperAdminDashboard() {
 
               <div className="flex flex-col sm:flex-row border-b border-[#d9d9d9]">
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabPractices === "connected"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabPractices === "connected" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("connected", "practices")}
                 >
                   <span className="hidden sm:inline">{tDashboard("connectedPractices", "Connected")}</span>
                   <span className="sm:hidden">Connected</span>
                   <span className="block sm:inline">({practices.filter(p => p?.status === "Active").length})</span>
+                  {activeTabPractices === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabPractices === "request"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabPractices === "request" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("request", "practices")}
                 >
                   <span className="hidden sm:inline">{tDashboard("requestSent", "Sent")}</span>
                   <span className="sm:hidden">Sent</span>
                   <span className="block sm:inline">({sent.data.filter(p => p?.type === "Office").length})</span>
+                  {activeTabPractices === "request" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
               </div>
             </div>
@@ -565,12 +564,13 @@ export function SuperAdminDashboard() {
                   <p className="text-blue-100 text-xs">Manage all lab connections</p>
                 </div>
                 <Button
-                  className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                  variant="ghost"
+                  className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                   onClick={() => setShowLabForm(!showLabForm)}
                 >
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                  <span className="hidden sm:inline">{tDashboard("newLab", "New Lab")}</span>
-                  <span className="sm:hidden">New</span>
+                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">{tDashboard("newLab", "New Lab")}</span>
+                  <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                 </Button>
               </div>
             </div>
@@ -600,28 +600,26 @@ export function SuperAdminDashboard() {
 
               <div className="flex flex-col sm:flex-row border-b border-[#d9d9d9]">
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabLabs === "connected"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabLabs === "connected" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("connected", "labs")}
                 >
                   <span className="hidden sm:inline">{tDashboard("connectedLabs", "Connected")}</span>
                   <span className="sm:hidden">Connected</span>
                   <span className="block sm:inline">({labs.filter(l => l?.status === "Active").length})</span>
+                  {activeTabLabs === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabLabs === "request"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabLabs === "request" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("request", "labs")}
                 >
                   <span className="hidden sm:inline">{tDashboard("requestSent", "Sent")}</span>
                   <span className="sm:hidden">Sent</span>
                   <span className="block sm:inline">({sent.data.filter(l => l?.type === "Lab").length})</span>
+                  {activeTabLabs === "request" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
               </div>
             </div>
@@ -787,11 +785,12 @@ export function SuperAdminDashboard() {
                   <DialogTrigger asChild>
                     <Button
                       type="button"
-                      className="bg-white text-[#1162a8] hover:bg-blue-50 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
+                      variant="ghost"
+                      className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 shadow-md font-medium text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2"
                     >
-                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                      <span className="hidden sm:inline">{tDashboard("newUser", "New User")}</span>
-                      <span className="sm:hidden">New</span>
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" style={{ color: "#82298D" }} />
+                      <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="hidden sm:inline">{tDashboard("newUser", "New User")}</span>
+                      <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }} className="sm:hidden">New</span>
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[425px]">
@@ -820,28 +819,26 @@ export function SuperAdminDashboard() {
 
               <div className="flex flex-col sm:flex-row border-b border-[#d9d9d9]">
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabUsers === "connected"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabUsers === "connected" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("connected", "users")}
                 >
                   <span className="hidden sm:inline">{tDashboard("connectedUser", "Connected Users")}</span>
                   <span className="sm:hidden">Connected</span>
                   <span className="block sm:inline">({filteredUsers.filter(u => u.status.toLowerCase() === "connected").length})</span>
+                  {activeTabUsers === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
-                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base ${
-                    activeTabUsers === "request"
-                      ? "border-b-2 sm:border-b-2 border-[#1162a8] text-[#1162a8] bg-blue-50"
-                      : "text-[#a19d9d] hover:text-[#1162a8] hover:bg-gray-50"
+                  className={`flex-1 text-center py-2 sm:py-3 px-2 sm:px-4 font-medium transition-all text-sm sm:text-base relative border-b-2 border-transparent ${
+                    activeTabUsers === "request" ? "text-gray-900" : "text-[#a19d9d] hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   onClick={() => handleTabClick("request", "users")}
                 >
                   <span className="hidden sm:inline">{tDashboard("requestSent", "Pending")}</span>
                   <span className="sm:hidden">Pending</span>
                   <span className="block sm:inline">(0)</span>
+                  {activeTabUsers === "request" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
               </div>
             </div>
@@ -887,7 +884,7 @@ export function SuperAdminDashboard() {
                   <button
                     key={idx}
                     className={`h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center text-xs ${
-                      item === 1 ? "bg-[#1162a8] text-white" : "bg-[#f0f0f0] text-[#a19d9d]"
+                      item === 1 ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white" : "bg-[#f0f0f0] text-[#a19d9d]"
                     }`}
                   >
                     {item}
@@ -956,7 +953,7 @@ export function SuperAdminDashboard() {
             </p>
             <Button
               onClick={() => window.location.href = "/dashboard/settings"}
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
             >
               Go to Dashboard Settings
             </Button>

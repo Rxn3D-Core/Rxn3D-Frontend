@@ -8,7 +8,10 @@ import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { useLibraryCategories } from "@/hooks/use-library-categories";
 import { useLibraryProducts, useLibraryProductSearch, useSubcategoryProductCounts, type LibraryProductApi } from "@/hooks/use-library-products";
-import { hasRetentionOptions } from "@/components/case-design-center/utils/categoryHelpers";
+import {
+  categoryShowsJawSelection,
+  shouldShowJawArchSelection,
+} from "@/components/case-design-center/utils/wizardJawSelection";
 import { useDebounce } from "@/lib/performance-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
@@ -30,7 +33,7 @@ import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
-import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, getInitials } from "@/utils/avatar-utils";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -70,19 +73,6 @@ function useWizardRole() {
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
-
-/** Multiple fallback images so each doctor gets a different placeholder when they have no avatar */
-const DOCTOR_AVATAR_FALLBACKS = [
-  "/doctors/doctor-1.jpg",
-  "/doctors/doctor-2.jpg",
-  "/doctors/doctor-3.jpg",
-  "/doctors/doctor-4.jpg",
-];
-
-function getDoctorFallbackImg(doctorId: number, index?: number): string {
-  const i = index ?? doctorId;
-  return DOCTOR_AVATAR_FALLBACKS[Math.abs(i) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0];
-}
 
 /* ------------------------------------------------------------------ */
 /*  Fallback image component – shows name text when image is missing   */
@@ -482,7 +472,7 @@ function StepDoctor({
         </button>
         <button
           onClick={onAddNew}
-          className="flex items-center gap-1 bg-[#1162a8] hover:bg-[#0d4a85] text-white text-[12px] font-semibold px-4 py-2 rounded transition-colors"
+          className="flex items-center gap-1 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-[12px] font-semibold px-4 py-2 rounded transition-colors"
         >
           <Plus size={14} />
           Add Doctor
@@ -494,28 +484,31 @@ function StepDoctor({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
-        {doctors.map((doc, i) => (
+        {doctors.map((doc) => (
           <button
             key={doc.id}
             onClick={() => onSelect(doc.id)}
             className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
           >
             <div
-              className={`w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
+              className={`relative flex items-center justify-center w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
                 ? "border-[4px] border-[#1162A8]"
                 : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
                 }`}
             >
-              <img
-                src={doc.img}
-                alt={doc.name}
-                className="w-full h-full object-cover"
-                data-fallback={getDoctorFallbackImg(doc.id, i)}
-                onError={(e) => {
-                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                  e.currentTarget.src = fallback;
-                }}
-              />
+              <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-[#1162a8]">
+                {getInitials(doc.name) || "?"}
+              </span>
+              {doc.img && (
+                <img
+                  src={doc.img}
+                  alt={doc.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.remove();
+                  }}
+                />
+              )}
             </div>
             <span className="text-[14px] font-weight-700 font-bold text-[#1d1d1b] text-center">
               {doc.name}
@@ -965,17 +958,20 @@ function StepPatientInfo({
         <div className="flex flex-row items-start gap-5">
           {doctor && (
             <div className="flex flex-col items-center gap-1">
-              <div className="w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                <img
-                  src={doctor.img}
-                  alt={doctor.name}
-                  className="w-full h-full object-cover"
-                  data-fallback={getDoctorFallbackImg(doctor.id)}
-                  onError={(e) => {
-                    const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                    e.currentTarget.src = fallback;
-                  }}
-                />
+              <div className="relative w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center text-2xl sm:text-4xl font-semibold text-[#1162a8]">
+                  {getInitials(doctor.name) || "?"}
+                </span>
+                {doctor.img && (
+                  <img
+                    src={doctor.img}
+                    alt={doctor.name}
+                    className="relative w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.remove();
+                    }}
+                  />
+                )}
               </div>
               <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">{doctor.name}</p>
             </div>
@@ -1070,11 +1066,10 @@ function StepPatientInfo({
         </div>
 
         <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
-          <div className="w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-            {createdByImage ? (
-              <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-base sm:text-xl font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+          <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">{getInitials(createdByName) || "?"}</span>
+            {createdByImage && (
+              <img src={createdByImage} onError={(e) => { e.currentTarget.remove(); }} alt="Creator" className="relative w-full h-full object-cover" />
             )}
           </div>
           <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -1089,17 +1084,20 @@ function StepPatientInfo({
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
           <div className="flex flex-col items-center gap-1">
-            <div className="w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
-              <img
-                src={doctor.img}
-                alt={doctor.name}
-                className="w-full h-full object-cover"
-                data-fallback={getDoctorFallbackImg(doctor.id)}
-                onError={(e) => {
-                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                  e.currentTarget.src = fallback;
-                }}
-              />
+            <div className="relative flex items-center justify-center w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
+              <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+                {getInitials(doctor.name) || "?"}
+              </span>
+              {doctor.img && (
+                <img
+                  src={doctor.img}
+                  alt={doctor.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.remove();
+                  }}
+                />
+              )}
             </div>
             <span className="text-[13px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
           </div>
@@ -1195,11 +1193,10 @@ function StepPatientInfo({
         </div>
 
         {/* Row 3: Created By avatar */}
-        <div className="w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
-          {createdByImage ? (
-            <img src={createdByImage} onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "/images/created-by.png"; }} alt="Creator" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xl font-bold text-gray-500">{createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}</span>
+        <div className="relative w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+          <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">{getInitials(createdByName) || "?"}</span>
+          {createdByImage && (
+            <img src={createdByImage} onError={(e) => { e.currentTarget.remove(); }} alt="Creator" className="relative w-full h-full object-cover" />
           )}
         </div>
 
@@ -1349,6 +1346,7 @@ function StepSubProduct({
   subcategoryProductCounts,
   subcategoryProducts,
   onArchPickForSingle,
+  categoryShowJawSelection,
   productSearch,
   onProductSearchChange,
   searchResults,
@@ -1358,6 +1356,7 @@ function StepSubProduct({
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
   categoryName: string;
+  categoryShowJawSelection: boolean;
   selected: number | null;
   onSelect: (id: number) => void;
   onBack?: () => void;
@@ -1450,7 +1449,13 @@ function StepSubProduct({
               ref={(el) => { subCardRefs.current[prod.id] = el; }}
               onClick={() => {
                 const isSingle = subcategoryProductCounts?.[prod.id] === 1;
-                if (onArchPickForSingle && isSingle) {
+                const singleProduct = subcategoryProducts?.[prod.id]?.[0];
+                const showArchForSingle =
+                  isSingle &&
+                  singleProduct != null &&
+                  shouldShowJawArchSelection(singleProduct, categoryShowJawSelection) &&
+                  onArchPickForSingle;
+                if (showArchForSingle) {
                   if (archPopoverSubId === prod.id) {
                     setArchPopoverSubId(null);
                   } else {
@@ -1468,8 +1473,13 @@ function StepSubProduct({
               </ProductPickerCardLabel>
               <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
             </button>
-            {archPopoverSubId === prod.id && onArchPickForSingle && (() => {
+            {archPopoverSubId === prod.id &&
+              onArchPickForSingle &&
+              (() => {
               const singleProduct = subcategoryProducts?.[prod.id]?.[0];
+              if (!singleProduct || !shouldShowJawArchSelection(singleProduct, categoryShowJawSelection)) {
+                return null;
+              }
               const useJawPhotos = singleProduct?.show_jaw_photo === "Yes";
               const jawPhotos = singleProduct?.jaw_photos ?? {};
               const fallbackImg = prod.img ?? null;
@@ -1541,7 +1551,7 @@ function StepMaterial({
   gender,
   isLoading,
   error,
-  isNonFixedProduct,
+  categoryShowJawSelection,
   forceArch,
   onPatientNameChange,
   onGenderChange,
@@ -1566,7 +1576,7 @@ function StepMaterial({
   age?: string;
   isLoading?: boolean;
   error?: Error | null;
-  isNonFixedProduct?: boolean;
+  categoryShowJawSelection: boolean;
   forceArch?: "maxillary" | "mandibular";
   onPatientNameChange?: (value: string) => void;
   onGenderChange?: (value: string) => void;
@@ -1617,16 +1627,13 @@ function StepMaterial({
   }, [archPopoverProductId, products]);
 
   useEffect(() => {
-    if (
-      products.length === 1 &&
-      !selected &&
-      (!isNonFixedProduct || forceArch) &&
-      !isLoading
-    ) {
-      const only = products[0];
+    if (products.length !== 1 || selected || isLoading) return;
+    const only = products[0];
+    const needsArchSelection = shouldShowJawArchSelection(only, categoryShowJawSelection);
+    if (!needsArchSelection || forceArch) {
       onSelect(String(only.id), forceArch);
     }
-  }, [products, selected, isNonFixedProduct, forceArch, isLoading, onSelect]);
+  }, [products, selected, categoryShowJawSelection, forceArch, isLoading, onSelect]);
 
   useEffect(() => {
     if (products.length <= 1 && archPopoverProductId) {
@@ -1639,8 +1646,11 @@ function StepMaterial({
     setArchPopoverProductId(initialArchPopoverProductId);
   }, [initialArchPopoverProductId, isLoading]);
 
-  const shouldAutoSelectSingle = products.length === 1 && (!isNonFixedProduct || forceArch);
-  const shouldAskArchOnly = products.length === 1 && isNonFixedProduct && !forceArch && !isLoading;
+  const onlyProduct = products.length === 1 ? products[0] : null;
+  const singleProductNeedsArch =
+    onlyProduct != null && shouldShowJawArchSelection(onlyProduct, categoryShowJawSelection);
+  const shouldAutoSelectSingle = products.length === 1 && (!singleProductNeedsArch || !!forceArch);
+  const shouldAskArchOnly = products.length === 1 && singleProductNeedsArch && !forceArch && !isLoading;
 
   if (error) {
     return (
@@ -1734,7 +1744,8 @@ function StepMaterial({
                 <button
                   ref={(el) => { cardRefs.current[prodId] = el; }}
                   onClick={() => {
-                    if (!isNonFixedProduct || forceArch) {
+                    const productNeedsArch = shouldShowJawArchSelection(prod, categoryShowJawSelection);
+                    if (!productNeedsArch || forceArch) {
                       onSelect(prodId, forceArch);
                     } else {
                       if (archPopoverProductId === prodId) {
@@ -1893,16 +1904,19 @@ function PatientMiniHeader({
         {doctor && (
           <div className="flex flex-col items-center gap-1 flex-shrink-0">
             <div className="w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative">
-              <img
-                src={doctor.img}
-                alt={doctor.name}
-                className="w-full h-full object-cover"
-                data-fallback={getDoctorFallbackImg(doctor.id)}
-                onError={(e) => {
-                  const fallback = e.currentTarget.dataset.fallback || DOCTOR_AVATAR_FALLBACKS[0];
-                  e.currentTarget.src = fallback;
-                }}
-              />
+              <span className="absolute inset-0 flex items-center justify-center text-lg sm:text-xl font-semibold text-[#1162a8]">
+                {getInitials(doctor.name) || "?"}
+              </span>
+              {doctor.img && (
+                <img
+                  src={doctor.img}
+                  alt={doctor.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.remove();
+                  }}
+                />
+              )}
             </div>
             <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">
               {doctor.name}
@@ -1950,21 +1964,19 @@ function PatientMiniHeader({
 
         {/* Created By */}
         <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0 lg:ml-2">
-          <div className="w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-            {createdByImage ? (
+          <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
+              {getInitials(createdByName) || "?"}
+            </span>
+            {createdByImage && (
               <img
                 src={createdByImage}
                 onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = "/images/created-by.png";
+                  e.currentTarget.remove();
                 }}
                 alt="Creator"
-                className="w-full h-full object-cover"
+                className="relative w-full h-full object-cover"
               />
-            ) : (
-              <span className="text-base sm:text-xl font-bold text-gray-500">
-                {createdByName.split(" ").map(n => n[0]).join("").toUpperCase()}
-              </span>
             )}
           </div>
           <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -2120,11 +2132,12 @@ export default function NewCaseWizard({
 
   const doctorsForWizard: WizardDoctorShape[] = useMemo(
     () =>
-      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; signature_url?: string }[]).map(
-        (d, i) => ({
+      (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; avatar?: string; signature_url?: string }[]).map(
+        (d) => ({
           id: d.id,
           name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
-          img: resolveDoctorImageUrl(d) || getDoctorFallbackImg(d.id, i),
+          // Empty string when no photo — UI shows initials (never a placeholder image)
+          img: resolveDoctorImageUrl(d) || "",
         })
       ),
     [officeDoctorsRaw]
@@ -2199,7 +2212,11 @@ export default function NewCaseWizard({
       setShouldAutoAdvanceProducts(false);
       setProductSearch("");
 
-      const needsArchSelection = !hasRetentionOptions(product);
+      const categoryShowJaw = categoryShowsJawSelection(
+        product.subcategory?.category ??
+          categoriesAsWizard.find((c) => c.id === categoryId),
+      );
+      const needsArchSelection = shouldShowJawArchSelection(product, categoryShowJaw);
       const productId = String(product.id);
 
       if (needsArchSelection && !forceArch) {
@@ -2235,7 +2252,10 @@ export default function NewCaseWizard({
 
     if (productsAsWizard.length === 1) {
       const only = productsAsWizard[0];
-      const needsArchSelection = !hasRetentionOptions(only);
+      const categoryShowJaw = categoryShowsJawSelection(
+        categoriesAsWizard.find((c) => c.id === selectedCategory),
+      );
+      const needsArchSelection = shouldShowJawArchSelection(only, categoryShowJaw);
       if (needsArchSelection && !forceArch && !selectedArch) {
         setArchPopoverSubId(selectedSubProduct);
       } else {
@@ -2478,6 +2498,9 @@ export default function NewCaseWizard({
             categoryId={selectedCategory}
             subProducts={subcategoriesByCategoryId[selectedCategory] ?? []}
             categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
+            categoryShowJawSelection={categoryShowsJawSelection(
+              categoriesAsWizard.find((c) => c.id === selectedCategory),
+            )}
             selected={selectedSubProduct}
             onSelect={(id) => {
               setSelectedSubProduct(id);
@@ -2516,10 +2539,9 @@ export default function NewCaseWizard({
         )}
         {step === 6 && selectedCategory != null && selectedSubProduct != null && (() => {
           const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-          const activeProduct =
-            productsAsWizard.find((p) => String(p.id) === String(selectedMaterial)) ??
-            productsAsWizard[0];
-          const isNonFixedProduct = activeProduct ? !hasRetentionOptions(activeProduct) : false;
+          const categoryShowJaw = categoryShowsJawSelection(
+            categoriesAsWizard.find((c) => c.id === selectedCategory),
+          );
           return (
             <StepMaterial
               categoryName={selectedCategoryName}
@@ -2530,7 +2552,7 @@ export default function NewCaseWizard({
               selected={selectedMaterial}
               isLoading={productsLoading}
               error={productsError}
-              isNonFixedProduct={isNonFixedProduct}
+              categoryShowJawSelection={categoryShowJaw}
               forceArch={forceArch ?? selectedArch}
               onBack={() => {
                 setShouldAutoAdvanceProducts(false);
@@ -2607,7 +2629,7 @@ export default function NewCaseWizard({
               <button
                 onClick={handleNext}
                 disabled={!canProceed()}
-                className="bg-[#1162a8] hover:bg-[#0d4a85] disabled:bg-[#9ba5b7] text-white text-[12px] font-semibold px-6 py-2 rounded transition-colors"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 disabled:bg-[#9ba5b7] text-white text-[12px] font-semibold px-6 py-2 rounded transition-colors"
               >
                 Next
               </button>

@@ -14,7 +14,7 @@ function Badge({ label, variant }: { label: string; variant: PlanTierCardModel["
   const styles: Record<PlanTierCardModel["badgeVariant"], string> = {
     muted: "bg-muted text-muted-foreground",
     success: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300",
-    primary: "bg-[#1162A8]/15 text-[#1162A8]",
+    primary: "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/15 text-[#1162A8]",
     premium: "bg-amber-500/20 text-amber-900 dark:text-amber-200",
   }
   return (
@@ -102,7 +102,7 @@ export default function GlobalPricingPage() {
           <Button variant="outline" size="sm" type="button" disabled>
             Drafts
           </Button>
-          <Button size="sm" className="bg-[#1162A8] hover:bg-[#0d5290]" type="button" disabled>
+          <Button size="sm" className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d5290]" type="button" disabled>
             + Create new plan
           </Button>
         </div>

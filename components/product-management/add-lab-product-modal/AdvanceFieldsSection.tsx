@@ -599,12 +599,12 @@ export function AdvanceFieldsSection({
           </div>
           <Button
             type="button"
-            variant="outline"
             className="rounded-md bg-[#9333EA] hover:bg-[#7c2dcf] border-[#9333EA] hover:border-[#7c2dcf] text-white hover:text-white"
             disabled={!sectionOn}
             onClick={() => requestAdvanceEditor("create")}
           >
-            <Plus className="mr-2 h-4 w-4" /> Add Advance Field
+            <Plus className="mr-2 h-4 w-4" />
+            <span>Add Advance Field</span>
           </Button>
         </div>
       </div>

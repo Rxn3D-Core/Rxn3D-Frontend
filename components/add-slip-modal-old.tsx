@@ -584,7 +584,7 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
                 <div>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-gray-800 text-center flex-1">Choose a Lab</h3>
-                    <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white ml-auto rounded-lg px-5 py-2">
+                    <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white ml-auto rounded-lg px-5 py-2">
                       Add New lab
                     </Button>
                   </div>
@@ -669,7 +669,7 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
                                     className={`transition-all px-4 py-1 rounded-md text-xs font-medium border ${
                                       defaultLabId === lab.id
                                         ? "bg-green-100 text-green-700 border-green-200 cursor-default"
-                                        : "bg-[#1162a8] text-white border-[#1162a8] hover:bg-[#0f5490] hover:border-[#0f5490] opacity-0 group-hover:opacity-100"
+                                        : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8] hover:bg-[#0f5490] hover:border-[#0f5490] opacity-0 group-hover:opacity-100"
                                     }`}
                                     style={{ pointerEvents: defaultLabId === lab.id ? "none" : "auto" }}
                                     onClick={(e) => {
@@ -1081,7 +1081,7 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
                     <Button variant="outline" onClick={() => {/* reset logic */}} className="px-6">
                       Reset Filter
                     </Button>
-                    <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-6"
+                    <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6"
                       onClick={() => setShowAdvanceFilter(false)}
                     >
                       Apply Filter
@@ -1363,7 +1363,7 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
                 <Button variant="outline" onClick={() => setShowAddOnsModal(false)}>
                   Cancel
                 </Button>
-                <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white" onClick={() => setShowAddOnsModal(false)}>
+                <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white" onClick={() => setShowAddOnsModal(false)}>
                   Attach Files
                 </Button>
               </div>
@@ -1442,7 +1442,7 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
                 <Button variant="outline" onClick={() => setShowAttachFilesModal(false)}>
                   Cancel
                 </Button>
-                <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white" onClick={() => setShowAttachFilesModal(false)}>
+                <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white" onClick={() => setShowAttachFilesModal(false)}>
                   Attach Files
                 </Button>
               </div>
@@ -1533,7 +1533,7 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
                   Change Product
                 </Button>
                 <Button
-                  className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-4 py-2"
+                  className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2"
                   onClick={handleArchContinue}
                   disabled={!selectedArch}
                 >
@@ -1555,17 +1555,17 @@ export function AddSlipModal({ open, onOpenChange }: AddSlipModalProps) {
             Cancel
           </Button>
           {step === 1 && (
-            <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-8 py-2 rounded-lg font-semibold" onClick={handleContinue} disabled={!selectedLab}>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8 py-2 rounded-lg font-semibold" onClick={handleContinue} disabled={!selectedLab}>
               Continue
             </Button>
           )}
           {step === 2 && (
-            <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-8 py-2 rounded-lg font-semibold" onClick={handleContinue} disabled={!selectedProduct}>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8 py-2 rounded-lg font-semibold" onClick={handleContinue} disabled={!selectedProduct}>
               Continue
             </Button>
           )}
           {step === 3 && (
-            <Button className="bg-[#1162a8] hover:bg-[#0f5490] text-white px-8 py-2 rounded-lg font-semibold" onClick={handleSubmit}>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8 py-2 rounded-lg font-semibold" onClick={handleSubmit}>
               Submit Case
             </Button>
           )}

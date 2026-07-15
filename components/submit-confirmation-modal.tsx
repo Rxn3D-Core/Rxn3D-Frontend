@@ -47,7 +47,7 @@ export default function SubmitConfirmationModal({ isOpen, onClose, onConfirm }: 
           <Button variant="outline" onClick={onClose} className="flex-1 bg-transparent">
             Cancel
           </Button>
-          <Button onClick={handleConfirm} disabled={!isChecked} className="flex-1 bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleConfirm} disabled={!isChecked} className="flex-1 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
             Submit Case
           </Button>
         </div>

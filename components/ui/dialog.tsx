@@ -18,6 +18,7 @@ function shouldAllowDialogInteractOutside(ev: Event): boolean {
   for (const node of path) {
     if (!(node instanceof Element)) continue
     if (node.closest('[data-dialog-nested-overlay="true"]')) return true
+    if (node.closest('[data-tooth-chart-popover="true"]')) return true
     if (node.closest("[data-radix-select-content]")) return true
     if (node.closest("[data-radix-popover-content]")) return true
     if (node.closest("[data-radix-dropdown-menu-content]")) return true

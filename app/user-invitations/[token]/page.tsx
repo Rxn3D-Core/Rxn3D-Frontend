@@ -264,7 +264,7 @@ export default function UserInvitationPage() {
               : `Your account is ready. Please log in to access ${invitation.customer?.name}.`}
           </p>
           <Button
-            className="w-full bg-[#1162a8] hover:bg-[#0d5999]"
+            className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
             onClick={() => router.push(acceptedAsExisting ? "/dashboard" : "/login")}
           >
             {acceptedAsExisting ? "Go to dashboard" : "Go to login"}
@@ -301,7 +301,7 @@ export default function UserInvitationPage() {
           <p className="mb-6 text-sm text-gray-600">
             You already have access to {invitation.customer?.name}. Log in to continue.
           </p>
-          <Button className="w-full bg-[#1162a8] hover:bg-[#0d5999]" onClick={() => router.push("/login")}>
+          <Button className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d5999]" onClick={() => router.push("/login")}>
             Go to login
           </Button>
         </div>
@@ -316,7 +316,7 @@ export default function UserInvitationPage() {
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[#119933]" />
           <h1 className="mb-2 text-xl font-bold text-gray-900">Invitation already processed</h1>
           <p className="mb-6 text-sm text-gray-600">This invitation has already been used. Please log in to continue.</p>
-          <Button className="w-full bg-[#1162a8] hover:bg-[#0d5999]" onClick={() => router.push("/login")}>
+          <Button className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d5999]" onClick={() => router.push("/login")}>
             Go to login
           </Button>
         </div>
@@ -340,7 +340,7 @@ export default function UserInvitationPage() {
             Log in with <span className="font-semibold">{invitation.email}</span> to accept this invitation.
           </div>
           <Button
-            className="mt-4 w-full bg-[#1162a8] hover:bg-[#0d5999]"
+            className="mt-4 w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
             onClick={() => router.push(`/login?redirect=${encodeURIComponent(invitationPath)}`)}
           >
             <LogIn className="mr-2 h-4 w-4" />
@@ -364,7 +364,7 @@ export default function UserInvitationPage() {
             You're signed in as <span className="font-semibold">{user?.email}</span>, but this invitation is for{" "}
             <span className="font-semibold">{invitation.email}</span>. Log out and sign in as that user to accept.
           </div>
-          <Button className="mt-4 w-full bg-[#1162a8] hover:bg-[#0d5999]" onClick={() => logout()}>
+          <Button className="mt-4 w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d5999]" onClick={() => logout()}>
             Log out & switch account
           </Button>
         </Shell>
@@ -391,7 +391,7 @@ export default function UserInvitationPage() {
           between profiles after accepting.
         </p>
         <Button
-          className="mt-4 w-full bg-[#1162a8] hover:bg-[#0d5999]"
+          className="mt-4 w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
           onClick={handleAcceptExisting}
           disabled={isSubmitting}
         >
@@ -536,7 +536,7 @@ export default function UserInvitationPage() {
           </div>
         )}
 
-        <Button type="submit" className="w-full bg-[#1162a8] hover:bg-[#0d5999]" disabled={isSubmitting}>
+        <Button type="submit" className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0d5999]" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />

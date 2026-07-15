@@ -11,8 +11,8 @@ import { DoctorDashboard } from "./doctor-dashboard"
 import { ConnectionProvider } from "@/contexts/connection-context"
 
 export function UnifiedDashboard() {
-  const { user } = useAuth()
-  const primaryRole = getPrimaryRole(user)
+  const { user, isActingAsLabAdmin } = useAuth()
+  const primaryRole = isActingAsLabAdmin ? "lab_admin" : getPrimaryRole(user)
   const customerType = getActiveCustomerType()
 
   const isLabProfile =

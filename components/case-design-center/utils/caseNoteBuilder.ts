@@ -4,6 +4,8 @@ import type {
   NotesProps,
   ProductAdvanceField,
   ProductApiData,
+  ProductGumShade,
+  ProductTeethShade,
   RetentionType,
   SlipProductSnapshot,
 } from "../types";
@@ -46,6 +48,8 @@ export interface ProductNoteContext {
   panelImplantBrand?: string;
   panelImplantPlatform?: string;
   panelImplantInclusion?: string;
+  /** Active teeth shade guide (e.g. Vita Classical) for removable notes. */
+  shadeGuide?: string;
 }
 
 const FIXED_MULTI_FIELD_STEPS = [
@@ -97,6 +101,133 @@ export function formatTeethNumbers(teeth: number[]): string {
   }
   ranges.push(start === end ? `#${start}` : `#${start}–#${end}`);
   return ranges.join(", ");
+}
+
+/** `#11 and #12` style list for removable fabrication lines. */
+export function formatTeethNumbersWithAnd(teeth: number[]): string {
+  if (teeth.length === 0) return "";
+  const sorted = [...teeth].sort((a, b) => a - b);
+  const labels = sorted.map((tn) => `#${tn}`);
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
+
+interface ShadeNoteInfo {
+  name: string;
+  systemName: string;
+}
+
+function parseShadeSelectionField(raw: string): {
+  shadeId: number;
+  brandId: number;
+  name: string;
+} {
+  if (!raw?.trim()) return { shadeId: 0, brandId: 0, name: "" };
+  try {
+    const parsed = JSON.parse(raw) as {
+      teeth_shade_id?: number;
+      gum_shade_id?: number;
+      brand_id?: number;
+      name?: string;
+    };
+    return {
+      shadeId: Number(parsed.teeth_shade_id ?? parsed.gum_shade_id ?? 0),
+      brandId: Number(parsed.brand_id ?? 0),
+      name: String(parsed.name ?? "").trim(),
+    };
+  } catch {
+    return { shadeId: 0, brandId: 0, name: raw.trim() };
+  }
+}
+
+function resolveTeethShadeForNote(
+  product: ProductApiData | null,
+  raw: string,
+  shadeGuide?: string,
+): ShadeNoteInfo | null {
+  const parsed = parseShadeSelectionField(raw);
+  const name = parsed.name || parseFieldDisplayValue(raw);
+  if (!name) return null;
+
+  let systemName = shadeGuide?.trim() ?? "";
+  const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
+  if (!systemName && shades.length > 0) {
+    const match =
+      shades.find((row) => {
+        const rowShadeId = Number(row.teeth_shade_id ?? row.id ?? 0);
+        const rowBrandId = Number(row.brand?.id ?? 0);
+        if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
+        if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
+        return row.name === name;
+      }) ?? null;
+    systemName = match?.brand?.system_name?.trim() ?? "";
+  }
+
+  return { name, systemName };
+}
+
+function resolveGumShadeForNote(
+  product: ProductApiData | null,
+  raw: string,
+): ShadeNoteInfo | null {
+  const parsed = parseShadeSelectionField(raw);
+  const name = parsed.name || parseFieldDisplayValue(raw);
+  if (!name) return null;
+
+  let systemName = "";
+  const shades = (product?.gum_shades ?? []) as ProductGumShade[];
+  if (shades.length > 0) {
+    const match =
+      shades.find((row) => {
+        const rowShadeId = Number(row.gum_shade_id ?? row.id ?? 0);
+        const rowBrandId = Number(row.brand?.id ?? 0);
+        if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
+        if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
+        return row.name === name;
+      }) ?? null;
+    systemName = match?.brand?.system_name?.trim() ?? "";
+  }
+
+  return { name, systemName };
+}
+
+function buildRemovableShadeClause(
+  teethShade: ShadeNoteInfo | null,
+  gumShade: ShadeNoteInfo | null,
+): string {
+  const teethPart = teethShade
+    ? `${teethShade.systemName ? `${teethShade.systemName} ` : ""}${teethShade.name} denture`.trim()
+    : "";
+  const gumPart = gumShade
+    ? `${gumShade.systemName ? `${gumShade.systemName} ` : ""}${gumShade.name} gingiva`.trim()
+    : "";
+  if (teethPart && gumPart) return `use ${teethPart} with ${gumPart}`;
+  if (teethPart) return `use ${teethPart}`;
+  if (gumPart) return `use ${gumPart}`;
+  return "";
+}
+
+function buildExtractionClauses(
+  allCardTeeth: number[],
+  extractionMap: Record<number, string>,
+  product: ProductApiData | null,
+): string[] {
+  const codeToName: Record<string, string> = {};
+  for (const ext of product?.extractions ?? []) {
+    if (ext.code && ext.name) codeToName[ext.code] = ext.name;
+  }
+  const byCode: Record<string, number[]> = {};
+  for (const tn of allCardTeeth) {
+    const code = extractionMap[tn];
+    if (!code) continue;
+    if (!byCode[code]) byCode[code] = [];
+    byCode[code].push(tn);
+  }
+  return Object.entries(byCode).map(([code, extractedTeeth]) => {
+    const name = codeToName[code] || code;
+    return `${name}: ${formatTeethNumbers(extractedTeeth.sort((a, b) => a - b))}`;
+  });
 }
 
 export function getProductNoteWorkflow(product: ProductApiData | null): ProductNoteWorkflow {
@@ -391,6 +522,21 @@ function appendExtractionStatusLines(
   }
 }
 
+function resolveFixedShadeForNote(
+  product: ProductApiData | null,
+  shadeName: string,
+  shadeGuide?: string,
+): ShadeNoteInfo | null {
+  if (!shadeName) return null;
+  let systemName = shadeGuide?.trim() ?? "";
+  const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
+  if (!systemName && shades.length > 0) {
+    const match = shades.find((row) => row.name === shadeName) ?? null;
+    systemName = match?.brand?.system_name?.trim() ?? "";
+  }
+  return { name: shadeName, systemName };
+}
+
 export function buildFixedProductNote(ctx: ProductNoteContext): string {
   const {
     arch,
@@ -399,71 +545,49 @@ export function buildFixedProductNote(ctx: ProductNoteContext): string {
     repTooth,
     getFieldValue,
     getSelectedShade,
-    getImpressionDisplayText,
     selectedStages,
   } = ctx;
   const productName = product?.name || "restoration";
   const teethStr = formatTeethNumbers(teeth);
   const minTooth = teeth.length ? Math.min(...teeth) : repTooth;
-  const stageName = resolveFixedStageName(arch, minTooth, repTooth, getFieldValue, selectedStages);
 
+  const grade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "grade"));
+  const stageName = resolveFixedStageName(arch, minTooth, repTooth, getFieldValue, selectedStages);
   const productShadeId = resolveFixedShadeProductId(product?.id, minTooth);
 
-  const retentionTypes =
-    arch === "maxillary" ? ctx.maxillaryRetentionTypes ?? {} : ctx.mandibularRetentionTypes ?? {};
-
-  const retentionArr = retentionTypes[minTooth] || retentionTypes[teeth[0]] || [];
-  const primaryRetention: RetentionType = retentionArr[0] || "Prep";
-
-  const lines: string[] = [];
-  lines.push(
-    stageName
-      ? `Please fabricate a ${productName} for teeth ${teethStr} in the ${stageName} stage.`
-      : `Please fabricate a ${productName} for teeth ${teethStr}.`,
-  );
-
-  appendFixedShadeLines(lines, product, productShadeId, arch, getSelectedShade);
-
-  const perToothRetention = buildPerToothRetentionSummary(teeth, retentionTypes);
-  if (perToothRetention) lines.push(perToothRetention);
-  else if (primaryRetention) {
-    const label = primaryRetention === "Implant" ? "Screw-retained" : primaryRetention.toLowerCase();
-    lines.push(`Retention type: ${label}.`);
-  }
-
-  if (primaryRetention === "Implant") {
-    const panelDetails = [ctx.panelImplantBrand, ctx.panelImplantPlatform].filter(Boolean).join(", ");
-    if (panelDetails || ctx.panelImplantInclusion) {
-      lines.push(
-        `Implant (panel): ${panelDetails}${ctx.panelImplantInclusion ? `, with ${ctx.panelImplantInclusion}` : ""}.`,
-      );
+  const shadeFields = getShadeGuideAdvanceFields(product?.advance_fields);
+  let shadeClause = "";
+  if (shadeFields.length > 0) {
+    const primaryField = shadeFields[0];
+    const fieldType = getShadeFieldType(primaryField);
+    const shadeName = getSelectedShade(productShadeId, arch, fieldType, primaryField.id);
+    if (shadeName) {
+      const info = resolveFixedShadeForNote(product, shadeName, ctx.shadeGuide);
+      if (info) {
+        shadeClause = `, shade ${info.systemName ? `${info.systemName} ` : ""}${info.name}`.trimEnd();
+      }
     }
-    lines.push("For design, please open virtual slip.");
+  } else {
+    const toothShadeName = getSelectedShade(productShadeId, arch, "tooth_shade");
+    if (toothShadeName) {
+      const info = resolveFixedShadeForNote(product, toothShadeName, ctx.shadeGuide);
+      if (info) {
+        shadeClause = `, shade ${info.systemName ? `${info.systemName} ` : ""}${info.name}`.trimEnd();
+      }
+    }
   }
 
-  const implantDetailLine = buildImplantDetailSummary(ctx.implantDetailByTooth, teeth);
-  if (implantDetailLine) lines.push(implantDetailLine);
+  const gradeBit = grade ? `${grade} ` : "";
+  let line = `Please fabricate ${gradeBit}${productName}`;
+  if (teethStr) line += ` for ${teethStr}`;
+  if (stageName) line += ` for ${stageName}`;
+  line += shadeClause;
 
-  for (const step of FIXED_MULTI_FIELD_STEPS) {
-    appendFixedAdvanceFieldLines(lines, arch, repTooth, step, getFieldValue, product);
-  }
-  for (const { step, fallbackLabel } of FIXED_SIMPLE_FIELD_STEPS) {
-    appendLabeledLines(lines, fallbackLabel, getFieldValue(arch, repTooth, step));
-  }
-
-  const impressionKey = `fixed_${minTooth}`;
-  const impressionText = getImpressionDisplayText?.(impressionKey, arch, minTooth);
-  if (impressionText) lines.push(`Impression: ${impressionText}.`);
-  else appendDetailLine(lines, "Impression", getFieldValue(arch, repTooth, "fixed_impression"));
-
-  appendDetailLine(lines, "Add-ons", getFieldValue(arch, minTooth, "fixed_addons"));
-
-  return lines.join(" ");
+  return `${line}.`;
 }
 
 export function buildRemovableProductNote(ctx: ProductNoteContext): string {
-  const { arch, teeth, product, repTooth, getFieldValue, getImpressionDisplayText, selectedStages } = ctx;
-  const allCardTeeth = ctx.allCardTeeth ?? teeth;
+  const { arch, teeth, product, repTooth, getFieldValue, selectedStages } = ctx;
   const productName = product?.name || "removable";
   const grade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "grade"));
   const stageKey = `${arch}_prep_${repTooth}`;
@@ -472,38 +596,22 @@ export function buildRemovableProductNote(ctx: ProductNoteContext): string {
     parseFieldDisplayValue(getFieldValue(arch, repTooth, "stage")) ??
     null;
 
-  const teethShade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "teeth_shade"));
-  const gumShade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "gum_shade"));
-  const addons = getFieldValue(arch, repTooth, "addons");
+  const teethShade = resolveTeethShadeForNote(
+    product,
+    getFieldValue(arch, repTooth, "teeth_shade"),
+    ctx.shadeGuide,
+  );
 
-  const extractionMap =
-    arch === "maxillary" ? ctx.maxillaryToothExtractionMap ?? {} : ctx.mandibularToothExtractionMap ?? {};
-
-  const lines: string[] = [];
-  const gradePrefix = grade ? `${grade} ` : "";
-  const stageSuffix = stageName ? ` in the ${stageName} stage` : "";
-  lines.push(`Please fabricate a ${gradePrefix}${productName}${stageSuffix}.`);
-
-  if (teethShade || gumShade) {
-    const shadeParts: string[] = [];
-    if (teethShade) shadeParts.push(`${teethShade} denture teeth`);
-    if (gumShade) shadeParts.push(`${gumShade} gingiva`);
-    lines.push(`Use ${shadeParts.join(" with ")}.`);
+  const gradeBit = grade ? `${grade} ` : "";
+  let line = `Please fabricate ${gradeBit}${productName}`;
+  if (teeth.length > 0) line += ` for ${formatTeethNumbers(teeth)}`;
+  if (stageName) line += ` for ${stageName}`;
+  if (teethShade) {
+    const shadeStr = `${teethShade.systemName ? `${teethShade.systemName} ` : ""}${teethShade.name}`.trim();
+    if (shadeStr) line += `, shade ${shadeStr}`;
   }
 
-  const impressionText = getImpressionDisplayText?.(`prep_${repTooth}`, arch, repTooth);
-  if (impressionText) lines.push(`Impression: ${impressionText}.`);
-  else appendDetailLine(lines, "Impression", getFieldValue(arch, repTooth, "impression"));
-
-  appendDetailLine(lines, "Add-ons", addons);
-
-  appendExtractionStatusLines(lines, allCardTeeth, extractionMap, product);
-
-  if (teeth.length > 0 && !allCardTeeth.some((tn) => extractionMap[tn])) {
-    lines.push(`Teeth in mouth: ${formatTeethNumbers(teeth)}.`);
-  }
-
-  return lines.join(" ");
+  return `${line}.`;
 }
 
 export function buildOrthodonticProductNote(ctx: ProductNoteContext): string {
@@ -513,14 +621,9 @@ export function buildOrthodonticProductNote(ctx: ProductNoteContext): string {
   const stageName =
     selectedStages?.[stageKey] ?? parseFieldDisplayValue(getFieldValue(arch, repTooth, "stage")) ?? null;
 
-  const lines: string[] = [];
-  const stageSuffix = stageName ? ` in the ${stageName} stage` : "";
-  lines.push(`Please fabricate an orthodontic ${productName}${stageSuffix}.`);
-
-  appendDetailLine(lines, "Add-ons", getFieldValue(arch, repTooth, "addons"));
-  appendDetailLine(lines, "Impression", getFieldValue(arch, repTooth, "impression"));
-
-  return lines.join(" ");
+  let line = `Please fabricate ${productName}`;
+  if (stageName) line += ` for ${stageName}`;
+  return `${line}.`;
 }
 
 export function buildProductNoteFromContext(ctx: ProductNoteContext): string {
@@ -569,6 +672,7 @@ export function buildProductNoteFromSnapshot(snapshot: SlipProductSnapshot): str
     getSelectedShade,
     selectedStages: stageEntries,
     implantDetailByTooth: snapshot.implantDetailByTooth,
+    shadeGuide: snapshot.shadeGuide ?? "",
   };
 
   return buildProductNoteFromContext(ctx);
@@ -608,6 +712,7 @@ function contextFromProps(
     panelImplantBrand,
     panelImplantPlatform,
     panelImplantInclusion,
+    shadeGuide: props.selectedShadeGuide,
   };
 }
 
@@ -711,23 +816,7 @@ export function buildSectionText(arch: Arch, groups: NoteGroup[]): string {
   const archGroups = groups.filter((g) => g.arch === arch);
   if (!archGroups.length) return "";
 
-  const archLabel = arch === "maxillary" ? "MAXILLARY" : "MANDIBULAR";
-  const lines: string[] = [archLabel];
-
-  const byCategory = new Map<string, NoteGroup[]>();
-  for (const g of archGroups) {
-    if (!byCategory.has(g.category)) byCategory.set(g.category, []);
-    byCategory.get(g.category)!.push(g);
-  }
-
-  for (const [category, cGroups] of byCategory) {
-    lines.push(category);
-    for (const g of cGroups) {
-      lines.push(g.note);
-    }
-  }
-
-  return lines.join("\n");
+  return archGroups.map((g) => g.note).join("\n");
 }
 
 export function buildCaseSummaryText(groups: NoteGroup[]): string {

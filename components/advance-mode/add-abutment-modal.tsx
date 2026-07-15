@@ -513,7 +513,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                         onClick={() => setCurrentPage(page)}
                         className={`px-2 py-1 text-xs border rounded ${
                           currentPage === page
-                            ? "bg-[#1162a8] text-white border-[#1162a8]"
+                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8]"
                             : "border-gray-300 hover:bg-gray-50"
                         }`}
                       >
@@ -629,7 +629,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
           <Button
             onClick={handleSave}
             disabled={isSaving || !formData.type.trim()}
-            className="px-4 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm"
+            className="px-4 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-sm"
           >
             {isSaving ? "Saving..." : initialAbutment && !isCopying ? "Save changes" : isCopying ? "Clone abutment" : "Add abutment"}
           </Button>

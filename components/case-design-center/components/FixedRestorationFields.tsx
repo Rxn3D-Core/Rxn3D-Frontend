@@ -28,7 +28,10 @@ import type {
 import { FixedAccordionShadePicker } from "./FixedAccordionShadePicker";
 import { ShadeDetailSection } from "./ShadeDetailSection";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
-import { FIXED_RETENTION_MECHANISM_FIELD_STEP } from "../hooks/useToothFieldProgress";
+import {
+  FIXED_RETENTION_MECHANISM_FIELD_STEP,
+  getRetentionFieldChain,
+} from "../hooks/useToothFieldProgress";
 import {
   getSuggestedRetentionMechanismTypes,
   serializeRetentionMechanismSelection,
@@ -44,13 +47,20 @@ import {
 } from "../utils/implantDetailHelpers";
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
 import { shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
-import { productHasGrades } from "../utils/gradeHelpers";
+import {
+  productHasGrades,
+  getActiveGrades,
+  parseGradeDisplayName,
+  isGradeStepCompleteForDisplay,
+} from "../utils/gradeHelpers";
+import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
   getShadeGuideAdvanceFields,
   getShadeFieldType,
   areFixedProductShadesComplete,
   getDisplayedShadeGuideFields,
+  getFirstMissingShadeGuideField,
   isStumpLikeShadeField,
   getShadeGuideOptionsFromProduct,
   resolveFixedShadeProductId,
@@ -372,6 +382,11 @@ interface FixedRestorationFieldsProps {
   migrateFixedShadeProductId?: (fromProductId: string, toProductId: string, arch: Arch) => void;
   /** Implant details from the opposite arch (same product) for cross-arch mirroring. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
+  /** Opposite-arch implant completion state for more accurate source-tooth selection during mirror. */
+  peerImplantCompleteByTooth?: Record<number, boolean>;
+  /** Arch-level: only one implant detail accordion open at a time on this side. */
+  expandedImplantTooth?: number;
+  onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
   /** Arch-wide impression qty grid (shared by all fixed/removable products on this jaw). */
   selectedImpressions?: SlipImpressionSelections;
 }
@@ -421,6 +436,9 @@ export function RetentionProductFields({
   setPanelGumShadePicker,
   migrateFixedShadeProductId,
   peerImplantDetailByTooth,
+  peerImplantCompleteByTooth,
+  expandedImplantTooth,
+  onExpandedImplantToothChange,
   selectedImpressions = { maxillary: [], mandibular: [] },
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
@@ -431,9 +449,8 @@ export function RetentionProductFields({
   useCrossArchImplantMirror({
     arch,
     implantTeeth,
-    retentionTypesMap,
-    retentionOptions: selectedProduct?.retention_options,
     peerImplantDetailByTooth,
+    peerImplantCompleteByTooth,
     implantDetailByTooth,
     setImplantDetailByTooth,
     implantDetailCompleteByTooth,
@@ -442,7 +459,12 @@ export function RetentionProductFields({
   });
   const implantDetailReady = areAllImplantDetailsComplete(
     implantTeeth,
-    implantDetailCompleteByTooth
+    implantDetailCompleteByTooth,
+    implantDetailByTooth
+  );
+  const fixedChain = useMemo(
+    () => getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct),
+    [selectedProduct]
   );
   const hasPostImplantProgress = useMemo(
     () =>
@@ -553,6 +575,11 @@ export function RetentionProductFields({
     );
   const isSingleShadeEdit = shadeEditActiveFieldId != null;
   const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
+  const gradeComplete = !productHasGrades(selectedProduct) || isGradeStepCompleteForDisplay(
+    getFieldValue(arch, firstToothNumber, "grade"),
+    isFieldCompleted(arch, firstToothNumber, "grade"),
+    selectedProduct
+  );
   const effectiveShadeGuideOptions =
     shadeGuideOptions.length > 0
       ? shadeGuideOptions
@@ -563,6 +590,43 @@ export function RetentionProductFields({
     isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const hasAutoOpenedImpressionRef = useRef(false);
   const impressionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Key of the shade field last auto-opened, so each newly revealed field opens once. */
+  const autoOpenedShadeKeyRef = useRef<string | null>(null);
+  const shadeAutoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Shade UI can be complete (named shade guide / selectedShades) while the progressive
+   * fixedChain still has fixed_shade_trio or fixed_stump_shade unmarked — that blocks
+   * post-implant fields (impression) even after implant details are filled.
+   */
+  useEffect(() => {
+    if (caseSubmitted || fixedShadeIncomplete) return;
+
+    if (
+      fixedChain.includes("fixed_shade_trio") &&
+      !isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")
+    ) {
+      completeFieldStep(arch, firstToothNumber, "fixed_shade_trio", "shade-sync");
+    }
+
+    const hasNamedStumpFields = namedStumpShadeFields.length > 0;
+    if (
+      fixedChain.includes("fixed_stump_shade") &&
+      !hasNamedStumpFields &&
+      !isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")
+    ) {
+      completeFieldStep(arch, firstToothNumber, "fixed_stump_shade", "shade-sync-skip-stump");
+    }
+  }, [
+    arch,
+    caseSubmitted,
+    completeFieldStep,
+    firstToothNumber,
+    fixedChain,
+    fixedShadeIncomplete,
+    isFieldCompleted,
+    namedStumpShadeFields.length,
+  ]);
 
   useEffect(() => {
     if (caseSubmitted || !setShadeSelectionState) return;
@@ -627,10 +691,121 @@ export function RetentionProductFields({
     isExpanded,
   ]);
 
+  /**
+   * Auto-open the shade picker for the first empty shade field so the user
+   * doesn't have to click it — mirrors the impression auto-open above.
+   * Waits for stage selection (when the product has stages) so it doesn't
+   * compete with the stage modal.
+   */
+  useEffect(() => {
+    const clearShadeTimer = () => {
+      if (shadeAutoOpenTimerRef.current) {
+        clearTimeout(shadeAutoOpenTimerRef.current);
+        shadeAutoOpenTimerRef.current = null;
+      }
+    };
+    if (caseSubmitted) return;
+    if (!isExpanded) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+    // A shade picker is already open (here or on another card) — don't stomp it.
+    if (shadeSelectionState?.fieldType != null) return;
+
+    const stageValue =
+      selectedStages[groupStageProductIdFixed] ||
+      getFieldValue(arch, groupStageToothNumber, "fixed_stage");
+    const stageComplete =
+      isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") ||
+      !!(stageValue && stageValue.trim());
+    if (!shouldSkipStageSelection(selectedProduct) && !stageComplete) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+
+    // Wait for grade selection before opening shade — grade modal and shade picker
+    // would overlap if both opened simultaneously, and the ref would already be set
+    // preventing shade from re-opening once grade is chosen.
+    if (!gradeComplete) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+
+    const firstMissingNamed = usesNamedShadeGuideFields
+      ? getFirstMissingShadeGuideField(
+          selectedProduct?.advance_fields,
+          fixedShadeProductId,
+          arch,
+          getSelectedShadeForDisplay
+        )
+      : null;
+    const legacyTeethShadeMissing =
+      !usesNamedShadeGuideFields &&
+      isFixed("fixed_shade_trio") &&
+      hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) &&
+      !getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+
+    const target = firstMissingNamed
+      ? {
+          key: `${fixedShadeProductId}|${arch}|${firstMissingNamed.id}`,
+          fieldType: firstMissingNamed.fieldType,
+          options: {
+            advanceFieldId: firstMissingNamed.id,
+            advanceFieldLabel: firstMissingNamed.name,
+            storageToothNumber: firstToothNumber,
+          },
+        }
+      : legacyTeethShadeMissing
+        ? {
+            key: `${fixedShadeProductId}|${arch}|tooth_shade`,
+            fieldType: "tooth_shade" as ShadeFieldType,
+            options: { storageToothNumber: firstToothNumber },
+          }
+        : null;
+    if (!target) {
+      autoOpenedShadeKeyRef.current = null;
+      clearShadeTimer();
+      return;
+    }
+    if (autoOpenedShadeKeyRef.current === target.key) return;
+
+    autoOpenedShadeKeyRef.current = target.key;
+    clearShadeTimer();
+    shadeAutoOpenTimerRef.current = setTimeout(() => {
+      shadeAutoOpenTimerRef.current = null;
+      handleShadeFieldClick(arch, target.fieldType, fixedShadeProductId, target.options);
+    }, 150);
+  }, [
+    arch,
+    caseSubmitted,
+    firstToothNumber,
+    fixedShadeProductId,
+    getFieldValue,
+    getSelectedShade,
+    getSelectedShadeForDisplay,
+    gradeComplete,
+    groupStageProductIdFixed,
+    groupStageToothNumber,
+    handleShadeFieldClick,
+    isExpanded,
+    isFieldCompleted,
+    isFixed,
+    selectedProduct,
+    selectedStages,
+    shadeSelectionState?.fieldType,
+    usesNamedShadeGuideFields,
+  ]);
+
   useEffect(() => {
     return () => {
       if (impressionTimerRef.current) {
         clearTimeout(impressionTimerRef.current);
+      }
+      if (shadeAutoOpenTimerRef.current) {
+        clearTimeout(shadeAutoOpenTimerRef.current);
       }
     };
   }, []);
@@ -800,6 +975,42 @@ export function RetentionProductFields({
           />
         )}
       </div>
+
+      {/* Grade — shown first (after identity fields) and required when the product has
+          grades, mirroring the removable flow. Uses the shared "grade" step so submit
+          handling is identical. */}
+      {productHasGrades(selectedProduct) && (() => {
+        const productGrades = getActiveGrades(selectedProduct?.grades);
+        if (productGrades.length === 0) return null;
+        const gradeRaw = getFieldValue(arch, firstToothNumber, "grade") || "";
+        const gradeVal = parseGradeDisplayName(gradeRaw);
+        const isGradeComplete = isGradeStepCompleteForDisplay(
+          gradeRaw,
+          isFieldCompleted(arch, firstToothNumber, "grade"),
+          selectedProduct
+        );
+        const showGradeGreen = isGradeComplete && !caseSubmitted;
+        return (
+          <fieldset
+            className={`border rounded px-3 py-0 relative h-[42px] flex items-center mt-3 ${
+              showGradeGreen ? "border-[#34a853]" : isGradeComplete ? "border-[#b4b0b0]" : "border-[#CF0202]"
+            }`}
+          >
+            <legend className={`text-sm px-1 leading-none ${showGradeGreen ? "text-[#34a853]" : isGradeComplete ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>
+              Grade
+            </legend>
+            <GradeHoverSelector
+              grades={productGrades}
+              currentGradeName={gradeVal}
+              disabled={caseSubmitted}
+              onSelect={(g) =>
+                completeFieldStep(arch, firstToothNumber, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))
+              }
+            />
+            {showGradeGreen && <Check size={16} className="text-[#34a853] ml-1 flex-shrink-0" />}
+          </fieldset>
+        );
+      })()}
 
       {/* Standalone Stage: named-shade path only. In the legacy path Stage is rendered
           in the stage+shade grid below, so gating here avoids a duplicate Stage field. */}
@@ -1053,6 +1264,8 @@ export function RetentionProductFields({
         advanceFields={selectedProduct?.advance_fields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        expandedImplantTooth={expandedImplantTooth}
+        onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
 
       {/* Step 4: Dynamic characterization advance fields */}

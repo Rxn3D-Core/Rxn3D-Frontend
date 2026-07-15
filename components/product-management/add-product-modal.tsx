@@ -34,6 +34,7 @@ import {
   mapApiVariationsToForm,
   jawPhotosStateFromProduct,
   productHasAnyJawPhotoUrls,
+  mergeStageGradeDetailsIntoStages,
 } from "@/lib/library-product-api-mapping"
 import { normalizeSinglePreferredShadeRow } from "@/lib/product-shade-preferences"
 import { ExtractionsApi } from "@/lib/api-service"
@@ -51,6 +52,10 @@ import { useTranslation } from "react-i18next"
 import { useAuth } from "@/contexts/auth-context"
 import { getCustomerId } from "@/lib/dashboard-widgets"
 import { hydrateAdvanceFieldsFormFromProduct, serializeAdvanceFieldsForApi } from "@/lib/product-advance-fields-form"
+import {
+  applyDefaultToothChartToPayload,
+  hydrateDefaultToothChartFromProduct,
+} from "@/lib/product-default-tooth-chart"
 import {
   hydrateRetentionOptionsFromProduct,
   serializeRetentionOptionsForApi,
@@ -73,10 +78,10 @@ import { GumShadeSection } from "@/components/product-management/add-lab-product
 import { TeethShadeSection } from "@/components/product-management/add-lab-product-modal/TeethShadeSection"
 import { MaterialSection } from "@/components/product-management/add-lab-product-modal/MaterialSection"
 import { AddOnsSection } from "@/components/product-management/add-lab-product-modal/AddOnsSection"
-import { RetentionSection, type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
+import { type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { AdvanceFieldsSection } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
 import type { AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
-import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
+import { ToothChartConfigurationsSection } from "@/components/product-management/add-lab-product-modal/ToothChartConfigurationsSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 
 interface AddProductModalProps {
@@ -103,9 +108,8 @@ const ADD_PRODUCT_MODAL_TABS: { id: string; label: string; sectionKey: string | 
   { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
   { id: "material", label: "Material", sectionKey: "material" },
   { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
-  { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "toothChartConfigurations", label: "Tooth Chart Configurations", sectionKey: "toothChartConfigurations" },
   { id: "advanceFields", label: "Advance Field", sectionKey: "advanceField" },
-  { id: "extractions", label: "Extractions", sectionKey: "extractions" },
 ]
 
 function replaceSlipFieldErrors(
@@ -455,6 +459,8 @@ export function AddProductModal({
     enable_tooth_count_variation: "No",
     tooth_count_variations: [],
     show_jaw_photo: "No",
+    enable_default_tooth_chart: "No",
+    default_tooth_chart: [],
   }), [])
 
   const {
@@ -466,7 +472,7 @@ export function AddProductModal({
     setValue,
     getValues,
     trigger,
-    formState: { isDirty, dirtyFields, isValid, isSubmitting, errors },
+    formState: { isDirty, isValid, isSubmitting, errors },
   } = useForm<ProductCreateForm>({
     resolver: zodResolver(ProductCreateFormSchema),
     defaultValues: initialFormValues,
@@ -645,7 +651,7 @@ export function AddProductModal({
       if (aErr.length > 0) return
     }
 
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       const values = getValues() as Record<string, unknown>
       const rErr = collectRetentionsStepErrors(values, { retentionSectionEnabled: sections.retention })
       setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", rErr))
@@ -957,7 +963,21 @@ export function AddProductModal({
       sequence: editingProduct.sequence || 1,
       description: editingProduct.description || "",
       grades: mappedGrades,
-      stages: mapWithStatus(editingProduct.stages || [], "stage_id"),
+      stages: (() => {
+        const stageSource =
+          Array.isArray(editingProduct.stage_details) && editingProduct.stage_details.length > 0
+            ? editingProduct.stage_details
+            : editingProduct.stages || []
+        const mapped = mapWithStatus(stageSource, "stage_id")
+        // API stores prices in flat stage_grade_details — fold into each stage so Update
+        // can resend the full stage×grade matrix, not only cells the user just edited.
+        return mergeStageGradeDetailsIntoStages(
+          mapped,
+          (editingProduct as { stage_grade_details?: Parameters<typeof mergeStageGradeDetailsIntoStages>[1] })
+            .stage_grade_details,
+          { overwriteExisting: true },
+        )
+      })(),
       impressions: mapWithStatus(editingProduct.impressions || [], "impression_id"),
       gum_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.gum_shades || [], "gum_shade_id") as any),
       teeth_shades: normalizeSinglePreferredShadeRow(mapWithStatus(editingProduct.teeth_shades || [], "teeth_shade_id") as any),
@@ -1002,6 +1022,19 @@ export function AddProductModal({
         : (editingProduct.show_jaw_photo || "No"),
       teeth_pricing_type: strategyForm,
       advance_fields: hydrateAdvanceFieldsFormFromProduct(editingProduct as Record<string, unknown>),
+      enable_default_tooth_chart:
+        editingProduct.has_default_tooth_chart === "Yes" ||
+        editingProduct.enable_default_tooth_chart === "Yes"
+          ? "Yes"
+          : "No",
+      default_tooth_chart: hydrateDefaultToothChartFromProduct(
+        editingProduct as Record<string, unknown>,
+        (() => {
+          const exts = editingProduct.extractions || []
+          const def = exts.find((e: { is_default?: string }) => e.is_default === "Yes")
+          return def ? Number((def as { extraction_id: number }).extraction_id) : null
+        })(),
+      ),
       ...teethHydrate,
       ...variationForm,
     }
@@ -1469,31 +1502,22 @@ export function AddProductModal({
     }
 
     if (editingProduct && editingProduct.id) {
-      // Build partial payload with only changed fields for update
-      const payload: any = {}
-
-      // Always include identifying fields
-      payload.name = data.name
-      payload.code = data.code
-      payload.subcategory_id = data.subcategory_id
-      payload.status = data.status
-      payload.type = data.type
-
-      // Include only dirty fields
-      const dirty = dirtyFields as Record<string, any>
-      for (const key of Object.keys(dirty)) {
-        if (dirty[key] && key in data) {
-          payload[key] = (data as any)[key]
-        }
-      }
-
-      // When releasing stages changed, always include stages in the payload
-      if (hasReleasingStageChanges && !payload.stages && data.stages) {
-        payload.stages = data.stages
-      }
-
-      // Remove UI-only field
+      // Always send the full form on update (same shape as create) — not only dirty fields
+      const payload: any = { ...data }
       delete payload.category_id
+
+      // Ensure every stage keeps prior grade prices from the API, then overlay current form edits
+      payload.stages = mergeStageGradeDetailsIntoStages(
+        Array.isArray(payload.stages) ? payload.stages : [],
+        (editingProduct as { stage_grade_details?: Parameters<typeof mergeStageGradeDetailsIntoStages>[1] })
+          .stage_grade_details,
+        { overwriteExisting: false },
+      )
+      // Also pass raw details so buildProductPayload can fill any remaining gaps
+      payload.stage_grade_details =
+        (editingProduct as { stage_grade_details?: unknown }).stage_grade_details ?? []
+
+      console.log("🔄 Update Mode: Sending full form fields", payload)
 
       // Always include price — backend requires it when customer_id is present (lab_admin).
       // useProductMutations adds customer_id for lab_admin, so we must send price too.
@@ -1530,6 +1554,7 @@ export function AddProductModal({
 
       // show_jaw_photo
       payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+      payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
 
       // jaw_photos: only send new uploads or explicit removals
       const jawPhotoPayload: Record<string, string | null> = {}
@@ -1550,6 +1575,8 @@ export function AddProductModal({
         })
       if (hasJawPhotoChange) {
         payload.jaw_photos = jawPhotoPayload
+      } else {
+        delete payload.jaw_photos
       }
 
       // Always include has_* section flags
@@ -1577,8 +1604,7 @@ export function AddProductModal({
       payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
       // Preserve linked advance field IDs when section is off; backend uses has_advance_field only.
       payload.advance_fields = serializeAdvanceFieldsForApi(
-        ((payload.advance_fields !== undefined ? payload.advance_fields : data.advance_fields) ||
-          []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
+        (data.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
       )
       if (!sections.extractions) {
         payload.extractions = []
@@ -1599,6 +1625,7 @@ export function AddProductModal({
       finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
         variation: sections.variation,
       })
+      applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
 
       saveResult = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
@@ -1667,6 +1694,7 @@ export function AddProductModal({
       finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
         variation: sections.variation,
       })
+      applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
 
       saveResult = await createProduct(payload)
     }
@@ -1964,7 +1992,7 @@ export function AddProductModal({
     if (activeTab === "addOns" && sections.addOns) {
       return addonsStepErrsPreview.length === 0
     }
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       return retentionsStepErrsPreview.length === 0
     }
     if (activeTab === "variation" && watchedIsTeethBased === "Yes" && sections.variation) {
@@ -2277,8 +2305,8 @@ export function AddProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="retention" className="mt-0 p-6 focus-visible:outline-none">
-                  <RetentionSection
+                <TabsContent value="toothChartConfigurations" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
+                  <ToothChartConfigurationsSection
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -2294,6 +2322,10 @@ export function AddProductModal({
                     catalogCustomerId={retentionOptionsCatalogCustomerId}
                     retentionOptionsCatalog={retentionOptionsCatalog}
                     onRequestRetentionOptionCreate={handleRequestRetentionOptionCreate}
+                    allExtractions={allExtractions}
+                    isExtractionsLoading={isExtractionsLoading}
+                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
+                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 
@@ -2307,25 +2339,6 @@ export function AddProductModal({
                     sectionHasErrors={sectionHasErrors}
                     listCustomerId={pricingScope === "lab" ? (customerId ?? null) : null}
                     onRequestAdvanceFieldEditor={onRequestAdvanceFieldEditor}
-                  />
-                </TabsContent>
-
-                <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
-                  <ExtractionsSection
-                    key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
-                    control={control}
-                    watch={watch}
-                    setValue={setValue}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    expandedSections={expandedSections}
-                    toggleExpanded={toggleExpanded}
-                    allExtractions={allExtractions}
-                    isExtractionsLoading={isExtractionsLoading}
-                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
-                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
               </div>
@@ -2359,7 +2372,7 @@ export function AddProductModal({
                     {editingProduct && hasFormChanges && (
                       <Button
                         type="button"
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
+                        className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 sm:px-8"
                         disabled={isSubmitting || isProductActionLoading}
                         onClick={() => void handleSubmit(debouncedSubmit)()}
                       >
@@ -2372,7 +2385,7 @@ export function AddProductModal({
                       !editingProduct && (
                         <Button
                           type="button"
-                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8"
+                          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 sm:px-8"
                           disabled={isSubmitting || isProductActionLoading}
                           onClick={() => void handleSubmit(debouncedSubmit)()}
                         >
@@ -2385,7 +2398,7 @@ export function AddProductModal({
                       <Button
                         type="button"
                         onClick={handleNext}
-                        className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={activeTab !== "details" && !isCurrentStepValid}
                       >
                         Next

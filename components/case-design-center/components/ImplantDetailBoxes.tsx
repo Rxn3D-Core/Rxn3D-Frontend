@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ImplantDetailSection, ImplantDetailData } from "./ImplantDetailSection";
 import { useSequentialImplantDetails } from "../hooks/useSequentialImplantDetails";
 import type { ProductAbutment } from "@/services/implant-api";
@@ -20,6 +20,9 @@ interface ImplantDetailBoxesProps {
   advanceFields?: import("../types").ProductAdvanceField[];
   productId?: number;
   productAbutments?: ProductAbutment[];
+  /** Arch-level: which implant tooth accordion is open (only one per arch). */
+  expandedImplantTooth?: number;
+  onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
 }
 
 export function ImplantDetailBoxes({
@@ -33,6 +36,8 @@ export function ImplantDetailBoxes({
   advanceFields,
   productId,
   productAbutments,
+  expandedImplantTooth,
+  onExpandedImplantToothChange,
 }: ImplantDetailBoxesProps) {
   const { visibleImplantTeeth, getImplantDetailValue, activeImplantTooth } =
     useSequentialImplantDetails({
@@ -43,6 +48,26 @@ export function ImplantDetailBoxes({
       implantDetailCompleteByTooth,
       setImplantDetailCompleteByTooth,
     });
+
+  const isExpansionControlled = onExpandedImplantToothChange !== undefined;
+  const [internalExpandedTooth, setInternalExpandedTooth] = useState<number | undefined>(
+    activeImplantTooth
+  );
+  const expandedTooth = isExpansionControlled ? expandedImplantTooth : internalExpandedTooth;
+  const setExpandedTooth = (tooth: number | undefined) => {
+    if (isExpansionControlled) {
+      onExpandedImplantToothChange(tooth);
+    } else {
+      setInternalExpandedTooth(tooth);
+    }
+  };
+
+  // When the active (incomplete) implant tooth advances, auto-open only that accordion.
+  useEffect(() => {
+    if (activeImplantTooth != null) {
+      setExpandedTooth(activeImplantTooth);
+    }
+  }, [activeImplantTooth]);
 
   const implantCustomerId = useMemo(() => {
     if (typeof window === "undefined") return undefined;
@@ -62,7 +87,14 @@ export function ImplantDetailBoxes({
         <ImplantDetailSection
           key={implantToothNumber}
           toothNumber={implantToothNumber}
-          defaultCollapsed={implantToothNumber !== activeImplantTooth}
+          isExpanded={expandedTooth === implantToothNumber}
+          onExpandedChange={(expanded) => {
+            if (expanded) {
+              setExpandedTooth(implantToothNumber);
+            } else if (expandedTooth === implantToothNumber) {
+              setExpandedTooth(undefined);
+            }
+          }}
           value={getImplantDetailValue(implantToothNumber)}
           onChange={(data) =>
             setImplantDetailByTooth((prev) => ({ ...prev, [implantToothNumber]: data }))

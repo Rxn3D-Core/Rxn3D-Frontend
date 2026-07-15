@@ -47,7 +47,9 @@ import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
-import { canSkipExtractionToothSelection } from "../utils/extractionHelpers";
+import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
+import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
+import { getExtractionTypeColor } from "@/lib/extraction-type-colors";
 import {
   findOppositeArchProductDonor,
   resolveProductStagesForDisplay,
@@ -85,6 +87,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const [mandibularImplantDetailPeer, setMandibularImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
   >({});
+  const [maxillaryImplantCompletePeer, setMaxillaryImplantCompletePeer] = useState<Record<number, boolean>>({});
+  const [mandibularImplantCompletePeer, setMandibularImplantCompletePeer] = useState<Record<number, boolean>>({});
   // Tracks when the user explicitly hides the mandibular panel while it's force-shown by the opposing condition.
   const [userHidMandibular, setUserHidMandibular] = useState(false);
   const [showSelectTeethToReplaceMaxillary, setShowSelectTeethToReplaceMaxillary] = useState(false);
@@ -134,6 +138,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     focusAccordion: state.focusAccordion,
     handleOpenStageModal: state.handleOpenStageModal,
     isStageModalOpen: state.isStageModalOpen,
+    getToothProduct: state.getToothProduct,
   });
 
   const addStageStageHistoryForModal =
@@ -176,8 +181,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // without an explicit tooth selection, and the "select a tooth to proceed" gate
   // must not apply.
   const card0ExtractionSelectionOptional = canSkipExtractionToothSelection(
+    state.initialProductDetails?.extractions,
+    state.initialProductDetails as Record<string, unknown> | null | undefined,
+  );
+  const card0DefaultToothChartEnabled = shouldSkipLegacyDefaultExtractionAutoSelect(
+    state.initialProductDetails as Record<string, unknown> | null | undefined,
+  );
+
+  // Center badge: show the product's default extraction (name + its color) when one is
+  // configured; otherwise fall back to the neutral "Teeth in mouth" beige badge.
+  const centerDefaultExtraction = getDefaultExtractionStrict(
     state.initialProductDetails?.extractions
   );
+  const centerBadgeLabel = centerDefaultExtraction?.name?.trim() || "Teeth in mouth";
+  const centerBadgeColor = centerDefaultExtraction
+    ? centerDefaultExtraction.color?.trim() ||
+      getExtractionTypeColor(centerDefaultExtraction.name ?? "")
+    : "#F3EBD7";
   const maxillaryHasRemovables = hasSelectionOnlyProductForArch("maxillary") ||
     (initialProductIsNonFixed && (props.initialArch === "maxillary" || props.initialArch === "both") && !!props.selectedProductId);
   const mandibularHasRemovables = hasSelectionOnlyProductForArch("mandibular") ||
@@ -196,13 +216,27 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
   const activeProductIsFixed = hasRetentionOptions(state.initialProductDetails);
   const activeProductIsRemovable = initialProductIsNonFixed;
-  const maxillaryHasFixedCard0 = activeProductIsFixed && Object.keys(state.maxillaryRetentionTypes)
-    .some(tn => state.getToothProductCard("maxillary", Number(tn)) === 0);
-  const mandibularHasFixedCard0 = activeProductIsFixed && Object.keys(state.mandibularRetentionTypes || {})
-    .some(tn => state.getToothProductCard("mandibular", Number(tn)) === 0);
+  const maxillaryHasFixedCard0 =
+    activeProductIsFixed &&
+    ((card0DefaultToothChartEnabled &&
+      !!props.selectedProductId &&
+      (props.initialArch === "maxillary" || props.initialArch === "both")) ||
+      Object.keys(state.maxillaryRetentionTypes).some(
+        (tn) => state.getToothProductCard("maxillary", Number(tn)) === 0,
+      ));
+  const mandibularHasFixedCard0 =
+    activeProductIsFixed &&
+    ((card0DefaultToothChartEnabled &&
+      !!props.selectedProductId &&
+      (props.initialArch === "mandibular" || props.initialArch === "both")) ||
+      Object.keys(state.mandibularRetentionTypes || {}).some(
+        (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
+      ));
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
+  // Disabled for preloaded states (add-new-stage / edit-slip) where teeth and fields are
+  // already configured — both panels must be visible and interactive from the start.
   const guidedBothArchSlipCreation =
-    !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId;
+    !props.caseSubmitted && props.initialArch === "both" && !!props.selectedProductId && !props.preloadInitialSlipState;
   const guidedBothArchPhase = state.guidedBothArchPhase;
   const guidedSelectionPhase =
     guidedBothArchPhase === "upper-selection" ||
@@ -212,7 +246,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const guidedHideMaxillaryCard0Fields =
     guidedBothArchSlipCreation && guidedSelectionPhase;
   const guidedHideMandibularCard0Fields =
-    guidedBothArchSlipCreation && guidedBothArchPhase !== "lower-fields";
+    guidedBothArchSlipCreation &&
+    guidedBothArchPhase !== "lower-fields" &&
+    guidedBothArchPhase !== "both-active";
   // Show accordion when card 0 initial product is Removable/Ortho — show immediately once product is selected,
   // no need to wait for teeth to be assigned (the accordion lets the user select teeth).
   // Gate each panel to its own arch so the opposite panel doesn't show a duplicate card 0 accordion
@@ -1235,6 +1271,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     props.onReadinessChange?.(slipValidationComplete);
   }, [slipValidationComplete]);
 
+  // When maxillary shade/impression completes (maxillaryIncomplete: true → false) in any
+  // both-arch case, advance to the lower-fields phase or focus the mandibular accordion.
+  const prevMaxillaryIncompleteRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    const prev = prevMaxillaryIncompleteRef.current;
+    prevMaxillaryIncompleteRef.current = maxillaryIncomplete;
+    if (prev !== true || maxillaryIncomplete) return;
+    if (props.initialArch !== "both" || !hasMandibularProducts) return;
+    if (state.guidedBothArches) {
+      // Guided create-slip flow: advance from "upper-fields" → "lower-fields" and focus mandibular.
+      state.triggerLowerFieldsPhase();
+    } else {
+      // Preloaded flow (add-new-stage): both panels already visible — just focus mandibular.
+      state.focusAccordion("mandibular", "removable0", 0);
+    }
+  }, [maxillaryIncomplete, props.initialArch, hasMandibularProducts, state.guidedBothArches, state.triggerLowerFieldsPhase, state.focusAccordion]);
+
   const maxillaryAtProductLimit = isArchAtProductLimit("maxillary", {
     initialArch: props.initialArch,
     selectedProductId: props.selectedProductId,
@@ -1390,6 +1443,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
+          slipInitialArch={props.initialArch ?? "maxillary"}
           activeAccordionKey={state.activeAccordionKey}
           forceOwnArchChartEnabled={false}
           guidedHideCard0Fields={guidedHideMaxillaryCard0Fields}
@@ -1440,6 +1494,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           shadeGuideOptions={state.shadeGuideOptions}
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
+          setSelectedShades={state.setSelectedShades}
           handleShadeFieldClick={state.handleShadeFieldClick}
           migrateFixedShadeProductId={state.migrateFixedShadeProductId}
           // Expansion
@@ -1514,10 +1569,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             maxillaryImplantDetailRef.current = detail;
             setMaxillaryImplantDetailPeer(detail);
           }}
+          onImplantDetailCompleteChange={(complete) => setMaxillaryImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             maxillarySplintLinksRef.current = linksByKey;
           }}
           peerImplantDetailByTooth={mandibularImplantDetailPeer}
+          peerImplantCompleteByTooth={mandibularImplantCompletePeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
           addStageStageHistory={props.addStageContext?.historyByArch?.maxillary}
@@ -1532,11 +1589,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMaxillary}
         />
 
-        {/* CENTER NAVIGATION — Teeth in mouth badge between arch panels */}
-        <CenterNavigation />
+        {/* CENTER NAVIGATION — default-extraction badge between arch panels */}
+        <CenterNavigation label={centerBadgeLabel} backgroundColor={centerBadgeColor} />
 
         {/* RIGHT PANEL - MANDIBULAR */}
         <MandibularPanel
+          slipInitialArch={props.initialArch ?? "maxillary"}
           activeAccordionKey={state.activeAccordionKey}
           forceOwnArchChartEnabled={false}
           guidedHideCard0Fields={guidedHideMandibularCard0Fields}
@@ -1597,6 +1655,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           shadeGuideOptions={state.shadeGuideOptions}
           getSelectedShade={state.getSelectedShade}
           handleShadeSelect={state.handleShadeSelect}
+          setSelectedShades={state.setSelectedShades}
           handleShadeFieldClick={state.handleShadeFieldClick}
           migrateFixedShadeProductId={state.migrateFixedShadeProductId}
           // Rush
@@ -1668,10 +1727,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             mandibularImplantDetailRef.current = detail;
             setMandibularImplantDetailPeer(detail);
           }}
+          onImplantDetailCompleteChange={(complete) => setMandibularImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             mandibularSplintLinksRef.current = linksByKey;
           }}
           peerImplantDetailByTooth={maxillaryImplantDetailPeer}
+          peerImplantCompleteByTooth={maxillaryImplantCompletePeer}
           onBackToCategories={props.onBackToCategories}
           confirmDetailsChecked={props.confirmDetailsChecked}
           addStageStageHistory={props.addStageContext?.historyByArch?.mandibular}
@@ -1934,10 +1995,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             is_default: s.is_default,
             image_url: s.image_url ?? null,
             stage_id: s.stage_id ?? s.id,
+            sequence: s.sequence,
           }));
         })()}
         handleStageSelect={state.handleStageSelect}
         stageHistory={addStageStageHistoryForModal}
+        disableStageAutoSelect={Boolean(props.addStageContext?.promptStagesOnLoad)}
         caseSubmitted={props.caseSubmitted}
         onStageConfirm={(stageName, stageId) => {
           const arch = state.currentStageArch;

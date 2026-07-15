@@ -68,10 +68,7 @@ export function PreferredShadeGuideCell({
         aria-hidden
         className={cn(
           "absolute inset-0 z-0 flex items-center text-xs text-gray-400 transition-opacity duration-150 ease-out",
-          !isUpdating && "[@media(hover:none)]:hidden",
-          !isUpdating && "[@media(hover:hover)]:opacity-100 [@media(hover:hover)]:pointer-events-none",
-          !isUpdating && "[@media(hover:hover)]:group-hover/pref-row:opacity-0",
-          isUpdating && "hidden",
+          !isUpdating ? "opacity-100 group-hover/pref-row:opacity-0 pointer-events-none" : "hidden",
         )}
       >
         —
@@ -79,11 +76,7 @@ export function PreferredShadeGuideCell({
       <div
         className={cn(
           "absolute inset-0 z-[1] flex items-center justify-start transition-opacity duration-150 ease-out",
-          !isUpdating && "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none",
-          !isUpdating && "[@media(hover:hover)]:group-hover/pref-row:opacity-100 [@media(hover:hover)]:group-hover/pref-row:pointer-events-auto",
-          !isUpdating && "[@media(hover:none)]:opacity-100",
-          !isUpdating && "[@media(hover:none)]:pointer-events-auto",
-          isUpdating && "opacity-100",
+          !isUpdating ? "opacity-0 pointer-events-none group-hover/pref-row:opacity-100 group-hover/pref-row:pointer-events-auto" : "opacity-100",
         )}
       >
         <Button
@@ -93,10 +86,9 @@ export function PreferredShadeGuideCell({
           disabled={isUpdating}
           onClick={() => void onSetPreferred()}
           className={cn(
-            "h-auto whitespace-normal rounded-full border-2 border-[#E85D04] bg-[#FFF8F3] px-3 py-1.5 text-left text-xs font-medium leading-snug text-gray-900 shadow-sm",
-            "hover:bg-orange-50/90 sm:max-w-none sm:text-xs sm:leading-normal",
             isUpdating && "pointer-events-none opacity-70",
           )}
+          variant="outline"
         >
           {buttonLabel}
         </Button>

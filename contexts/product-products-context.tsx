@@ -5,12 +5,17 @@ import type React from "react"
 import { createContext, useContext, useState, useCallback, useMemo } from "react"
 import type { Product, ProductCreateForm, ProductPagination } from "@/lib/schemas"
 import { ProductCreateFormSchema } from "@/lib/schemas"
-import { normalizeOppositeImpressionPayload } from "@/lib/library-product-api-mapping"
+import {
+  lookupStageGradePrice,
+  mergeStageGradeDetailsIntoStages,
+  normalizeOppositeImpressionPayload,
+} from "@/lib/library-product-api-mapping"
 import { serializeAdvanceFieldsForApi } from "@/lib/product-advance-fields-form"
 import {
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
+import { applyDefaultToothChartToPayload } from "@/lib/product-default-tooth-chart"
 import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
@@ -186,7 +191,19 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   // Helper to transform form state to correct payload structure
   function buildProductPayload(form: any, releasingStageIds: (string | number)[] = []): any {
+    // Fold persisted stage_grade_details into stage.grade_prices before mapping so Update
+    // emits the full stage×grade matrix (not only cells the user just edited).
+    const formWithMergedStageGrades = {
+      ...form,
+      stages: Array.isArray(form.stages)
+        ? mergeStageGradeDetailsIntoStages(form.stages, form.stage_grade_details)
+        : form.stages,
+    }
+    form = formWithMergedStageGrades
+
     const payload: any = { ...form }
+    // stage_grade_details is hydration-only; API expects flat `stage_grades`
+    delete payload.stage_grade_details
 
     normalizeOppositeImpressionPayload(payload)
 
@@ -412,62 +429,59 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     // stage_grades.*.grade_id (required_with:stage_grades), 
     // stage_grades.*.status (required_with:stage_grades)
     // stage_grades.*.price (included for backend processing)
-    // Include stage_grades whenever there are stages with grade_prices
+    // Full matrix: every stage × selected grade that has a price (not only dirty cells)
     if (Array.isArray(form.stages) && form.stages.length > 0) {
       payload.stage_grades = []
-      // Use sorted stages to match the order used in stages payload
-      const sortedStages = [...form.stages].sort((a: any, b: any) => {
+      const stagesWithGradePrices = mergeStageGradeDetailsIntoStages(
+        form.stages,
+        (form as { stage_grade_details?: unknown }).stage_grade_details as
+          | Parameters<typeof mergeStageGradeDetailsIntoStages>[1]
+          | undefined,
+      )
+      const sortedStages = [...stagesWithGradePrices].sort((a: any, b: any) => {
         const seqA = a.sequence ?? 0
         const seqB = b.sequence ?? 0
         return seqA - seqB
       })
-      
+
+      const selectedGradeIds: Array<number | string> =
+        Array.isArray(form.grades) && form.grades.length > 0
+          ? form.grades
+              .map((g: any) => g.grade_id ?? g.id)
+              .filter((id: unknown) => id !== undefined && id !== null && id !== "")
+          : []
+
       sortedStages.forEach((stage: any) => {
-        if (stage.grade_prices && typeof stage.grade_prices === "object" && Object.keys(stage.grade_prices).length > 0) {
-          Object.entries(stage.grade_prices).forEach(([gradeIdStr, price]: [string, any]) => {
-            // Skip if price is empty or invalid
-            if (price === undefined || price === null || price === "") {
-              return
-            }
-            
-            // Parse the grade ID (handle both string and number)
-            const gradeId = Number(gradeIdStr)
-            if (isNaN(gradeId)) {
-              return
-            }
-            
-            // Verify grade exists in selected grades if grades array exists
-            // If no grades array, include all grade_prices entries
-            if (Array.isArray(form.grades) && form.grades.length > 0) {
-              const gradeExists = form.grades.some((g: any) => {
-                const gId = g.grade_id || g.id
-                return gId?.toString() === gradeIdStr || 
-                       Number(gId) === gradeId ||
-                       g.grade_id === gradeId ||
-                       g.id === gradeId
-              })
-              
-              if (!gradeExists) {
-                return
-              }
-            }
-            
-            // Parse and validate price
-            const priceValue = typeof price === "string" ? parseFloat(price) : (typeof price === "number" ? price : null)
-            
-            if (priceValue !== null && !isNaN(priceValue) && priceValue >= 0) {
-              payload.stage_grades.push({
-                stage_id: stage.stage_id,
-                grade_id: gradeId,
-                price: priceValue,
-                status: "Active",
-              })
-            }
-          })
-        }
+        const gradePrices =
+          stage.grade_prices && typeof stage.grade_prices === "object" ? stage.grade_prices : {}
+
+        // Prefer selected grades so we emit one row per grade; fall back to whatever keys exist
+        const gradeIdsToEmit: Array<number | string> =
+          selectedGradeIds.length > 0 ? selectedGradeIds : Object.keys(gradePrices)
+
+        const seenGradeIds = new Set<number>()
+        gradeIdsToEmit.forEach((rawGradeId) => {
+          const gradeId = Number(rawGradeId)
+          if (isNaN(gradeId) || seenGradeIds.has(gradeId)) return
+          seenGradeIds.add(gradeId)
+
+          const price = lookupStageGradePrice(gradePrices, rawGradeId)
+          if (price === undefined || price === null || price === "") return
+
+          const priceValue =
+            typeof price === "string" ? parseFloat(price) : typeof price === "number" ? price : null
+
+          if (priceValue !== null && !isNaN(priceValue) && priceValue >= 0) {
+            payload.stage_grades.push({
+              stage_id: stage.stage_id,
+              grade_id: gradeId,
+              price: priceValue,
+              status: "Active",
+            })
+          }
+        })
       })
-      
-      // If no stage_grades were added, set to empty array
+
       if (payload.stage_grades.length === 0) {
         payload.stage_grades = []
       }
@@ -601,7 +615,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     const sectionFlags = [
       "has_stage", "has_grade", "has_gum_shade", "has_teeth_shade",
       "has_impression", "has_extraction", "has_retention", "has_material", "has_addon",
-      "has_advance_field", "has_variation"
+      "has_advance_field", "has_variation", "has_default_tooth_chart",
     ] as const
     for (const flag of sectionFlags) {
       if (form[flag] !== undefined) {
@@ -617,6 +631,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     if (form.is_teeth_based_price !== undefined) {
       payload.is_teeth_based_price = form.is_teeth_based_price
     }
+
+    applyDefaultToothChartToPayload(payload, form)
 
     return payload
   }

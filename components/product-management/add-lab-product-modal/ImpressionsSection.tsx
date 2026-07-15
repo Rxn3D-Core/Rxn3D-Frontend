@@ -227,7 +227,7 @@ export function ImpressionsSection({
                   key={impression.id}
                   className={`flex items-center gap-2 ${!isCustom ? "rounded-md px-2 py-1 transition-colors" : ""}
                     ${!isCustom && checked
-                      ? "bg-[#1162a8]/10 text-[#1162a8] font-semibold"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/10 text-[#1162a8] font-semibold"
                       : !isCustom
                       ? "bg-white text-gray-700"
                       : ""
@@ -313,7 +313,7 @@ export function ImpressionsSection({
               <button
                 type="button"
                 onClick={() => setShowCustomInput(true)}
-                className="flex items-center gap-2 text-[#1162a8] col-span-2 sm:col-span-4 mt-2 px-2 py-1 rounded hover:bg-[#1162a8]/10 transition-colors"
+                className="flex items-center gap-2 text-[#1162a8] col-span-2 sm:col-span-4 mt-2 px-2 py-1 rounded hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/10 transition-colors"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Custom</span>

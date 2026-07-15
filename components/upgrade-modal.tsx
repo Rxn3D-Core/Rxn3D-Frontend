@@ -53,7 +53,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
           <div className="space-y-3">
             <button
               onClick={handleUpgradeClick}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
             >
               Upgrade to Plus
             </button>

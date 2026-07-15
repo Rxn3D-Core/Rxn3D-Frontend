@@ -201,7 +201,7 @@ export default function StageNotesModal({
 
           {/* Add Stage Notes */}
           <div className="mb-6 flex-shrink-0">
-            <Button className="w-full bg-[#1162A8] hover:bg-[#0f5490] text-white mb-4">Add stage notes</Button>
+            <Button className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white mb-4">Add stage notes</Button>
             <Card className="border-gray-300">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-3">

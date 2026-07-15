@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { BarChart3, Box, ChevronLeft, FileText, Headphones, Loader2, TriangleAlert, UserRound } from "lucide-react"
+import { BarChart3, Box, ChevronLeft, Database, FileText, Headphones, Loader2, TriangleAlert, UserRound } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 import {
@@ -13,6 +13,14 @@ import {
   type CatalogAddOn,
   type CustomerAddOn,
 } from "@/lib/api/billing-subscription"
+import {
+  cancelCustomerStorageTier,
+  createStorageTierCheckoutSession,
+  getCustomerStorageTier,
+  listBillingCatalogStorageTiers,
+  type CatalogStorageTier,
+  type CustomerStorageTierRecord,
+} from "@/lib/api/customer-storage-tier"
 
 type AddOn = {
   key: string
@@ -21,7 +29,7 @@ type AddOn = {
   name: string
   description: string
   price: number
-  icon: "box" | "support" | "analytics" | "user" | "invoice"
+  icon: "box" | "support" | "analytics" | "user" | "invoice" | "storage"
   active: boolean
 }
 
@@ -30,7 +38,14 @@ function AddOnIcon({ icon }: { icon: AddOn["icon"] }) {
   if (icon === "analytics") return <BarChart3 className="h-6 w-6 text-[#1F69B3]" />
   if (icon === "user") return <UserRound className="h-6 w-6 text-[#7C8798]" />
   if (icon === "invoice") return <FileText className="h-6 w-6 text-[#F0B867]" />
+  if (icon === "storage") return <Database className="h-6 w-6 text-[#2E9E6C]" />
   return <Box className="h-6 w-6 text-[#A86C31]" />
+}
+
+function formatStorageGb(value: number | string) {
+  const gb = Number(value)
+  if (!Number.isFinite(gb)) return String(value)
+  return gb >= 1000 ? `${(gb / 1000).toFixed(gb % 1000 === 0 ? 0 : 1)} TB` : `${gb} GB`
 }
 
 function currency(value: number) {
@@ -80,6 +95,15 @@ export function SubscriptionAddOnsContent() {
   const [isRemovingAddOn, setIsRemovingAddOn] = useState(false)
   const [removeAddOnError, setRemoveAddOnError] = useState<string | null>(null)
 
+  const [storageTiers, setStorageTiers] = useState<CatalogStorageTier[]>([])
+  const [customerStorageTier, setCustomerStorageTier] = useState<CustomerStorageTierRecord | null>(null)
+  const [selectedStorageTier, setSelectedStorageTier] = useState<AddOn | null>(null)
+  const [removeStorageTier, setRemoveStorageTier] = useState<AddOn | null>(null)
+  const [isProcessingStorageTier, setIsProcessingStorageTier] = useState(false)
+  const [storageTierError, setStorageTierError] = useState<string | null>(null)
+  const [isRemovingStorageTier, setIsRemovingStorageTier] = useState(false)
+  const [removeStorageTierError, setRemoveStorageTierError] = useState<string | null>(null)
+
   useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -96,15 +120,19 @@ export function SubscriptionAddOnsContent() {
 
     const loadAddOnData = async () => {
       try {
-        const [catalog, customerAddOns] = await Promise.all([
+        const [catalog, customerAddOns, tiers, currentStorageTier] = await Promise.all([
           listBillingCatalogAddOns(customerId),
           listCustomerAddOns(customerId),
+          listBillingCatalogStorageTiers(customerId),
+          getCustomerStorageTier(customerId),
         ])
 
         if (cancelled) return
 
         setCatalogAddOns(catalog)
         setCustomerAddOns(customerAddOns)
+        setStorageTiers(tiers)
+        setCustomerStorageTier(currentStorageTier)
       } catch (error) {
         console.error("Failed to load add-on data:", error)
       }
@@ -168,6 +196,35 @@ export function SubscriptionAddOnsContent() {
       return a.name.localeCompare(b.name)
     })
   }, [catalogAddOns, customerAddOns])
+
+  const activeStorageTierId = useMemo(() => {
+    const status = (customerStorageTier?.status || "").toLowerCase()
+    if (!customerStorageTier || !["active", "trialing"].includes(status)) return null
+    return customerStorageTier.billing_storage_tier_id
+  }, [customerStorageTier])
+
+  const storageAddOns = useMemo(() => {
+    return storageTiers
+      .filter((tier) => tier.active !== false || tier.id === activeStorageTierId)
+      .map((tier) => {
+        const parsedPrice = Number(tier.monthly_fee)
+
+        return {
+          key: `storage-${tier.id}`,
+          id: tier.id,
+          customerAddOnId: tier.id === activeStorageTierId ? customerStorageTier?.id ?? null : null,
+          name: tier.name,
+          description: `Add ${formatStorageGb(tier.storage_gb)} of additional case storage.`,
+          price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+          icon: "storage" as const,
+          active: tier.id === activeStorageTierId,
+        } satisfies AddOn
+      })
+      .sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+  }, [storageTiers, activeStorageTierId, customerStorageTier])
 
   const handleConfirmAddOn = async () => {
     if (!resolvedCustomerId) {
@@ -234,6 +291,65 @@ export function SubscriptionAddOnsContent() {
       setRemoveAddOnError(error?.message || "Failed to remove add-on. Please try again.")
     } finally {
       setIsRemovingAddOn(false)
+    }
+  }
+
+  const handleConfirmStorageTier = async () => {
+    if (!resolvedCustomerId) {
+      setStorageTierError("Missing customer billing context. Please refresh and try again.")
+      return
+    }
+
+    if (!selectedStorageTier) {
+      setStorageTierError("Please choose a storage tier first.")
+      return
+    }
+
+    try {
+      setIsProcessingStorageTier(true)
+      setStorageTierError(null)
+
+      const returnUrl = `${window.location.origin}/billing/subscriptions/add-ons`
+      const response = await createStorageTierCheckoutSession({
+        customer_id: resolvedCustomerId,
+        billing_storage_tier_id: selectedStorageTier.id,
+        success_url: returnUrl,
+        cancel_url: returnUrl,
+      })
+
+      if (response.success && response.url) {
+        window.location.href = response.url
+        return
+      }
+
+      throw new Error(response.message || "Failed to create storage tier checkout session")
+    } catch (error: any) {
+      console.error("Storage tier checkout error:", error)
+      setStorageTierError(error?.message || "Failed to start storage tier checkout. Please try again.")
+    } finally {
+      setIsProcessingStorageTier(false)
+    }
+  }
+
+  const handleConfirmRemoveStorageTier = async () => {
+    if (!removeStorageTier?.customerAddOnId) {
+      setRemoveStorageTierError("Unable to identify the storage tier subscription. Please refresh and try again.")
+      return
+    }
+
+    try {
+      setIsRemovingStorageTier(true)
+      setRemoveStorageTierError(null)
+
+      await cancelCustomerStorageTier(removeStorageTier.customerAddOnId)
+
+      setCustomerStorageTier((prev) => (prev ? { ...prev, status: "cancelled" } : prev))
+      setRemoveStorageTier(null)
+    } catch (error: any) {
+      console.error("Remove storage tier error:", error)
+      setRemoveStorageTierError(error?.message || "Failed to remove storage tier. Please try again.")
+    } finally {
+      setIsRemovingStorageTier(false)
     }
   }
 
@@ -311,6 +427,79 @@ export function SubscriptionAddOnsContent() {
                         onClick={() => {
                           setAddOnError(null)
                           setSelectedAddOn(addOn)
+                        }}
+                        className="min-w-[112px] rounded-[10px] bg-[#1567B8] px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#11569A]"
+                      >
+                        + Add
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 border-t border-[#E8EBF1] pt-6">
+        <p className="mb-4 text-[15px] text-[#767C83]">
+          Need more room for case files and images? Upgrade your storage tier at any time.
+        </p>
+
+        <p className="mb-4 text-[14px] font-semibold uppercase tracking-[0.12em] text-[#6D7278]">Storage</p>
+
+        {storageAddOns.length === 0 ? (
+          <div className="rounded-xl border border-[#DCE2EE] bg-white px-5 py-8 text-[14px] text-[#757A80] shadow-sm">
+            No storage tiers are currently available for this customer.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {storageAddOns.map((tier) => {
+              const isActive = tier.active
+
+              return (
+                <div
+                  key={tier.key}
+                  className={`rounded-xl border bg-white p-4 shadow-sm ${
+                    isActive ? "border-[#2FBA63] shadow-[inset_0_0_0_1px_#2FBA63]" : "border-[#DCE2EE]"
+                  }`}
+                >
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <AddOnIcon icon={tier.icon} />
+                      <div>
+                        <h2 className="text-[16px] font-semibold text-[#222]">{tier.name}</h2>
+                      </div>
+                    </div>
+                    {isActive ? (
+                      <span className="inline-flex items-center rounded-md bg-[#E4F9EA] px-3 py-1 text-[12px] font-semibold text-[#1DAA4C]">
+                        <span className="mr-1.5 h-2.5 w-2.5 rounded-full bg-[#27BA58]" />
+                        ACTIVE
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <p className="min-h-[48px] text-[14px] leading-6 text-[#757A80]">{tier.description}</p>
+
+                  <div className="mt-12 flex items-end justify-between gap-4">
+                    <div className="text-[#111]">
+                      <span className="text-[22px] font-bold">{currency(tier.price)}</span>
+                      <span className="ml-1 text-[14px] text-[#7A8087]">/month</span>
+                    </div>
+                    {isActive ? (
+                      <button
+                        type="button"
+                        onClick={() => setRemoveStorageTier(tier)}
+                        className="min-w-[112px] rounded-[10px] border border-[#FF8F8F] px-5 py-2.5 text-[14px] font-semibold text-[#FF3B30] transition-colors hover:bg-[#FFF5F5]"
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStorageTierError(null)
+                          setSelectedStorageTier(tier)
                         }}
                         className="min-w-[112px] rounded-[10px] bg-[#1567B8] px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#11569A]"
                       >
@@ -427,6 +616,103 @@ export function SubscriptionAddOnsContent() {
                   >
                     {isRemovingAddOn ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Remove Add-on
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedStorageTier} onOpenChange={(open) => !open && setSelectedStorageTier(null)}>
+        <DialogContent showCloseButton={false} className="w-[min(480px,calc(100vw-24px))] max-w-none overflow-hidden rounded-[10px] border-0 bg-white p-0 shadow-2xl">
+          {selectedStorageTier ? (
+            <div>
+              <div className="border-b border-[#E4E6EF] bg-[#F9FAFB] px-6 pb-[11px] pt-[10px]">
+                <h2 className="text-[16px] font-bold leading-[19px] text-black">+ Add {selectedStorageTier.name}</h2>
+                <p className="mt-[5px] text-[12px] leading-[15px] text-[#666666]">This storage tier will be added to your monthly subscription.</p>
+              </div>
+
+              <div className="px-6 pb-5 pt-4">
+                <div className="rounded-[6px] border border-[#E4E6EF] bg-[#F9FAFB] px-3 pb-[9px] pt-2">
+                  <div className="text-[13px] leading-4 text-[#666666]">
+                    {selectedStorageTier.name}
+                    <span className="mx-1.5">·</span>
+                    Flat monthly storage add-on
+                  </div>
+                  <div className="mt-2 text-[16px] font-bold leading-[19px] text-black">
+                    ${selectedStorageTier.price.toFixed(2)}/month
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStorageTier(null)}
+                    className="h-9 w-[120px] rounded-[6px] border border-[#E4E6EF] bg-white text-[13px] font-medium leading-4 text-[#666666] transition-colors hover:bg-[#F8FAFC]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmStorageTier()}
+                    disabled={isProcessingStorageTier}
+                    className="inline-flex h-9 w-[180px] items-center justify-center gap-2 rounded-[6px] bg-[#1162A8] text-[13px] font-semibold leading-4 text-white transition-colors hover:bg-[#0E548F] disabled:cursor-not-allowed disabled:bg-[#8AB4DA]"
+                  >
+                    {isProcessingStorageTier ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Confirm & Add
+                  </button>
+                </div>
+
+                {storageTierError ? (
+                  <p className="mt-3 text-[12px] leading-[15px] text-[#DC2626]">{storageTierError}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!removeStorageTier} onOpenChange={(open) => { if (!open && !isRemovingStorageTier) { setRemoveStorageTier(null); setRemoveStorageTierError(null) } }}>
+        <DialogContent showCloseButton={false} className="w-[min(480px,calc(100vw-24px))] max-w-none overflow-hidden rounded-[10px] border-0 bg-white p-0 shadow-2xl">
+          {removeStorageTier ? (
+            <div>
+              <div className="h-[60px] border-b border-[#E4E6EF] bg-[#F9FAFC] px-5 pt-[18px]">
+                <h2 className="text-[16px] font-bold leading-[19px] text-[#DC2626]">Remove Storage Tier</h2>
+              </div>
+
+              <div className="px-6 pb-5 pt-5">
+                <h3 className="text-[16px] font-bold leading-[19px] text-black">{removeStorageTier.name}</h3>
+                <p className="mt-[15px] max-w-[432px] text-[13px] leading-4 text-[#333333]">
+                  This storage tier will be removed at the end of your current billing period.
+                </p>
+
+                <div className="mt-4 flex h-9 items-center gap-2 rounded-[6px] bg-[#FFEDED] px-3 text-[12px] font-semibold leading-[15px] text-[#DC2626]">
+                  <TriangleAlert className="h-4 w-4 shrink-0 fill-current stroke-white" />
+                  This action cannot be undone.
+                </div>
+
+                {removeStorageTierError ? (
+                  <p className="mt-3 text-[12px] leading-[15px] text-[#DC2626]">{removeStorageTierError}</p>
+                ) : null}
+
+                <div className="mt-7 flex items-center justify-end gap-4">
+                  <button
+                    type="button"
+                    onClick={() => { setRemoveStorageTier(null); setRemoveStorageTierError(null) }}
+                    disabled={isRemovingStorageTier}
+                    className="h-9 w-[140px] rounded-[6px] border border-[#666666] bg-white text-[13px] font-medium leading-4 text-[#333333] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Keep Tier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmRemoveStorageTier()}
+                    disabled={isRemovingStorageTier}
+                    className="inline-flex h-9 w-[168px] items-center justify-center gap-2 rounded-[6px] bg-[#DC2626] text-[13px] font-semibold leading-4 text-white transition-colors hover:bg-[#BE1F1F] disabled:cursor-not-allowed disabled:bg-[#EF9999]"
+                  >
+                    {isRemovingStorageTier ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Remove Tier
                   </button>
                 </div>
               </div>

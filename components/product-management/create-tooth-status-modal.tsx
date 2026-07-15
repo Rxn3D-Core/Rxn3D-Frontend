@@ -60,7 +60,7 @@ interface CreateToothStatusModalProps {
 
 // Color map for predefined colors (matching case pan modal pattern)
 const colorMapDropdown: Record<string, string> = {
-  blue: "bg-[#1162a8] text-white",
+  blue: "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white",
   red: "bg-[#cf0202] text-white",
   white: "bg-[#ffffff] text-black",
   green: "bg-[#11a85d] text-white",
@@ -603,7 +603,7 @@ export function CreateToothStatusModal({
         <Button
           type="submit"
           form={showGlobalLibraryTab ? "tooth-status-form" : undefined}
-          className="bg-[#1162a8] h-9 sm:h-10 hover:bg-[#0d4d87] w-full sm:w-auto text-sm sm:text-base"
+          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] h-9 sm:h-10 hover:bg-[#0d4d87] w-full sm:w-auto text-sm sm:text-base"
           disabled={isCreating || isUpdating || isDetailLoading}
         >
           {isCreating || isUpdating ? (

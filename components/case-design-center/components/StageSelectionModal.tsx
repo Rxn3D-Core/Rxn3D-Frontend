@@ -17,6 +17,7 @@ type StageOption = {
   letter: string;
   image_url?: string | null;
   stage_id?: number;
+  sequence?: number;
 };
 
 function StageOptionImage({
@@ -51,13 +52,28 @@ export function StageSelectionModal({
   stageHistory,
   onSelect,
   onClose,
+  archLabel,
+  lastCompletedStageId,
+  lastCompletedSequence,
 }: {
   stages: StageOption[];
   selectedStage?: string;
   stageHistory?: NewStageEligibilityStageRef[];
   onSelect: (stageName: string, stageId?: number) => void;
   onClose: () => void;
+  /** When provided, appended to the title: "Select stage for <archLabel>" */
+  archLabel?: string;
+  /** stage_id of the last completed stage — this stage is selectable (repeat) but earlier ones are not. */
+  lastCompletedStageId?: number;
+  /** sequence of the last completed stage — stages with lower sequence are disabled. */
+  lastCompletedSequence?: number;
 }) {
+  const isDisabled = (stage: StageOption): boolean => {
+    if (lastCompletedSequence == null) return false;
+    if (stage.stage_id != null && stage.stage_id === lastCompletedStageId) return false;
+    if (stage.sequence != null) return stage.sequence < lastCompletedSequence;
+    return false;
+  };
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="w-screen max-w-[100vw] max-h-[100vh] sm:max-w-[100vw] overflow-hidden flex flex-col p-0">
@@ -70,7 +86,9 @@ export function StageSelectionModal({
               letterSpacing: "-0.02em",
             }}
           >
-            <span className="text-xl sm:text-[30px]">Select stage</span>
+            <span className="text-xl sm:text-[30px]">
+              {archLabel ? `Select stage for ${archLabel}` : "Select stage"}
+            </span>
           </DialogTitle>
         </DialogHeader>
 
@@ -85,15 +103,18 @@ export function StageSelectionModal({
           <div className="flex sm:hidden gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide">
             {stages.map((stage) => {
               const isSelected = selectedStage === stage.name;
+              const disabled = isDisabled(stage);
               return (
                 <div
                   key={stage.name}
-                  onClick={() => onSelect(stage.name, stage.stage_id)}
+                  onClick={() => !disabled && onSelect(stage.name, stage.stage_id)}
                   className={cn(
-                    "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col cursor-pointer p-1.5 gap-2 snap-center flex-shrink-0 w-[140px]",
-                    isSelected
-                      ? "border-blue-500 shadow-xl"
-                      : "border-gray-300 hover:border-blue-500 hover:shadow-lg"
+                    "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col p-1.5 gap-2 snap-center flex-shrink-0 w-[140px]",
+                    disabled
+                      ? "border-gray-200 opacity-40 cursor-not-allowed"
+                      : isSelected
+                        ? "border-blue-500 shadow-xl cursor-pointer"
+                        : "border-gray-300 hover:border-blue-500 hover:shadow-lg cursor-pointer"
                   )}
                 >
                   <StageOptionImage
@@ -120,15 +141,18 @@ export function StageSelectionModal({
           <div className="hidden sm:grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {stages.map((stage) => {
               const isSelected = selectedStage === stage.name;
+              const disabled = isDisabled(stage);
               return (
                 <div
                   key={stage.name}
-                  onClick={() => onSelect(stage.name, stage.stage_id)}
+                  onClick={() => !disabled && onSelect(stage.name, stage.stage_id)}
                   className={cn(
-                    "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col cursor-pointer p-2 gap-[10px]",
-                    isSelected
-                      ? "border-blue-500 shadow-xl"
-                      : "border-gray-300 hover:border-blue-500 hover:shadow-lg"
+                    "relative border-2 rounded-xl overflow-hidden transition-all duration-200 bg-white flex flex-col p-2 gap-[10px]",
+                    disabled
+                      ? "border-gray-200 opacity-40 cursor-not-allowed"
+                      : isSelected
+                        ? "border-blue-500 shadow-xl cursor-pointer"
+                        : "border-gray-300 hover:border-blue-500 hover:shadow-lg cursor-pointer"
                   )}
                 >
                   <StageOptionImage

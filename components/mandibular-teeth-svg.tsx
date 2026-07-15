@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import ReactDOM from 'react-dom'
-import { RetentionTypePopover, RetentionOptionItem } from './retention-type-popover'
+import { RetentionTypePopover, RetentionOptionItem, type ExtractionStatusOption } from './retention-type-popover'
 import { ToothStatusPopover, ToothStatusOption } from './tooth-status-popover'
 import { getClaspOverlayImageUrl } from './case-design-center/utils/claspOverlayImage'
 import {
@@ -92,6 +92,10 @@ interface MandibularTeethSVGProps {
   getRetentionOptionsForTooth?: (toothNumber: number) => RetentionOptionItem[] | undefined
   /** Whether Pontic may be offered for a tooth (false until the product has an abutment). */
   canSelectPontic?: (toothNumber: number) => boolean
+  /** Extraction statuses to show in the retention popover ("both" products). Omit for retention-only. */
+  retentionPopoverExtractionOptions?: ExtractionStatusOption[]
+  /** Set a tooth's extraction status from the combined popover (caller clears retention — mutual exclusivity). */
+  onSelectExtractionStatus?: (toothNumber: number, code: string) => void
   /** When true, renders a checkbox below each non-missing tooth. */
   showCheckboxes?: boolean
   /** Called whenever the set of checked teeth changes. */
@@ -167,6 +171,8 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   onToggleSplintLink,
   wingTeeth = [],
   canSelectPontic,
+  retentionPopoverExtractionOptions,
+  onSelectExtractionStatus,
 }) => {
   const svgRef = React.useRef<SVGSVGElement>(null)
   const [hoveredTooth, setHoveredTooth] = React.useState<number | null>(null)
@@ -636,12 +642,10 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
   const renderSplintDiamonds = () => {
     const links = new Set(splintedLinks)
     const allowed = splintableLinks ? new Set(splintableLinks) : null
-    const nodes: React.ReactNode[] = []
     const SPLINT_Y = 30
-    const BAR_H = 10
-    // Gaps to render: every splinted link (read-only, independent of the active card's
-    // selection so it survives switching arches/products) plus eligible empty gaps among
-    // the active selection when editable.
+    const D = 6 // diamond half-size
+    const CIRCLE_R = 5
+
     const gaps = new Set<number>(splintedLinks)
     if (splintEnabled && !disabled) {
       const sorted = [...selectedTeeth].sort((a, b) => a - b)
@@ -651,6 +655,11 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
         }
       }
     }
+
+    const circleNodes: React.ReactNode[] = []
+    const lineNodes: React.ReactNode[] = []
+    const diamondsByTooth = new Map<number, { cx: number }>()
+
     for (const lower of Array.from(gaps).sort((a, b) => a - b)) {
       const upper = lower + 1
       const splinted = links.has(lower)
@@ -659,37 +668,74 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
       const b = circlePositions[upper]
       if (!a || !b) continue
       const mx = (a.cx + b.cx) / 2
-      const barW = Math.max(14, Math.abs(b.cx - a.cx) * 0.6)
       const hovered = editable && hoveredSplintLink === lower
-      const fill = splinted ? '#8A8A8A' : hovered ? '#D9D9D9' : '#FFFFFF'
-      nodes.push(
-        <g
-          key={`splint-${lower}`}
-          style={{ cursor: editable ? 'pointer' : 'default' }}
-          onMouseEnter={editable ? () => setHoveredSplintLink(lower) : undefined}
-          onMouseLeave={editable ? () => setHoveredSplintLink((prev) => (prev === lower ? null : prev)) : undefined}
-          onClick={editable ? (e) => { e.stopPropagation(); onToggleSplintLink?.(lower) } : undefined}
-        >
-          {/* Transparent hit area enlarges the clickable/hoverable gap (editable only) */}
-          {editable && (
-            <rect x={mx - barW / 2 - 3} y={SPLINT_Y - BAR_H / 2 - 5} width={barW + 6} height={BAR_H + 10} fill="transparent" />
-          )}
-          {/* Connector bar: empty (outline) → filled gray when splinted */}
-          <rect
-            x={mx - barW / 2}
-            y={SPLINT_Y - BAR_H / 2}
-            width={barW}
-            height={BAR_H}
-            rx={BAR_H / 2}
-            fill={fill}
-            stroke="#8A8A8A"
-            strokeWidth={1}
-            style={{ transition: 'fill 0.15s ease' }}
-          />
-        </g>
-      )
+
+      if (!splinted) {
+        // Eligible but not yet splinted: show a circle at the gap midpoint
+        circleNodes.push(
+          <g
+            key={`splint-circle-${lower}`}
+            style={{ cursor: editable ? 'pointer' : 'default' }}
+            onMouseEnter={editable ? () => setHoveredSplintLink(lower) : undefined}
+            onMouseLeave={editable ? () => setHoveredSplintLink((prev) => (prev === lower ? null : prev)) : undefined}
+            onClick={editable ? (e) => { e.stopPropagation(); onToggleSplintLink?.(lower) } : undefined}
+          >
+            {editable && (
+              <rect x={mx - 14} y={SPLINT_Y - 14} width={28} height={28} fill="transparent" />
+            )}
+            <circle
+              cx={mx}
+              cy={SPLINT_Y}
+              r={CIRCLE_R}
+              fill={hovered ? '#D9D9D9' : 'white'}
+              stroke="#8A8A8A"
+              strokeWidth={1.5}
+              style={{ transition: 'fill 0.15s ease', pointerEvents: 'none' }}
+            />
+          </g>
+        )
+      } else {
+        // Splinted: line between the two teeth + diamonds at each tooth
+        lineNodes.push(
+          <g
+            key={`splint-link-${lower}`}
+            style={{ cursor: editable ? 'pointer' : 'default' }}
+            onClick={editable ? (e) => { e.stopPropagation(); onToggleSplintLink?.(lower) } : undefined}
+          >
+            {editable && (
+              <rect x={a.cx} y={SPLINT_Y - 8} width={b.cx - a.cx} height={16} fill="transparent" />
+            )}
+            <line
+              x1={a.cx}
+              y1={SPLINT_Y}
+              x2={b.cx}
+              y2={SPLINT_Y}
+              stroke="#8A8A8A"
+              strokeWidth={1.5}
+              style={{ pointerEvents: 'none' }}
+            />
+          </g>
+        )
+        if (!diamondsByTooth.has(lower)) diamondsByTooth.set(lower, { cx: a.cx })
+        if (!diamondsByTooth.has(upper)) diamondsByTooth.set(upper, { cx: b.cx })
+      }
     }
-    return nodes
+
+    const diamondNodes = Array.from(diamondsByTooth.entries()).map(([tooth, { cx }]) => {
+      const pts = `${cx},${SPLINT_Y - D} ${cx + D},${SPLINT_Y} ${cx},${SPLINT_Y + D} ${cx - D},${SPLINT_Y}`
+      return (
+        <polygon
+          key={`diamond-${tooth}`}
+          points={pts}
+          fill="white"
+          stroke="#8A8A8A"
+          strokeWidth={1.5}
+          style={{ pointerEvents: 'none' }}
+        />
+      )
+    })
+
+    return [...circleNodes, ...lineNodes, ...diamondNodes]
   }
 
   // Wing retainer indicator: a derived (non-interactive) gray filled circle drawn on
@@ -759,6 +805,13 @@ export const MandibularTeethSVG: React.FC<MandibularTeethSVGProps> = ({
             onSelectRetentionType={(type) => onSelectRetentionType(retentionPopoverTooth, type)}
             selectedType={selectedType || undefined}
             allowPontic={canSelectPontic ? canSelectPontic(retentionPopoverTooth) : true}
+            extractionOptions={retentionPopoverExtractionOptions}
+            selectedExtractionCode={toothExtractionMap[retentionPopoverTooth] ?? null}
+            onSelectExtractionStatus={
+              onSelectExtractionStatus
+                ? (code) => onSelectExtractionStatus(retentionPopoverTooth, code)
+                : undefined
+            }
             onClose={onClosePopover}
             onDeselectTooth={() => {
               if (retentionPopoverTooth !== null) {

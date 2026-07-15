@@ -13,7 +13,7 @@ export function useOnboardingGuard(options: {
   skipCheck?: boolean
   redirectPath?: string
 } = {}) {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading, isActingAsLabAdmin } = useAuth()
   const { isOnboardingComplete, isLoading: onboardingLoading, onboardingStatus, error } =
     useOnboardingStatus()
   const router = useRouter()
@@ -26,7 +26,7 @@ export function useOnboardingGuard(options: {
     if (options.skipCheck) return
 
     const userRoles = user.roles || (user.role ? [user.role] : [])
-    const isSuperAdmin = userRoles.includes("superadmin")
+    const isSuperAdmin = !isActingAsLabAdmin && userRoles.includes("superadmin")
 
     // Skip onboarding check for superadmin
     if (isSuperAdmin) return

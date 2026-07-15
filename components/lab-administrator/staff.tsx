@@ -355,7 +355,7 @@ export function Staff() {
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600">
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Staff
               </Button>

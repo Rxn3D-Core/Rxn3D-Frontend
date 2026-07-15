@@ -171,7 +171,7 @@ export function CallLog() {
           </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
                 <Plus className="mr-2 h-4 w-4" /> Add Call
               </Button>
             </DialogTrigger>
@@ -232,7 +232,7 @@ export function CallLog() {
                 <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   Back
                 </Button>
-                <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleAddCall}>
+                <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" onClick={handleAddCall}>
                   Submit
                 </Button>
               </div>

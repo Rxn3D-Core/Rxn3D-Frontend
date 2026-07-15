@@ -392,7 +392,7 @@ export function GradeSetup() {
               </Link>
             </Button>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6">
+          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6">
             Complete Setup <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

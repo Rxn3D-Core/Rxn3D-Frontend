@@ -13,6 +13,7 @@ import {
   shouldAutoOpenPatientGender,
   shouldShowPatientGenderField,
 } from "@/lib/patient-name-validation"
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
 
 interface Doctor {
   id: number
@@ -20,6 +21,9 @@ interface Doctor {
   last_name: string
   email?: string
   image?: string
+  profile_image?: string
+  avatar?: string
+  signature_url?: string
 }
 
 interface Lab {
@@ -177,12 +181,8 @@ const CreatedBySection = ({ createdBy, variant = "default" }: { createdBy: strin
       <div className="flex flex-col items-center gap-[6px] sm:gap-[10px] w-[100px] sm:w-[150px]">
         <div className="w-[40px] h-[40px] sm:w-[55px] sm:h-[55px] rounded-full overflow-hidden">
           <Avatar className="w-full h-full">
-            <AvatarImage
-              src="/images/created-by.png"
-              alt="Created By"
-            />
             <AvatarFallback className="bg-gray-200 text-gray-600 text-xs sm:text-sm">
-              {getInitials(createdBy)}
+              {getInitials(createdBy) || "?"}
             </AvatarFallback>
           </Avatar>
         </div>
@@ -204,12 +204,8 @@ const CreatedBySection = ({ createdBy, variant = "default" }: { createdBy: strin
     <div className="flex flex-col items-end">
       <div className="w-[72px] h-[72px] rounded-full overflow-hidden mb-2">
         <Avatar className="w-full h-full">
-          <AvatarImage
-            src="/images/default-user-avatar.png"
-            alt="Created By"
-          />
           <AvatarFallback className="bg-gray-200 text-gray-600">
-            {getInitials(createdBy)}
+            {getInitials(createdBy) || "?"}
           </AvatarFallback>
         </Avatar>
       </div>
@@ -294,6 +290,7 @@ const SendingToSection = ({ lab }: { lab: Lab }) => {
 
 const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; variant?: "default" | "full" }) => {
   const router = useRouter()
+  const doctorImageSrc = resolveDoctorImageUrl(doctor) || undefined
   
   const getInitials = (firstName: string, lastName: string) => {
     const first = firstName?.charAt(0) || ""
@@ -312,7 +309,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
           <div className="relative">
             <Avatar className="w-[50px] h-[50px] sm:w-[75px] sm:h-[75px]">
               <AvatarImage
-                src={doctor?.image || undefined}
+                src={doctorImageSrc}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
               />
               <AvatarFallback className="bg-[#1162a8] text-white text-base sm:text-xl font-bold">
@@ -340,7 +337,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
       <div className="relative">
         <Avatar className="w-20 h-20">
           <AvatarImage
-            src={doctor?.image || undefined}
+            src={doctorImageSrc}
             alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
           />
           <AvatarFallback className="bg-[#1162a8] text-white text-xl font-semibold">
@@ -1148,12 +1145,8 @@ export function SlipCreationHeader({
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gray-200">
                     <Avatar className="w-full h-full">
-                      <AvatarImage
-                        src="/images/default-user-avatar.png"
-                        alt="Created By"
-                      />
                       <AvatarFallback className="bg-[#7AB8E8] text-white text-lg font-semibold">
-                        {createdBy.split(" ").map(n => n[0]).join("").toUpperCase()}
+                        {createdBy.split(" ").map(n => n[0]).join("").toUpperCase() || "?"}
                       </AvatarFallback>
                     </Avatar>
                   </div>

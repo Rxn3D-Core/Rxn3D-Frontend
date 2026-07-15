@@ -96,6 +96,7 @@ export default function StaffManagementPage() {
   const { removeCustomerRoleFromUser } = useCustomer()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
@@ -402,16 +403,23 @@ export default function StaffManagementPage() {
 
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className=" px-4 py-2 rounded-lg flex items-center gap-2 w-full md:w-auto">
-                <Button variant="outline" size="sm" className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    Filter
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110 flex items-center gap-2"
+                onClick={() => setShowFilterPanel((v) => !v)}
+              >
+                <Filter className="h-4 w-4" style={{ color: "#82298D" }} />
+                <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Filter</span>
+              </Button>
 
-              <Button className="bg-[#1162a8] hover:bg-blue-700 text-white" onClick={handleAddUser}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add User
+              <Button
+                variant="ghost"
+                className="[background:linear-gradient(white,white)_padding-box,linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)_border-box] border-2 border-transparent hover:brightness-110"
+                onClick={handleAddUser}
+              >
+                <Plus className="h-4 w-4 mr-2" style={{ color: "#82298D" }} />
+                <span style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Add User</span>
               </Button>
             </div>
             <div className="relative w-full md:w-auto">
@@ -426,6 +434,26 @@ export default function StaffManagementPage() {
             </div>
           </div>
         </div>
+
+        {/* Filter panel */}
+        {showFilterPanel && (
+          <div className="px-4 py-3 border-t border-gray-200 flex items-center gap-3">
+            <span className="text-sm text-gray-600 font-medium">Status:</span>
+            {(["all", "active", "inactive"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                  statusFilter === s
+                    ? "border-transparent text-white bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]"
+                    : "border-gray-300 text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">
@@ -640,16 +668,14 @@ export default function StaffManagementPage() {
             Showing 1 to {Math.min(filteredUsers.length, Number.parseInt(entriesPerPage))} of {filteredUsers.length}{" "}
             entries
           </div>
-          <div className="flex items-center space-x-1">
-            <Button variant="outline" size="sm" disabled>
+          <div className="flex items-center space-x-3 text-sm">
+            <button disabled className="font-medium" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
               Previous
-            </Button>
-            <Button variant="outline" size="sm" className="bg-blue-600 text-white">
-              1
-            </Button>
-            <Button variant="outline" size="sm" disabled>
+            </button>
+            <span className="font-medium" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>1</span>
+            <button disabled className="font-medium" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
               Next
-            </Button>
+            </button>
           </div>
         </div>
       </div>

@@ -41,7 +41,9 @@ export type LabListingQuery = {
   q?: string;
   office_code?: string;
   status?: string;
+  statuses?: string[];
   location_id?: number;
+  location_ids?: number[];
   delivery_date_start?: string;
   delivery_date_end?: string;
   has_attachments?: boolean;
@@ -115,6 +117,7 @@ type SlipContextType = {
   slipNotes: SlipNote[];
   loading: boolean;
   labListingPagination: LabListingPagination | null;
+  rushCasePanColor: string | null;
   fetchLabSlips: (customerId: number, query?: LabListingQuery) => Promise<void>;
   fetchOfficeSlips: (customerId: number) => Promise<void>;
   fetchCallLogs: () => Promise<void>;
@@ -138,12 +141,14 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   const [slipNotes, setSlipNotes] = useState<SlipNote[]>([]);
   const [loading, setLoading] = useState(false);
   const [labListingPagination, setLabListingPagination] = useState<LabListingPagination | null>(null);
+  const [rushCasePanColor, setRushCasePanColor] = useState<string | null>(null);
   const router = useRouter();
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
   /** Preserves last lab listing query so refetches (ready-to-send, driver submit, etc.) keep filters */
   const lastLabListingRef = useRef<{ customerId: number; query: LabListingQuery } | null>(null);
+  const labListingRequestIdRef = useRef(0);
 
   // Helper to get token from localStorage
   const getToken = () => (typeof window !== "undefined" ? localStorage.getItem("token") : null);
@@ -208,44 +213,63 @@ export function SlipProvider({ children }: { children: ReactNode }) {
           : {};
     lastLabListingRef.current = { customerId, query: { ...effectiveQuery } };
 
+    const requestId = ++labListingRequestIdRef.current;
+    const isStale = () => labListingRequestIdRef.current !== requestId;
+
     setLoading(true);
     try {
       if (!API_BASE_URL) {
         console.error(
           "fetchLabSlips: NEXT_PUBLIC_API_BASE_URL is not set. Copy .env.example to .env.local and restart the dev server."
         );
-        setSlips([]);
-        setLabListingPagination(null);
+        if (!isStale()) {
+          setSlips([]);
+          setLabListingPagination(null);
+        }
         return;
       }
 
       const token = getToken();
-      const params = new URLSearchParams();
-      params.set("customer_id", String(customerId));
-      if (effectiveQuery.q) params.set("q", effectiveQuery.q);
-      if (effectiveQuery.office_code) params.set("office_code", effectiveQuery.office_code);
-      if (effectiveQuery.status) params.set("status", effectiveQuery.status);
-      if (effectiveQuery.location_id != null && !Number.isNaN(effectiveQuery.location_id)) {
-        params.set("location_id", String(effectiveQuery.location_id));
-      }
-      if (effectiveQuery.delivery_date_start) params.set("delivery_date_start", effectiveQuery.delivery_date_start);
-      if (effectiveQuery.delivery_date_end) params.set("delivery_date_end", effectiveQuery.delivery_date_end);
-      if (effectiveQuery.has_attachments === true) params.set("has_attachments", "1");
-      if (effectiveQuery.product_name) params.set("product_name", effectiveQuery.product_name);
-      if (effectiveQuery.page != null) params.set("page", String(effectiveQuery.page));
-      if (effectiveQuery.per_page != null) params.set("per_page", String(effectiveQuery.per_page));
-      if (effectiveQuery.order_by) params.set("order_by", effectiveQuery.order_by);
-      if (effectiveQuery.sort_by) params.set("sort_by", effectiveQuery.sort_by);
+      const buildLabListingUrl = (queryOverride: LabListingQuery = {}) => {
+        const requestQuery = { ...effectiveQuery, ...queryOverride };
+        const params = new URLSearchParams();
+        params.set("customer_id", String(customerId));
+        if (requestQuery.q) params.set("q", requestQuery.q);
+        if (requestQuery.office_code) params.set("office_code", requestQuery.office_code);
+        if (requestQuery.status) params.set("status", requestQuery.status);
+        requestQuery.statuses?.filter(Boolean).forEach((status) => {
+          params.append("statuses[]", status);
+        });
+        if (requestQuery.location_id != null && !Number.isNaN(requestQuery.location_id)) {
+          params.set("location_id", String(requestQuery.location_id));
+        }
+        requestQuery.location_ids
+          ?.filter((id) => id != null && !Number.isNaN(id))
+          .forEach((id) => {
+            params.append("location_ids[]", String(id));
+          });
+        if (requestQuery.delivery_date_start) params.set("delivery_date_start", requestQuery.delivery_date_start);
+        if (requestQuery.delivery_date_end) params.set("delivery_date_end", requestQuery.delivery_date_end);
+        if (requestQuery.has_attachments === true) params.set("has_attachments", "1");
+        if (requestQuery.product_name) params.set("product_name", requestQuery.product_name);
+        if (requestQuery.page != null) params.set("page", String(requestQuery.page));
+        if (requestQuery.per_page != null) params.set("per_page", String(requestQuery.per_page));
+        if (requestQuery.order_by) params.set("order_by", requestQuery.order_by);
+        if (requestQuery.sort_by) params.set("sort_by", requestQuery.sort_by);
+        const qs = params.toString();
+        return `${buildApiUrl("/slip/listing/lab")}${qs ? `?${qs}` : ""}`;
+      };
 
-      const qs = params.toString();
-      const url = `${buildApiUrl("/slip/listing/lab")}${qs ? `?${qs}` : ""}`;
-
-      const res = await fetch(url, {
+      const requestLabListing = async (url: string) => fetch(url, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: "application/json",
         },
       });
+
+      const url = buildLabListingUrl();
+
+      const res = await requestLabListing(url);
 
       if (res.status === 401) {
         handleUnauthorized();
@@ -254,14 +278,18 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         console.error(`fetchLabSlips: HTTP ${res.status} for ${url}`);
-        setSlips([]);
-        setLabListingPagination(null);
+        if (!isStale()) {
+          setSlips([]);
+          setLabListingPagination(null);
+        }
         return;
       }
 
       const api = await res.json();
+      if (isStale()) return;
       const arr = api?.data?.data || [];
       setSlips(arr.map(mapApiSlip));
+      setRushCasePanColor(api?.data?.rush_casepan_color ?? null);
       const p = api?.data?.pagination;
       if (p && typeof p.total === "number") {
         setLabListingPagination({
@@ -280,10 +308,12 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("fetchLabSlips: network or request error", error);
-      setSlips([]);
-      setLabListingPagination(null);
+      if (!isStale()) {
+        setSlips([]);
+        setLabListingPagination(null);
+      }
     } finally {
-      setLoading(false);
+      if (!isStale()) setLoading(false);
     }
   }, [API_BASE_URL]);
 
@@ -722,6 +752,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       slipNotes,
       loading,
       labListingPagination,
+      rushCasePanColor,
       fetchLabSlips,
       fetchOfficeSlips,
       fetchCallLogs,

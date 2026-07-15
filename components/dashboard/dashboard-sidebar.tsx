@@ -42,7 +42,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     }
   }, [expanded, isMobileOverlay])
 
-  const { user, logout, profilePermissions, isSuperadmin } = useAuth()
+  const { user, logout, profilePermissions, isSuperadmin, isActingAsLabAdmin, profileRole } = useAuth()
   const logoutMutation = useMutation({
     mutationFn: async () => logout(),
     onError(error: any) {
@@ -53,7 +53,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
       toast({ title: 'Signed out', description: 'You have been logged out.', variant: 'default' })
     },
   })
-  const userRole = getPrimaryRole(user)
+  const userRole = isActingAsLabAdmin ? "lab_admin" : getPrimaryRole(user)
   const usesProfilePermissions = PROFILE_SCOPED_ROLES.includes(
     userRole as (typeof PROFILE_SCOPED_ROLES)[number],
   )
@@ -62,9 +62,13 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     const customerType =
       typeof window !== "undefined" ? localStorage.getItem("customerType") : null
     const baseMenu = getMenuForProfile(userRole || "", customerType)
-    const filtered = usesProfilePermissions
-      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin)
+    const SUPERADMIN_ONLY = process.env.NEXT_PUBLIC_PRODUCT_MGMT_SUPERADMIN_ONLY === "true"
+    let filtered = usesProfilePermissions
+      ? filterMenuByPermissions(baseMenu, profilePermissions, isSuperadmin || isActingAsLabAdmin)
       : baseMenu
+    if (SUPERADMIN_ONLY && !isActingAsLabAdmin && userRole !== "superadmin") {
+      filtered = filtered.filter((item) => item.id !== "product-management")
+    }
     if (userRole !== "superadmin") return filtered
     const hiddenIds = new Set([
       "billing-dunning",
@@ -209,56 +213,10 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   const shouldExpand = expanded || isHovered
 
   if (isMobile && !isMobileOverlay) {
-    const visibleItems = menuItems.slice(0, 4);
-    
-    return (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[#d9d9d9] flex justify-around items-center min-h-[64px] h-[64px] sm:h-[72px] shadow-lg pb-safe">
-        {visibleItems.map((item) => (
-          <Link 
-            key={item.id} 
-            href={item.path || "#"} 
-            className={cn(
-              "flex flex-col items-center justify-center flex-1 py-1.5 sm:py-2 px-0.5 sm:px-1 active:bg-gray-50 transition-colors rounded-lg mx-0.5 sm:mx-1 min-w-0",
-              isActive(item.path) && "bg-blue-50"
-            )}
-          >
-            <div className={cn(
-              "flex items-center justify-center mb-0.5 sm:mb-1",
-              isActive(item.path) ? "text-[#1162a8]" : "text-[#666666]"
-            )}>
-              <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center">
-                {item.icon}
-              </div>
-            </div>
-            <span className={cn(
-              "text-[14px] font-['Verdana'] font-normal leading-[100%] tracking-[0%] truncate w-full text-center px-0.5",
-              isActive(item.path) ? "text-[#1162a8]" : "text-[#666666]"
-            )}>
-              {t(`menu.${item.title}`, item.title)}
-            </span>
-          </Link>
-        ))}
-        <button
-          className={cn(
-            "flex flex-col items-center justify-center flex-1 py-1.5 sm:py-2 px-0.5 sm:px-1 text-[#666666] active:bg-gray-50 transition-colors rounded-lg mx-0.5 sm:mx-1 min-w-0 disabled:opacity-50"
-          )}
-          onClick={() => {
-            logoutMutation.mutate()
-          }}
-          disabled={logoutMutation.isPending}
-        >
-          <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center mb-0.5 sm:mb-1">
-            <LogOut className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <span className="text-[14px] font-['Verdana'] font-normal leading-[100%] tracking-[0%] truncate w-full text-center px-0.5">
-            {t("menu.logout", "Sign Out")}
-          </span>
-        </button>
-      </nav>
-    );
+    return null;
   }
   const isDark = theme === "dark"
-  const sidebarBg = isDark ? "bg-[#1162a8]" : "bg-white"
+  const sidebarBg = isDark ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" : "bg-white"
   const sidebarBorder = isDark ? "border-[#0f5497]" : "border-[#d9d9d9]"
   const textColor = isDark ? "text-white" : "text-[#000000]"
   const hoverBg = isDark ? "hover:bg-[#0f5497]" : "hover:bg-gray-100"

@@ -402,20 +402,18 @@ export function PatientHeader({
         {/* Created By — avatar + name (spans both center rows) */}
         {(createdByName || createdByImage) && (
           <div className={`flex ${AVATAR_COLUMN_WIDTH} shrink-0 flex-col items-center justify-center gap-1 self-stretch`}>
-            <div className={`${AVATAR_SIZE} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center`}>
-              {createdByImage ? (
+            <div className={`relative ${AVATAR_SIZE} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center`}>
+              <span className="absolute inset-0 flex items-center justify-center font-bold text-gray-500 text-lg">{createdInitials || "?"}</span>
+              {createdByImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={createdByImage}
                   onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = "/images/created-by.png";
+                    e.currentTarget.remove();
                   }}
                   alt="Creator"
-                  className="w-full h-full object-cover"
+                  className="relative w-full h-full object-cover"
                 />
-              ) : (
-                <span className="font-bold text-gray-500 text-lg">{createdInitials}</span>
               )}
             </div>
             <div className="flex flex-col items-center gap-[2px] text-center">

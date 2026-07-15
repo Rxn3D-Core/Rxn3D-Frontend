@@ -984,7 +984,7 @@ export default function FileAttachmentModalContent({
           {(isStl || is3dObj || isImage) && !archived && (
             <button
               type="button"
-              className="absolute bottom-1.5 right-1.5 bg-[#1162A8] text-white rounded font-medium shadow hover:bg-[#0f5490] transition z-10 opacity-0 group-hover:opacity-100 px-1.5 py-0.5 text-[8px]"
+              className="absolute bottom-1.5 right-1.5 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded font-medium shadow hover:bg-[#0f5490] transition z-10 opacity-0 group-hover:opacity-100 px-1.5 py-0.5 text-[8px]"
               onClick={e => { e.stopPropagation(); handleViewFile(url) }}
             >
               {isImage ? "View Image" : "View File"}
@@ -1108,7 +1108,7 @@ export default function FileAttachmentModalContent({
           <Button
             variant="outline"
             size="sm"
-            className={`${hideArchived ? "bg-[#0d4a85]" : "bg-[#1162A8]"} text-white hover:bg-[#0d4a85] hover:text-white border-[#1162A8] hover:border-[#0d4a85] h-7 text-[11px] px-2.5`}
+            className={`${hideArchived ? "bg-[#0d4a85]" : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]"} text-white hover:bg-[#0d4a85] hover:text-white border-[#1162A8] hover:border-[#0d4a85] h-7 text-[11px] px-2.5`}
             disabled={isCaseSubmitted}
             onClick={() => setHideArchived((prev) => !prev)}
           >
@@ -1132,7 +1132,7 @@ export default function FileAttachmentModalContent({
                 onClick={() => setActiveSlipKey(null)}
                 className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
                   activeSlipKey === null
-                    ? "bg-[#1162A8] text-white border-[#1162A8]"
+                    ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]"
                     : "bg-white text-gray-600 border-gray-300 hover:border-[#1162A8] hover:text-[#1162A8]"
                 }`}
               >
@@ -1145,7 +1145,7 @@ export default function FileAttachmentModalContent({
                   onClick={() => setActiveSlipKey(group.key === activeSlipKey ? null : group.key)}
                   className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
                     activeSlipKey === group.key
-                      ? "bg-[#1162A8] text-white border-[#1162A8]"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]"
                       : "bg-white text-gray-600 border-gray-300 hover:border-[#1162A8] hover:text-[#1162A8]"
                   }`}
                 >
@@ -1468,13 +1468,13 @@ export default function FileAttachmentModalContent({
               <h4 className="text-[10px] font-semibold mb-2 uppercase tracking-wide text-gray-500">Display</h4>
               <div className="space-y-1">
                 <button
-                  className={`w-full border rounded-lg py-1 text-[9px] font-medium transition ${isWireframe ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
+                  className={`w-full border rounded-lg py-1 text-[9px] font-medium transition ${isWireframe ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
                   onClick={() => setIsWireframe(prev => !prev)}
                 >
                   Wireframe
                 </button>
                 <button
-                  className={`w-full border rounded-lg py-1 text-[9px] font-medium transition ${showGrid ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
+                  className={`w-full border rounded-lg py-1 text-[9px] font-medium transition ${showGrid ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
                   onClick={() => setShowGrid(prev => !prev)}
                 >
                   Grid
@@ -1525,7 +1525,7 @@ export default function FileAttachmentModalContent({
             </button>
             {viewerItems.length > 0 && (
               <button
-                className="w-full py-2 rounded-lg bg-[#1162A8] text-white text-xs font-semibold hover:bg-[#0e5290] transition"
+                className="w-full py-2 rounded-lg bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white text-xs font-semibold hover:bg-[#0e5290] transition"
                 onClick={handleAttachFiles}
               >
                 Attach Files
@@ -1584,8 +1584,8 @@ export default function FileAttachmentModalContent({
               <div>
                 <h4 className="text-xs font-semibold mb-2">Display</h4>
                 <div className="space-y-1.5">
-                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${isWireframe ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setIsWireframe(prev => !prev)}>Wireframe</button>
-                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${showGrid ? "bg-[#1162A8] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setShowGrid(prev => !prev)}>Grid</button>
+                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${isWireframe ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setIsWireframe(prev => !prev)}>Wireframe</button>
+                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${showGrid ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setShowGrid(prev => !prev)}>Grid</button>
                   <div className="flex items-center gap-1.5">
                     <input type="color" value={modelColor} onChange={(e) => setModelColor(e.target.value)} className="w-6 h-6 rounded border border-gray-300 cursor-pointer p-0" />
                     <span className="text-[10px] text-gray-600">Color Picker</span>
@@ -1672,7 +1672,7 @@ export default function FileAttachmentModalContent({
                 Go Back
               </Button>
               <Button
-                className="bg-[#1162A8] hover:bg-[#0f5490] text-white px-4 h-8 text-xs"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white px-4 h-8 text-xs"
                 onClick={() => {
                   setShowCancelModal(false)
                   setShowAttachModal(false)
@@ -1691,7 +1691,7 @@ export default function FileAttachmentModalContent({
 
 // Small layout icon component for the layout grid picker
 function LayoutIcon({ layoutId, isActive }: { layoutId: string; isActive: boolean }) {
-  const bg = isActive ? "bg-blue-600" : "bg-gray-400"
+  const bg = isActive ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" : "bg-gray-400"
   const gap = "gap-[1px]"
 
   switch (layoutId) {

@@ -32,7 +32,8 @@ import {
   SLIP_LISTING_DEFAULT_PER_PAGE,
   parseLocationFilterFromUrl,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
-import { slipCanSendBackToOffice } from "@/lib/slip-location"
+import { slipCanSendBackToOffice, slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
+import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
@@ -136,6 +137,9 @@ export default function LabSlipPage() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
+  const [selectedSlipForHold, setSelectedSlipForHold] = useState<any>(null)
+  const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
 
   // Lab signature requirement for the "Ready to Send" action (loaded while the modal is open).
   const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
@@ -152,7 +156,7 @@ export default function LabSlipPage() {
     labListingPagination,
     updateSlipAttachmentState,
   } = useSlipContext();
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -461,6 +465,45 @@ export default function LabSlipPage() {
   const handleOpenCancelCase = (slip: any) => {
     setSelectedSlipForCancel(slip)
     setCancelSlipModalOpen(true)
+  }
+
+  const handleOpenHoldCase = (slip: any) => {
+    if (!slipCanHold({ locationId: slip.locationId, location: slip.location })) {
+      toast({
+        title: "Cannot put on hold",
+        description: SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
+        variant: "destructive",
+        duration: 5000,
+      })
+      return
+    }
+    setSelectedSlipForHold(slip)
+    setHoldSlipModalOpen(true)
+  }
+
+  const handleConfirmHoldCase = async (reason: string) => {
+    if (!selectedSlipForHold?.id || !reason.trim()) return
+
+    setHoldSlipSubmitting(true)
+    try {
+      await holdSlip(selectedSlipForHold.id, reason.trim())
+      toast({
+        title: "Case put on hold",
+        description: "The case has been put on hold successfully.",
+        duration: 3000,
+      })
+      setHoldSlipModalOpen(false)
+      setSelectedSlipForHold(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to put case on hold",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setHoldSlipSubmitting(false)
+    }
   }
 
   const handleOpenSendBackToOffice = (slip: any) => {
@@ -1003,6 +1046,7 @@ export default function LabSlipPage() {
             onAttachment: handleAttachmentClick,
             onCopy: (row) => void handleCopyCaseIdentifier(row),
             onEdit: handleEditCase,
+            onHold: handleOpenHoldCase,
             onChangeDueDate: handleDateIconClick,
             onDriverHistory: handleLocationIconClick,
             onReadyToSend: handleOpenReadyToSend,
@@ -1168,6 +1212,25 @@ export default function LabSlipPage() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+        />
+
+        <CaseActionModal
+          open={holdSlipModalOpen}
+          onClose={() => {
+            if (holdSlipSubmitting) return
+            setHoldSlipModalOpen(false)
+            setSelectedSlipForHold(null)
+          }}
+          onSubmit={handleConfirmHoldCase}
+          actionType="hold"
+          title="Put Case On Hold"
+          description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+          icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
+          iconBgColor="#FFF3DF"
+          iconColor="#FFB400"
+          buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
+          buttonColor="warning"
+          reasonPlaceholder="Please provide a reason for putting case on hold."
         />
 
         {/* Driver History Modal */}

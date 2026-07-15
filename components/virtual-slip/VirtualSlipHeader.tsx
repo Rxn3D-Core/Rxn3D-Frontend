@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import type { VirtualSlipHeaderVM } from "@/lib/virtual-slip-view-model";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
@@ -48,25 +49,28 @@ function Avatar({
   name: string;
   sizeClass: string;
 }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
   const initials = name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const showImage = Boolean(src) && !failed;
   return (
     <div
       className={`flex items-center justify-center overflow-hidden rounded-full bg-gray-200 ${sizeClass}`}
     >
-      {src ? (
+      {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={src}
+          src={src!}
           alt={name}
           className="h-full w-full object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
+          onError={() => setFailed(true)}
         />
       ) : (
         <span className="text-sm font-bold text-gray-500">{initials || "—"}</span>

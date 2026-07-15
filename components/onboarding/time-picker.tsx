@@ -203,7 +203,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
               {["am", "pm"].map((p) => (
                 <button
                   key={p}
-                  className={`px-4 py-2 rounded text-white ${period === p ? "bg-[#1162a8]" : "bg-gray-300"}`}
+                  className={`px-4 py-2 rounded text-white ${period === p ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" : "bg-gray-300"}`}
                   onClick={() => setPeriod(p as "am" | "pm")}
                   type="button"
                 >
@@ -221,7 +221,7 @@ export function TimePicker({ value, onChange, className }: TimePickerProps) {
             >
               Clear
             </Button>
-            <Button className="bg-[#1162a8] hover:bg-[#1162a8]/90 text-white" onClick={handleApply}>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/90 text-white" onClick={handleApply}>
               Apply
             </Button>
           </div>

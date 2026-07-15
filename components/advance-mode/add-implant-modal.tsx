@@ -1098,7 +1098,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
                         onClick={() => setCurrentPage(page)}
                         className={`px-2 sm:px-3 py-1 text-xs sm:text-sm border rounded ${
                           currentPage === page
-                            ? "bg-[#1162a8] text-white border-[#1162a8]"
+                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162a8]"
                             : "border-gray-300 hover:bg-gray-50"
                         }`}
                       >
@@ -1274,7 +1274,7 @@ export function AddImplantModal({ isOpen, onClose, onSave, implant, isEditMode =
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="px-4 sm:px-6 bg-[#1162a8] hover:bg-[#0f5497] text-white text-sm sm:text-base"
+            className="px-4 sm:px-6 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-sm sm:text-base"
           >
             {isSaving ? (
               <>

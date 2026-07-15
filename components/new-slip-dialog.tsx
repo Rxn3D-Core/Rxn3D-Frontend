@@ -284,7 +284,7 @@ export function NewSlipDialog({ open, onOpenChange }: NewSlipDialogProps) {
                             className={cn(
                               "w-7 h-7 rounded-full flex items-center justify-center border transition-colors text-xs",
                               selectedTeeth.includes(tooth)
-                                ? "bg-blue-600 text-white border-blue-700"
+                                ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-blue-700"
                                 : "bg-white text-gray-900 border-gray-300 hover:bg-gray-100 opacity-70",
                             )}
                             onClick={() => toggleTooth(tooth)}
@@ -342,7 +342,7 @@ export function NewSlipDialog({ open, onOpenChange }: NewSlipDialogProps) {
                             className={cn(
                               "w-7 h-7 rounded-full flex items-center justify-center border transition-colors text-xs",
                               selectedTeeth.includes(tooth)
-                                ? "bg-blue-600 text-white border-blue-700"
+                                ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-blue-700"
                                 : "bg-white text-gray-900 border-gray-300 hover:bg-gray-100 opacity-70",
                             )}
                             onClick={() => toggleTooth(tooth)}
@@ -530,7 +530,7 @@ export function NewSlipDialog({ open, onOpenChange }: NewSlipDialogProps) {
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSubmit} disabled={!isFormValid()}>
+            <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110" onClick={handleSubmit} disabled={!isFormValid()}>
               <Check className="h-4 w-4 mr-2" />
               Submit
             </Button>

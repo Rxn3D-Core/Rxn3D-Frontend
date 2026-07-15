@@ -12,19 +12,7 @@ import { Search, Plus, CheckCircle, X, ChevronDown, Loader2, AlertCircle } from 
 import { useToast } from "@/hooks/use-toast"
 import { useInvitation } from "@/contexts/invitation-context"
 import { userInvitationService } from "@/services/user-invitation-service"
-
-/** Multiple fallback images so each doctor gets a different placeholder when they have no avatar */
-const DOCTOR_AVATAR_FALLBACKS = [
-  "/doctors/doctor-1.jpg",
-  "/doctors/doctor-2.jpg",
-  "/doctors/doctor-3.jpg",
-  "/doctors/doctor-4.jpg",
-]
-
-function getDoctorFallbackImg(doctorId: string, index: number): string {
-  const numId = parseInt(doctorId, 10) || index
-  return DOCTOR_AVATAR_FALLBACKS[Math.abs(numId) % DOCTOR_AVATAR_FALLBACKS.length] ?? DOCTOR_AVATAR_FALLBACKS[0]
-}
+import { resolveDoctorImageUrl, getInitials } from "@/utils/avatar-utils"
 
 interface Doctor {
   id: string
@@ -142,7 +130,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         name: user.full_name || `${user.first_name || ""} ${user.last_name || ""}`.trim(),
         email: user.email,
         title: user.title || "DDS",
-        image: user.profile_image || undefined,
+        image: resolveDoctorImageUrl(user) || undefined,
         status: user.status === "Invited" ? "Invited" : "available", // Show invited status
         userStatus: user.status // Store the actual user status
       })) || []
@@ -422,15 +410,20 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                           onClick={() => handleDoctorSelect(doctor)}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
-                              <img
-                                src={doctor.image || getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))}
-                                alt={doctor.name}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))
-                                }}
-                              />
+                            <div className="relative w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+                              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-[#1162a8]">
+                                {getInitials(doctor.name) || "?"}
+                              </span>
+                              {resolveDoctorImageUrl(doctor) && (
+                                <img
+                                  src={resolveDoctorImageUrl(doctor)}
+                                  alt={doctor.name}
+                                  className="relative w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.remove()
+                                  }}
+                                />
+                              )}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -478,7 +471,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
               setSearchTerm("")
               setStep("invite")
             }}
-            className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
           >
             Add new
           </Button>
@@ -552,15 +545,20 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   }`}
                   onClick={() => handleDoctorSelect(doctor)}
                 >
-                  <div className="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
-                    <img
-                      src={doctor.image || getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))}
-                      alt={doctor.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.src = getDoctorFallbackImg(doctor.id, filteredDoctors.indexOf(doctor))
-                      }}
-                    />
+                  <div className="relative w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+                    <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+                      {getInitials(doctor.name) || "?"}
+                    </span>
+                    {resolveDoctorImageUrl(doctor) && (
+                      <img
+                        src={resolveDoctorImageUrl(doctor)}
+                        alt={doctor.name}
+                        className="relative w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.remove()
+                        }}
+                      />
+                    )}
                   </div>
                   <h3 className="font-medium text-base mb-1">{doctor.name}, {doctor.title}</h3>
                   <p className="text-sm text-gray-500 mb-4">{doctor.email}</p>
@@ -575,7 +573,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   ) : (
                     <Button
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2"
+                      className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white text-sm px-4 py-2"
                     >
                       Request connection
                     </Button>
@@ -624,7 +622,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
       <div className="fixed inset-0 z-[10001] bg-black/50" onClick={handleClose} />
       <div className="fixed left-1/2 top-1/2 z-[10002] w-[95vw] max-w-[1600px] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
         {/* Header with close button */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-blue-600">
+        <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-white">Add a Doctor</h2>
             <button
@@ -647,7 +645,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <>
           <div className="fixed inset-0 z-[10003] bg-black/50" onClick={() => setStep("search")} />
           <div className="fixed left-1/2 top-1/2 z-[10004] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Connect to Doctor</h2>
                 <button
@@ -696,7 +694,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <>
           <div className="fixed inset-0 z-[10005] bg-black/50" />
           <div className="fixed left-1/2 top-1/2 z-[10006] w-full max-w-md -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <h2 className="text-lg font-semibold">
                 {connectType === "request" ? "Sending connection request" : "Sending invitation"}
               </h2>
@@ -741,7 +739,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   : "The doctor will receive an email invitation to join."
                 }
               </p>
-              <Button onClick={handleClose} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={handleClose} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110">
                 Done
               </Button>
             </div>
@@ -754,7 +752,7 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
         <>
           <div className="fixed inset-0 z-[10009] bg-black/50" onClick={() => setStep("search")} />
           <div className="fixed left-1/2 top-1/2 z-[10010] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-blue-600 text-white">
+            <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <h2 className="text-lg font-semibold">Invite new doctor</h2>
             </div>
             <div className="p-8">

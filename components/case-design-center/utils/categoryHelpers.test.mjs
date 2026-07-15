@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   hasRetentionOptions,
+  hasExtractionOptions,
+  getProductLayers,
   resolveStageSelection,
   shouldSkipStageSelection,
   productHasStageField,
@@ -15,6 +17,42 @@ import {
 
 test("treats has_retention Yes as fixed even when retention_options are omitted", () => {
   assert.equal(hasRetentionOptions({ has_retention: "Yes" }), true);
+});
+
+test("hasExtractionOptions: flag Yes wins even without extractions array", () => {
+  assert.equal(hasExtractionOptions({ has_extraction: "Yes" }), true);
+});
+
+test("hasExtractionOptions: flag No wins even when extractions present", () => {
+  assert.equal(
+    hasExtractionOptions({ has_extraction: "No", extractions: [{ code: "MT" }] }),
+    false
+  );
+});
+
+test("hasExtractionOptions: falls back to extractions array when flag absent", () => {
+  assert.equal(hasExtractionOptions({ extractions: [{ code: "MT" }] }), true);
+  assert.equal(hasExtractionOptions({ extractions: [] }), false);
+  assert.equal(hasExtractionOptions(null), false);
+});
+
+test("getProductLayers reports all four capability combinations", () => {
+  assert.deepEqual(
+    getProductLayers({ has_retention: "Yes", has_extraction: "No" }),
+    { retention: true, extraction: false }
+  );
+  assert.deepEqual(
+    getProductLayers({ has_retention: "No", has_extraction: "Yes" }),
+    { retention: false, extraction: true }
+  );
+  assert.deepEqual(
+    getProductLayers({ has_retention: "Yes", has_extraction: "Yes" }),
+    { retention: true, extraction: true }
+  );
+  assert.deepEqual(
+    getProductLayers({ has_retention: "No", has_extraction: "No" }),
+    { retention: false, extraction: false }
+  );
 });
 
 test("treats has_retention No as non-retention even when retention_options are omitted", () => {

@@ -461,7 +461,7 @@ export default function ProductsPage() {
         <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
-              className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
               onClick={() => {
                 setEditingProduct(null)
                 setIsAddProductModalOpen(true)
@@ -649,7 +649,7 @@ export default function ProductsPage() {
                         </p>
                         {!searchInput && !statusFilter && !subcategoryFilter && (
                           <Button
-                            className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
                             onClick={() => {
                               setEditingProduct(null)
                               setIsAddProductModalOpen(true)

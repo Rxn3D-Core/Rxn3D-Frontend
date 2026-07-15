@@ -23,11 +23,11 @@ interface ToothStatusPopoverProps {
   arrowDirection?: 'down' | 'up'
 }
 
-function isMissingCode(code: string, name: string): boolean {
+export function isMissingCode(code: string, name: string): boolean {
   return code.toUpperCase() === 'MT' || name.toLowerCase().includes('missing')
 }
 
-function isWillExtractCode(code: string, name: string): boolean {
+export function isWillExtractCode(code: string, name: string): boolean {
   const c = code.toUpperCase()
   const n = name.toLowerCase()
   return c === 'WED' || c === 'WEOD' || n.includes('will extract')
@@ -63,7 +63,7 @@ function ToothImage({ toothNumber, style, className }: { toothNumber: number; st
   )
 }
 
-function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
+export function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
   const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
     <div className="w-full h-[90px] flex items-center justify-center">
@@ -80,7 +80,7 @@ function MissingToothDisplay({ toothNumber }: { toothNumber: number }) {
   )
 }
 
-function WillExtractToothDisplay({ toothNumber }: { toothNumber: number }) {
+export function WillExtractToothDisplay({ toothNumber }: { toothNumber: number }) {
   const arch = toothNumber <= 16 ? 'maxillary' : 'mandibular'
   return (
     <div className="relative w-full h-[90px] overflow-hidden">
@@ -126,21 +126,30 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handlePointerDownOutside = (event: PointerEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
         onClose?.()
       }
     }
-    document.addEventListener('click', handleClickOutside)
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', handlePointerDownOutside)
+    }, 0)
     return () => {
-      document.removeEventListener('click', handleClickOutside)
+      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', handlePointerDownOutside)
     }
   }, [onClose])
 
   const showArrow = typeof arrowOffsetX === 'number'
 
   return (
-    <div ref={popoverRef} className="relative" style={{ overflow: 'visible' }}>
+    <div
+      ref={popoverRef}
+      data-tooth-chart-popover="true"
+      className="relative"
+      style={{ overflow: 'visible' }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       {showArrow && (
         <div
           aria-hidden="true"
@@ -171,11 +180,7 @@ export const ToothStatusPopover: React.FC<ToothStatusPopoverProps> = ({
               key={opt.code}
               type="button"
               onClick={() => {
-                if (isSelected && onRemove) {
-                  onRemove()
-                } else {
-                  onSelect(opt.code)
-                }
+                onSelect(opt.code)
                 onClose?.()
               }}
               className={`flex flex-col items-center gap-0 p-2 rounded-xl border-2 transition-all w-[90px] hover:shadow-sm ${

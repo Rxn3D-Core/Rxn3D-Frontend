@@ -241,7 +241,7 @@ export function AddVisibilityModal({ isOpen, onClose }: AddVisibilityModalProps)
             >
               Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-[#1162a8] hover:bg-[#0f5597] px-6 py-2">
+            <Button onClick={handleSave} className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 px-6 py-2">
               Save
             </Button>
           </div>

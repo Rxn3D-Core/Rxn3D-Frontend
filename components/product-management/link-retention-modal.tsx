@@ -1134,7 +1134,7 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
                               className={cn(
                                 "flex h-9 w-9 items-center justify-center rounded-full text-xs font-medium transition-colors",
                                 browsePage === pageNum
-                                  ? "bg-[#1162a8] text-white"
+                                  ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                                   : "bg-gray-100 text-gray-600 hover:bg-gray-200",
                               )}
                               onClick={() => setBrowsePage(pageNum)}
@@ -1705,7 +1705,7 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
                           className={cn(
                             "flex h-7 w-7 items-center justify-center rounded-full text-[11px] transition-colors",
                             bulkOptionPage === pageNum
-                              ? "bg-[#1162a8] text-white"
+                              ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200",
                           )}
                           onClick={() => setBulkOptionPage(pageNum)}
@@ -1797,7 +1797,7 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
                           className={cn(
                             "flex h-7 w-7 items-center justify-center rounded-full text-[11px] transition-colors",
                             bulkProductPage === pageNum
-                              ? "bg-[#1162a8] text-white"
+                              ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200",
                           )}
                           onClick={() => setBulkProductPage(pageNum)}
@@ -1834,7 +1834,7 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
               </Button>
               <Button
                 type="button"
-                className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
                 disabled={
                   isSubmitting ||
                   (mainTab === "linkByRetentionOption" && !lroOptionId) ||

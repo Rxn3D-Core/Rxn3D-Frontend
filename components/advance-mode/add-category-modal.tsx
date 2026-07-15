@@ -323,7 +323,7 @@ export function AddCategoryModal({ isOpen, onClose, onSave, isLoading, category,
           <Button
             onClick={handleSave}
             disabled={isLoading}
-            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-6"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6"
           >
             {isLoading ? (
               <>

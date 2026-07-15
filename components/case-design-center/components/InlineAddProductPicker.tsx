@@ -9,6 +9,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Arch } from "../types";
 import { resolveLibraryCustomerId } from "../utils/libraryCustomerId";
+import { resolveArchProductImage } from "../utils/variationHelpers";
 
 export type InlineAddProductResult = {
   category: string;
@@ -144,6 +145,16 @@ export function InlineAddProductPicker({
     () => productsAsWizard.filter((p) => !excludedProductIds.includes(p.id)),
     [productsAsWizard, excludedProductIds]
   );
+
+  // Show the arch-specific image (upper on maxillary, lower on mandibular) when the
+  // product has one, so adding a product on a given side previews that side's image.
+  const filteredProductsForDisplay = useMemo(() => {
+    if (arch !== "maxillary" && arch !== "mandibular") return filteredProducts;
+    return filteredProducts.map((p) => ({
+      ...p,
+      img: resolveArchProductImage(p, arch, p.img) ?? p.img,
+    }));
+  }, [filteredProducts, arch]);
 
   const currentSubcategoryIds = useMemo(
     () => (subcategoriesByCategoryId[selectedCategory ?? -1] ?? []).map((s) => s.id),
@@ -330,7 +341,7 @@ export function InlineAddProductPicker({
               <p className="text-[12px] text-[#7f7f7f] text-center">No products available for this arch.</p>
             ) : (
               <SelectionGrid
-                items={filteredProducts}
+                items={filteredProductsForDisplay}
                 selectedId={null}
                 onSelect={(id) => {
                   if (selectedCategory == null || selectedSubProduct == null) return;

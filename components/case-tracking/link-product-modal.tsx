@@ -499,7 +499,7 @@ export function LinkProductModal({ isOpen, onClose, casePanId, casePanName }: Li
                   onClick={() => setActiveTab("individual")}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === "individual"
-                      ? "bg-[#1162a8] text-white"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -509,7 +509,7 @@ export function LinkProductModal({ isOpen, onClose, casePanId, casePanName }: Li
                   onClick={() => setActiveTab("category")}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === "category"
-                      ? "bg-[#1162a8] text-white"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -519,7 +519,7 @@ export function LinkProductModal({ isOpen, onClose, casePanId, casePanName }: Li
                   onClick={() => setActiveTab("stages")}
                   className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === "stages"
-                      ? "bg-[#1162a8] text-white"
+                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                       : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
@@ -782,7 +782,7 @@ export function LinkProductModal({ isOpen, onClose, casePanId, casePanName }: Li
           <Button
             onClick={handleApply}
             disabled={!selectedCasePan || (selectedProducts.length === 0 && selectedSubcategories.length === 0 && selectedStages.length === 0) || isLoading}
-            className="bg-[#1162a8] hover:bg-[#0f5490]"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
           >
             {isLoading ? (
               <>

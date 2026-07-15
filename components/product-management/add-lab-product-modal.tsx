@@ -52,6 +52,10 @@ import {
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
+import {
+  applyDefaultToothChartToPayload,
+  hydrateDefaultToothChartFromProduct,
+} from "@/lib/product-default-tooth-chart"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -90,9 +94,9 @@ import { GumShadeSection } from "@/components/product-management/add-lab-product
 import { TeethShadeSection } from "@/components/product-management/add-lab-product-modal/TeethShadeSection"
 import { MaterialSection } from "@/components/product-management/add-lab-product-modal/MaterialSection"
 import { AddOnsSection } from "@/components/product-management/add-lab-product-modal/AddOnsSection"
-import { RetentionSection, type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
+import { type RetentionOptionCreateRequestContext } from "@/components/product-management/add-lab-product-modal/RetentionSection"
 import { AdvanceFieldsSection, type AdvanceFieldEditorRequest } from "@/components/product-management/add-lab-product-modal/AdvanceFieldsSection"
-import { ExtractionsSection } from "@/components/product-management/add-lab-product-modal/ExtractionsSection"
+import { ToothChartConfigurationsSection } from "@/components/product-management/add-lab-product-modal/ToothChartConfigurationsSection"
 import { VisibilityManagementSection } from "@/components/product-management/add-lab-product-modal/VisibilityManagementSection"
 import { VariationSection } from "@/components/product-management/add-lab-product-modal/VariationSection"
 import { AddFieldModal } from "@/components/advance-mode"
@@ -146,9 +150,8 @@ const LAB_PRODUCT_TABS: { id: string; label: string; sectionKey: string | null }
   { id: "teethShade", label: "Teeth Shade", sectionKey: "teethShade" },
   { id: "material", label: "Material", sectionKey: "material" },
   { id: "addOns", label: "Add-Ons", sectionKey: "addOns" },
-  { id: "retention", label: "Retention", sectionKey: "retention" },
+  { id: "toothChartConfigurations", label: "Tooth Chart Configurations", sectionKey: "toothChartConfigurations" },
   { id: "advanceFields", label: "Advance Field", sectionKey: "advanceField" },
-  { id: "extractions", label: "Extractions", sectionKey: "extractions" },
   { id: "visibility", label: "Visibility", sectionKey: "visibilityManagement" },
 ]
 
@@ -522,6 +525,8 @@ export function AddLabProductModal({
     enable_tooth_count_variation: "No",
     tooth_count_variations: [],
     show_jaw_photo: "No",
+    enable_default_tooth_chart: "No",
+    default_tooth_chart: [],
   }), [officeCustomers, stages])
 
   const {
@@ -779,7 +784,7 @@ export function AddLabProductModal({
       )
     }
 
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       return (
         collectRetentionsStepErrors(
           { retentions: watchedRetentionsSlip } as Record<string, unknown>,
@@ -941,7 +946,7 @@ export function AddLabProductModal({
       }
     }
 
-    if (activeTab === "retention" && sections.retention) {
+    if (activeTab === "toothChartConfigurations" && sections.retention) {
       const record = getValues() as Record<string, unknown>
       const err = collectRetentionsStepErrors(record, { retentionSectionEnabled: sections.retention })
       setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", err))
@@ -1588,6 +1593,19 @@ export function AddLabProductModal({
         max_days_to_process: editingProduct.max_days_to_process ?? null,
         teeth_pricing_type: strategyForm,
         advance_fields: hydrateAdvanceFieldsFormFromProduct(editingProduct as Record<string, unknown>),
+        enable_default_tooth_chart:
+          editingProduct.has_default_tooth_chart === "Yes" ||
+          editingProduct.enable_default_tooth_chart === "Yes"
+            ? "Yes"
+            : "No",
+        default_tooth_chart: hydrateDefaultToothChartFromProduct(
+          editingProduct as Record<string, unknown>,
+          (() => {
+            const exts = editingProduct.extractions || []
+            const def = exts.find((e: { is_default?: string }) => e.is_default === "Yes")
+            return def ? Number((def as { extraction_id: number }).extraction_id) : null
+          })(),
+        ),
         ...teethHydrate,
         ...variationForm,
       }
@@ -2057,16 +2075,11 @@ export function AddLabProductModal({
     // Remove category_id from payload (it's UI-only for filtering subcategories)
     delete payload.category_id
 
-    // For update operations, calculate only changed fields
-    if (editingProduct && initialFormValues) {
-      const changes = calculateChanges(initialFormValues, data)
-      payload = { ...changes }
-      // Remove category_id from changes as well
-      delete payload.category_id
-      console.log('🔄 Update Mode: Sending only changed fields', payload)
-    } else {
-      console.log('➕ Create Mode: Sending all fields')
-    }
+    // Always send the full form on create and update (no change-diff trimming)
+    console.log(
+      editingProduct ? "🔄 Update Mode: Sending full form fields" : "➕ Create Mode: Sending all fields",
+      payload,
+    )
     
     // Ensure is_teeth_based_price is always set to "Yes" or "No"
     payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
@@ -2096,29 +2109,13 @@ export function AddLabProductModal({
       payload.jaw_photos = jawPhotoPayload
     }
 
-    // Include array in API payload when create mode has rows, or when edit mode processed state differs from baseline.
-    // Important: do not rely on `fieldName in payload` (calculateChanges diff) alone — use full `data` as source so
-    // fields like addons are not wiped when the diff object omits the key but the form actually changed.
-    const shouldIncludeProcessedArray = (
-      processedValue: any[],
-      baselineProcessed: any[],
-    ): boolean => {
-      if (!editingProduct || !initialFormValues) {
-        return Array.isArray(processedValue) && processedValue.length > 0
-      }
-      if (JSON.stringify(processedValue) !== JSON.stringify(baselineProcessed)) {
-        return processedValue.length > 0 || baselineProcessed.length > 0
-      }
-      return false
-    }
-
     // Handle apply_same_status_to_opposing checkbox logic
     // If checked, send empty array for opposite_extractions
     if (data.apply_same_status_to_opposing === true) {
       payload.opposite_extractions = []
     }
 
-    // Only process and include array fields that have meaningful changes
+    // Always process and include all relation arrays from the current form
     const arrayFields = [
       { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
       { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus },
@@ -2143,32 +2140,13 @@ export function AddLabProductModal({
       }
       
       const sourceFromForm = Array.isArray(formRowArrays[key]) ? (formRowArrays[key] as any[]) : []
-      const baselineRaw = Array.isArray(initialFormValues?.[key as keyof ProductCreateForm])
-        ? (initialFormValues[key as keyof ProductCreateForm] as any[])
-        : []
 
-      let baselineProcessed: any[]
       if (processor === ensureExtractions) {
-        baselineProcessed = ensureExtractions(baselineRaw)
+        payload[key] = ensureExtractions(sourceFromForm)
       } else if (processor === ensureOppositeExtractions) {
-        baselineProcessed = ensureOppositeExtractions(baselineRaw)
+        payload[key] = ensureOppositeExtractions(sourceFromForm)
       } else {
-        baselineProcessed = ensureSequenceAndStatus(baselineRaw, idKey)
-      }
-
-      let processedValue: any[]
-      if (processor === ensureExtractions) {
-        processedValue = ensureExtractions(sourceFromForm)
-      } else if (processor === ensureOppositeExtractions) {
-        processedValue = ensureOppositeExtractions(sourceFromForm)
-      } else {
-        processedValue = ensureSequenceAndStatus(sourceFromForm, idKey)
-      }
-
-      if (shouldIncludeProcessedArray(processedValue, baselineProcessed)) {
-        payload[key] = processedValue
-      } else {
-        delete payload[key]
+        payload[key] = ensureSequenceAndStatus(sourceFromForm, idKey)
       }
     })
 
@@ -2176,20 +2154,7 @@ export function AddLabProductModal({
       const key = "advance_fields" as const
       const raw =
         payload[key] !== undefined && payload[key] !== null ? payload[key] : data[key]
-      const processed = serializeAdvanceFieldsForApi(Array.isArray(raw) ? raw : [])
-      if (!sections.advanceField) {
-        payload[key] = processed
-      } else if (!editingProduct || !initialFormValues) {
-        payload[key] = processed
-      } else {
-        const rawInit = initialFormValues.advance_fields ?? []
-        const baselineProcessed = serializeAdvanceFieldsForApi(Array.isArray(rawInit) ? rawInit : [])
-        if (shouldIncludeProcessedArray(processed, baselineProcessed)) {
-          payload[key] = processed
-        } else {
-          delete payload[key]
-        }
-      }
+      payload[key] = serializeAdvanceFieldsForApi(Array.isArray(raw) ? raw : [])
     }
 
     // Add customer_id if user is lab_admin (for both create and update)
@@ -2289,6 +2254,7 @@ export function AddLabProductModal({
     finalizeLibraryProductApiPayload(payload as Record<string, unknown>, data, {
       variation: sections.variation,
     })
+    applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
 
     let saveResult: ProductSaveResult = { success: false }
     try {
@@ -2411,6 +2377,17 @@ export function AddLabProductModal({
       teethShade: ["teeth_shades", "teeth_shade_group_id"],
       material: ["materials", "material_group_id"],
       addOns: ["addons", "addon_group_id", "link_all_addons"],
+      toothChartConfigurations: [
+        "retentions",
+        "retention_options",
+        "apply_retention_mechanism",
+        "retention_type",
+        "extractions",
+        "opposite_extractions",
+        "apply_same_status_to_opposing",
+        "enable_default_tooth_chart",
+        "default_tooth_chart",
+      ],
       retention: ["retentions", "retention_options", "apply_retention_mechanism", "retention_type"],
       advanceFields: ["advance_fields"],
       extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
@@ -2518,7 +2495,7 @@ export function AddLabProductModal({
       variation: "variation",
       grades: "grades", stages: "stages", impressions: "impressions",
       gumShade: "gumShade", teethShade: "teethShade", material: "material",
-      addOns: "addOns", retention: "retention", advanceFields: "advanceField", extractions: "extractions",
+      addOns: "addOns", toothChartConfigurations: "toothChartConfigurations", advanceFields: "advanceField",
     }
     const sectionKey = tabToSectionKey[activeTab]
     if (!sectionKey) return false
@@ -2595,8 +2572,8 @@ export function AddLabProductModal({
         return
       }
 
-      // Collect fields from ALL tabs so no changes are lost
-      const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "retention", "extractions", "visibility"]
+      // Collect fields from ALL tabs so change-detection covers the whole form
+      const allTabIds = ["details", "variation", "grades", "stages", "impressions", "gumShade", "teethShade", "material", "addOns", "toothChartConfigurations", "visibility"]
       const allFields = allTabIds.flatMap(tabId => getSectionFields(tabId))
 
       // Create a subset of formData with all tab fields
@@ -2615,12 +2592,35 @@ export function AddLabProductModal({
         }
       }
 
-      // Calculate only the changed fields in this section
+      // Diff is only used to decide whether to call the API (and for stage backfill); payload is full form
       const changes = calculateChanges(initialSectionData, sectionData)
-      
+
+      // Detect products whose Stages tab has grade prices typed in (e.g. Standard/Premium
+      // columns) that never made it into stage_grade_details from the backend — this is the
+      // "saved before the stage_grades payload fix existed" case. Force a save through even
+      // when the form otherwise looks unchanged, so re-opening + hitting Save actually backfills it.
+      // ponytail: one-time bridge for pre-fix products; safe to remove once all products are backfilled
+      const needsStageGradesBackfill = (() => {
+        const persistedStageGrades = (editingProduct as any)?.stage_grade_details
+        if (Array.isArray(persistedStageGrades) && persistedStageGrades.length > 0) return false
+        const stages = (formData.stages || []) as any[]
+        return stages.some((stage) => {
+          const gradePrices = stage?.grade_prices
+          if (!gradePrices || typeof gradePrices !== "object") return false
+          return Object.values(gradePrices).some((v) => v !== undefined && v !== null && v !== "")
+        })
+      })()
+
       // If no changes (including releasing stage changes, image, and section toggles), show message and return
       const hasImageChange = imageBase64 !== null && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')
-      if (Object.keys(changes).length === 0 && !hasReleasingStageChanges && !hasImageChange && !hasSectionToggleChanges && !sectionWasToggled) {
+      if (
+        Object.keys(changes).length === 0 &&
+        !hasReleasingStageChanges &&
+        !hasImageChange &&
+        !hasSectionToggleChanges &&
+        !sectionWasToggled &&
+        !(needsStageGradesBackfill && activeTab === "stages")
+      ) {
         toast({
           title: "No Changes",
           description: "No changes detected in this section.",
@@ -2628,24 +2628,6 @@ export function AddLabProductModal({
         })
         return
       }
-
-      // If only releasing stages changed, ensure stages are included in changes
-      if (Object.keys(changes).length === 0 && hasReleasingStageChanges) {
-        changes.stages = sectionData.stages
-      }
-
-      // Remove category_id from changes (UI-only field)
-      delete changes.category_id
-
-      // Only include stages / has_stage / stage_grades (via buildProductPayload) when this update touches stages
-      const stagesSectionToggleChanged =
-        !!initialSections && initialSections.stages !== sections.stages
-      const shouldIncludeStagePayload =
-        hasReleasingStageChanges ||
-        stagesSectionToggleChanged ||
-        changes.stages !== undefined ||
-        changes.is_single_stage !== undefined ||
-        (!!dirtyFields.stages && activeTab === "stages")
 
       // Determine if customer_id will be in the final payload (needed for stage formatting)
       // This must be determined before processing stages
@@ -2813,23 +2795,36 @@ export function AddLabProductModal({
         })).filter(item => item.extraction_id)
       }
 
-      // Process array fields in changes
-      // Special handling for stages: always send ALL current stages (not just changed ones)
-      // because stage updates need the full array for proper sequencing and relationships
-      const arrayFields = [
-        { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
-        { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus, useCurrentValue: true }, // Always use current value for stages
-        { key: 'impressions', idKey: 'impression_id', processor: ensureSequenceAndStatus },
-        { key: 'gum_shades', idKey: 'gum_shade_id', processor: ensureSequenceAndStatus },
-        { key: 'teeth_shades', idKey: 'teeth_shade_id', processor: ensureSequenceAndStatus },
-        { key: 'materials', idKey: 'material_id', processor: ensureSequenceAndStatus },
-        { key: 'retentions', idKey: 'retention_id', processor: ensureSequenceAndStatus },
-        { key: 'addons', idKey: 'addon_id', processor: ensureSequenceAndStatus },
-        { key: 'extractions', idKey: 'extraction_id', processor: ensureExtractions },
-        { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
-      ]
+      // Always send the full form (all fields currently in the modal), not only dirty diffs
+      const payload: any = { ...formData }
+      delete payload.category_id
 
-      const payload: any = { ...changes }
+      payload.is_teeth_based_price = formData.is_teeth_based_price === "Yes" ? "Yes" : "No"
+      payload.show_jaw_photo = (formData as any).show_jaw_photo === "Yes" ? "Yes" : "No"
+      payload.opposite_impression = formData.request_opposing_extraction ? "Yes" : "No"
+
+      // jaw_photos: only include slots that are new base64 uploads or explicit removals
+      const jawPhotoPayload: Record<string, string | null> = {}
+      let hasJawPhotoChange = false
+      const existingJawFromApi = jawPhotosStateFromProduct(editingProduct ?? null)
+      ;(["upper", "lower", "both"] as const).forEach((slot) => {
+        const val = jawPhotos[slot]
+        if (val && val.startsWith("data:image/")) {
+          jawPhotoPayload[slot] = val
+          hasJawPhotoChange = true
+        } else if (val === null) {
+          const existingUrl = existingJawFromApi[slot]
+          if (existingUrl) {
+            jawPhotoPayload[slot] = null
+            hasJawPhotoChange = true
+          }
+        }
+      })
+      if (hasJawPhotoChange) {
+        payload.jaw_photos = jawPhotoPayload
+      } else {
+        delete payload.jaw_photos
+      }
 
       // Ensure customer_id is included in payload if present in formData or for lab_admin
       if (formData.customer_id !== undefined && formData.customer_id !== null) {
@@ -2869,61 +2864,53 @@ export function AddLabProductModal({
         console.log('💰 Resolved price:', payload.price, 'base_price:', payload.base_price)
       }
 
-      // Special handling for stages: include current stages if dirty on the stages tab (and we're syncing stages)
-      if (dirtyFields.stages && shouldIncludeStagePayload) {
-        // Even if changes doesn't have stages (due to comparison issues), include current stages
-        const currentStages = formData.stages || []
-        if (currentStages.length > 0) {
-          // Sort stages by sequence
-          const sortedStages = [...currentStages].sort((a: any, b: any) => {
-            const seqA = a.sequence ?? 0
-            const seqB = b.sequence ?? 0
-            return seqA - seqB
-          })
-          payload.stages = ensureSequenceAndStatus(sortedStages, 'stage_id')
-        }
+      const arrayFields = [
+        { key: 'grades', idKey: 'grade_id', processor: ensureSequenceAndStatus },
+        { key: 'stages', idKey: 'stage_id', processor: ensureSequenceAndStatus },
+        { key: 'impressions', idKey: 'impression_id', processor: ensureSequenceAndStatus },
+        { key: 'gum_shades', idKey: 'gum_shade_id', processor: ensureSequenceAndStatus },
+        { key: 'teeth_shades', idKey: 'teeth_shade_id', processor: ensureSequenceAndStatus },
+        { key: 'materials', idKey: 'material_id', processor: ensureSequenceAndStatus },
+        { key: 'retentions', idKey: 'retention_id', processor: ensureSequenceAndStatus },
+        { key: 'addons', idKey: 'addon_id', processor: ensureSequenceAndStatus },
+        { key: 'extractions', idKey: 'extraction_id', processor: ensureExtractions },
+        { key: 'opposite_extractions', idKey: 'extraction_id', processor: ensureOppositeExtractions },
+      ]
+
+      if (formData.apply_same_status_to_opposing === true) {
+        payload.opposite_extractions = []
       }
 
-      arrayFields.forEach(({ key, idKey, processor, useCurrentValue }) => {
+      arrayFields.forEach(({ key, idKey, processor }) => {
         if (key === 'opposite_extractions' && formData.apply_same_status_to_opposing === true) {
           payload.opposite_extractions = []
           return
         }
-        
-        // For stages, always use current formData value (all stages) if stages changed
-        // This ensures we send the complete stage array with proper sequencing
-        if (key === 'stages' && changes[key] !== undefined && shouldIncludeStagePayload) {
-          // Use current formData stages (all of them) instead of just changed ones
-          const currentStages = formData.stages || []
-          if (currentStages.length > 0) {
-            // Sort stages by sequence
-            const sortedStages = [...currentStages].sort((a: any, b: any) => {
-              const seqA = a.sequence ?? 0
-              const seqB = b.sequence ?? 0
-              return seqA - seqB
-            })
-            payload[key] = processor(sortedStages, idKey)
-          }
-        } else if (changes[key] !== undefined && key !== 'stages') {
-          // Don't process stages here if we already handled them above
-          payload[key] = processor(changes[key] as any[], idKey)
+
+        const sourceFromForm = Array.isArray((formData as any)[key]) ? ((formData as any)[key] as any[]) : []
+
+        if (key === 'stages') {
+          const sortedStages = [...sourceFromForm].sort((a: any, b: any) => {
+            const seqA = a.sequence ?? 0
+            const seqB = b.sequence ?? 0
+            return seqA - seqB
+          })
+          payload[key] = processor(sortedStages, idKey)
+          return
+        }
+
+        if (processor === ensureExtractions) {
+          payload[key] = ensureExtractions(sourceFromForm)
+        } else if (processor === ensureOppositeExtractions) {
+          payload[key] = ensureOppositeExtractions(sourceFromForm)
+        } else {
+          payload[key] = processor(sourceFromForm, idKey)
         }
       })
 
-      if (!sections.advanceField) {
-        payload.advance_fields = serializeAdvanceFieldsForApi(
-          (formData.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
-        )
-      } else if (changes.advance_fields !== undefined) {
-        payload.advance_fields = serializeAdvanceFieldsForApi(
-          (formData.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
-        )
-      }
-
-      // Handle apply_same_status_to_opposing
-      if (changes.apply_same_status_to_opposing !== undefined && formData.apply_same_status_to_opposing === true) {
-        payload.opposite_extractions = []
-      }
+      payload.advance_fields = serializeAdvanceFieldsForApi(
+        (formData.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
+      )
 
       // Include new image if user uploaded one
       if (imageBase64 && typeof imageBase64 === 'string' && imageBase64.startsWith('data:image/')) {
@@ -2932,6 +2919,29 @@ export function AddLabProductModal({
 
       // Always include releasingStageIds since we now send all tab changes
       const releasingIds = releasingStageIds
+
+      // Send every grade's price per stage, not just the default grade's — the
+      // stage-price collapse above only carries one grade through `payload.stages[i].price`.
+      // ponytail: mirrors the stage_grades builder in product-products-context.tsx buildProductPayload
+      if (Array.isArray(payload.stages) && payload.stages.length > 0) {
+        const stageGrades: Array<{ stage_id: any; grade_id: number; price: number; status: string }> = []
+        for (const stage of payload.stages as any[]) {
+          const gradePrices = stage?.grade_prices
+          if (!gradePrices || typeof gradePrices !== "object") continue
+          for (const [gradeIdStr, price] of Object.entries(gradePrices)) {
+            if (price === undefined || price === null || price === "") continue
+            const gradeId = Number(gradeIdStr)
+            const priceValue = typeof price === "string" ? parseFloat(price) : Number(price)
+            if (isNaN(gradeId) || isNaN(priceValue) || priceValue < 0) continue
+            stageGrades.push({ stage_id: stage.stage_id, grade_id: gradeId, price: priceValue, status: "Active" })
+          }
+        }
+        if (stageGrades.length > 0) {
+          payload.stage_grades = stageGrades
+        }
+      }
+
+      console.log('🔄 Update Mode: Sending full form fields', payload)
 
       // Debug logging for stages
       if (activeTab === "stages") {
@@ -2975,6 +2985,7 @@ export function AddLabProductModal({
       finalizeLibraryProductApiPayload(payload as Record<string, unknown>, formData, {
         variation: sections.variation,
       })
+      applyDefaultToothChartToPayload(payload as Record<string, unknown>, formData)
 
       // When section flags are false: send empty arrays so backend deletes relations
       if (!sections.stages) payload.stages = []
@@ -3024,14 +3035,12 @@ export function AddLabProductModal({
           onProductPersisted(mergedPersistedTab)
         }
 
-        // Update initialFormValues to reflect the changes across all tabs
-        const updatedInitialValues: ProductCreateForm = { ...initialFormValues }
-        for (const field of allFields) {
-          if (changes[field] !== undefined) {
-            (updatedInitialValues as any)[field] = formData[field as keyof typeof formData]
-          }
+        // Sync baseline to the full form after a full-form save
+        try {
+          setInitialFormValues(structuredClone(formData) as ProductCreateForm)
+        } catch {
+          setInitialFormValues(JSON.parse(JSON.stringify(formData)) as ProductCreateForm)
         }
-        setInitialFormValues(updatedInitialValues)
         // Keep section toggle baseline in sync after save (e.g. Main Product Fields / has_extraction)
         setInitialSections({ ...sections })
         setSectionWasToggled(false)
@@ -3390,8 +3399,8 @@ export function AddLabProductModal({
                   />
                 </TabsContent>
 
-                <TabsContent value="retention" className="mt-0 p-6 focus-visible:outline-none">
-                  <RetentionSection
+                <TabsContent value="toothChartConfigurations" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
+                  <ToothChartConfigurationsSection
                     control={control}
                     watch={watch}
                     setValue={setValue}
@@ -3407,6 +3416,10 @@ export function AddLabProductModal({
                     catalogCustomerId={retentionOptionsCatalogCustomerId}
                     retentionOptionsCatalog={retentionOptionsCatalog}
                     onRequestRetentionOptionCreate={handleRequestRetentionOptionCreate}
+                    allExtractions={allExtractions}
+                    isExtractionsLoading={isExtractionsLoading}
+                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
+                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 
@@ -3420,25 +3433,6 @@ export function AddLabProductModal({
                     sectionHasErrors={sectionHasErrors}
                     listCustomerId={customerId}
                     onRequestAdvanceFieldEditor={handleRequestAdvanceFieldEditor}
-                  />
-                </TabsContent>
-
-                <TabsContent value="extractions" forceMount className="mt-0 p-6 focus-visible:outline-none data-[state=inactive]:hidden">
-                  <ExtractionsSection
-                    key={editingProduct?.id != null ? `ext-${editingProduct.id}` : "ext-new"}
-                    control={control}
-                    watch={watch}
-                    setValue={setValue}
-                    getValidationError={getValidationError}
-                    sectionHasErrors={sectionHasErrors}
-                    sections={sections}
-                    toggleSection={toggleSection}
-                    expandedSections={expandedSections}
-                    toggleExpanded={toggleExpanded}
-                    allExtractions={allExtractions}
-                    isExtractionsLoading={isExtractionsLoading}
-                    apiOppositeExtractionCount={editingProduct?.opposite_extractions?.length ?? 0}
-                    editingProductKey={editingProduct?.id ?? null}
                   />
                 </TabsContent>
 
@@ -3490,7 +3484,7 @@ export function AddLabProductModal({
                           <Button
                             type="button"
                             onClick={handleUpdateSection}
-                            className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isUpdating || isCreating}
                           >
                             {isUpdating ? "Updating..." : "Update"}
@@ -3498,7 +3492,7 @@ export function AddLabProductModal({
                         )}
                         <Button
                           type="button"
-                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8"
+                          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 w-full sm:w-auto sm:px-8"
                           disabled={isSubmitting || isUpdating || isCreating}
                           onClick={() => void handleDirectSubmit()}
                         >
@@ -3521,7 +3515,7 @@ export function AddLabProductModal({
                           <Button
                             type="button"
                             onClick={handleUpdateSection}
-                            className="bg-blue-600 hover:bg-blue-700 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 w-full sm:w-auto sm:px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isUpdating || isCreating}
                           >
                             {isUpdating ? "Updating..." : "Update"}
@@ -3530,7 +3524,7 @@ export function AddLabProductModal({
                         {(hasSectionChanges || sectionWasToggled) && editingProduct?.id && (
                           <Button
                             type="button"
-                            className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isSubmitting || isUpdating || isCreating}
                             onClick={() => void handleDirectSubmit()}
                           >
@@ -3542,7 +3536,7 @@ export function AddLabProductModal({
                         <Button
                           type="button"
                           onClick={handleNext}
-                          className="bg-[#1162a8] hover:bg-[#0d4c84] h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 h-10 w-full sm:w-auto sm:px-8 disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={!isCurrentStepValid}
                         >
                           Next

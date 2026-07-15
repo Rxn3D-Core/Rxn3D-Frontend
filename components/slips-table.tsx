@@ -320,7 +320,7 @@ export function SlipsTable({ onNewSlip }: SlipsTableProps) {
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
-          <Button className="bg-blue-600" onClick={onNewSlip}>
+          <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]" onClick={onNewSlip}>
             <Plus className="h-4 w-4 mr-2" />
             New Slip
           </Button>

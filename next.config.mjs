@@ -19,6 +19,9 @@ function cspHttpApiConnectExtra() {
 
 /** upgrade-insecure-requests breaks http:// API calls (browser may try https). Omit when API is HTTP. */
 function cspUpgradeInsecureRequests() {
+  // WebKit/Safari upgrades even localhost assets to https under this directive,
+  // blank-screening the app in iOS Safari / simulators during http dev.
+  if (process.env.NODE_ENV === 'development') return '';
   const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!raw) return '; upgrade-insecure-requests';
   try {

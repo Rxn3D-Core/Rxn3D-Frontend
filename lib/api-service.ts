@@ -281,6 +281,7 @@ export const ExtractionsApi = {
           is_overlay?: "Yes" | "No";
           is_image_extraction?: "Yes" | "No";
           image_url?: string | null;
+          images?: Array<{ tooth_number: number; image_url?: string | null }>;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;

@@ -1119,7 +1119,7 @@ export default function AddOnsModal({
                 onClick={() => setPage(p)}
                 className={`w-[24px] h-[24px] rounded-full text-[11px] cursor-pointer ${
                   p === page
-                    ? "bg-[#1162A8] text-white"
+                    ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
               >
@@ -1233,7 +1233,7 @@ export default function AddOnsModal({
             </Button>
           ) : null}
           <Button
-            className="bg-[#1162a8] hover:bg-[#0f5490] text-white min-w-[100px] rounded-md cursor-pointer"
+            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white min-w-[100px] rounded-md cursor-pointer"
             onClick={() =>
               useSlipSlotColumns ? void handleConfirmSlipAddons() : handleConfirmSlot(slot)
             }
@@ -1301,7 +1301,7 @@ export default function AddOnsModal({
                 }}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium border transition-colors cursor-pointer ${
                   activeProductId === p.id
-                    ? "bg-[#1162A8] text-white border-[#1162A8]"
+                    ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]"
                     : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                 }`}
               >
@@ -1384,7 +1384,7 @@ export default function AddOnsModal({
               Cancel
             </Button>
             <Button
-              className="bg-[#1162a8] hover:bg-[#0f5490] text-white min-w-[120px] rounded-md cursor-pointer"
+              className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white min-w-[120px] rounded-md cursor-pointer"
               onClick={handleConfirm}
               disabled={savingSlipAddons}
             >

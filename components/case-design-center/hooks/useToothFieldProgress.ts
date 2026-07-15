@@ -366,6 +366,24 @@ export function useToothFieldProgress() {
     [toothProductCardMap]
   );
 
+  /**
+   * True when `setToothProductCard` has been called for this tooth — i.e. the
+   * tooth has an EXPLICIT card assignment rather than the default (0) that
+   * falls back to the initial product.
+   *
+   * Auto-selected teeth (populated by `runMissingTeethAutoSelect` for single-
+   * default extractions) are added to the arch selection state but never have
+   * `setToothProductCard` called for them, so this returns false for those
+   * teeth and they can be freely claimed by any focused added product.
+   */
+  const isToothExplicitlyAssigned = useCallback(
+    (arch: Arch, toothNumber: number): boolean => {
+      const key = toothKey(arch, toothNumber);
+      return toothProductCardMap[key] !== undefined;
+    },
+    [toothProductCardMap]
+  );
+
   /** Assign a tooth to a product card */
   const setToothProductCard = useCallback(
     (arch: Arch, toothNumber: number, cardId: number) => {
@@ -453,6 +471,7 @@ export function useToothFieldProgress() {
     clearToothProgress,
     migrateToothProgress,
     getToothProductCard,
+    isToothExplicitlyAssigned,
     setToothProductCard,
     // Raw state — exposed so consumers can include them in useMemo deps.
     // Note: completedFields can change without fieldValues changing.

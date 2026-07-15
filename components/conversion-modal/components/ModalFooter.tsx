@@ -69,7 +69,7 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
         </Button>
         <Button
           onClick={handleConfirm}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+          className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8"
         >
           Confirm Selection
         </Button>

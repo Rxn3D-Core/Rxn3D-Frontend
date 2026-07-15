@@ -44,10 +44,14 @@ export function cloneImplantDetailData(data: ImplantDetailData): ImplantDetailDa
 
 export function areAllImplantDetailsComplete(
   implantTeeth: number[],
-  completeByTooth: Record<number, boolean>
+  completeByTooth: Record<number, boolean>,
+  detailByTooth?: Record<number, ImplantDetailData>
 ): boolean {
   if (implantTeeth.length === 0) return true;
-  return implantTeeth.every((tn) => completeByTooth[tn] === true);
+  return implantTeeth.every(
+    (tn) =>
+      completeByTooth[tn] === true || isImplantDetailFilled(detailByTooth?.[tn])
+  );
 }
 
 /** Completed implant boxes plus the next incomplete tooth (one active step at a time). */

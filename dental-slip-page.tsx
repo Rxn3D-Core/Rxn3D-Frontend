@@ -32,6 +32,7 @@ import LoadingOverlay from "@/components/ui/loading-overlay"
 import { useArchSelectionStore } from "@/stores/arch-selection-store"
 import { CustomerLogo } from "@/components/customer-logo"
 import { isValidPatientName } from "@/lib/patient-name-validation"
+import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
 
 // Dynamic Showing Results Component
 interface ShowingResultsProps {
@@ -1911,7 +1912,7 @@ export function DentalSlipPageContent({
               .map((n: string) => n[0])
               .join("")
               .toUpperCase(),
-            color: "bg-blue-600",
+            color: "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]",
             borderColor: "border-blue-600",
             addOns: [],
             stageNotesContent: "",
@@ -2083,7 +2084,7 @@ export function DentalSlipPageContent({
             deliveryDate: "",
             image: retryProductImage,
             abbreviation: (detailedProductData?.name || 'Unknown').split(" ").map((n: string) => n[0]).join("").toUpperCase(),
-            color: "bg-blue-600",
+            color: "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]",
             borderColor: "border-blue-600",
             addOns: [],
             stageNotesContent: "",
@@ -2595,17 +2596,20 @@ export function DentalSlipPageContent({
 
                           return (
                             <div className="rounded-full bg-gray-200 flex items-center justify-center overflow-hidden" style={{ width: '103.92px', height: '103.92px' }}>
-                              {(selectedDoctor as any)?.profile_image ? (
-                                <img
-                                  src={(selectedDoctor as any).profile_image}
-                                  alt={addSlipFormData.doctor}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-2xl font-semibold text-[#1162a8]">
-                                  {`${(selectedDoctor as any)?.first_name?.[0] || addSlipFormData.doctor?.[0] || "?"}${(selectedDoctor as any)?.last_name?.[0] || ""}`.toUpperCase()}
-                                </span>
-                              )}
+                              {(() => {
+                                const imageSrc = resolveDoctorImageUrl(selectedDoctor as any)
+                                return imageSrc ? (
+                                  <img
+                                    src={imageSrc}
+                                    alt={addSlipFormData.doctor}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-2xl font-semibold text-[#1162a8]">
+                                    {`${(selectedDoctor as any)?.first_name?.[0] || addSlipFormData.doctor?.[0] || "?"}${(selectedDoctor as any)?.last_name?.[0] || ""}`.toUpperCase()}
+                                  </span>
+                                )
+                              })()}
                             </div>
                           )
                         })()}
@@ -2733,7 +2737,7 @@ export function DentalSlipPageContent({
 
                     {/* Add Doctor button on the right */}
                     <Button
-                      className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+                      className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
                       onClick={() => {
                         setShowAddDoctorModal(true)
                       }}
@@ -2794,17 +2798,20 @@ export function DentalSlipPageContent({
                           <div className="relative mb-3">
                             <div className={`w-40 h-40 rounded-full bg-gray-200 flex items-center justify-center transition-all duration-200 group-hover:border-4 group-hover:border-blue-500 group-hover:shadow-lg ${isSelected ? 'border-4 border-blue-500' : 'border-2 border-gray-200'
                               }`}>
-                              {(doctor as any).profile_image ? (
-                                <img
-                                  src={(doctor as any).profile_image}
-                                  alt={doctorName}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-3xl font-semibold text-[#1162a8]">
-                                  {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
-                                </span>
-                              )}
+                              {(() => {
+                                const imageSrc = resolveDoctorImageUrl(doctor as any)
+                                return imageSrc ? (
+                                  <img
+                                    src={imageSrc}
+                                    alt={doctorName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-3xl font-semibold text-[#1162a8]">
+                                    {`${doctor.first_name?.[0] || ""}${doctor.last_name?.[0] || ""}`.toUpperCase() || "?"}
+                                  </span>
+                                )
+                              })()}
                             </div>
                             {/* Selection indicator */}
                             {isSelected && (
@@ -2825,7 +2832,7 @@ export function DentalSlipPageContent({
                           {/* Select Button */}
                           <button
                             className={`px-3 py-1 text-xs font-medium rounded-full transition-all duration-200 group-hover:bg-blue-500 group-hover:text-white ${isSelected
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                               }`}
                             onClick={(e) => {
@@ -2909,7 +2916,7 @@ export function DentalSlipPageContent({
 
                           {/* Add Lab button on the right */}
                           <Button 
-                            className="bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg px-4 py-2 whitespace-nowrap"
+                            className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg px-4 py-2 whitespace-nowrap"
                             onClick={() => setShowAddNewLabModal(true)}
                           >
                             + {addLabel}
@@ -3045,7 +3052,7 @@ export function DentalSlipPageContent({
                 {/* Next Button for Step 1 */}
                 {/* <div className="flex justify-end mt-6">
                   <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded-lg font-semibold"
+                    className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-8 py-2 rounded-lg font-semibold"
                     onClick={() => {
                       if (selectedLab) {
                         setStep(2)
@@ -3330,7 +3337,7 @@ export function DentalSlipPageContent({
                             fetchSubcategoriesByCategory(selectedCategory.id, "en", customerIdNum);
                           }
                         }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
                       >
                         Retry
                       </button>
@@ -3342,7 +3349,7 @@ export function DentalSlipPageContent({
                       <p className="text-gray-600 mb-4">No subcategories available for this category.</p>
                       <button
                         onClick={handleCategorySelectionChange}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
                       >
                         Back to Categories
                       </button>
@@ -4044,7 +4051,7 @@ export function DentalSlipPageContent({
                   <div className="flex justify-center items-center w-full mt-4 mb-4 sm:mt-6">
                     <div
                       className={`w-32 h-8 sm:w-40 sm:h-10 md:w-48 md:h-12 flex items-center justify-center rounded-lg border-2 text-xs sm:text-sm md:text-base font-semibold transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-                        ${selectedArch === 'both' ? 'border-blue-600 bg-blue-600 text-white shadow-lg' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'}
+                        ${selectedArch === 'both' ? 'border-[#82298D] bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white shadow-lg' : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'}
                       `}
                       onClick={() => { setSelectedArch('both'); setGlobalArchType('both') }}
                       tabIndex={0}
@@ -4108,8 +4115,8 @@ export function DentalSlipPageContent({
                   <Button
                     className={`w-full sm:w-auto px-4 sm:px-6 md:px-8 py-2 sm:py-2.5 min-w-[120px] sm:min-w-[140px] text-xs sm:text-sm transition-all rounded-lg ${
                       selectedArch && (selectedArch === 'upper' || selectedArch === 'lower' || selectedArch === 'both')
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                        : 'bg-blue-600/60 text-white cursor-not-allowed'
+                        ? 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white'
+                        : 'bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]/60 text-white cursor-not-allowed'
                     }`}
                     onClick={() => {
                       if (selectedArch) {
@@ -4210,7 +4217,7 @@ export function DentalSlipPageContent({
                   </Button>
                   <Button
                     onClick={handleConfirmDefaultLab}
-                    className="flex-1 px-4 py-2 bg-[#1162a8] hover:bg-[#0f5490] text-white rounded-lg"
+                    className="flex-1 px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white rounded-lg"
                   >
                     Confirm
                   </Button>
@@ -4259,7 +4266,7 @@ export function DentalSlipPageContent({
                     (step === 6 && !selectedProductInModal) ||
                     (step === 7 && selectedStages.length === 0)
                   }
-                  className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 md:px-8 h-10 text-sm rounded-lg font-semibold"
+                  className="flex-1 sm:flex-none bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white px-6 md:px-8 h-10 text-sm rounded-lg font-semibold"
                 >
                   Next
                 </Button>

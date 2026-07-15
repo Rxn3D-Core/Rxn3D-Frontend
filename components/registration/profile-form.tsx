@@ -247,7 +247,7 @@ export function ProfileForm({
             )}
 
             <label
-              className={`bg-[#1162a8] text-white px-4 py-2 rounded flex items-center cursor-pointer ${fileSizeError ? "opacity-90" : ""}`}
+              className={`bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-4 py-2 rounded flex items-center cursor-pointer ${fileSizeError ? "opacity-90" : ""}`}
             >
               <Upload className="h-4 w-4 mr-2" />
               {logoPreview ? "Change logo" : "Upload logo"}
