@@ -304,30 +304,37 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
 
   if (variant === "full") {
     return (
-      <div className="flex flex-col items-center gap-[4px] sm:gap-[6px] w-[100px] sm:w-[170px] h-auto sm:h-[105px]">
-        <div className="flex items-end gap-0 w-[50px] sm:w-[85px] h-[50px] sm:h-[75px]">
-          <div className="relative">
-            <Avatar className="w-[50px] h-[50px] sm:w-[75px] sm:h-[75px]">
+      <div className="flex flex-col items-center gap-[6px] sm:gap-[10px] w-[100px] sm:w-[150px]">
+        <div className="relative">
+          <div className="w-[40px] h-[40px] sm:w-[55px] sm:h-[55px] rounded-full overflow-hidden">
+            <Avatar className="w-full h-full">
               <AvatarImage
                 src={doctorImageSrc}
                 alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}
               />
-              <AvatarFallback className="bg-[#1162a8] text-white text-base sm:text-xl font-bold">
+              <AvatarFallback className="bg-gray-200 text-gray-600 text-xs sm:text-sm">
                 {getInitials(doctor?.first_name || "", doctor?.last_name || "")}
               </AvatarFallback>
             </Avatar>
-            <button
-              onClick={handleEditClick}
-              className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
-              aria-label="Edit doctor"
-            >
-              <Pencil className="w-[12px] h-[12px] sm:w-[14px] sm:h-[14px] text-[#B4B0B0]" />
-            </button>
           </div>
+          <button
+            onClick={handleEditClick}
+            className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+            aria-label="Edit doctor"
+          >
+            <Pencil className="w-[12px] h-[12px] sm:w-[14px] sm:h-[14px] text-[#B4B0B0]" />
+          </button>
         </div>
-        <p className="w-full max-w-[100px] sm:max-w-[170px] text-[11px] sm:text-[14px] font-normal leading-tight sm:leading-[18px] tracking-[-0.02em] text-black text-center truncate">
-          {doctor?.first_name} {doctor?.last_name}, DDS
-        </p>
+        <div className="relative w-[100px] sm:w-[150px] h-[26px] sm:h-[30px]">
+          <Input
+            value={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`.trim()}
+            readOnly
+            className="w-full h-full text-[10px] sm:text-[12px] leading-[15px] text-[#1F2937] border-[#7F7F7F] rounded-[7px] px-[8px] sm:px-[10px] py-[4px] sm:py-[6px]"
+          />
+          <label className="absolute -top-[5px] left-[8px] bg-white px-0 text-[10px] sm:text-[11px] leading-[12px] text-[#7F7F7F]">
+            Doctor
+          </label>
+        </div>
       </div>
     )
   }

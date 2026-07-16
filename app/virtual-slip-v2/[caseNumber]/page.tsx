@@ -25,7 +25,6 @@ import {
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
-import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
@@ -37,7 +36,7 @@ import DriverHistoryModal from "@/components/driver-history-modal";
 import ReadyToSendModal from "@/components/ready-to-send-modal";
 import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal";
 import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entry";
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
+import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog";
 import CaseActionModal from "@/components/CaseActionModal";
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal";
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print";
@@ -80,7 +79,6 @@ export default function VirtualSlipV2Page() {
   } = useSlipCreation();
   const [loading, setLoading] = useState(true);
   const [showAttachModal, setShowAttachModal] = useState(false);
-  const [attachViewerOpen, setAttachViewerOpen] = useState(false);
   const [pickupDropoffOpen, setPickupDropoffOpen] = useState(false);
   const [driverHistoryViewOpen, setDriverHistoryViewOpen] = useState(false);
   const [fabNotesOpen, setFabNotesOpen] = useState(false);
@@ -742,26 +740,15 @@ export default function VirtualSlipV2Page() {
       {paperSlipPortal}
       <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
-      {showAttachModal && typeof document !== "undefined" && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] bg-white"
-          style={{ width: "100vw", height: "100vh" }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="File Attachments"
-        >
-          <FileAttachmentModalContent
-            setShowAttachModal={setShowAttachModal}
-            isCaseSubmitted={false}
-            slipId={slipId}
-            doctorName={vm.header.doctorName}
-            patientName={vm.header.patientName}
-            onViewerToggle={setAttachViewerOpen}
-            open={showAttachModal}
-          />
-        </div>,
-        document.body
-      )}
+      <SlipAttachmentBrowserDialog
+        open={showAttachModal}
+        onClose={() => setShowAttachModal(false)}
+        caseId={caseId ?? undefined}
+        slipId={slipId}
+        doctorName={vm.header.doctorName}
+        patientName={vm.header.patientName}
+        isCaseSubmitted={false}
+      />
     </div>
   );
 }

@@ -682,7 +682,10 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     const links = new Set(splintedLinks)
     const allowed = splintableLinks ? new Set(splintableLinks) : null
     const SPLINT_Y = 95
-    const D = 6 // diamond half-size
+    const DS = 13   // diamond rect width/height before rotation (tip-to-tip ≈ 18px)
+    const D_RX = 2.6
+    const BAR_H = 7
+    const BAR_RX = 3.5
     const CIRCLE_R = 5
 
     const gaps = new Set<number>(splintedLinks)
@@ -696,85 +699,127 @@ export const MaxillaryTeethSVG: React.FC<MaxillaryTeethSVGProps> = ({
     }
 
     const circleNodes: React.ReactNode[] = []
-    const lineNodes: React.ReactNode[] = []
-    const diamondsByTooth = new Map<number, { cx: number }>()
+    const connectorNodes: React.ReactNode[] = []
+    const diamondNodes: React.ReactNode[] = []
 
-    for (const lower of Array.from(gaps).sort((a, b) => a - b)) {
-      const upper = lower + 1
-      const splinted = links.has(lower)
+    const splintedSorted = Array.from(gaps).filter(l => links.has(l)).sort((a, b) => a - b)
+    const unselectedGaps = Array.from(gaps).filter(l => !links.has(l)).sort((a, b) => a - b)
+
+    // Unselected eligible gaps → circle at midpoint
+    for (const lower of unselectedGaps) {
       const editable = splintEnabled && !disabled && (!allowed || allowed.has(lower))
       const a = circlePositions[lower]
-      const b = circlePositions[upper]
+      const b = circlePositions[lower + 1]
       if (!a || !b) continue
       const mx = (a.cx + b.cx) / 2
       const hovered = editable && hoveredSplintLink === lower
+      const toothHovered = hoveredTooth === lower || hoveredTooth === lower + 1
+      circleNodes.push(
+        <g
+          key={`splint-circle-${lower}`}
+          style={{ cursor: editable ? 'pointer' : 'default' }}
+          onMouseEnter={editable ? () => setHoveredSplintLink(lower) : undefined}
+          onMouseLeave={editable ? () => setHoveredSplintLink((prev) => (prev === lower ? null : prev)) : undefined}
+          onClick={editable ? (e) => { e.stopPropagation(); onToggleSplintLink?.(lower) } : undefined}
+        >
+          {editable && <rect x={mx - 14} y={SPLINT_Y - 14} width={28} height={28} fill="transparent" />}
+          <ellipse cx={mx} cy={SPLINT_Y} rx={4} ry={9} fill={hovered ? 'url(#splint-ellipse-grad-hover)' : 'url(#splint-ellipse-grad)'} style={{ transition: 'opacity 0.15s ease', pointerEvents: 'none', opacity: (toothHovered || hoveredSplintLink === lower) ? 1 : 0 }} />
+        </g>
+      )
+    }
 
-      if (!splinted) {
-        // Eligible but not yet splinted: show a circle at the gap midpoint
-        circleNodes.push(
-          <g
-            key={`splint-circle-${lower}`}
-            style={{ cursor: editable ? 'pointer' : 'default' }}
-            onMouseEnter={editable ? () => setHoveredSplintLink(lower) : undefined}
-            onMouseLeave={editable ? () => setHoveredSplintLink((prev) => (prev === lower ? null : prev)) : undefined}
-            onClick={editable ? (e) => { e.stopPropagation(); onToggleSplintLink?.(lower) } : undefined}
-          >
-            {editable && (
-              <rect x={mx - 14} y={SPLINT_Y - 14} width={28} height={28} fill="transparent" />
-            )}
-            <circle
-              cx={mx}
-              cy={SPLINT_Y}
-              r={CIRCLE_R}
-              fill={hovered ? '#D9D9D9' : 'white'}
-              stroke="#8A8A8A"
-              strokeWidth={1.5}
-              style={{ transition: 'fill 0.15s ease', pointerEvents: 'none' }}
-            />
-          </g>
-        )
+    // Group consecutive splinted links into chains so each chain gets one continuous bar
+    const chains: Array<{ start: number; end: number; teeth: number[] }> = []
+    for (const lower of splintedSorted) {
+      const upper = lower + 1
+      const last = chains[chains.length - 1]
+      if (last && last.end === lower) {
+        last.end = upper
+        if (!last.teeth.includes(upper)) last.teeth.push(upper)
       } else {
-        // Splinted: line between the two teeth + diamonds at each tooth
-        lineNodes.push(
-          <g
-            key={`splint-link-${lower}`}
-            style={{ cursor: editable ? 'pointer' : 'default' }}
-            onClick={editable ? (e) => { e.stopPropagation(); onToggleSplintLink?.(lower) } : undefined}
-          >
-            {editable && (
-              <rect x={a.cx} y={SPLINT_Y - 8} width={b.cx - a.cx} height={16} fill="transparent" />
-            )}
-            <line
-              x1={a.cx}
-              y1={SPLINT_Y}
-              x2={b.cx}
-              y2={SPLINT_Y}
-              stroke="#8A8A8A"
-              strokeWidth={1.5}
-              style={{ pointerEvents: 'none' }}
-            />
-          </g>
-        )
-        if (!diamondsByTooth.has(lower)) diamondsByTooth.set(lower, { cx: a.cx })
-        if (!diamondsByTooth.has(upper)) diamondsByTooth.set(upper, { cx: b.cx })
+        chains.push({ start: lower, end: upper, teeth: [lower, upper] })
       }
     }
 
-    const diamondNodes = Array.from(diamondsByTooth.entries()).map(([tooth, { cx }]) => {
-      const pts = `${cx},${SPLINT_Y - D} ${cx + D},${SPLINT_Y} ${cx},${SPLINT_Y + D} ${cx - D},${SPLINT_Y}`
-      return (
-        <polygon
-          key={`diamond-${tooth}`}
-          points={pts}
-          fill="white"
-          stroke="#8A8A8A"
-          strokeWidth={1.5}
+    for (const chain of chains) {
+      const startPos = circlePositions[chain.start]
+      const endPos = circlePositions[chain.end]
+      if (!startPos || !endPos) continue
+
+      // One connector bar for the whole chain
+      connectorNodes.push(
+        <rect
+          key={`splint-bar-${chain.start}-${chain.end}`}
+          x={startPos.cx}
+          y={SPLINT_Y - BAR_H / 2}
+          width={endPos.cx - startPos.cx}
+          height={BAR_H}
+          rx={BAR_RX}
+          fill="#DCD7C2"
+          stroke="white"
+          strokeWidth={2}
           style={{ pointerEvents: 'none' }}
         />
       )
-    })
 
-    return [...circleNodes, ...lineNodes, ...diamondNodes]
+      // Transparent per-link click areas on top of the bar
+      for (const lower of splintedSorted.filter(l => l >= chain.start && l < chain.end)) {
+        const editable = splintEnabled && !disabled && (!allowed || allowed.has(lower))
+        if (!editable) continue
+        const a = circlePositions[lower]
+        const b = circlePositions[lower + 1]
+        if (!a || !b) continue
+        connectorNodes.push(
+          <rect
+            key={`splint-hit-${lower}`}
+            x={a.cx}
+            y={SPLINT_Y - 10}
+            width={b.cx - a.cx}
+            height={20}
+            fill="transparent"
+            style={{ cursor: 'pointer' }}
+            onClick={(e) => { e.stopPropagation(); onToggleSplintLink?.(lower) }}
+          />
+        )
+      }
+
+      // Diamonds at each tooth in the chain (rendered last, on top of bar)
+      for (const tooth of chain.teeth) {
+        const pos = circlePositions[tooth]
+        if (!pos) continue
+        const half = DS / 2
+        diamondNodes.push(
+          <rect
+            key={`diamond-${tooth}`}
+            x={pos.cx - half}
+            y={SPLINT_Y - half}
+            width={DS}
+            height={DS}
+            rx={D_RX}
+            fill="#DCD7C2"
+            stroke="white"
+            strokeWidth={2}
+            transform={`rotate(-45 ${pos.cx} ${SPLINT_Y})`}
+            style={{ pointerEvents: 'none' }}
+          />
+        )
+      }
+    }
+
+    const gradientDefs = (
+      <defs key="splint-gradient-defs">
+        <radialGradient id="splint-ellipse-grad" cx="50%" cy="35%" r="60%">
+          <stop offset="0%" stopColor="#FFF176" />
+          <stop offset="100%" stopColor="#E8A820" />
+        </radialGradient>
+        <radialGradient id="splint-ellipse-grad-hover" cx="50%" cy="35%" r="60%">
+          <stop offset="0%" stopColor="#F5DC40" />
+          <stop offset="100%" stopColor="#C8880A" />
+        </radialGradient>
+      </defs>
+    )
+
+    return [gradientDefs, ...circleNodes, ...connectorNodes, ...diamondNodes]
   }
 
   // Wing retainer indicator: a derived (non-interactive) gray filled circle drawn on

@@ -2712,6 +2712,10 @@ export function MandibularPanel({
                                   ? mandibularMergedExtractions
                                   : apExtractions
                               )) ? (
+                              <>
+                              {mandibularToothHint && mandibularToothHint.kind === "reference" && (
+                                <p className={mandibularToothHint.className}>{mandibularToothHint.text}</p>
+                              )}
                               <ToothStatusBoxes
                                 extractions={
                                   useMandibularArchSharedRemovable
@@ -2788,6 +2792,7 @@ export function MandibularPanel({
                                     : setExtractionsSetupComplete(ap.id, v);
                                 }}
                               />
+                              </>
                             ) : undefined
                           }
                         />

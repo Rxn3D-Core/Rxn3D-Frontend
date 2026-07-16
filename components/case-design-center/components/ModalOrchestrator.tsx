@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { ImpressionSelectionModal } from "@/components/impression-selection-modal";
 import type { STLFile } from "@/components/stl-file-selection-modal";
 import AddOnsModal from "@/components/add-ons-modal";
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
+import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog";
 import RushRequestModal from "@/components/rush-request-modal";
 import {
   getRushFromStore,
@@ -78,6 +77,11 @@ interface ModalOrchestratorProps {
   /** Available stages derived from product API data — shown as accordion sections */
   attachmentStages?: string[];
   onAttachFileCountsChange?: (photoCount: number, stlCount: number) => void;
+  /** Case/slip context for the attachment browser */
+  attachmentCaseId?: number;
+  attachmentSlipId?: number;
+  attachmentDoctorName?: string;
+  attachmentPatientName?: string;
   // Rush
   showRushModal: boolean;
   setShowRushModal: (v: boolean) => void;
@@ -212,6 +216,10 @@ export function ModalOrchestrator({
   setShowAttachModal,
   attachmentStages,
   onAttachFileCountsChange,
+  attachmentCaseId,
+  attachmentSlipId,
+  attachmentDoctorName,
+  attachmentPatientName,
   // Rush
   showRushModal,
   setShowRushModal,
@@ -246,6 +254,21 @@ export function ModalOrchestrator({
   const [stlFilesByImpression, setStlFilesByImpression] = useState<Record<string, STLFile[]>>({})
   const handleSTLFilesAttached = useCallback((files: STLFile[], key: string) => {
     setStlFilesByImpression(prev => ({ ...prev, [key]: files }))
+
+    // Write impression STL files to window cache so they appear in the attachment
+    // window and get uploaded to the slip after submission.
+    if (typeof window !== "undefined") {
+      const existing = ((window as any).__caseDesignAttachments ?? []) as any[]
+      const filtered = existing.filter((item: any) => item._impressionKey !== key)
+      const toAdd = files.map((f) => ({
+        file: f.file,
+        url: f.url,
+        type: "stl" as const,
+        archived: false,
+        _impressionKey: key,
+      }))
+      ;(window as any).__caseDesignAttachments = [...filtered, ...toAdd]
+    }
   }, [])
 
   /** Arches the user edited in this modal session — avoids clearing an arch that was never touched on close. */
@@ -443,26 +466,17 @@ export function ModalOrchestrator({
       )}
 
 
-      {/* File Attachment Modal — portaled to body so fixed inset-0 is never clipped */}
-      {showAttachModal && typeof document !== "undefined" && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] bg-white"
-          style={{ width: "100vw", height: "100vh" }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="File Attachments"
-        >
-          <FileAttachmentModalContent
-            setShowAttachModal={setShowAttachModal}
-            isCaseSubmitted={false}
-            availableStages={attachmentStages}
-            onViewerToggle={handleViewerToggle}
-            onFileCountsChange={onAttachFileCountsChange}
-            impressionFiles={Object.values(stlFilesByImpression).flat()}
-          />
-        </div>,
-        document.body
-      )}
+      {/* File Attachment Dialog */}
+      <SlipAttachmentBrowserDialog
+        open={showAttachModal}
+        onClose={() => setShowAttachModal(false)}
+        caseId={attachmentCaseId}
+        slipId={attachmentSlipId}
+        doctorName={attachmentDoctorName}
+        patientName={attachmentPatientName}
+        isCaseSubmitted={false}
+        onAttached={() => onAttachFileCountsChange?.(0, 0)}
+      />
 
       {/* Rush Request Modal */}
       {(() => {

@@ -540,7 +540,9 @@ export function ImpressionSelectionModal({
                 hasTopSelection ? "text-[#22c55e]" : "text-[#CF0202]"
               )}
             >
-              Select {topArchLabel} Impressions
+              {hasTopSelection
+                ? `${topArchLabel} Impression`
+                : `Select ${topArchLabel} Impression`}
             </span>
             <ImpressionGrid
               {...sharedGridProps}
@@ -564,7 +566,9 @@ export function ImpressionSelectionModal({
                   hasBottomSelection ? "text-[#22c55e]" : "text-[#CF0202]"
                 )}
               >
-                Select {bottomArchLabel} Impressions
+                {hasBottomSelection
+                  ? `${bottomArchLabel} Impression`
+                  : `Select ${bottomArchLabel} Impression`}
               </span>
               <ImpressionGrid
                 {...sharedGridProps}
