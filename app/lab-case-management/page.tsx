@@ -13,7 +13,7 @@ import { X } from "lucide-react"
 import { format } from "date-fns"
 import { useSlipContext } from "./SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
+import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
 import ChangeDateModal from "@/components/change-date-modal"
 import DriverHistoryModal from "@/components/driver-history-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
@@ -888,20 +888,15 @@ export default function LabSlipV3Page() {
         {paperSlipPortal}
         <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
-        {showAttachModal && selectedCaseForAttachment && createPortal(
-          <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
-            <FileAttachmentModalContent
-              setShowAttachModal={(show) => { setShowAttachModal(show); if (!show) setSelectedCaseForAttachment(null) }}
-              isCaseSubmitted={false}
-              caseId={selectedCaseForAttachment.caseId}
-              caseNumber={selectedCaseForAttachment.caseNumber}
-              doctorName={selectedCaseForAttachment.doctor}
-              patientName={selectedCaseForAttachment.patient}
-              open={showAttachModal}
-            />
-          </div>,
-          document.body
-        )}
+        <SlipAttachmentBrowserDialog
+          open={showAttachModal && !!selectedCaseForAttachment}
+          onClose={() => { setShowAttachModal(false); setSelectedCaseForAttachment(null) }}
+          caseId={selectedCaseForAttachment?.caseId}
+          caseNumber={selectedCaseForAttachment?.caseNumber}
+          doctorName={selectedCaseForAttachment?.doctor}
+          patientName={selectedCaseForAttachment?.patient}
+          isCaseSubmitted={false}
+        />
 
         {selectedSlipForDateChange && (
           <ChangeDateModal

@@ -1951,6 +1951,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           state.setAttachedPhotoCount(photoCount);
           state.setAttachedStlCount(stlCount);
         }}
+        attachmentDoctorName={props.attachmentDoctorName}
+        attachmentPatientName={props.attachmentPatientName}
+        attachmentCaseId={props.attachmentCaseId}
+        attachmentSlipId={props.attachmentSlipId}
         showRushModal={state.showRushModal}
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}

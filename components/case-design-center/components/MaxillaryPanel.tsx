@@ -2743,6 +2743,10 @@ export function MaxillaryPanel({
                                   ? maxillaryMergedExtractions
                                   : removableCardExtractions
                               )) ? (
+                              <>
+                              {maxillaryToothHint && maxillaryToothHint.kind === "reference" && (
+                                <p className={maxillaryToothHint.className}>{maxillaryToothHint.text}</p>
+                              )}
                               <ToothStatusBoxes
                                 extractions={
                                   useMaxillaryArchSharedRemovable
@@ -2819,6 +2823,7 @@ export function MaxillaryPanel({
                                     : setExtractionsSetupComplete(ap.id, v);
                                 }}
                               />
+                              </>
                             ) : undefined
                           }
                         />

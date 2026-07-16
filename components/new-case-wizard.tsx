@@ -957,9 +957,9 @@ function StepPatientInfo({
       <div className="hidden sm:flex flex-row items-start justify-between">
         <div className="flex flex-row items-start gap-5">
           {doctor && (
-            <div className="flex flex-col items-center gap-1">
-              <div className="relative w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                <span className="absolute inset-0 flex items-center justify-center text-2xl sm:text-4xl font-semibold text-[#1162a8]">
+            <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
+              <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
                   {getInitials(doctor.name) || "?"}
                 </span>
                 {doctor.img && (
@@ -973,7 +973,10 @@ function StepPatientInfo({
                   />
                 )}
               </div>
-              <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">{doctor.name}</p>
+              <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
+                <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
+                <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{doctor.name}</span>
+              </fieldset>
             </div>
           )}
 
@@ -1083,9 +1086,9 @@ function StepPatientInfo({
       <div className="flex sm:hidden flex-col items-center gap-3">
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
-          <div className="flex flex-col items-center gap-1">
-            <div className="relative flex items-center justify-center w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
-              <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+              <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
                 {getInitials(doctor.name) || "?"}
               </span>
               {doctor.img && (
@@ -1099,7 +1102,10 @@ function StepPatientInfo({
                 />
               )}
             </div>
-            <span className="text-[13px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
+            <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
+              <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
+              <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{doctor.name}</span>
+            </fieldset>
           </div>
         )}
 
@@ -1902,9 +1908,9 @@ function PatientMiniHeader({
       <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
-          <div className="flex flex-col items-center gap-1 flex-shrink-0">
-            <div className="w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative">
-              <span className="absolute inset-0 flex items-center justify-center text-lg sm:text-xl font-semibold text-[#1162a8]">
+          <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
+            <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+              <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
                 {getInitials(doctor.name) || "?"}
               </span>
               {doctor.img && (
@@ -1918,9 +1924,10 @@ function PatientMiniHeader({
                 />
               )}
             </div>
-            <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">
-              {doctor.name}
-            </p>
+            <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
+              <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
+              <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{doctor.name}</span>
+            </fieldset>
           </div>
         )}
 

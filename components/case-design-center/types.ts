@@ -170,6 +170,12 @@ export interface CaseDesignProps {
   labBusinessHours?: import("@/lib/api-business-settings").BusinessHour[] | null;
   /** Fired when product field accordions are visible (compact slip header should be used). */
   onSlipHeaderCompactChange?: (compact: boolean) => void;
+  /** Attachment browser context — doctor/patient shown in the right-panel header */
+  attachmentDoctorName?: string;
+  attachmentPatientName?: string;
+  /** Case/slip IDs for the attachment browser (available after submission) */
+  attachmentCaseId?: number;
+  attachmentSlipId?: number;
 }
 
 export interface AddedProduct {
