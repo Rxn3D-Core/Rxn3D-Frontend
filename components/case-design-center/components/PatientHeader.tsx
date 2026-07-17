@@ -68,9 +68,9 @@ const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
 
 /** Matches the virtual-slip header avatar treatment (big circle, name below). */
-const AVATAR_SIZE = "w-[clamp(80px,9vw,110px)] h-[clamp(80px,9vw,110px)]";
-const AVATAR_COLUMN_WIDTH = "w-[clamp(84px,9vw,130px)]";
-const AVATAR_NAME_MAX = "max-w-[clamp(84px,9vw,130px)]";
+const AVATAR_SIZE = "w-[clamp(87px,9vw,117px)] h-[clamp(87px,9vw,117px)]";
+const AVATAR_COLUMN_WIDTH = "w-[clamp(91px,9vw,137px)]";
+const AVATAR_NAME_MAX = "max-w-[clamp(91px,9vw,137px)]";
 
 /** One logo cell in the center top row (office on the left, lab on the right). */
 function LogoCell({

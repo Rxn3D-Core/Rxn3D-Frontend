@@ -62,6 +62,8 @@ export interface ProductVM {
   addOns: string[];
   isFixed: boolean;
   isImplant: boolean;
+  /** True when the product (or slip) is on rush. */
+  isRush: boolean;
   /** Per-tooth implant + abutment details (one entry per implant tooth). */
   implants: ImplantVM[];
   /** Advance Mode configuration fields. */
@@ -551,6 +553,14 @@ function buildProduct(apiProduct: any): ProductVM {
     addOns: formatAddOns(apiProduct?.addons ?? apiProduct?.add_ons),
     isFixed,
     isImplant,
+    isRush: (() => {
+      const rush = apiProduct?.rush;
+      return Boolean(
+        apiProduct?.is_rush ||
+        (rush && rush?.is_rush) ||
+        (rush && typeof rush === "object" && (rush?.requested_rush_date || rush?.requested_delivery_date))
+      );
+    })(),
     implants: isImplant ? implants : [],
     advanceFields,
   };

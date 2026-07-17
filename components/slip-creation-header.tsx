@@ -306,7 +306,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
     return (
       <div className="flex flex-col items-center gap-[6px] sm:gap-[10px] w-[100px] sm:w-[150px]">
         <div className="relative">
-          <div className="w-[40px] h-[40px] sm:w-[55px] sm:h-[55px] rounded-full overflow-hidden">
+          <div className="w-[47px] h-[47px] sm:w-[62px] sm:h-[62px] rounded-full overflow-hidden">
             <Avatar className="w-full h-full">
               <AvatarImage
                 src={doctorImageSrc}
@@ -342,7 +342,7 @@ const DoctorInfoSection = ({ doctor, variant = "default" }: { doctor: Doctor; va
   return (
     <div className="flex items-center gap-3">
       <div className="relative">
-        <Avatar className="w-20 h-20">
+        <Avatar className="w-[87px] h-[87px]">
           <AvatarImage
             src={doctorImageSrc}
             alt={`${doctor?.first_name || ""} ${doctor?.last_name || ""}`}

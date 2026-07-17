@@ -10,6 +10,7 @@ import type {
   SlipProductSnapshot,
 } from "../types";
 import { getCategoryName, hasRetentionOptions, isNonRetentionCategory } from "./categoryHelpers";
+import { resolveProductTeethForSlipSubmit } from "./removableToothDisplay";
 import {
   buildShadeSelectionKey,
   getShadeFieldType,
@@ -604,6 +605,7 @@ export function buildRemovableProductNote(ctx: ProductNoteContext): string {
 
   const gradeBit = grade ? `${grade} ` : "";
   let line = `Please fabricate ${gradeBit}${productName}`;
+  // `teeth` must be orange-header / teeth_selection only (not missing, extract, clasps).
   if (teeth.length > 0) line += ` for ${formatTeethNumbers(teeth)}`;
   if (stageName) line += ` for ${stageName}`;
   if (teethShade) {
@@ -727,6 +729,14 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       arch === "maxillary" ? props.maxillaryRetentionTypes : props.mandibularRetentionTypes;
     const selectedTeeth = arch === "maxillary" ? props.maxillaryTeeth : props.mandibularTeeth;
     const allArchTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+    const claspTeeth =
+      arch === "maxillary"
+        ? props.maxillaryClaspTeeth ?? []
+        : props.mandibularClaspTeeth ?? [];
+    const noActiveBoxTeeth =
+      arch === "maxillary"
+        ? props.maxillaryNoActiveBoxTeeth ?? []
+        : props.mandibularNoActiveBoxTeeth ?? [];
 
     const fixedTeethByProductKey = new Map<string, number[]>();
     for (const toothStr of Object.keys(retTypes)) {
@@ -760,7 +770,6 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       arch === "maxillary"
         ? props.maxillaryToothExtractionMap ?? {}
         : props.mandibularToothExtractionMap ?? {};
-    const inMouthTeeth = selectedTeeth.filter((tn) => !extractionMap[tn]);
 
     const cardToRepTooth = new Map<number, number>();
     for (const tn of allArchTeeth) {
@@ -770,14 +779,6 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       if (card != null && !cardToRepTooth.has(card)) {
         cardToRepTooth.set(card, tn);
       }
-    }
-
-    const cardToTeeth = new Map<number, number[]>();
-    for (const tn of inMouthTeeth) {
-      const card = props.getToothProductCard(arch, tn);
-      if (card == null) continue;
-      if (!cardToTeeth.has(card)) cardToTeeth.set(card, []);
-      cardToTeeth.get(card)!.push(tn);
     }
 
     const allCardToTeeth = new Map<number, number[]>();
@@ -790,19 +791,35 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
 
     for (const [card, repTooth] of cardToRepTooth) {
       const product = props.getToothProduct(arch, repTooth);
-      const cardTeeth = cardToTeeth.get(card) || [repTooth];
       const allCardTeeth = allCardToTeeth.get(card) || [repTooth];
-
       const workflow = getProductNoteWorkflow(product);
       if (workflow === "removable" && isNonRetentionCategory(product)) {
+        // Same teeth as orange product header / teeth_selection — exclude
+        // missing, will-extract, clasps, and other status-only teeth.
+        const removableNoteTeeth = resolveProductTeethForSlipSubmit({
+          isRemovable: true,
+          cardTeeth: allCardTeeth,
+          toothExtractionMap: extractionMap,
+          claspTeeth,
+          noActiveBoxTeeth,
+          extractions: product?.extractions,
+        });
+
         groups.push({
           arch,
           category: "Removable",
           cardId: card,
           productName: product?.name || "Removable",
-          teeth: cardTeeth,
+          teeth: removableNoteTeeth,
           note: buildRemovableProductNote(
-            contextFromProps(arch, cardTeeth, allCardTeeth, product, repTooth, props),
+            contextFromProps(
+              arch,
+              removableNoteTeeth,
+              allCardTeeth,
+              product,
+              repTooth,
+              props,
+            ),
           ),
         });
       }

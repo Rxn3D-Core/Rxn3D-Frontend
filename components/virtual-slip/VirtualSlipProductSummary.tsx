@@ -88,7 +88,17 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
           ) : null}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
-          <div className="flex min-h-[72px] flex-1 flex-col items-center justify-center gap-3 rounded-[7px] border border-[#D3D3D3] pb-3 py-0 text-center">
+          <div className={`relative flex min-h-[72px] flex-1 flex-col items-center justify-center gap-3 rounded-[7px] border pb-3 py-0 text-center ${product.isRush ? "border-red-400 bg-red-50" : "border-[#D3D3D3]"}`}>
+            {product.isRush && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src="/icons/virtual-slip-center/rush.svg"
+                alt="Rush"
+                width={28}
+                height={28}
+                className="absolute right-2 top-2 h-7 w-7 object-contain"
+              />
+            )}
             <div className="font-sans text-[20px] font-medium leading-[22px] tracking-[0.01em] text-[#666666]">
               {product.title}
             </div>

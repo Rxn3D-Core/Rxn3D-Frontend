@@ -1686,7 +1686,7 @@ export function OptimizedDentalSlipPageContent({
                     )
 
                     return (
-                      <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-gray-100">
+                      <div className="w-[103px] h-[103px] rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-gray-100">
                         {(() => {
                           const imageSrc = resolveDoctorImageUrl(selectedDoctor)
                           return imageSrc ? (

@@ -14,6 +14,15 @@ export interface VirtualSlipRushArchSlot {
   toothNumbersLabel?: string;
   isRushed?: boolean;
   existingRushDate?: string;
+  price?: number;
+  /** Standard (non-rush) delivery date from the existing rush record. */
+  normalDeliveryDate?: string;
+  /** Days saved as recorded on the existing rush record. */
+  existingDaysSaved?: number;
+  /** Rush fee percentage from the existing rush record. */
+  existingRushFeePercentage?: number;
+  /** Rush fee amount (price × percentage) from the existing rush record. */
+  existingRushFee?: number;
 }
 
 function parseTeeth(value: unknown): number[] {
@@ -95,6 +104,21 @@ export function buildVirtualSlipRushArchSlots(
           api?.requested_rush_date
       );
 
+      const normalDeliveryIso = isoDateFromApiTimestamp(
+        rush?.normal_delivery_date ?? rush?.non_rush_delivery_date
+      );
+      const daysSaved =
+        rush?.days_saved != null ? Number(rush.days_saved) : undefined;
+      const feePercentage =
+        rush?.fixed_rush_fee_percentage != null
+          ? Number(rush.fixed_rush_fee_percentage)
+          : undefined;
+      const unitPrice = Number(api?.price ?? api?.product?.price ?? 0) || 0;
+      const rushFee =
+        feePercentage != null
+          ? Math.round(unitPrice * (feePercentage / 100) * 100) / 100
+          : undefined;
+
       slots.push({
         arch: archKey,
         archLabel,
@@ -109,6 +133,11 @@ export function buildVirtualSlipRushArchSlots(
         toothNumbersLabel: p.teethLabel || undefined,
         isRushed: Boolean(rush?.is_rush ?? api?.is_rush),
         existingRushDate: existingIso || undefined,
+        price: unitPrice,
+        normalDeliveryDate: normalDeliveryIso || undefined,
+        existingDaysSaved: daysSaved,
+        existingRushFeePercentage: feePercentage,
+        existingRushFee: rushFee,
       });
     }
   }

@@ -144,6 +144,10 @@ export interface RushArchSlotView {
   toothNumbersLabel?: string
   isRushed?: boolean
   existingRushDate?: string
+  normalDeliveryDate?: string
+  existingDaysSaved?: number
+  existingRushFeePercentage?: number
+  existingRushFee?: number
 }
 
 export interface RushConfirmPayload {
@@ -488,6 +492,17 @@ export default function RushRequestModal({
     const rushWindowImpossible =
       !!actualDelivery && earliestRushDelivery > startOfDay(actualDelivery)
 
+    const standardDelivery =
+      slot.normalDeliveryDate
+        ? parseDeliveryDateValue(slot.normalDeliveryDate)
+        : actualDelivery
+
+    const hasExistingRushDetails =
+      archRushed &&
+      (slot.normalDeliveryDate ||
+        slot.existingDaysSaved != null ||
+        slot.existingRushFeePercentage != null)
+
     return (
       <div className="flex-1 flex flex-col min-w-[260px] max-w-full">
         <div className="text-center mb-4">
@@ -507,7 +522,7 @@ export default function RushRequestModal({
             style={{ background: "#F5F5F5", border: "1px solid #E5E5E5" }}
           >
             <span className="text-[13px]" style={valueStyle}>
-              {formatDisplayDate(actualDelivery)}
+              {formatDisplayDate(standardDelivery)}
             </span>
           </div>
           {slot.workDaysToDeliver != null && (
@@ -524,7 +539,7 @@ export default function RushRequestModal({
           </p>
           <RushDateField
             ariaLabel={`Rush delivery date for ${slot.productName}`}
-            disabledMatchers={rushDateDisabledMatchers(actualDelivery)}
+            disabledMatchers={rushDateDisabledMatchers(standardDelivery)}
             value={targetDateStr}
             onChange={(value) =>
               setTargetDatesByKey((prev) => ({ ...prev, [slot.rushKey]: value }))
@@ -533,8 +548,8 @@ export default function RushRequestModal({
           <p className="text-[10px] mt-1.5 ml-2.5" style={{ color: "#B4B0B0" }}>
             Select a lab working day (weekoffs and holidays are disabled). Earliest rush date:{" "}
             {format(earliestRushDelivery, "MM/dd/yyyy")}
-            {actualDelivery ? (
-              <>; must be on or before standard delivery ({formatDisplayDate(actualDelivery)}).</>
+            {standardDelivery ? (
+              <>; must be on or before standard delivery ({formatDisplayDate(standardDelivery)}).</>
             ) : (
               "."
             )}
@@ -550,7 +565,39 @@ export default function RushRequestModal({
           </p>
         </div>
 
-        {targetDateStr ? (
+        {hasExistingRushDetails && !dateChanged ? (
+          <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
+            <p className="text-[11px] font-bold mb-3 tracking-[-0.02em]" style={{ color: "#CF0202" }}>
+              Current rush details
+            </p>
+            <div className="flex flex-col gap-3">
+              {slot.existingDaysSaved != null && (
+                <div className="flex justify-between">
+                  <span className="text-[13px]" style={labelStyle}>Days saved</span>
+                  <span className="text-[13px]" style={valueStyle}>
+                    {slot.existingDaysSaved} days
+                  </span>
+                </div>
+              )}
+              {slot.existingRushFeePercentage != null && (
+                <div className="flex justify-between">
+                  <span className="text-[13px]" style={labelStyle}>Rush percent</span>
+                  <span className="text-[13px]" style={valueStyle}>
+                    {slot.existingRushFeePercentage}%
+                  </span>
+                </div>
+              )}
+              {slot.existingRushFee != null && (
+                <div className="flex justify-between">
+                  <span className="text-[13px]" style={labelStyle}>Rush fee</span>
+                  <span className="text-[13px]" style={valueStyle}>
+                    ${slot.existingRushFee.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : targetDateStr ? (
           <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
             <div className="flex flex-col gap-3">
               <div className="flex justify-between">
@@ -650,6 +697,16 @@ export default function RushRequestModal({
     const canRequestRush = isRushDateValidStr(targetDateStr, actualDelivery)
     const rushMetrics = computeRushMetrics(targetDateStr, actualDelivery)
 
+    const standardDelivery = slot?.normalDeliveryDate
+      ? parseDeliveryDateValue(slot.normalDeliveryDate)
+      : actualDelivery
+
+    const hasExistingRushDetails =
+      archRushed &&
+      (slot?.normalDeliveryDate ||
+        slot?.existingDaysSaved != null ||
+        slot?.existingRushFeePercentage != null)
+
     return (
       <div className="flex-1 flex flex-col min-w-0">
         {columnHeading(arch, fallbackLabel)}
@@ -663,7 +720,7 @@ export default function RushRequestModal({
             style={{ background: "#F5F5F5", border: "1px solid #E5E5E5" }}
           >
             <span className="text-[13px]" style={valueStyle}>
-              {formatDisplayDate(actualDelivery)}
+              {formatDisplayDate(standardDelivery)}
             </span>
           </div>
           {slot?.workDaysToDeliver != null && (
@@ -680,15 +737,15 @@ export default function RushRequestModal({
           </p>
           <RushDateField
             ariaLabel="Rush delivery date"
-            disabledMatchers={rushDateDisabledMatchers(actualDelivery)}
+            disabledMatchers={rushDateDisabledMatchers(standardDelivery)}
             value={targetDateStr}
             onChange={setTargetDateStr}
           />
           <p className="text-[10px] mt-1.5 ml-2.5" style={{ color: "#B4B0B0" }}>
             Select a lab working day (weekoffs and holidays are disabled). Earliest rush date:{" "}
             {format(earliestRushDelivery, "MM/dd/yyyy")}
-            {actualDelivery ? (
-              <>; must be on or before standard delivery ({formatDisplayDate(actualDelivery)}).</>
+            {standardDelivery ? (
+              <>; must be on or before standard delivery ({formatDisplayDate(standardDelivery)}).</>
             ) : (
               "."
             )}
@@ -698,7 +755,39 @@ export default function RushRequestModal({
           </p>
         </div>
 
-        {targetDateStr ? (
+        {hasExistingRushDetails && !dateChanged ? (
+          <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
+            <p className="text-[11px] font-bold mb-3 tracking-[-0.02em]" style={{ color: "#CF0202" }}>
+              Current rush details
+            </p>
+            <div className="flex flex-col gap-3">
+              {slot?.existingDaysSaved != null && (
+                <div className="flex justify-between">
+                  <span className="text-[13px]" style={labelStyle}>Days saved</span>
+                  <span className="text-[13px]" style={valueStyle}>
+                    {slot.existingDaysSaved} days
+                  </span>
+                </div>
+              )}
+              {slot?.existingRushFeePercentage != null && (
+                <div className="flex justify-between">
+                  <span className="text-[13px]" style={labelStyle}>Rush percent</span>
+                  <span className="text-[13px]" style={valueStyle}>
+                    {slot.existingRushFeePercentage}%
+                  </span>
+                </div>
+              )}
+              {slot?.existingRushFee != null && (
+                <div className="flex justify-between">
+                  <span className="text-[13px]" style={labelStyle}>Rush fee</span>
+                  <span className="text-[13px]" style={valueStyle}>
+                    ${slot.existingRushFee.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : targetDateStr ? (
           <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
             <div className="flex flex-col gap-3">
               <div className="flex justify-between">

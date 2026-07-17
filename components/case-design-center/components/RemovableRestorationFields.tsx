@@ -35,7 +35,8 @@ import {
   parseGradeDisplayName,
   isGradeStepCompleteForDisplay,
 } from "../utils/gradeHelpers";
-import { hasVisibleAddonDisplay } from "../utils/addonDisplayHelpers";
+import { buildRemovableAddonFieldContext } from "../utils/addonDisplayHelpers";
+import type { StoredAddonEntry } from "../utils/addonDisplayHelpers";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -497,6 +498,12 @@ interface RemovableRestorationFieldsProps {
   /** Arch-level: only one implant detail accordion open at a time on this side. */
   expandedImplantTooth?: number;
   onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
+  /** Modal/store add-on selections keyed by product id */
+  productAddOns?: Record<string, { maxillary?: StoredAddonEntry[]; mandibular?: StoredAddonEntry[] }>;
+  /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
+  selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  /** Product card id (0 = initial card). Used to resolve virtual-slot add-on values. */
+  productCardId?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -531,6 +538,9 @@ export function SelectionProductFields({
   peerImplantCompleteByTooth,
   expandedImplantTooth,
   onExpandedImplantToothChange,
+  productAddOns = {},
+  selectedAddonsByTooth = {},
+  productCardId = 0,
 }: RemovableRestorationFieldsProps) {
   const removableChain = getSelectionFieldChain(selectedProduct);
   const implantTeeth = useMemo(
@@ -802,6 +812,17 @@ export function SelectionProductFields({
       {/* Step 3: Impression / Add ons */}
       {isVisible("impression") && implantDetailReady && (() => {
         const showAddons = isVisible("addons");
+        const addonCtx = buildRemovableAddonFieldContext({
+          arch,
+          cardId: productCardId,
+          cardTeeth: toothNumbers,
+          repTooth: firstToothNumber,
+          product: selectedProduct,
+          getFieldValue: getFieldValueFn,
+          selectedAddonsByTooth,
+          productAddOns,
+        });
+        const showAddonField = showAddons && addonCtx.show;
         return (
         <div className="flex flex-col gap-3 mt-3">
           <fieldset
@@ -837,8 +858,7 @@ export function SelectionProductFields({
             </div>
           </fieldset>
 
-          {isVisible("addons") &&
-          hasVisibleAddonDisplay(getFieldValueFn(arch, firstToothNumber, "addons")) ? (
+          {showAddonField ? (
             <fieldset
               className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
                 isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
@@ -860,7 +880,7 @@ export function SelectionProductFields({
               </legend>
               <div className="flex items-center gap-2 w-full">
                 <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                  {getFieldValueFn(arch, firstToothNumber, "addons")}
+                  {addonCtx.display}
                 </span>
                 {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && (
                   <Check size={16} className="text-[#34a853] ml-auto" />

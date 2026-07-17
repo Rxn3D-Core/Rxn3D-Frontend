@@ -124,6 +124,10 @@ export function CaseDesignSummarySection({
         mandibularTeeth={state.mandibularTeeth}
         maxillaryToothExtractionMap={state.maxillaryToothExtractionMap}
         mandibularToothExtractionMap={state.mandibularToothExtractionMap}
+        maxillaryClaspTeeth={state.maxillaryClaspTeeth}
+        mandibularClaspTeeth={state.mandibularClaspTeeth}
+        maxillaryNoActiveBoxTeeth={state.maxillaryNoActiveBoxTeeth}
+        mandibularNoActiveBoxTeeth={state.mandibularNoActiveBoxTeeth}
         getToothProduct={state.getToothProduct}
         getFieldValue={state.getFieldValue}
         getSelectedShade={state.getSelectedShade}
