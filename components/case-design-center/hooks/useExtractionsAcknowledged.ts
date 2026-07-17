@@ -9,7 +9,6 @@ import {
   requiresExtractionsAcknowledgement,
   type ExtractionLike,
 } from "../utils/extractionHelpers";
-import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 
 /**
  * @param arch which arch this acknowledgement state belongs to
@@ -51,9 +50,6 @@ export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
     ) => {
       if (caseSubmitted) return true;
       if (!product || !hasRetentionOptions(product)) return true;
-      if (shouldSkipLegacyDefaultExtractionAutoSelect(product as Record<string, unknown>)) {
-        return true;
-      }
       const ack = acknowledgedByCard[fixedRetentionAckKey(arch)];
       return ack === undefined ? preloaded : ack === true;
     },

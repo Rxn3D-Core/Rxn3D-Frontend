@@ -1341,13 +1341,16 @@ export function MaxillaryPanel({
   useEffect(() => {
     if (caseSubmitted || !card0SkipsLegacyDefaults) return;
     setExtractionsSetupComplete(0, true);
-    setFixedRetentionSetupComplete(true);
+    if (!hasRetentionOptions(card0InitialProduct)) {
+      setFixedRetentionSetupComplete(true);
+    }
     if (useMaxillaryArchSharedRemovable) {
       setExtractionsSetupComplete(ARCH_SHARED_REMOVABLE_ACK_CARD_ID, true);
     }
   }, [
     caseSubmitted,
     card0SkipsLegacyDefaults,
+    card0InitialProduct,
     useMaxillaryArchSharedRemovable,
     setExtractionsSetupComplete,
     setFixedRetentionSetupComplete,
@@ -3595,8 +3598,7 @@ export function MaxillaryPanel({
                   card0ShowFixedFields && !guidedHideCard0Fields;
                 const showFixedRetentionDone =
                   hasRetentionOptions(selectedProduct) &&
-                  !caseSubmitted &&
-                  !card0SkipsLegacyDefaults;
+                  !caseSubmitted;
                 const card0FixedExpanded = isCardAccordionExpanded(slotId);
                 return (
                   <ProductAccordionCard
