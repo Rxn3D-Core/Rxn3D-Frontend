@@ -53,6 +53,9 @@ import {
 import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
+import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings";
+import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state";
+import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -94,6 +97,8 @@ export default function VirtualSlipV2Page() {
   const [addStageEligible, setAddStageEligible] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
+  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
 
   useEffect(() => {
     setUserRole(getStoredSlipUserRole());
@@ -109,6 +114,21 @@ export default function VirtualSlipV2Page() {
     setLoading(true);
     fetchVirtualSlipDetails(slipId).finally(() => setLoading(false));
   }, [slipId, fetchVirtualSlipDetails]);
+
+  useEffect(() => {
+    const labId = resolveLabIdFromSlipDetails(virtualSlipDetails);
+    const customerId = resolveLibraryCustomerId(labId);
+    if (!customerId) return;
+    getBusinessSettings(customerId)
+      .then((settings) => {
+        setRushCaseSchedule(settings?.case_schedule ?? null);
+        setLabBusinessHours(settings?.business_hours ?? null);
+      })
+      .catch(() => {
+        setRushCaseSchedule(null);
+        setLabBusinessHours(null);
+      });
+  }, [virtualSlipDetails]);
 
   const slipLocationRefForEligibility = useMemo(() => {
     const vmEarly = buildVirtualSlipVM(virtualSlipDetails);
@@ -603,6 +623,8 @@ export default function VirtualSlipV2Page() {
           visibleArches={visibleArches}
           showEditSlip={slipInLab && !caseCancelled && canEditSlip}
           caseOnHold={caseOnHold}
+          rushCaseSchedule={rushCaseSchedule}
+          labBusinessHours={labBusinessHours}
           onAttachments={() => setShowAttachModal(true)}
           onDriverHistory={() => setDriverHistoryViewOpen(true)}
           onHold={

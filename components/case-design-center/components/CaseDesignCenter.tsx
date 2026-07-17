@@ -1103,7 +1103,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (getMissingFixedShadeField(product, shadeId, "maxillary")) return true;
         }
       }
-      if (requireMaxillaryImpression && !hasMaxillaryArchImpressionSelected) return true;
+      // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
+      if (requireMaxillaryImpression && !hasMaxillaryArchImpressionSelected && !hasRetentionOptions(product)) return true;
     }
     return false;
   })();
@@ -1127,20 +1128,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (getMissingFixedShadeField(product, shadeId, "mandibular")) return true;
         }
       }
-      if (requireMandibularImpression && !hasMandibularArchImpressionSelected) return true;
+      // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
+      if (requireMandibularImpression && !hasMandibularArchImpressionSelected && !hasRetentionOptions(product)) return true;
     }
     return false;
   })();
 
   // True when the arch has products AND all of them have completed their accordion fields.
   // The "+ Add Product" button only shows after the first product accordion is fully complete.
+  // Fixed-restoration-only arches don't use the arch-level impression modal (they have fixed_impression
+  // field steps instead), so skip the arch impression check when there are no removable teeth.
   const allMaxillaryAccordionsComplete =
     hasMaxillaryProducts &&
-    (!requireMaxillaryImpression || hasMaxillaryArchImpressionSelected);
+    (!requireMaxillaryImpression || !maxillaryHasRemovablesTeeth || hasMaxillaryArchImpressionSelected);
 
   const allMandibularAccordionsComplete =
     hasMandibularProducts &&
-    (!requireMandibularImpression || hasMandibularArchImpressionSelected);
+    (!requireMandibularImpression || !mandibularHasRemovablesTeeth || hasMandibularArchImpressionSelected);
 
   // ── Removable restoration: pre-assign sentinel tooth so accordion shows immediately ──
   // When a removables product is active and no teeth have been assigned yet, assign the
@@ -1587,6 +1591,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductComplete={props.onInlineAddProductComplete}
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMaxillary}
+          selectedAddonsByTooth={state.selectedAddonsByTooth}
         />
 
         {/* CENTER NAVIGATION — default-extraction badge between arch panels */}
@@ -1751,6 +1756,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductComplete={props.onInlineAddProductComplete}
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMandibular}
+          selectedAddonsByTooth={state.selectedAddonsByTooth}
         />
       </div>
 

@@ -163,7 +163,7 @@ export default function AddSlipHeader({
             <div className="flex gap-3">
               {/* Doctor Profile Image - Left Edge */}
               <div className="flex-shrink-0">
-                <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-100">
+                <div className="w-[71px] h-[71px] rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border border-gray-100">
                   {(() => {
                     const selectedDoctor = doctorOptions?.find((doc: any) =>
                       String(doc.id) === formData.doctor_id

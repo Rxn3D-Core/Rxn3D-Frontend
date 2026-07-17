@@ -43,7 +43,8 @@ import {
 } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 import { resolveDefaultToothChartSlipAssignmentForArch } from "@/lib/product-default-tooth-chart-slip-display";
-import { productSupportsAddons } from "../utils/addonDisplayHelpers";
+import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, getDefaultSeedQtyFromProductAddon } from "../utils/addonDisplayHelpers";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
@@ -1381,6 +1382,86 @@ export function useCaseDesignState(props: CaseDesignProps) {
     runOpposingExtractionsAutoSelect,
   ]);
 
+  // Auto-populate addon field from field progress, modal store, structured selections, or product defaults.
+  const autoPopulateDefaultAddons = useCallback(
+    (arch: Arch, toothNumber: number, product: ProductApiData, lookupTeeth: number[] = []) => {
+      if (!productSupportsAddons(product)) return;
+      const isFixed = hasRetentionOptions(product);
+      const addonStep = isFixed ? "fixed_addons" as const : "addons" as const;
+      let existing = toothFieldProgress.getFieldValue(arch, toothNumber, addonStep);
+      if (!hasVisibleAddonDisplay(existing)) {
+        for (const tn of lookupTeeth) {
+          const candidate = toothFieldProgress.getFieldValue(arch, tn, addonStep);
+          if (hasVisibleAddonDisplay(candidate)) {
+            existing = candidate;
+            break;
+          }
+        }
+      }
+      const addonKey = `${arch}_${toothNumber}`;
+      let structured = selectedAddonsByTooth[addonKey];
+      if (!structured?.length) {
+        for (const tn of lookupTeeth) {
+          const candidate = selectedAddonsByTooth[`${arch}_${tn}`];
+          if (candidate?.length) {
+            structured = candidate;
+            break;
+          }
+        }
+      }
+      const productId = product.id?.toString();
+      const storeAddons = productId
+        ? useCaseDesignStore.getState().productAddOns[productId]?.[arch]
+        : undefined;
+
+      const resolved = resolveRemovableAddonDisplay({
+        fieldValue: existing,
+        structuredAddons: structured,
+        storeAddons,
+        product,
+      });
+      if (!hasVisibleAddonDisplay(resolved)) return;
+      if (
+        toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep) &&
+        hasVisibleAddonDisplay(existing)
+      ) {
+        return;
+      }
+
+      toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, resolved);
+
+      if (!structured?.length) {
+        const structuredFromStore = (storeAddons ?? [])
+          .map((entry) => {
+            const addonId = entry.addon_id;
+            const qty = entry.qty ?? entry.quantity ?? 0;
+            if (!addonId || qty <= 0) return null;
+            return { addon_id: addonId, qty };
+          })
+          .filter((e): e is { addon_id: number; qty: number } => e != null);
+        const fallbackStructured =
+          structuredFromStore.length > 0
+            ? structuredFromStore
+            : (product.addons ?? [])
+                .map((a) => {
+                  const addonId = a.addon_id ?? a.id;
+                  const qty = getDefaultSeedQtyFromProductAddon(a);
+                  if (!addonId || qty == null || qty <= 0) return null;
+                  return { addon_id: addonId, qty };
+                })
+                .filter((e): e is { addon_id: number; qty: number } => e != null);
+
+        if (fallbackStructured.length > 0) {
+          setSelectedAddonsByTooth((prev) => ({
+            ...prev,
+            [addonKey]: fallbackStructured,
+          }));
+        }
+      }
+    },
+    [toothFieldProgress, selectedAddonsByTooth, setSelectedAddonsByTooth]
+  );
+
   // Added products — cache detail; apply default-extraction auto-select per card when applicable.
   useEffect(() => {
     if (props.caseSubmitted) return;
@@ -1413,6 +1494,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
           !isHydratedProductApiData(existingVirtual)
         ) {
           toothFieldProgress.setToothProduct(arch, virtualTooth, product);
+          autoPopulateDefaultAddons(arch, virtualTooth, product);
+        }
+        const cardTeethOnArch = (arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL).filter(
+          (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
+        );
+        if (cardTeethOnArch.length > 0) {
+          const repTooth = Math.min(...cardTeethOnArch);
+          autoPopulateDefaultAddons(arch, repTooth, product, [virtualTooth]);
         }
         if (props.preloadInitialSlipState) {
           const hydrationKey = `${arch}_${ap.id}`;
@@ -1475,6 +1564,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     enrichProductWithGrades,
     modals.setSelectedImpressions,
     applyAddedProductDefaultExtractions,
+    autoPopulateDefaultAddons,
     toothFieldProgress.getToothProduct,
     toothFieldProgress.getToothProductCard,
     toothFieldProgress.setToothProduct,
@@ -1637,29 +1727,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
       resolveStageToothNumber,
       toothFieldProgress,
     ]
-  );
-
-  // Auto-populate addon field with product's is_default addons when field not yet set
-  const autoPopulateDefaultAddons = useCallback(
-    (arch: Arch, toothNumber: number, product: ProductApiData) => {
-      if (!productSupportsAddons(product)) return;
-      const defaultAddons = (product.addons ?? []).filter(
-        (a) => String(a.is_default ?? "").trim().toLowerCase() === "yes" &&
-               String(a.status ?? "Active").trim().toLowerCase() === "active"
-      );
-      if (defaultAddons.length === 0) return;
-      const isFixed = hasRetentionOptions(product);
-      const addonStep = isFixed ? "fixed_addons" as const : "addons" as const;
-      if (toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep)) return;
-      const value = defaultAddons.map((a) => `${a.quantity ?? 1}x ${a.name}`).join(", ");
-      toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, value);
-      const key = `${arch}_${toothNumber}`;
-      setSelectedAddonsByTooth((prev) => ({
-        ...prev,
-        [key]: defaultAddons.map((a) => ({ addon_id: a.id, qty: a.quantity ?? 1 })),
-      }));
-    },
-    [toothFieldProgress, setSelectedAddonsByTooth]
   );
 
   const maybeMirrorFixedProgressFromOpposite = useCallback(
@@ -2000,8 +2067,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (sourceStage && !modals.selectedStages[targetStageKey]) {
         modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: sourceStage }));
       }
+
+      // Also migrate structured addon selections (addon_id/qty) so the submission payload
+      // is populated even when migration runs before fetchAndAssignProduct completes.
+      const sourceAddonKey = `${arch}_${virtualTooth}`;
+      const targetAddonKey = `${arch}_${targetTooth}`;
+      if (selectedAddonsByTooth[sourceAddonKey]?.length && !selectedAddonsByTooth[targetAddonKey]?.length) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [targetAddonKey]: [...(prev[sourceAddonKey] ?? [])],
+        }));
+      }
+
+      const product = toothFieldProgress.getToothProduct(arch, targetTooth);
+      if (product) {
+        autoPopulateDefaultAddons(arch, targetTooth, product);
+      }
     },
-    [modals.selectedStages, modals.setSelectedStages, toothFieldProgress]
+    [modals.selectedStages, modals.setSelectedStages, toothFieldProgress, selectedAddonsByTooth, setSelectedAddonsByTooth, autoPopulateDefaultAddons]
   );
 
   /** Whether a backfill step should copy from donor → target (addons use API defaults only). */
@@ -2254,6 +2337,50 @@ export function useCaseDesignState(props: CaseDesignProps) {
     migrateRemovableVirtualProgressToTooth,
     backfillRemovableFromExistingCard,
     backfillRemovableFromOppositeArch,
+  ]);
+
+  const productAddOns = useCaseDesignStore((s) => s.productAddOns);
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    for (const ap of props.addedProducts ?? []) {
+      if (!ap.productId || (ap.arch !== "maxillary" && ap.arch !== "mandibular")) continue;
+      if (ap.product && hasRetentionOptions(ap.product)) continue;
+      const arch = ap.arch as Arch;
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const repTooth = getRepToothForRemovableCard(
+        arch,
+        ap.id,
+        allTeeth,
+        toothFieldProgress.getToothProductCard,
+        toothFieldProgress.getToothProduct
+      );
+      if (repTooth == null) continue;
+      const product =
+        toothFieldProgress.getToothProduct(arch, repTooth) ??
+        toothFieldProgress.getToothProduct(arch, -ap.id);
+      if (product) autoPopulateDefaultAddons(arch, repTooth, product);
+    }
+
+    if (initialProductDetails && !hasRetentionOptions(initialProductDetails)) {
+      for (const arch of ["maxillary", "mandibular"] as const) {
+        const card0Teeth =
+          arch === "maxillary" ? getMaxillaryCard0Teeth() : getMandibularCard0Teeth();
+        if (card0Teeth.length === 0) continue;
+        const repTooth = Math.min(...card0Teeth);
+        const product = toothFieldProgress.getToothProduct(arch, repTooth) ?? initialProductDetails;
+        autoPopulateDefaultAddons(arch, repTooth, product);
+      }
+    }
+  }, [
+    props.addedProducts,
+    props.caseSubmitted,
+    productAddOns,
+    initialProductDetails,
+    autoPopulateDefaultAddons,
+    getMaxillaryCard0Teeth,
+    getMandibularCard0Teeth,
+    toothFieldProgress.getToothProduct,
+    toothFieldProgress.getToothProductCard,
   ]);
 
   const assignToothToActiveProduct = useCallback(

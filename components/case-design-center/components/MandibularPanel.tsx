@@ -94,6 +94,7 @@ import {
 import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
+  resolveAddedCardProductData,
 } from "../utils/resolveAddedCardProduct";
 import {
   formatSplintGroups,
@@ -106,10 +107,11 @@ import {
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
 import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
 import {
-  hasVisibleAddonDisplay,
   parseAddonDisplayItems,
+  buildRemovableAddonFieldContext,
   productSupportsAddons,
 } from "../utils/addonDisplayHelpers";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
@@ -754,6 +756,8 @@ interface MandibularPanelProps {
   /** Navigate back to category selection in the new-case wizard. Invoked after deleting a Fixed Restoration accordion. */
   onBackToCategories?: (arch?: "maxillary" | "mandibular") => void;
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
+  /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
+  selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   addStageStageHistory?: NewStageEligibilityStageRef[];
@@ -909,7 +913,9 @@ export function MandibularPanel({
   labCustomerId = null,
   onInlineAddProductComplete,
   onInlineAddProductCancel,
+  selectedAddonsByTooth = {},
 }: MandibularPanelProps) {
+  const productAddOns = useCaseDesignStore((s) => s.productAddOns);
   const MANDIBULAR_ALL_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
   const MANDIBULAR_PRODUCT_SENTINEL = 17;
   const [activeExtractionCode, setActiveExtractionCode] = useState<string | null>(null);
@@ -3152,10 +3158,27 @@ export function MandibularPanel({
                                 );
                               })()}
 
-                              {/* Row 4: Add ons — only when defaults/API populated (same as card 0) */}
-                              {isF("addons") && hasVisibleAddonDisplay(fVal("addons")) && (() => {
-                                const addonsVal = fVal("addons") || "";
-                                const addonItems = parseAddonDisplayItems(addonsVal);
+                              {/* Row 4: Add ons — when selected in modal, store, or product defaults */}
+                              {isF("addons") && (() => {
+                                const addonProduct = resolveAddedCardProductData(
+                                  "mandibular",
+                                  ap.id,
+                                  cardTeeth,
+                                  getToothProduct,
+                                  apProduct ?? undefined
+                                );
+                                const addonCtx = buildRemovableAddonFieldContext({
+                                  arch: "mandibular",
+                                  cardId: ap.id,
+                                  cardTeeth,
+                                  repTooth: repTn,
+                                  product: addonProduct,
+                                  getFieldValue,
+                                  selectedAddonsByTooth,
+                                  productAddOns,
+                                });
+                                if (!addonCtx.show) return null;
+                                const addonItems = parseAddonDisplayItems(addonCtx.display);
                                 const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                                 const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
                                 const onClickAddon = () =>
@@ -3845,6 +3868,8 @@ export function MandibularPanel({
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                         expandedImplantTooth={expandedImplantTooth}
                         onExpandedImplantToothChange={setExpandedImplantTooth}
+                        productAddOns={productAddOns}
+                        selectedAddonsByTooth={selectedAddonsByTooth}
                       />
                     ) : null}
                     <ScrollToBottom />
@@ -4409,10 +4434,20 @@ export function MandibularPanel({
                             </fieldset>
                             );
                           })()}
-                          {/* Row 4: Add ons — only when defaults/API populated (same as card 0) */}
-                          {isF("addons") && hasVisibleAddonDisplay(fVal("addons")) && (() => {
-                            const addonsVal = fVal("addons") || "";
-                            const addonItems = parseAddonDisplayItems(addonsVal);
+                          {/* Row 4: Add ons — when selected in modal, store, or product defaults */}
+                          {isF("addons") && (() => {
+                            const addonCtx = buildRemovableAddonFieldContext({
+                              arch: "mandibular",
+                              cardId: 0,
+                              cardTeeth,
+                              repTooth: repTn,
+                              product: toothProduct,
+                              getFieldValue,
+                              selectedAddonsByTooth,
+                              productAddOns,
+                            });
+                            if (!addonCtx.show) return null;
+                            const addonItems = parseAddonDisplayItems(addonCtx.display);
                             const borderClass = isFComplete("addons") && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]";
                             const legendClass = isFComplete("addons") && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]";
                             const onClickAddon = () =>

@@ -12,6 +12,7 @@ import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { useToast } from "@/components/ui/use-toast";
 import type { CaseNoteStageSeed } from "@/lib/api/slip-notes";
 import type { SlipProductArchKey } from "@/lib/virtual-slip-view-model";
+import type { CaseSchedule, BusinessHour } from "@/lib/api-business-settings";
 
 export interface VirtualSlipCenterActionsProps {
   slipId: number;
@@ -53,6 +54,8 @@ export interface VirtualSlipCenterActionsProps {
   caseOnHold?: boolean;
   /** Lab-only: rush changes delivery date on an existing slip. */
   allowRush?: boolean;
+  rushCaseSchedule?: CaseSchedule | null;
+  labBusinessHours?: BusinessHour[] | null;
 }
 
 /** Center-column action icons + modals for virtual slip v2 (CASE DESIGN CENTER). */
@@ -94,6 +97,8 @@ export function VirtualSlipCenterActions({
   canPutOnHold = true,
   caseOnHold = false,
   allowRush = true,
+  rushCaseSchedule = null,
+  labBusinessHours = null,
 }: VirtualSlipCenterActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -280,8 +285,10 @@ export function VirtualSlipCenterActions({
             name: rushArchSlots[0]?.productName ?? productName,
             stage: rushArchSlots[0]?.stageName ?? productStage,
             deliveryDate: deliveryDateIso,
-            price: 0,
+            price: rushArchSlots.reduce((sum, s) => sum + (s.price ?? 0), 0),
           }}
+          rushCaseSchedule={rushCaseSchedule}
+          labBusinessHours={labBusinessHours}
         />
       )}
 

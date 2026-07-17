@@ -2595,7 +2595,7 @@ export function DentalSlipPageContent({
                           )
 
                           return (
-                            <div className="rounded-full bg-gray-200 flex items-center justify-center overflow-hidden" style={{ width: '103.92px', height: '103.92px' }}>
+                            <div className="rounded-full bg-gray-200 flex items-center justify-center overflow-hidden" style={{ width: '110.92px', height: '110.92px' }}>
                               {(() => {
                                 const imageSrc = resolveDoctorImageUrl(selectedDoctor as any)
                                 return imageSrc ? (

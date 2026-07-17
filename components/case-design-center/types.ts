@@ -269,6 +269,12 @@ export interface NotesProps {
   /** Extraction map: toothNumber → extractionCode for non-default boxes (missing, extracting, etc.) */
   maxillaryToothExtractionMap?: Record<number, string>;
   mandibularToothExtractionMap?: Record<number, string>;
+  /** Overlay/clasp teeth — excluded from product tooth numbers in notes (match orange header). */
+  maxillaryClaspTeeth?: number[];
+  mandibularClaspTeeth?: number[];
+  /** Removable product teeth that also carry a status (no-active-box path). */
+  maxillaryNoActiveBoxTeeth?: number[];
+  mandibularNoActiveBoxTeeth?: number[];
   /** Get the API product assigned to a tooth */
   getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null;
   /** Get the value for a field step on a tooth */

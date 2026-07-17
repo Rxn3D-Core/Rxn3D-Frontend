@@ -957,8 +957,8 @@ function StepPatientInfo({
       <div className="hidden sm:flex flex-row items-start justify-between">
         <div className="flex flex-row items-start gap-5">
           {doctor && (
-            <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
-              <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+            <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
+              <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
                 <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
                   {getInitials(doctor.name) || "?"}
                 </span>
@@ -1086,8 +1086,8 @@ function StepPatientInfo({
       <div className="flex sm:hidden flex-col items-center gap-3">
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-0">
+            <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
               <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
                 {getInitials(doctor.name) || "?"}
               </span>
@@ -1908,8 +1908,8 @@ function PatientMiniHeader({
       <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
-          <div className="flex flex-col justify-center items-center gap-2 sm:gap-[15px] w-auto sm:w-[170px] flex-shrink-0">
-            <div className="relative w-[50px] h-[50px] sm:w-[72.74px] sm:h-[72.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+          <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
+            <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
               <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
                 {getInitials(doctor.name) || "?"}
               </span>
