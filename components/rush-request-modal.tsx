@@ -235,10 +235,12 @@ export default function RushRequestModal({
   const [mandTargetDateStr, setMandTargetDateStr] = useState("")
   const [targetDatesByKey, setTargetDatesByKey] = useState<Record<string, string>>({})
 
-  const configuredRushPercent = Number.parseFloat(
-    String(rushCaseSchedule?.fixed_rush_fee_percentage ?? "25")
-  )
-  const configuredTurnaroundDays = rushCaseSchedule?.fixed_turnaround_days
+  const isFlexibleRush = rushCaseSchedule?.rush_type === "flexible"
+
+  const configuredRushPercent = isFlexibleRush
+    ? 0
+    : Number.parseFloat(String(rushCaseSchedule?.fixed_rush_fee_percentage ?? "25"))
+  const configuredTurnaroundDays = isFlexibleRush ? undefined : rushCaseSchedule?.fixed_turnaround_days
 
   const earliestRushDelivery = useMemo(
     () =>
@@ -252,14 +254,25 @@ export default function RushRequestModal({
 
   const computeRushMetrics = (targetDateStr: string, standardDelivery?: Date) => {
     if (!targetDateStr || !standardDelivery) {
-      return { daysSaved: 0, rushPercentage: configuredRushPercent, rushFee: 0 }
+      return { daysSaved: 0, rushPercentage: 0, rushFee: 0 }
     }
     const rushDate = parseLocalDateString(targetDateStr)
-    const daysSaved = countLabWorkingDaysBetween(
-      rushDate,
-      standardDelivery,
-      labCalendarCtx
-    )
+    const daysSaved = countLabWorkingDaysBetween(rushDate, standardDelivery, labCalendarCtx)
+
+    if (isFlexibleRush) {
+      const standardWorkingDays = countLabWorkingDaysBetween(
+        startOfDay(new Date()),
+        standardDelivery,
+        labCalendarCtx
+      )
+      const rushPercentage =
+        standardWorkingDays > 0
+          ? Math.round((daysSaved / standardWorkingDays) * 100 * 100) / 100
+          : 0
+      const rushFee = Math.round(product.price * (rushPercentage / 100) * 100) / 100
+      return { daysSaved, rushPercentage, rushFee }
+    }
+
     const rushPercentage = Number.isFinite(configuredRushPercent) ? configuredRushPercent : 25
     const rushFee = Math.round(product.price * (rushPercentage / 100) * 100) / 100
     return { daysSaved, rushPercentage, rushFee }
@@ -813,8 +826,7 @@ export default function RushRequestModal({
               Rush Request
             </DialogTitle>
 
-            {rushCaseSchedule?.enable_rush_cases !== false &&
-            rushCaseSchedule?.rush_type === "fixed" ? (
+            {rushCaseSchedule?.enable_rush_cases !== false && rushCaseSchedule?.rush_type === "fixed" ? (
               <p
                 className="text-[12px] text-[#545F71] mb-4 leading-[18px] tracking-[-0.02em] rounded-md px-3 py-2"
                 style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}
@@ -830,6 +842,14 @@ export default function RushRequestModal({
                   {Number.isFinite(configuredRushPercent) ? configuredRushPercent : "—"}%
                 </span>{" "}
                 rush fee
+              </p>
+            ) : rushCaseSchedule?.enable_rush_cases !== false && isFlexibleRush ? (
+              <p
+                className="text-[12px] text-[#545F71] mb-4 leading-[18px] tracking-[-0.02em] rounded-md px-3 py-2"
+                style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}
+              >
+                Lab rush settings: <span className="font-bold">Flexible</span> — select any available lab
+                working day. Rush fee is determined by the lab after submission.
               </p>
             ) : null}
 

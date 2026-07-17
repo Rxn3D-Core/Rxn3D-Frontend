@@ -1220,6 +1220,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     (product: ProductApiData | null | undefined, arch: string | undefined) => {
       if (!product?.id || !arch) return;
       if (shouldSkipLegacyDefaultExtractionAutoSelect(product)) return;
+      if (hasRetentionOptions(product)) return;
 
       const isSingleDefaultOnly = isSingleDefaultOnlyExtractionList(product.extractions);
       const shouldAutoDefault = shouldAutoSelectArchForDefaultExtraction(product.extractions);
