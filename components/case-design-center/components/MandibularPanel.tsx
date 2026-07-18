@@ -3158,8 +3158,11 @@ export function MandibularPanel({
                                 );
                               })()}
 
-                              {/* Row 4: Add ons — when selected in modal, store, or product defaults */}
-                              {isF("addons") && (() => {
+                              {/* Row 4: Add ons — when selected in modal, store, or product defaults.
+                                  Not chain-gated (like Impression above): arch-level impression completion
+                                  may live on a different tooth than this card's rep tooth, which would
+                                  keep auto-populated default add-ons hidden forever. */}
+                              {(() => {
                                 const addonProduct = resolveAddedCardProductData(
                                   "mandibular",
                                   ap.id,
