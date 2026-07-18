@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api/client"
+import { apiClient, buildApiUrl } from "@/lib/api/client"
 import { parseStageFromSlipProductNotes } from "../parse-slip-product-notes"
 
 /** Backend note type values (required on create). */
@@ -225,6 +225,42 @@ export async function updateSlipNote(
 /** DELETE /slip/notes/note/{noteId} */
 export async function deleteSlipNote(noteId: number): Promise<void> {
   await apiClient.delete<unknown>(`/slip/notes/note/${noteId}`)
+}
+
+/** POST /slip/notes/{noteId}/attachments — multipart `files[]` (+ optional `descriptions[]`). */
+export async function uploadSlipNoteAttachments(
+  noteId: number,
+  files: File[],
+  descriptions?: (string | null | undefined)[]
+): Promise<SlipNoteAttachment[]> {
+  const formData = new FormData()
+  files.forEach((file, index) => {
+    formData.append("files[]", file)
+    if (descriptions) {
+      formData.append("descriptions[]", descriptions[index] ?? "")
+    }
+  })
+
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null
+  const response = await fetch(buildApiUrl(`/slip/notes/${noteId}/attachments`), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null)
+    const message =
+      errorBody?.message || `HTTP error! status: ${response.status}`
+    throw new Error(message)
+  }
+
+  const raw = (await response.json().catch(() => null)) as unknown
+  return unwrapList<SlipNoteAttachment>(raw)
 }
 
 function normalizeCaseNotesQueryParams(
