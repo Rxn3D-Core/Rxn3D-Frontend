@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Filter,
   Loader2,
@@ -38,8 +38,10 @@ import {
   formatSlipStageTabLabel,
   resolveStageTabLabel,
   slipNoteAuthorName,
+  uploadSlipNoteAttachments,
   type CaseNoteStageSeed,
   type CaseSlipWithNotes,
+  type SlipNoteAttachment,
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes"
 import { cn } from "@/lib/utils"
@@ -101,6 +103,71 @@ function MetaBadge({
     >
       {children}
     </span>
+  )
+}
+
+function NoteAttachmentsList({
+  attachments,
+}: {
+  attachments: SlipNoteAttachment[]
+}) {
+  const visible = attachments.filter((a) => !a.is_archived)
+  const images = visible.filter(
+    (a) => a.file_url && a.file_type?.startsWith("image/")
+  )
+  const files = visible.filter(
+    (a) => !(a.file_url && a.file_type?.startsWith("image/"))
+  )
+  if (visible.length === 0) return null
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {images.map((att) => (
+        <a
+          key={att.id}
+          href={att.file_url ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={att.original_name || att.file_name}
+          className="block h-16 w-16 overflow-hidden rounded-lg border border-[#E5E7EB]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={att.file_url ?? ""}
+            alt={att.original_name || att.file_name}
+            className="h-full w-full object-cover"
+          />
+        </a>
+      ))}
+      {files.map((att) => {
+        const label = att.original_name || att.file_name
+        const chip = (
+          <>
+            <Paperclip className="h-3 w-3 shrink-0 text-[#6B7280]" />
+            <span className="max-w-[180px] truncate">{label}</span>
+          </>
+        )
+        return att.file_url ? (
+          <a
+            key={att.id}
+            href={att.file_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={label}
+            className="inline-flex items-center gap-1 rounded-full border border-[#D1D5DB] bg-white px-2.5 py-0.5 text-xs text-[#374151] hover:bg-[#F3F4F6]"
+          >
+            {chip}
+          </a>
+        ) : (
+          <span
+            key={att.id}
+            title={label}
+            className="inline-flex items-center gap-1 rounded-full border border-[#D1D5DB] bg-white px-2.5 py-0.5 text-xs text-[#374151]"
+          >
+            {chip}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -175,6 +242,9 @@ function NoteHistoryEntry({
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#111827]">
         {note.note}
       </p>
+      {note.attachments?.length ? (
+        <NoteAttachmentsList attachments={note.attachments} />
+      ) : null}
     </div>
   )
 }
@@ -324,6 +394,9 @@ export function SlipNotesModal({
   const [isAddingNote, setIsAddingNote] = useState(false)
   const [newNoteContent, setNewNoteContent] = useState("")
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [showFilterPopover, setShowFilterPopover] = useState(false)
   const [filterUser, setFilterUser] = useState("all")
   const [filterDateRange, setFilterDateRange] = useState("all")
@@ -411,8 +484,18 @@ export function SlipNotesModal({
     setIsAddingNote(false)
     setNewNoteContent("")
     setEditingNoteId(null)
+    setPendingFiles([])
     setError(null)
   }, [setError])
+
+  const addPendingFiles = useCallback((list: FileList | null) => {
+    if (!list?.length) return
+    setPendingFiles((prev) => [...prev, ...Array.from(list)])
+  }, [])
+
+  const removePendingFile = useCallback((index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+  }, [])
 
   useEffect(() => {
     if (!isOpen) {
@@ -452,15 +535,38 @@ export function SlipNotesModal({
       ? await editNote(editingNoteId, text, "stage")
       : await addNote(text, "stage")
 
-    if (saved) {
-      if (caseId) {
-        await refetchCaseNotes()
-      } else {
-        await loadSlipNotes()
+    if (!saved) return
+
+    if (pendingFiles.length > 0) {
+      setIsUploadingFiles(true)
+      try {
+        await uploadSlipNoteAttachments(saved.id, pendingFiles)
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? `Note saved, but attachments failed to upload: ${err.message}`
+            : "Note saved, but attachments failed to upload"
+        )
+        // Retrying Done updates this note instead of creating a duplicate.
+        setEditingNoteId(saved.id)
+        if (caseId) {
+          await refetchCaseNotes()
+        } else {
+          await loadSlipNotes()
+        }
+        return
+      } finally {
+        setIsUploadingFiles(false)
       }
-      onNotesChanged?.(text)
-      resetCompose()
     }
+
+    if (caseId) {
+      await refetchCaseNotes()
+    } else {
+      await loadSlipNotes()
+    }
+    onNotesChanged?.(text)
+    resetCompose()
   }
 
   const handleResetFilters = () => {
@@ -635,24 +741,68 @@ export function SlipNotesModal({
                   maxLength={MAX_NOTE_LENGTH}
                   autoFocus
                 />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    addPendingFiles(e.target.files)
+                    e.target.value = ""
+                  }}
+                />
                 <div
                   className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#D1D5DB] bg-[#FAFAFA] px-4 py-8 text-center"
                   role="button"
                   tabIndex={0}
-                  onKeyDown={() => {}}
+                  onClick={() => fileInputRef.current?.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      fileInputRef.current?.click()
+                    }
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    addPendingFiles(e.dataTransfer.files)
+                  }}
                 >
                   <Upload className="mb-2 h-6 w-6 text-[#9CA3AF]" />
                   <p className="text-sm text-[#6B7280]">
                     Drag &amp; drop files here or click to browse files
                   </p>
                 </div>
+                {pendingFiles.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {pendingFiles.map((file, index) => (
+                      <span
+                        key={`${file.name}-${index}`}
+                        className="inline-flex items-center gap-1 rounded-full border border-[#D1D5DB] bg-white px-2.5 py-0.5 text-xs text-[#374151]"
+                      >
+                        <Paperclip className="h-3 w-3 text-[#6B7280]" />
+                        <span className="max-w-[160px] truncate">
+                          {file.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removePendingFile(index)}
+                          aria-label={`Remove ${file.name}`}
+                          className="text-[#6B7280] hover:text-[#111827]"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-4 flex justify-end gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     className="min-w-[100px] border-[#D1D5DB]"
                     onClick={handleCancelCompose}
-                    disabled={isSaving}
+                    disabled={isSaving || isUploadingFiles}
                   >
                     Cancel
                   </Button>
@@ -660,9 +810,9 @@ export function SlipNotesModal({
                     type="button"
                     className="min-w-[100px] bg-[#1162A8] text-white hover:bg-[#0f5490]"
                     onClick={() => void handleDone()}
-                    disabled={!newNoteContent.trim() || isSaving}
+                    disabled={!newNoteContent.trim() || isSaving || isUploadingFiles}
                   >
-                    {isSaving ? (
+                    {isSaving || isUploadingFiles ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       "Done"
