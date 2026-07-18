@@ -389,6 +389,8 @@ interface FixedRestorationFieldsProps {
   onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
   /** Arch-wide impression qty grid (shared by all fixed/removable products on this jaw). */
   selectedImpressions?: SlipImpressionSelections;
+  /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
+  labCustomerId?: number | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -440,6 +442,7 @@ export function RetentionProductFields({
   expandedImplantTooth,
   onExpandedImplantToothChange,
   selectedImpressions = { maxillary: [], mandibular: [] },
+  labCustomerId,
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
@@ -1264,6 +1267,7 @@ export function RetentionProductFields({
         advanceFields={selectedProduct?.advance_fields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
