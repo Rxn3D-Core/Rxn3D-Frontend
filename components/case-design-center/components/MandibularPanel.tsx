@@ -1056,28 +1056,23 @@ export function MandibularPanel({
     onCheckedTeethChange?.(teeth);
   }, [onCheckedTeethChange]);
   /** Tracks implant detail completion per tooth so we can block impression modal until complete. */
-  const [implantDetailCompleteByTooth, setImplantDetailCompleteByToothRaw] = useState<Record<number, boolean>>({});
-  const setImplantDetailCompleteByTooth = useCallback(
-    (updater: Record<number, boolean> | ((prev: Record<number, boolean>) => Record<number, boolean>)) => {
-      setImplantDetailCompleteByToothRaw((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        onImplantDetailCompleteChange?.(next);
-        return next;
-      });
-    },
-    [onImplantDetailCompleteChange]
-  );
+  const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
   /** Persists implant detail form data per tooth so it survives accordion collapse/expand. */
-  const [implantDetailByTooth, setImplantDetailByToothRaw] = useState<Record<number, ImplantDetailData>>({});
+  const [implantDetailByTooth, setImplantDetailByTooth] = useState<Record<number, ImplantDetailData>>({});
   /** Only one implant detail accordion open at a time on this arch. */
   const [expandedImplantTooth, setExpandedImplantTooth] = useState<number | undefined>(undefined);
-  const setImplantDetailByTooth = useCallback((updater: Record<number, ImplantDetailData> | ((prev: Record<number, ImplantDetailData>) => Record<number, ImplantDetailData>)) => {
-    setImplantDetailByToothRaw((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      onImplantDetailChange?.(next);
-      return next;
-    });
-  }, [onImplantDetailChange]);
+  // Sync peer state to CaseDesignCenter after commit — never from inside setState updaters
+  // (that triggers "Cannot update CaseDesignCenter while rendering MandibularPanel").
+  const onImplantDetailChangeRef = useRef(onImplantDetailChange);
+  onImplantDetailChangeRef.current = onImplantDetailChange;
+  const onImplantDetailCompleteChangeRef = useRef(onImplantDetailCompleteChange);
+  onImplantDetailCompleteChangeRef.current = onImplantDetailCompleteChange;
+  useEffect(() => {
+    onImplantDetailChangeRef.current?.(implantDetailByTooth);
+  }, [implantDetailByTooth]);
+  useEffect(() => {
+    onImplantDetailCompleteChangeRef.current?.(implantDetailCompleteByTooth);
+  }, [implantDetailCompleteByTooth]);
   /** Active extraction code selected in the opposing ToothStatusBoxes */
   const [opposingActiveExtractionCode, setOpposingActiveExtractionCode] = useState<string | null>(null);
   const [opposingActiveExtractions, setOpposingActiveExtractions] = useState<import("../types").ProductExtraction[]>([]);
@@ -3356,6 +3351,7 @@ export function MandibularPanel({
                             firstToothNumber={apFirstTn}
                             groupStageToothNumber={apFirstTn}
                             groupStageProductIdFixed={apGroupStageProductIdFixed}
+                            labCustomerId={labCustomerId}
                             selectedProduct={apToothProduct}
                             toothNumbers={cardTeeth}
                             retentionTypes={apRetentionTypes}
@@ -3792,6 +3788,7 @@ export function MandibularPanel({
                         firstToothNumber={groupStageToothNumber}
                         groupStageToothNumber={groupStageToothNumber}
                         groupStageProductIdFixed={groupStageProductIdFixed}
+                        labCustomerId={labCustomerId}
                         selectedProduct={selectedProduct}
                         toothNumbers={toothNumbers}
                         retentionTypes={retentionTypes}
@@ -3836,6 +3833,7 @@ export function MandibularPanel({
                     ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
                         arch="mandibular"
+                        labCustomerId={labCustomerId}
                         firstToothNumber={firstToothNumber}
                         selectedProduct={selectedProduct}
                         toothNumbers={toothNumbers}

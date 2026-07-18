@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ImplantDetailSection, ImplantDetailData } from "./ImplantDetailSection";
 import { useSequentialImplantDetails } from "../hooks/useSequentialImplantDetails";
 import type { ProductAbutment } from "@/services/implant-api";
+import { resolveLibraryCustomerId } from "../utils/libraryCustomerId";
 
 interface ImplantDetailBoxesProps {
   toothNumbers: number[];
@@ -20,6 +21,8 @@ interface ImplantDetailBoxesProps {
   advanceFields?: import("../types").ProductAdvanceField[];
   productId?: number;
   productAbutments?: ProductAbutment[];
+  /** Lab customer id owning the product catalog (office flows select a lab in the wizard, not localStorage). */
+  labCustomerId?: number | null;
   /** Arch-level: which implant tooth accordion is open (only one per arch). */
   expandedImplantTooth?: number;
   onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
@@ -36,6 +39,7 @@ export function ImplantDetailBoxes({
   advanceFields,
   productId,
   productAbutments,
+  labCustomerId,
   expandedImplantTooth,
   onExpandedImplantToothChange,
 }: ImplantDetailBoxesProps) {
@@ -69,15 +73,10 @@ export function ImplantDetailBoxes({
     }
   }, [activeImplantTooth]);
 
-  const implantCustomerId = useMemo(() => {
-    if (typeof window === "undefined") return undefined;
-    const role = localStorage.getItem("role");
-    const id =
-      role === "office_admin" || role === "doctor"
-        ? localStorage.getItem("selectedLabId")
-        : localStorage.getItem("customerId");
-    return id ? Number(id) : undefined;
-  }, []);
+  const implantCustomerId = useMemo(
+    () => labCustomerId ?? resolveLibraryCustomerId(),
+    [labCustomerId]
+  );
 
   if (visibleImplantTeeth.length === 0) return null;
 

@@ -504,6 +504,8 @@ interface RemovableRestorationFieldsProps {
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
   /** Product card id (0 = initial card). Used to resolve virtual-slot add-on values. */
   productCardId?: number;
+  /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
+  labCustomerId?: number | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -541,6 +543,7 @@ export function SelectionProductFields({
   productAddOns = {},
   selectedAddonsByTooth = {},
   productCardId = 0,
+  labCustomerId,
 }: RemovableRestorationFieldsProps) {
   const removableChain = getSelectionFieldChain(selectedProduct);
   const implantTeeth = useMemo(
@@ -596,6 +599,7 @@ export function SelectionProductFields({
         advanceFields={selectedProduct?.advance_fields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
