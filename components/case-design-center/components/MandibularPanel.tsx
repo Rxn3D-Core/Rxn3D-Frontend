@@ -181,6 +181,7 @@ import {
   canAutoApplyPreferredGum,
 } from "@/lib/product-shade-preferences";
 import {
+  implantOnlySelectionModeForArch,
   mergeProductDefaultToothChartForSlipSvgDisplay,
   resolveSlipDefaultChartProduct,
 } from "@/lib/product-default-tooth-chart-slip-display";
@@ -1672,6 +1673,19 @@ export function MandibularPanel({
     [activeMandibularProduct, card0InitialProduct, slipInitialArch, opposingProductData],
   );
 
+  // Select-only-implant: chart clicks toggle Implant on any tooth directly;
+  // extraction statuses stay locked to the product default chart display.
+  const mandibularImplantOnlyMode = useMemo(
+    () =>
+      activeProductCardId === 0 &&
+      implantOnlySelectionModeForArch(
+        mandibularDefaultChartProduct,
+        "mandibular",
+        slipInitialArch,
+      ),
+    [activeProductCardId, mandibularDefaultChartProduct, slipInitialArch],
+  );
+
   const mandibularSlipSvgDisplay = useMemo(
     () =>
       mergeProductDefaultToothChartForSlipSvgDisplay({
@@ -1928,6 +1942,14 @@ export function MandibularPanel({
                   }}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
+                      return;
+                    }
+
+                    // Select-only-implant: bypass every other click path — the
+                    // wrapped click handler toggles Implant on the clicked tooth.
+                    if (mandibularImplantOnlyMode) {
+                      if (!ownArchToothChartEnabled) return;
+                      handleMandibularToothClick(toothNumber);
                       return;
                     }
 
@@ -3558,6 +3580,19 @@ export function MandibularPanel({
                 const stumpShadeFieldDone =
                   isFieldCompleted("mandibular", firstToothNumber, "fixed_stump_shade") ||
                   !!getFieldValue("mandibular", firstToothNumber, "fixed_stump_shade")?.trim();
+                // Gum picked via the panel picker completes at groupStageToothNumber,
+                // which can differ from firstToothNumber once extraction teeth join the group.
+                const gumShadeFieldDone =
+                  stumpShadeFieldDone ||
+                  isFieldCompleted("mandibular", groupStageToothNumber, "fixed_stump_shade") ||
+                  !!getFieldValue("mandibular", groupStageToothNumber, "fixed_stump_shade")?.trim();
+                // Teeth shade satisfied via shade state OR the completed fixed_shade_trio
+                // field — shade-state keys can miss (late product hydration / group shifts)
+                // even though the step completed, which used to stall the gum auto-open.
+                const toothShadeSatisfiedForGum =
+                  !_needsToothShade ||
+                  !!getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade") ||
+                  isFieldCompleted("mandibular", groupStageToothNumber, "fixed_shade_trio");
                 const fixedShadesComplete = areFixedProductShadesComplete(
                   selectedProduct?.advance_fields,
                   _mandFixedShadeProductId,
@@ -3766,10 +3801,16 @@ export function MandibularPanel({
                           visible={
                             namedShadeFields.length === 0 &&
                             _needsStumpShade &&
-                            !!getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade") &&
-                            !getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade")
+                            !isAnyModalOpen &&
+                            shadeSelectionState.fieldType === null &&
+                            toothShadeSatisfiedForGum &&
+                            !getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade") &&
+                            !gumShadeFieldDone
                           }
-                          hasValue={!!getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade")}
+                          hasValue={
+                            !!getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade") ||
+                            gumShadeFieldDone
+                          }
                           onOpen={() =>
                             setPanelGumShadePicker({
                               toothNumber: groupStageToothNumber,

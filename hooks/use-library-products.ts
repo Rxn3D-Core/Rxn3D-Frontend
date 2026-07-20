@@ -71,6 +71,7 @@ export interface LibraryProductApi {
   retention_options?: unknown[]
   has_default_tooth_chart?: "Yes" | "No" | string | null
   enable_default_tooth_chart?: "Yes" | "No" | string | null
+  allow_select_only_implant?: "Yes" | "No" | string | null
 }
 
 export interface LibraryProductsApiResponse {
@@ -104,6 +105,7 @@ export interface WizardProductShape {
   retention_options?: unknown[]
   has_default_tooth_chart?: "Yes" | "No" | string | null
   enable_default_tooth_chart?: "Yes" | "No" | string | null
+  allow_select_only_implant?: "Yes" | "No" | string | null
   /** Per-arch images for removable restoration hover popover. Populated from API when available. */
   arch_images: ArchImages
   /** Whether to use jaw_photos as arch popover images instead of arch_images */
@@ -299,6 +301,7 @@ export function useLibraryProducts(options: {
       retention_options: p.retention_options,
       has_default_tooth_chart: p.has_default_tooth_chart ?? null,
       enable_default_tooth_chart: p.enable_default_tooth_chart ?? null,
+      allow_select_only_implant: p.allow_select_only_implant ?? null,
     }))
 
   return {

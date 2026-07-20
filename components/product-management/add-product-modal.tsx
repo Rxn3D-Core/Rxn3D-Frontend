@@ -460,6 +460,7 @@ export function AddProductModal({
     tooth_count_variations: [],
     show_jaw_photo: "No",
     enable_default_tooth_chart: "No",
+    allow_select_only_implant: "No",
     default_tooth_chart: [],
   }), [])
 
@@ -1027,6 +1028,8 @@ export function AddProductModal({
         editingProduct.enable_default_tooth_chart === "Yes"
           ? "Yes"
           : "No",
+      allow_select_only_implant:
+        editingProduct.allow_select_only_implant === "Yes" ? "Yes" : "No",
       default_tooth_chart: hydrateDefaultToothChartFromProduct(
         editingProduct as Record<string, unknown>,
         (() => {

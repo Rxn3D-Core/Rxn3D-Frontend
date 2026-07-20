@@ -268,6 +268,7 @@ export function applyDefaultToothChartToPayload(
   form: {
     enable_default_tooth_chart?: string | null
     has_default_tooth_chart?: string | null
+    allow_select_only_implant?: string | null
     default_tooth_chart?: ProductDefaultToothChartEntry[] | null | unknown
   },
 ): void {
@@ -277,6 +278,14 @@ export function applyDefaultToothChartToPayload(
     payload.has_default_tooth_chart === "Yes"
 
   payload.has_default_tooth_chart = enabled ? "Yes" : "No"
+
+  // Always send Yes/No so create/update never omit the field.
+  const allowOnlyImplant =
+    enabled &&
+    (form.allow_select_only_implant === "Yes" ||
+      payload.allow_select_only_implant === "Yes")
+
+  payload.allow_select_only_implant = allowOnlyImplant ? "Yes" : "No"
 
   if (enabled) {
     const source = Array.isArray(form.default_tooth_chart)

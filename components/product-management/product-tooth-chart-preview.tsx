@@ -99,6 +99,13 @@ export interface ProductToothChartPreviewProps {
   /** All 32 teeth with retention_option_id and/or extraction_id for API payload. */
   defaultToothChart?: ProductDefaultToothChartEntry[]
   onDefaultToothChartChange?: (entries: ProductDefaultToothChartEntry[]) => void
+  /**
+   * Show "Allow user to select only implant" when a linked retention option
+   * resolves to Implant chart type.
+   */
+  showAllowSelectOnlyImplant?: boolean
+  allowSelectOnlyImplant?: boolean
+  onAllowSelectOnlyImplantChange?: (checked: boolean) => void
 }
 
 function getMaxTeethForCode(
@@ -143,6 +150,9 @@ function ProductToothChartPreviewInner({
   fillAvailable = false,
   defaultToothChart = [],
   onDefaultToothChartChange,
+  showAllowSelectOnlyImplant = false,
+  allowSelectOnlyImplant = false,
+  onAllowSelectOnlyImplantChange,
 }: ProductToothChartPreviewProps) {
   const [maxillarySelectedTeeth, setMaxillarySelectedTeeth] = useState<number[]>([])
   const [mandibularSelectedTeeth, setMandibularSelectedTeeth] = useState<number[]>([])
@@ -728,9 +738,24 @@ function ProductToothChartPreviewInner({
         fillAvailable && "xl:min-h-[420px]",
       )}
     >
-      <div className="mb-3">
-        <h4 className="text-sm font-medium text-gray-900">Default tooth chart</h4>
-        <p className="text-xs text-muted-foreground mt-1">{helperText}</p>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-sm font-medium text-gray-900">Default tooth chart</h4>
+          <p className="text-xs text-muted-foreground mt-1">{helperText}</p>
+        </div>
+        {showAllowSelectOnlyImplant ? (
+          <label className="flex items-start gap-1.5 shrink-0 cursor-pointer max-w-[11rem]">
+            <input
+              type="checkbox"
+              checked={allowSelectOnlyImplant}
+              onChange={(e) => onAllowSelectOnlyImplantChange?.(e.target.checked)}
+              className="accent-[#1162a8] mt-0.5 shrink-0 w-4 h-4"
+            />
+            <span className="text-xs leading-snug text-gray-900">
+              Allow user to select only implant
+            </span>
+          </label>
+        ) : null}
       </div>
 
       <div className="space-y-3 overflow-y-auto overflow-x-hidden flex-1 min-h-0 pr-1">

@@ -42,7 +42,10 @@ import {
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
-import { resolveDefaultToothChartSlipAssignmentForArch } from "@/lib/product-default-tooth-chart-slip-display";
+import {
+  implantOnlySelectionModeForArch,
+  resolveDefaultToothChartSlipAssignmentForArch,
+} from "@/lib/product-default-tooth-chart-slip-display";
 import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, getDefaultSeedQtyFromProductAddon } from "../utils/addonDisplayHelpers";
 import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
@@ -2442,13 +2445,30 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ]
   );
 
+  // Select-only-implant (card 0 only): any tooth click toggles Implant retention
+  // directly (no popover); extraction statuses stay locked to the chart defaults.
+  const implantOnlySelectionModeFor = useCallback(
+    (arch: Arch): boolean => {
+      if (activeProductCardId !== 0) return false;
+      if (!initialProductDetails) return false;
+      return implantOnlySelectionModeForArch(
+        initialProductDetails as unknown as Record<string, unknown>,
+        arch,
+        props.initialArch,
+      );
+    },
+    [activeProductCardId, initialProductDetails, props.initialArch]
+  );
+
   const handleToothExtractionToggle = useCallback(
     (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
       if (!isGuidedArchInteractive(arch)) return;
       if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
+      // Select-only-implant: extraction statuses are display-only defaults.
+      if (implantOnlySelectionModeFor(arch)) return;
       teeth.handleToothExtractionToggle(arch, toothNumber, extractionCode, extractions);
     },
-    [canModifyToothForActiveProduct, teeth]
+    [canModifyToothForActiveProduct, implantOnlySelectionModeFor, teeth]
   );
 
   /** True when the active card is card 0 or an added product covering this arch. */
@@ -2461,6 +2481,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const handleMaxillaryToothClick = (toothNumber: number) => {
     if (!isGuidedArchInteractive("maxillary")) return;
     if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
+    if (implantOnlySelectionModeFor("maxillary")) {
+      if (teeth.maxillaryTeeth.includes(toothNumber)) {
+        handleMaxillaryToothDeselect(toothNumber);
+      } else {
+        teeth.setMaxillaryTeeth((prev) =>
+          prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+        );
+        handleSelectRetentionType("maxillary", toothNumber, "Implant");
+      }
+      return;
+    }
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
     if (isAdding) {
@@ -2476,6 +2507,17 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const handleMandibularToothClick = (toothNumber: number) => {
     if (!isGuidedArchInteractive("mandibular")) return;
     if (!canModifyToothForActiveProduct("mandibular", toothNumber)) return;
+    if (implantOnlySelectionModeFor("mandibular")) {
+      if (teeth.mandibularTeeth.includes(toothNumber)) {
+        handleMandibularToothDeselect(toothNumber);
+      } else {
+        teeth.setMandibularTeeth((prev) =>
+          prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+        );
+        handleSelectRetentionType("mandibular", toothNumber, "Implant");
+      }
+      return;
+    }
     const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
     teeth.handleMandibularToothClick(toothNumber);
     if (isAdding) {
@@ -2551,6 +2593,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
     if (!isGuidedArchInteractive(arch)) return;
+    // Select-only-implant: Implant is the only retention type a tooth may take.
+    if (implantOnlySelectionModeFor(arch) && type !== "Implant") return;
     const currentTypes = arch === "maxillary"
       ? teeth.maxillaryRetentionTypes[toothNumber]
       : teeth.mandibularRetentionTypes[toothNumber];
