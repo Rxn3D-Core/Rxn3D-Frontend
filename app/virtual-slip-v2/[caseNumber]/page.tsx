@@ -51,6 +51,7 @@ import {
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
 import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print";
+import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings";
@@ -380,6 +381,15 @@ export default function VirtualSlipV2Page() {
   const handlePrint = useCallback(() => {
     if (!slipId || isNaN(slipId)) return;
     printPaperSlip([slipId], []);
+  }, [slipId, printPaperSlip]);
+
+  // A freshly created slip is marked by the submit flow; consuming the flag
+  // auto-opens the paper slip print window once — reloads never re-trigger it.
+  useEffect(() => {
+    if (!slipId || isNaN(slipId)) return;
+    if (consumeSlipAutoPrint(slipId)) {
+      printPaperSlip([slipId], []);
+    }
   }, [slipId, printPaperSlip]);
 
   const submitCaseStatusAction = async (
