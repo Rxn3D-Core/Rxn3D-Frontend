@@ -6,6 +6,7 @@ import {
   hydrateDefaultToothChartFromProduct,
   parseDefaultToothChartToPreviewState,
   productHasDefaultToothChartEnabled,
+  resolveCatalogDefaultExtractionAssignment,
 } from "@/lib/product-default-tooth-chart"
 import {
   buildChartToothExtractionMap,
@@ -50,6 +51,30 @@ export function productDefaultToothChartAppliesToArch(
   if (slipInitialArch === "both") return true
   if (slipInitialArch) return slipInitialArch === arch
   return false
+}
+
+/** Default tooth chart is on and the product restricts slip selection to implant teeth. */
+export function productAllowsSelectOnlyImplant(
+  product: Record<string, unknown> | null | undefined,
+): boolean {
+  return (
+    productHasDefaultToothChartEnabled(product) &&
+    product?.allow_select_only_implant === "Yes"
+  )
+}
+
+/**
+ * Select-only-implant interaction mode applies to this arch's slip chart:
+ * any tooth click toggles Implant retention directly (no popover), and every
+ * other chart interaction stays locked to the product default chart display.
+ */
+export function implantOnlySelectionModeForArch(
+  product: Record<string, unknown> | null | undefined,
+  arch: "maxillary" | "mandibular",
+  slipInitialArch?: "maxillary" | "mandibular" | "both",
+): boolean {
+  if (!productAllowsSelectOnlyImplant(product)) return false
+  return productDefaultToothChartAppliesToArch(product, arch, slipInitialArch)
 }
 
 /** Own-arch product for default chart SVG overlay (not opposing-extraction mirror data). */
@@ -181,6 +206,19 @@ export function mergeProductDefaultToothChartForSlipSvgDisplay(input: {
   const defaults = parsedDefaultForArch(product, arch, resolved)
   const archTeeth = getChartTeethForArch(arch)
 
+  // Select-only-implant: implant marks render only while the tooth is selected
+  // (present in user retention state); a deselected implant tooth falls back to
+  // the catalog default extraction display.
+  if (productAllowsSelectOnlyImplant(product)) {
+    const fallback = resolveCatalogDefaultExtractionAssignment(resolved)
+    for (const toothStr of Object.keys(defaults.retentionTypesByTooth)) {
+      const tooth = Number(toothStr)
+      if (!defaults.retentionTypesByTooth[tooth]?.includes("Implant")) continue
+      delete defaults.retentionTypesByTooth[tooth]
+      if (fallback.kind === "code") defaults.extractionMap[tooth] = fallback.code
+    }
+  }
+
   const displayExtractionMap: Record<number, string> = { ...defaults.extractionMap }
   const displayClasp = [...defaults.claspTeeth]
   const displayRetention: Record<number, RetentionChartType[]> = {
@@ -261,6 +299,26 @@ export function resolveDefaultToothChartSlipAssignmentForArch(
       : parsed.mandibularTimOverrideTeeth
 
   const archTeeth = getChartTeethForArch(arch)
+
+  // Select-only-implant: bind only the implant-configured teeth to the product;
+  // extraction/clasp/TIM chart rows stay display-only defaults.
+  if (productAllowsSelectOnlyImplant(product)) {
+    const implantRetention: Record<number, RetentionChartType[]> = {}
+    for (const tooth of archTeeth) {
+      if (retentionTypesByTooth[tooth]?.includes("Implant")) {
+        implantRetention[tooth] = retentionTypesByTooth[tooth]
+      }
+    }
+    return {
+      retentionTypesByTooth: implantRetention,
+      toothExtractionMap: {},
+      claspTeeth: [],
+      productTeeth: Object.keys(implantRetention)
+        .map(Number)
+        .sort((a, b) => a - b),
+    }
+  }
+
   const productTeethSet = new Set<number>()
   for (const tooth of archTeeth) {
     if (retentionTypesByTooth[tooth]?.length) productTeethSet.add(tooth)

@@ -178,6 +178,7 @@ import {
   canAutoApplyPreferredGum,
 } from "@/lib/product-shade-preferences";
 import {
+  implantOnlySelectionModeForArch,
   mergeProductDefaultToothChartForSlipSvgDisplay,
   resolveSlipDefaultChartProduct,
 } from "@/lib/product-default-tooth-chart-slip-display";
@@ -1702,6 +1703,19 @@ export function MaxillaryPanel({
     [activeMaxillaryProduct, card0InitialProduct, slipInitialArch, opposingProductData],
   );
 
+  // Select-only-implant: chart clicks toggle Implant on any tooth directly;
+  // extraction statuses stay locked to the product default chart display.
+  const maxillaryImplantOnlyMode = useMemo(
+    () =>
+      activeProductCardId === 0 &&
+      implantOnlySelectionModeForArch(
+        maxillaryDefaultChartProduct,
+        "maxillary",
+        slipInitialArch,
+      ),
+    [activeProductCardId, maxillaryDefaultChartProduct, slipInitialArch],
+  );
+
   const maxillarySlipSvgDisplay = useMemo(
     () =>
       mergeProductDefaultToothChartForSlipSvgDisplay({
@@ -1971,6 +1985,14 @@ export function MaxillaryPanel({
                   }}
                   onToothClick={(toothNumber: number) => {
                     if (!toothChartInteractionEnabled) {
+                      return;
+                    }
+
+                    // Select-only-implant: bypass every other click path — the
+                    // wrapped click handler toggles Implant on the clicked tooth.
+                    if (maxillaryImplantOnlyMode) {
+                      if (!ownArchToothChartEnabled) return;
+                      handleMaxillaryToothClick(toothNumber);
                       return;
                     }
 
@@ -3592,6 +3614,19 @@ export function MaxillaryPanel({
                 const stumpShadeFieldDone =
                   isFieldCompleted("maxillary", firstToothNumber, "fixed_stump_shade") ||
                   !!getFieldValue("maxillary", firstToothNumber, "fixed_stump_shade")?.trim();
+                // Gum picked via the panel picker completes at groupStageToothNumber,
+                // which can differ from firstToothNumber once extraction teeth join the group.
+                const gumShadeFieldDone =
+                  stumpShadeFieldDone ||
+                  isFieldCompleted("maxillary", groupStageToothNumber, "fixed_stump_shade") ||
+                  !!getFieldValue("maxillary", groupStageToothNumber, "fixed_stump_shade")?.trim();
+                // Teeth shade satisfied via shade state OR the completed fixed_shade_trio
+                // field — shade-state keys can miss (late product hydration / group shifts)
+                // even though the step completed, which used to stall the gum auto-open.
+                const toothShadeSatisfiedForGum =
+                  !_needsToothShade ||
+                  !!getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade") ||
+                  isFieldCompleted("maxillary", groupStageToothNumber, "fixed_shade_trio");
                 const fixedShadesComplete = areFixedProductShadesComplete(
                   selectedProduct?.advance_fields,
                   _fixedShadeProductId,
@@ -3805,10 +3840,16 @@ export function MaxillaryPanel({
                           visible={
                             namedShadeFields.length === 0 &&
                             _needsStumpShade &&
-                            !!getSelectedShade(_fixedShadeProductId, "maxillary", "tooth_shade") &&
-                            !getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")
+                            !isAnyModalOpen &&
+                            shadeSelectionState.fieldType === null &&
+                            toothShadeSatisfiedForGum &&
+                            !getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade") &&
+                            !gumShadeFieldDone
                           }
-                          hasValue={!!getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade")}
+                          hasValue={
+                            !!getSelectedShade(_fixedShadeProductId, "maxillary", "stump_shade") ||
+                            gumShadeFieldDone
+                          }
                           onOpen={() =>
                             setPanelGumShadePicker({
                               toothNumber: groupStageToothNumber,
