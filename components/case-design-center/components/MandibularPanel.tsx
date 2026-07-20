@@ -94,7 +94,6 @@ import {
 import {
   resolveAddedCardProductData,
   resolveAddedCardRepTooth,
-  resolveAddedCardProductData,
 } from "../utils/resolveAddedCardProduct";
 import {
   formatSplintGroups,
