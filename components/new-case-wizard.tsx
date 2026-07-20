@@ -2460,8 +2460,8 @@ export default function NewCaseWizard({
             }}
             isLoading={labsLoading}
             error={labsError}
-            stepTitle={role === "office_admin" ? "Choose an Office" : "Choose a Lab"}
-            entityLabel={role === "office_admin" ? "office" : "lab"}
+            stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
+            entityLabel={role === "office_admin" ? "lab" : "office"}
             onAddNew={() => setShowAddLabModal(true)}
           />
         )}
@@ -2627,16 +2627,61 @@ export default function NewCaseWizard({
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={handleCancel}
-              className="border border-[#1162a8] text-[#1162a8] text-[12px] font-semibold px-6 py-2 rounded hover:bg-[#dfeefb]/30 transition-colors bg-transparent"
+              style={{
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "10px 16px",
+                gap: "8px",
+                minWidth: "120px",
+                height: "40px",
+                border: "1px solid #1162A8",
+                borderRadius: "5px",
+                fontFamily: "Verdana",
+                fontStyle: "normal",
+                fontWeight: 600,
+                fontSize: "16px",
+                lineHeight: "20px",
+                letterSpacing: "-0.02em",
+                color: "#1162A8",
+                background: "#FFFFFF",
+                whiteSpace: "nowrap",
+              }}
+              className="hover:bg-[#dfeefb]/40 transition-colors"
             >
               Cancel
             </button>
             {step === 3 && (
               <button
+                type="button"
                 onClick={handleNext}
                 disabled={!canProceed()}
-                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 disabled:bg-[#9ba5b7] text-white text-[12px] font-semibold px-6 py-2 rounded transition-colors"
+                style={{
+                  boxSizing: "border-box",
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  padding: "10px 16px",
+                  gap: "8px",
+                  minWidth: "120px",
+                  height: "40px",
+                  border: "none",
+                  borderRadius: "5px",
+                  fontFamily: "Verdana",
+                  fontStyle: "normal",
+                  fontWeight: 600,
+                  fontSize: "16px",
+                  lineHeight: "20px",
+                  letterSpacing: "-0.02em",
+                  color: "#FFFFFF",
+                  whiteSpace: "nowrap",
+                }}
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 disabled:bg-[#9ba5b7] disabled:opacity-60 transition-colors"
               >
                 Next
               </button>
