@@ -376,9 +376,9 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
             <div className="flex justify-end">
               <Button
-                variant="outline"
+                variant="destructive"
                 onClick={() => onOpenChange(false)}
-                className="bg-red-600 hover:bg-red-700 text-white border-red-600"
+                className="min-w-[120px] h-10 text-base font-semibold"
               >
                 Cancel
               </Button>
