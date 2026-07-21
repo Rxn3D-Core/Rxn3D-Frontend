@@ -129,10 +129,8 @@ export function V3CaseTable(props: Props) {
               </div>
             )
           : props.rows.map((row) => {
-              const isAmber = isOverdueOrToday(row.dueDate)
               const dueDateColor = dueDateTextColor(row.dueDate, row.rush)
-              const mobileIsLocked = !!row.rush
-              const cardBg = mobileIsLocked ? AMBER : isAmber ? AMBER : "#FFFFFF"
+              const cardBg = row.rush ? AMBER : "#FFFFFF"
 
               return (
                 <div
@@ -334,12 +332,10 @@ export function V3CaseTable(props: Props) {
             </tr>
           ) : (
             props.rows.map((row, idx) => {
-              const isAmber = isOverdueOrToday(row.dueDate)
               const isEvenRow = idx % 2 === 1
-              const defaultBg = isAmber ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
-              const isLocked = !!row.rush
-              const rowBg = isLocked ? AMBER : defaultBg
+              const rowBg = row.rush ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
               const dueDateColor = dueDateTextColor(row.dueDate, row.rush)
+              const isLocked = !!row.rush
 
               return (
                 <tr
@@ -611,16 +607,6 @@ function formatCreatedAt(createdAt: string): string {
 function isReadyToSendLocation(row: V2CaseRowData) {
   if (row.locationId === 3) return true
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
-}
-
-function isOverdueOrToday(dueDate: string): boolean {
-  if (!dueDate) return false
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  return due.getTime() <= today.getTime()
 }
 
 function dueDateTextColor(dueDate: string, rush?: boolean): string {

@@ -46,6 +46,7 @@ import { computeSlipValidationComplete } from "../utils/caseSummaryVisibility";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
+import { useRushSlotDeliveryDates } from "../hooks/useRushSlotDeliveryDates";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
@@ -1011,6 +1012,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
+  const rushSlotDeliveryDates = useRushSlotDeliveryDates(rushArchSlots);
+
+  const rushArchSlotsWithDelivery = useMemo(
+    () =>
+      rushArchSlots.map((slot) => {
+        const apiDate = rushSlotDeliveryDates[slot.rushKey];
+        return apiDate ? { ...slot, actualDeliveryDate: apiDate } : slot;
+      }),
+    [rushArchSlots, rushSlotDeliveryDates]
+  );
+
   const addOnArchSlots = useMemo(
     () =>
       rushArchSlots.filter((slot) =>
@@ -1773,7 +1785,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         mandibularHasRemovables={mandibularHasRemovables}
         maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
         mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
-        rushArchSlots={rushArchSlots}
+        rushArchSlots={rushArchSlotsWithDelivery}
         caseHasAddons={caseHasAddons}
         onCaseSummaryNotesChange={(text) => {
           if (props.caseSummaryNotesRef) {
@@ -1970,7 +1982,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         handleRushConfirm={state.handleRushConfirm}
         rushedProducts={state.rushedProducts}
         handleRemoveRush={state.handleRemoveRush}
-        rushArchSlots={rushArchSlots}
+        rushArchSlots={rushArchSlotsWithDelivery}
         rushCaseSchedule={props.rushCaseSchedule ?? null}
         labBusinessHours={props.labBusinessHours ?? null}
         isStageModalOpen={state.isStageModalOpen}

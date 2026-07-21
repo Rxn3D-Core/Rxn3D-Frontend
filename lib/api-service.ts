@@ -203,14 +203,16 @@ export const ProductApi = {
   },
 
   // Calculate delivery date
-  calculateDelivery: async (productId: number, stageId: number) => {
+  calculateDelivery: async (productId: number, stageId?: number) => {
     const labId = resolveProductLabId()
-    
+
     if (!labId) {
       throw new Error('Lab ID not found. Please ensure you are logged in and have selected a lab.')
     }
-    
-    const response = await ApiService.get<{ success: boolean; message: string; data: { pickup_date: string; delivery_date: string; delivery_time: string } }>(`/slip/lab/${labId}/delivery-date?product_id=${productId}&stage_id=${stageId}`)
+
+    const params = new URLSearchParams({ product_id: String(productId) })
+    if (stageId && stageId > 0) params.append("stage_id", String(stageId))
+    const response = await ApiService.get<{ success: boolean; message: string; data: { pickup_date: string; delivery_date: string; delivery_time: string } }>(`/slip/lab/${labId}/delivery-date?${params.toString()}`)
     return response.data
   },
 }

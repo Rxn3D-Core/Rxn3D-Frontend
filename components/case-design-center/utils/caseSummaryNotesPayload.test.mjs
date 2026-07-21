@@ -9,7 +9,14 @@ import {
 test("buildSlipLevelNotes prefers case summary textarea over product notes", () => {
   const products = [{ type: "Upper", notes: "auto generated" }];
   assert.deepEqual(buildSlipLevelNotes(products, "user edited note", 0), [
-    { note: "user edited note" },
+    { note: "user edited note", type: "stage" },
+  ]);
+});
+
+test("buildSlipLevelNotes creates stage-type notes so offices can see them", () => {
+  const products = [{ type: "Upper", notes: "auto generated" }];
+  assert.deepEqual(buildSlipLevelNotes(products, undefined, 0), [
+    { note: "auto generated", type: "stage" },
   ]);
 });
 

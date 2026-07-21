@@ -14,6 +14,7 @@ import {
   type CaseSubmissionResult,
   type CaseSubmissionState,
 } from "../utils/caseCompletionDestination";
+import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 
 interface ToastApi {
   (options: { title: string; description: string; variant?: "destructive" }): void;
@@ -170,6 +171,10 @@ export function useCaseSubmissionFlow({
       setSubmissionState("success-transition");
 
       toast({ title: "Case submitted", description: "Slip created successfully." });
+
+      // The virtual slip page consumes this flag on mount to auto-open the
+      // paper slip print window exactly once for the new slip.
+      markSlipForAutoPrint(result.slipId);
 
       // Start redirect timer immediately — attachment uploads happen in the background
       // so they never delay or block the success redirect.

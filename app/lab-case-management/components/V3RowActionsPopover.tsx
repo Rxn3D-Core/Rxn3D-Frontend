@@ -1,8 +1,8 @@
 "use client"
 
-import { forwardRef, useState } from "react"
+import { forwardRef, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
-import { isSlipCaseCancelled } from "@/lib/slip-case-status"
+import { resolveSlipRowActionVisibility } from "@/lib/slip-row-action-visibility"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 
 const VS = "/icons/virtual-slip-center"
@@ -12,6 +12,8 @@ interface Props {
   actions: V2RowActions
   canPrintStatement: boolean
   canSendBack: boolean
+  canEditSlip?: boolean
+  canDeleteCase?: boolean
   onClose: () => void
   // The mobile card list and desktop table both mount a popover instance for
   // the same row.id (one CSS-hidden per breakpoint, never unmounted), so
@@ -22,38 +24,58 @@ interface Props {
 }
 
 export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
-  { row, actions, canPrintStatement, canSendBack, onClose, variant },
+  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canDeleteCase = true, onClose, variant },
   ref,
 ) {
   const [kebabOpen, setKebabOpen] = useState(false)
+
+  const visibility = useMemo(
+    () =>
+      resolveSlipRowActionVisibility({
+        locationId: row.locationId,
+        location: row.location,
+        status: row.status,
+        canPrintStatement,
+        canEditSlip,
+        canDeleteCase,
+        allowRush: true,
+      }),
+    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canDeleteCase]
+  )
 
   function act(fn: () => void) {
     return (e: React.MouseEvent) => { e.stopPropagation(); fn(); onClose() }
   }
 
-  function locationBtn(): { label: string; icon: string; onClick: (e: React.MouseEvent) => void } {
+  function locationBtn(): { label: string; icon: string; onClick: (e: React.MouseEvent) => void } | null {
+    if (!visibility.location) return null
     const id = row.locationId
     if (id === 3) return { label: "Ready to Send", icon: `/images/paper-airplane.svg`, onClick: act(() => actions.onReadyToSend(row)) }
     if (id === 2 || id === 5) return { label: "Drop Off", icon: `${VS}/drop-off.svg`, onClick: act(() => actions.onDriverHistory(row)) }
-    if (id === 6) return { label: "In Office", icon: `${VS}/in-office.png`, onClick: act(() => actions.onDriverHistory(row)) }
     return { label: "Pick Up", icon: `${VS}/pick-up.svg`, onClick: act(() => actions.onDriverHistory(row)) }
   }
 
-  const btns: { label: string; icon: string; onClick: (e: React.MouseEvent) => void; disabled?: boolean }[] = [
+  const btns: { label: string; icon: string; onClick: (e: React.MouseEvent) => void }[] = [
     locationBtn(),
-    { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) },
-    { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onHold(row)) },
-    { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)), disabled: isSlipCaseCancelled(row.status) },
-    { label: "Send Back", icon: `${VS}/send-back-to-office.svg`, onClick: act(() => actions.onSendBack(row)), disabled: !canSendBack },
-    { label: "Print", icon: `/icons/virtual-slip-actions/printer.svg`, onClick: act(() => actions.onPrintPaperSlip(row)) },
-    { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)), disabled: !canPrintStatement },
-    { label: "Schedule", icon: `/icons/slip-listing/calendar.png`, onClick: act(() => actions.onChangeDueDate(row)) },
-    { label: "Add", icon: `${VS}/add-general.svg`, onClick: act(() => actions.onAddOns(row)) },
-    { label: "Call Log", icon: `${VS}/call-log.svg`, onClick: act(() => actions.onCallLog(row)) },
-    { label: "Attach", icon: `${VS}/attachments.svg`, onClick: act(() => actions.onAttachment(row)) },
-  ]
+    visibility.rush ? { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) } : null,
+    visibility.hold ? { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onHold(row)) } : null,
+    visibility.cancel ? { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)) } : null,
+    visibility.sendBack && canSendBack ? { label: "Send Back", icon: `${VS}/send-back-to-office.svg`, onClick: act(() => actions.onSendBack(row)) } : null,
+    visibility.print ? { label: "Print", icon: `/icons/virtual-slip-actions/printer.svg`, onClick: act(() => actions.onPrintPaperSlip(row)) } : null,
+    visibility.invoice ? { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)) } : null,
+    visibility.schedule ? { label: "Schedule", icon: `/icons/slip-listing/calendar.png`, onClick: act(() => actions.onChangeDueDate(row)) } : null,
+    visibility.addOns ? { label: "Add", icon: `${VS}/add-general.svg`, onClick: act(() => actions.onAddOns(row)) } : null,
+    visibility.callLog ? { label: "Call Log", icon: `${VS}/call-log.svg`, onClick: act(() => actions.onCallLog(row)) } : null,
+    visibility.attach ? { label: "Attach", icon: `${VS}/attachments.svg`, onClick: act(() => actions.onAttachment(row)) } : null,
+  ].filter((btn): btn is { label: string; icon: string; onClick: (e: React.MouseEvent) => void } => btn != null)
 
-  const visibleBtns = btns.filter((b) => !b.disabled)
+  const visibleBtns = btns
+
+  const kebabItems = [
+    visibility.editSlip ? { label: "Edit Slip", fn: () => actions.onOpen(row) } : null,
+    visibility.printDriverLabel ? { label: "Print Driver Label", fn: () => actions.onPrintDriverLabel(row) } : null,
+    visibility.printStatement ? { label: "Print Statement", fn: () => actions.onPrintStatement(row) } : null,
+  ].filter((item): item is { label: string; fn: () => void } => item != null)
 
   if (variant === "mobile") {
     return <MobileActionsSheet ref={ref} btns={visibleBtns} onClose={onClose} />
@@ -109,7 +131,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
           </button>
         ))}
 
-        {/* Kebab button + dropdown */}
+        {kebabItems.length > 0 && (
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button
             type="button"
@@ -139,11 +161,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {[
-                { label: "Edit Slip", fn: () => actions.onOpen(row) },
-                { label: "Print Driver Label", fn: () => actions.onPrintDriverLabel(row) },
-                ...(canPrintStatement ? [{ label: "Print Statement", fn: () => actions.onPrintStatement(row) }] : []),
-              ].map(({ label, fn }) => (
+              {kebabItems.map(({ label, fn }) => (
                 <button
                   key={label}
                   type="button"
@@ -158,6 +176,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
             </div>
           )}
         </div>
+        )}
       </div>
   )
 })
