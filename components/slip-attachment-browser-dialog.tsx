@@ -82,6 +82,10 @@ function FileCard({
   const is3d = is3dFile(record.file_name)
   const isPdf = record.is_pdf || isPdfFile(record.file_name)
 
+  // STL thumbnails render a real, orbitable 3D canvas — but each one costs a WebGL
+  // context, so they load on demand rather than all at once.
+  const [livePreview, setLivePreview] = useState(false)
+
   const uploadedAt = record.created_at
     ? new Date(record.created_at).toLocaleDateString("en-US", {
         month: "2-digit",
@@ -116,7 +120,26 @@ function FileCard({
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
-        ) : isStl || is3d ? (
+        ) : isStl ? (
+          livePreview ? (
+            <div className="absolute inset-0" onClick={(e) => e.stopPropagation()}>
+              <STLCanvasOnly src={toProxiedFileUrl(record.file_path)} />
+            </div>
+          ) : (
+            <div
+              className="flex flex-col items-center justify-center gap-1 w-full h-full group/preview"
+              title="Click to preview 3D model"
+              onClick={(e) => {
+                e.stopPropagation()
+                onSelect(record)
+                setLivePreview(true)
+              }}
+            >
+              <Box className="w-8 h-8 text-yellow-500 group-hover/preview:text-[#1162A8] transition-colors" />
+              <span className="text-[7px] text-gray-400">click to preview</span>
+            </div>
+          )
+        ) : is3d ? (
           <Box className="w-8 h-8 text-yellow-500" />
         ) : isPdf ? (
           <FileText className="w-8 h-8 text-red-400" />
@@ -515,6 +538,18 @@ export default function SlipAttachmentBrowserDialog({
 
   // ── Fullscreen (My Studio) ──────────────────────────────────────────────────
   const [showFullscreen, setShowFullscreen] = useState(false)
+
+  // Selection handed to the fullscreen viewer so it opens on the same files
+  const fullscreenViewerItems = useMemo(
+    () =>
+      selectedForPreview.map((r) => ({
+        // Same precedence the fullscreen viewer uses to build its own file list,
+        // so these items line up with its thumbnail strip
+        url: r.download_url || r.file_path,
+        type: (r.is_image || isImageFile(r.file_name) ? "image" : "stl") as "stl" | "image",
+      })),
+    [selectedForPreview]
+  )
 
   // ── Fetch on open ───────────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -1014,6 +1049,7 @@ export default function SlipAttachmentBrowserDialog({
               doctorName={displayedDocName}
               patientName={displayedPatientName}
               open={showFullscreen}
+              initialViewerItems={fullscreenViewerItems}
             />
           </div>,
           document.body

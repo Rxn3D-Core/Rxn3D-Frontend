@@ -12,7 +12,6 @@ import {
   FileText,
   Archive,
   Box,
-  Maximize2,
   Minimize2,
   RotateCcw,
   RotateCw,
@@ -154,6 +153,7 @@ export default function FileAttachmentModalContent({
   onFileCountsChange,
   impressionFiles = [],
   open,
+  initialViewerItems,
 }: FileAttachmentModalContentProps) {
   const {
     uploadSlipAttachment,
@@ -901,6 +901,24 @@ export default function FileAttachmentModalContent({
     setViewing3dUrl(null)
   }
 
+  // Carry the compact browser's selection into the viewer when we open fullscreen,
+  // so the user doesn't have to re-pick the files they already chose.
+  const seededSelectionRef = useRef("")
+  useEffect(() => {
+    if (!open) {
+      seededSelectionRef.current = ""
+      return
+    }
+    const items = initialViewerItems ?? []
+    const key = items.map(i => `${i.type}:${i.url}`).join("|")
+    if (!key || key === seededSelectionRef.current) return
+    seededSelectionRef.current = key
+    setViewerItems(items)
+    setViewerStlUrls(items.filter(i => i.type === "stl").map(i => i.url))
+    const firstStl = items.find(i => i.type === "stl")
+    setViewing3dUrl(firstStl?.url ?? items[0]?.url ?? null)
+  }, [open, initialViewerItems])
+
   // Clear display
   const displaySlipId = slipId ? String(slipId) : "------"
 
@@ -1161,17 +1179,16 @@ export default function FileAttachmentModalContent({
             </div>
           )}
 
-          {/* Expand + Close */}
+          {/* Minimize (back to compact) + Close */}
           <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
             <button
               type="button"
               className="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 transition"
-              title="Native fullscreen"
-              onClick={() => { void document.documentElement.requestFullscreen?.() }}
+              title="Exit fullscreen"
+              aria-label="Exit fullscreen"
+              onClick={() => setShowAttachModal(false)}
             >
-              <svg viewBox="0 0 16 16" className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M1.5 5.5V2.5H4.5M11.5 2.5H14.5V5.5M14.5 10.5V13.5H11.5M4.5 13.5H1.5V10.5" />
-              </svg>
+              <Minimize2 className="w-4 h-4 text-gray-500" />
             </button>
             <button
               type="button"

@@ -22,7 +22,7 @@ export default function STLCanvasOnly({
   src,
   isWireframe = false,
   showGrid = false,
-  modelColor = "#f9c74f",
+  modelColor = "#f5ecd0",
   autoRotate = false,
   controlsRef,
 }: STLCanvasOnlyProps) {
