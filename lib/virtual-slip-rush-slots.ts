@@ -23,6 +23,8 @@ export interface VirtualSlipRushArchSlot {
   existingRushFeePercentage?: number;
   /** Rush fee amount (price × percentage) from the existing rush record. */
   existingRushFee?: number;
+  /** Catalog product ID (product.id / product_id) — used to detect same product on both arches. */
+  catalogProductId?: number;
 }
 
 function parseTeeth(value: unknown): number[] {
@@ -138,10 +140,29 @@ export function buildVirtualSlipRushArchSlots(
         existingDaysSaved: daysSaved,
         existingRushFeePercentage: feePercentage,
         existingRushFee: rushFee,
+        catalogProductId: catalogId || undefined,
       });
     }
   }
 
   return slots;
+}
+
+/**
+ * Returns true when exactly one product per arch shares the same catalog product
+ * ID and stage — the rush modal should collapse to a single "Upper & Lower" column.
+ */
+export function virtualSlipRushSlotsShareProduct(
+  slots: VirtualSlipRushArchSlot[]
+): boolean {
+  const maxillary = slots.filter((s) => s.arch === "maxillary");
+  const mandibular = slots.filter((s) => s.arch === "mandibular");
+  if (maxillary.length !== 1 || mandibular.length !== 1) return false;
+  const maxId = maxillary[0].catalogProductId ?? 0;
+  const mandId = mandibular[0].catalogProductId ?? 0;
+  if (maxId <= 0 || maxId !== mandId) return false;
+  const maxStage = maxillary[0].stageName?.trim() || "";
+  const mandStage = mandibular[0].stageName?.trim() || "";
+  return maxStage === mandStage;
 }
 

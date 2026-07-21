@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CenterActionIcons } from "@/components/case-design-center/components/CenterActionIcons";
 import AddOnsModal, { type AddOnsProduct } from "@/components/add-ons-modal";
 import RushRequestModal from "@/components/rush-request-modal";
 import type { RushArchSlot } from "@/components/case-design-center/utils/rushModalContext";
-import type { VirtualSlipRushArchSlot } from "@/lib/virtual-slip-rush-slots";
+import {
+  type VirtualSlipRushArchSlot,
+  virtualSlipRushSlotsShareProduct,
+} from "@/lib/virtual-slip-rush-slots";
 import { SlipNotesModal } from "@/components/virtual-slip/SlipNotesModal";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { useToast } from "@/components/ui/use-toast";
@@ -107,6 +110,8 @@ export function VirtualSlipCenterActions({
   const [addonsModalOpen, setAddonsModalOpen] = useState(false);
   const [rushModalOpen, setRushModalOpen] = useState(false);
   const [rushSubmitting, setRushSubmitting] = useState(false);
+  const rushConfirmedRef = useRef(false);
+  const mirrorRushAcrossArches = virtualSlipRushSlotsShareProduct(rushArchSlots);
 
   const productArches =
     visibleArches ??
@@ -120,7 +125,10 @@ export function VirtualSlipCenterActions({
   }, [openNotesModal]);
 
   useEffect(() => {
-    if (allowRush && openRushModal) setRushModalOpen(true);
+    if (allowRush && openRushModal) {
+      rushConfirmedRef.current = false;
+      setRushModalOpen(true);
+    }
   }, [allowRush, openRushModal]);
 
   const handleRemoveRush = async () => {
@@ -148,12 +156,16 @@ export function VirtualSlipCenterActions({
 
   const handleConfirmRush = async (rushData: { targetDate?: string | null }) => {
     if (!slipId || slipId <= 0) return;
+    // When mirroring, the modal calls onConfirm twice (once per arch). Only act on the first.
+    if (rushConfirmedRef.current) return;
+    rushConfirmedRef.current = true;
     if (!rushData?.targetDate) {
       toast({
         title: "Rush date required",
         description: "Please select a target delivery date first.",
         variant: "destructive",
       });
+      rushConfirmedRef.current = false;
       return;
     }
 
@@ -204,7 +216,10 @@ export function VirtualSlipCenterActions({
             rushArchSlots.length > 0 &&
             !rushSubmitting &&
             !caseOnHold
-              ? () => setRushModalOpen(true)
+              ? () => {
+                  rushConfirmedRef.current = false;
+                  setRushModalOpen(true);
+                }
               : undefined
           }
           onAttach={onAttachments}
@@ -271,6 +286,7 @@ export function VirtualSlipCenterActions({
               : undefined
           }
           archSlots={rushArchSlots}
+          mirrorRushAcrossArches={mirrorRushAcrossArches}
           hasMaxillary={
             rushArchSlots.length > 0
               ? rushArchSlots.some((s) => s.arch === "maxillary")

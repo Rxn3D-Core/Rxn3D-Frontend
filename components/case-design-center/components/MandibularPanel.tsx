@@ -3968,7 +3968,11 @@ export function MandibularPanel({
                         archTeeth: MANDIBULAR_ALL_TEETH,
                       });
               const isCurrentlyActiveProduct = isCardActiveForToothStatus(0);
-              const repTnStage = resolveCardRepToothForRush(cardTeeth);
+              // Use the selected missing teeth (matching buildRushArchSlots) so isProductRushed
+              // finds the correct key even when all arch teeth have the product on card 0.
+              const repTnStage = resolveCardRepToothForRush(
+                card0AssignedTeeth.length > 0 ? card0AssignedTeeth : cardTeeth
+              );
               const stageVal = selectedStages[`mandibular_prep_${repTnStage}`] || getFieldValue("mandibular", repTnStage, "stage");
               const stageDisplayName = parseStageDisplayName(stageVal);
               const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName);

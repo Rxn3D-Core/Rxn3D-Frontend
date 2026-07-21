@@ -136,6 +136,8 @@ export interface SlipCreationShadeDetail {
 
 export interface SlipCreationNote {
   note: string;
+  /** Omitting this makes the backend default to "internal", which offices cannot see. */
+  type?: "internal" | "stage" | "lab_connect";
 }
 
 export interface SlipCreationProduct {
