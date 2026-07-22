@@ -284,6 +284,9 @@ export const labAdminMenu: MenuItem[] = [
     id: "case-management",
     title: "Case Management",
     icon: <Folder className="h-5 w-5" />,
+    // Path on a parent makes the waffle tile navigate straight to the listing
+    // instead of drilling in; the sidebar still expands to the children.
+    path: "/lab-case-management/",
     children: [
       {
         id: "case-list",
@@ -428,17 +431,13 @@ export const officeAdminMenu: MenuItem[] = [
     ],
   },
   {
+    // Office has only the case list here, so it links straight through rather
+    // than opening a submenu with a single entry.
     id: "case-management",
     title: "Case Management",
     icon: <Folder className="h-5 w-5" />,
-    children: [
-      {
-        id: "case-list",
-        title: "Case List",
-        path: "/office-case-management/",
-        permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
-      },
-    ],
+    path: "/office-case-management/",
+    permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
   },
   {
     id: "settings",

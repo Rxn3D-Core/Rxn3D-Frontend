@@ -12,6 +12,7 @@ import { V3RowActionsPopover } from "./V3RowActionsPopover"
 import type { ColumnKey } from "./V3FilterBar"
 
 const AMBER = "#FFE2A1"
+const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
 const monoFilter = ""
@@ -37,6 +38,12 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  /**
+   * Office profile listing: the counterparty column reads "Lab", driver
+   * actions are withheld, and rush rows lose the amber highlight (a
+   * lab-visibility cue). Defaults false.
+   */
+  officeProfile?: boolean
   // kept for API compatibility with V3CaseWidget; not used internally
   printMenuRow: number | null
   moreMenuRow: number | null
@@ -64,17 +71,23 @@ type DesktopColumn = {
 }
 
 const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
+  { key: "office", label: "Office", width: 200 },
   { key: "patient", label: "Patient / Slip", width: 260 },
   { key: "panProduct", label: "Pan / Product", width: 180 },
   { key: "location", label: "Location", width: 150 },
   { key: "status", label: "Status", width: 150 },
-  { key: "office", label: "Office", width: 200 },
   { key: "caseNo", label: "Case #", width: 130 },
   { key: "dueDate", label: "Due Date", width: 150 },
 ]
 
-function buildDesktopColumns(visibleColumns: Set<ColumnKey>): DesktopColumn[] {
-  return DESKTOP_COLUMN_DEFS.filter((column) => column.key === "panProduct" || column.key === "status" || visibleColumns.has(column.key))
+function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: boolean): DesktopColumn[] {
+  return DESKTOP_COLUMN_DEFS.filter(
+    (column) => column.key === "panProduct" || column.key === "status" || visibleColumns.has(column.key)
+  ).map((column) =>
+    // The counterparty column names the other side of the case: an office user
+    // is looking at labs, a lab user at offices.
+    column.key === "office" && officeProfile ? { ...column, label: "Lab" } : column
+  )
 }
 
 export function V3CaseTable(props: Props) {
@@ -87,7 +100,8 @@ export function V3CaseTable(props: Props) {
   // one on every tap inside it.
   const mobilePopoverRef = useRef<HTMLDivElement>(null)
   const desktopPopoverRef = useRef<HTMLTableRowElement>(null)
-  const desktopColumns = buildDesktopColumns(props.visibleColumns)
+  const officeProfile = props.officeProfile === true
+  const desktopColumns = buildDesktopColumns(props.visibleColumns, officeProfile)
   const columnCount = desktopColumns.length + 2
 
   useEffect(() => {
@@ -129,8 +143,10 @@ export function V3CaseTable(props: Props) {
               </div>
             )
           : props.rows.map((row) => {
-              const dueDateColor = dueDateTextColor(row.dueDate, row.rush)
-              const cardBg = row.rush ? AMBER : "#FFFFFF"
+              const dueDateColor = dueDateTextColor(row.dueDate, row.rush, row.status)
+              // The amber rush highlight is a lab-visibility cue — office
+              // profiles keep the rush bolt icon but not the tinted row.
+              const cardBg = row.rush && !officeProfile ? AMBER : "#FFFFFF"
 
               return (
                 <div
@@ -168,9 +184,11 @@ export function V3CaseTable(props: Props) {
                       <div className="text-[12px] text-[#575757] mt-0.5">
                         {row.slipNumber || row.caseNumber || `#${row.id}`}
                       </div>
-                      <div className="text-[12px] text-[#575757]">
-                        {row.createdAt ? formatCreatedAt(row.createdAt) : ""}
-                      </div>
+                      {props.visibleColumns.has("timestamp") && row.createdAt && (
+                        <div className="text-[12px] text-[#575757]">
+                          {formatCreatedAt(row.createdAt)}
+                        </div>
+                      )}
                     </button>
 
                     {/* Kebab */}
@@ -191,6 +209,7 @@ export function V3CaseTable(props: Props) {
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
                           canSendBack={props.canSendBack(row)}
+                          allowDriverActions={!officeProfile}
                           onClose={() => setPopoverRow(null)}
                         />
                       )}
@@ -205,7 +224,7 @@ export function V3CaseTable(props: Props) {
                     {/* OFFICE + DUE DATE */}
                     <div className="flex items-end justify-between gap-2">
                       <div>
-                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">OFFICE</div>
+                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">{officeProfile ? "LAB" : "OFFICE"}</div>
                         <div className="text-[14px] font-bold text-black">{row.officeCode || "—"}</div>
                         {row.doctor && <div className="text-[12px] text-[#575757]">{row.doctor}</div>}
                       </div>
@@ -333,8 +352,8 @@ export function V3CaseTable(props: Props) {
           ) : (
             props.rows.map((row, idx) => {
               const isEvenRow = idx % 2 === 1
-              const rowBg = row.rush ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
-              const dueDateColor = dueDateTextColor(row.dueDate, row.rush)
+              const rowBg = row.rush && !officeProfile ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
+              const dueDateColor = dueDateTextColor(row.dueDate, row.rush, row.status)
               const isLocked = !!row.rush
 
               return (
@@ -380,6 +399,8 @@ export function V3CaseTable(props: Props) {
                       rowActions={props.rowActions}
                       rowBg={rowBg}
                       rushCasePanColor={props.rushCasePanColor}
+                      showTimestamp={props.visibleColumns.has("timestamp")}
+                      allowDriverActions={!officeProfile}
                     />
                   ))}
 
@@ -405,6 +426,7 @@ export function V3CaseTable(props: Props) {
                         actions={props.rowActions}
                         canPrintStatement={props.canPrintStatement(row)}
                         canSendBack={props.canSendBack(row)}
+                        allowDriverActions={!officeProfile}
                         onClose={() => setPopoverRow(null)}
                       />
                     )}
@@ -427,9 +449,13 @@ function DesktopCell({
   rowActions,
   rowBg,
   rushCasePanColor,
+  showTimestamp,
+  allowDriverActions,
 }: {
   column: DesktopColumn
   dueDateColor: string
+  showTimestamp: boolean
+  allowDriverActions: boolean
   row: V2CaseRowData
   rowActions: V2RowActions
   rowBg: string
@@ -457,7 +483,7 @@ function DesktopCell({
           </div>
           <span className="truncate" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af", maxWidth: column.width - 30 }}>
             {row.slipNumber || `#${row.id}`}
-            {row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
+            {showTimestamp && row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
           </span>
         </button>
       </td>
@@ -493,6 +519,21 @@ function DesktopCell({
   }
 
   if (column.key === "location") {
+    // Office profiles run neither ready to send nor pick up / drop off, so the
+    // location label stays plain text for them rather than opening a modal.
+    if (!allowDriverActions) {
+      return (
+        <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
+          <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
+            {locationIcon(row.locationId)}
+            <span className="whitespace-nowrap" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>
+              {row.location || "Unknown"}
+            </span>
+          </div>
+        </td>
+      )
+    }
+
     return (
       <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
@@ -609,15 +650,20 @@ function isReadyToSendLocation(row: V2CaseRowData) {
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
 }
 
-function dueDateTextColor(dueDate: string, rush?: boolean): string {
-  if (rush) return "#347B4E"
+function dueDateTextColor(dueDate: string, rush?: boolean, status?: string): string {
+  // A delivered case can't be late, so it keeps the settled green even when its
+  // due date has passed.
+  if (isSlipCaseFinished(status)) return "#347B4E"
   if (!dueDate) return "#575757"
   const due = new Date(dueDate)
   if (isNaN(due.getTime())) return "#575757"
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   due.setHours(0, 0, 0, 0)
-  return due.getTime() <= today.getTime() ? "#347B4E" : "#2BA5DE"
+  // Overdue outranks rush — a late rush case is the one that most needs flagging.
+  if (due.getTime() < today.getTime()) return OVERDUE_RED
+  if (rush) return "#347B4E"
+  return due.getTime() === today.getTime() ? "#347B4E" : "#2BA5DE"
 }
 
 function formatDueDate(dueDate: string, status?: string): string {

@@ -852,11 +852,6 @@ export default function LabSlipV3Page() {
           canSendBack={canSendBackToOffice}
           onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
-          onBulkPrintStatement={() => {
-            const row = slips.find((s) => s.id === selected[0])
-            if (selected.length === 1 && row) handlePrintStatement(row)
-          }}
-          onBulkArchive={() => setArchiveConfirm(-1)}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}

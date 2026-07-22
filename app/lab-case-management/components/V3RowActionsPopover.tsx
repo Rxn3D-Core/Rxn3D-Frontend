@@ -14,6 +14,7 @@ interface Props {
   canSendBack: boolean
   canEditSlip?: boolean
   canDeleteCase?: boolean
+  allowDriverActions?: boolean
   onClose: () => void
   // The mobile card list and desktop table both mount a popover instance for
   // the same row.id (one CSS-hidden per breakpoint, never unmounted), so
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
-  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canDeleteCase = true, onClose, variant },
+  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canDeleteCase = true, allowDriverActions = true, onClose, variant },
   ref,
 ) {
   const [kebabOpen, setKebabOpen] = useState(false)
@@ -39,8 +40,9 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
         canEditSlip,
         canDeleteCase,
         allowRush: true,
+        allowDriverActions,
       }),
-    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canDeleteCase]
+    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canDeleteCase, allowDriverActions]
   )
 
   function act(fn: () => void) {
@@ -50,7 +52,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   function locationBtn(): { label: string; icon: string; onClick: (e: React.MouseEvent) => void } | null {
     if (!visibility.location) return null
     const id = row.locationId
-    if (id === 3) return { label: "Ready to Send", icon: `/images/paper-airplane.svg`, onClick: act(() => actions.onReadyToSend(row)) }
+    if (id === 3) return visibility.readyToSend ? { label: "Ready to Send", icon: `/images/paper-airplane.svg`, onClick: act(() => actions.onReadyToSend(row)) } : null
     if (id === 2 || id === 5) return { label: "Drop Off", icon: `${VS}/drop-off.svg`, onClick: act(() => actions.onDriverHistory(row)) }
     return { label: "Pick Up", icon: `${VS}/pick-up.svg`, onClick: act(() => actions.onDriverHistory(row)) }
   }

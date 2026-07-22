@@ -15,6 +15,7 @@ import {
 
 export type SlipRowActionKey =
   | "location"
+  | "readyToSend"
   | "rush"
   | "hold"
   | "cancel"
@@ -36,6 +37,11 @@ export type SlipRowActionVisibilityInput = SlipLocationRef & {
   canDeleteCase?: boolean;
   /** Lab listing / virtual slip — rush is lab-only. Defaults true. */
   allowRush?: boolean;
+  /**
+   * Driver actions (ready to send, pick up, drop off) are lab-only — office
+   * profiles cannot run them. Defaults true.
+   */
+  allowDriverActions?: boolean;
 };
 
 export type SlipRowActionVisibility = Record<SlipRowActionKey, boolean>;
@@ -65,11 +71,14 @@ export function resolveSlipRowActionVisibility(
   const canDeleteCase = input.canDeleteCase !== false;
   const canPrintStatement = Boolean(input.canPrintStatement);
 
+  const allowDriverActions = input.allowDriverActions !== false;
+  const canReadyToSend = allowDriverActions && slipCanReadyToSend(ref);
   const showLocation =
-    slipCanReadyToSend(ref) || slipShowsPickupDropoff(ref);
+    allowDriverActions && (canReadyToSend || slipShowsPickupDropoff(ref));
 
   return {
     location: showLocation,
+    readyToSend: canReadyToSend,
     rush: allowRush && !caseOnHold && !caseFinished && !caseCancelled,
     hold: !caseBlocked && !slipInOffice && canPutOnHold,
     cancel: !caseBlocked && !slipInOffice && canDeleteCase,
