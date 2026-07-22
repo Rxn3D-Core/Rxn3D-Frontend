@@ -66,6 +66,12 @@ interface SlipGroup {
 
 // ─── FileCard ─────────────────────────────────────────────────────────────────
 
+// Each live STL thumbnail holds its own WebGL context and browsers drop the oldest
+// once ~16 are open, so auto-loading is capped — cards beyond the cap stay on the
+// click-to-preview fallback.
+const MAX_LIVE_STL_PREVIEWS = 8
+let liveStlPreviewCount = 0
+
 function FileCard({
   record,
   selected,
@@ -82,9 +88,41 @@ function FileCard({
   const is3d = is3dFile(record.file_name)
   const isPdf = record.is_pdf || isPdfFile(record.file_name)
 
-  // STL thumbnails render a real, orbitable 3D canvas — but each one costs a WebGL
-  // context, so they load on demand rather than all at once.
+  // STL thumbnails render a real, orbitable 3D canvas. They auto-load once the card
+  // scrolls into view (up to MAX_LIVE_STL_PREVIEWS), so off-screen cards cost nothing.
   const [livePreview, setLivePreview] = useState(false)
+  const previewHostRef = useRef<HTMLDivElement>(null)
+  const countedRef = useRef(false)
+
+  // `force` = explicit user click, which always wins over the auto-load cap
+  const activateLivePreview = useCallback((force = false) => {
+    if (countedRef.current) return true
+    if (!force && liveStlPreviewCount >= MAX_LIVE_STL_PREVIEWS) return false
+    liveStlPreviewCount += 1
+    countedRef.current = true
+    setLivePreview(true)
+    return true
+  }, [])
+
+  // Release this card's slot when it unmounts (dialog close, filter change)
+  useEffect(() => () => {
+    if (countedRef.current) liveStlPreviewCount -= 1
+  }, [])
+
+  useEffect(() => {
+    if (!isStl || livePreview) return
+    const el = previewHostRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return
+        if (activateLivePreview()) io.disconnect()
+      },
+      { rootMargin: "150px" }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [isStl, livePreview, activateLivePreview])
 
   const uploadedAt = record.created_at
     ? new Date(record.created_at).toLocaleDateString("en-US", {
@@ -111,7 +149,7 @@ function FileCard({
       </div>
 
       {/* Preview area */}
-      <div className="relative h-[88px] bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
+      <div ref={previewHostRef} className="relative h-[88px] bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
         {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -132,7 +170,7 @@ function FileCard({
               onClick={(e) => {
                 e.stopPropagation()
                 onSelect(record)
-                setLivePreview(true)
+                activateLivePreview(true)
               }}
             >
               <Box className="w-8 h-8 text-yellow-500 group-hover/preview:text-[#1162A8] transition-colors" />

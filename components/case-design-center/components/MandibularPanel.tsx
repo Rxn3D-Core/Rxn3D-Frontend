@@ -105,6 +105,7 @@ import {
 } from "../utils/splintHelpers";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
 import { AutoOpenFirstFixedFieldAfterRetentionDone } from "./FixedRetentionFieldAutoOpen";
+import { resolveFixedCardGating } from "../utils/fixedCardGating";
 import {
   parseAddonDisplayItems,
   buildRemovableAddonFieldContext,
@@ -121,11 +122,7 @@ import { getActiveProductPopoverContextToken } from "../utils/activeProductPopov
 import { shouldUseScopedRetentionMode } from "../utils/activeCardPopoverMode";
 import { isOwnArchToothChartEnabled } from "../utils/productAccordionFocus";
 import {
-  areFixedProductShadesComplete,
   buildShadeSelectionKey,
-  getFirstMissingShadeGuideField,
-  getShadeFieldType,
-  getShadeGuideAdvanceFields,
   isFixedProductShadeStorageId,
   resolveFixedShadeProductId,
   shouldUseAccordionOnlyFixedShades,
@@ -2832,6 +2829,7 @@ export function MandibularPanel({
                             // Re-activating product selection resets Done so the button re-appears
                             const ackCardId = useMandibularArchSharedRemovable ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID : ap.id;
                             setExtractionsSetupComplete(ackCardId, false);
+                            setFixedRetentionSetupComplete(false, ap.id);
                             setActiveProductCardId(ap.id);
                             setIsSelectionModeActive(true);
                             if (!isExpanded) {
@@ -2880,10 +2878,11 @@ export function MandibularPanel({
                           showRetentionDone={!caseSubmitted}
                           retentionDoneAcknowledged={isFixedRetentionSetupComplete(
                             apProduct,
-                            caseSubmitted
+                            caseSubmitted,
+                            ap.id
                           )}
                           onRetentionDoneChange={(value) => {
-                            setFixedRetentionSetupComplete(value);
+                            setFixedRetentionSetupComplete(value, ap.id);
                             if (value) {
                               setIsSelectionModeActive(false);
                               setActiveExtractionCode(null);
@@ -2899,11 +2898,7 @@ export function MandibularPanel({
                     }
                   >
 
-                    {!isApRemovables && cardTeeth.length === 0 ? (
-                      <p className="text-xs text-[#b4b0b0] text-center py-4">
-                        Select teeth from the chart above to assign them to this product.
-                      </p>
-                    ) : (() => {
+                    {!isApRemovables && cardTeeth.length === 0 ? null : (() => {
                       const isCardRemovables = apProduct ? !hasRetentionOptions(apProduct) : isApRemovables;
                       // For removable cards with no teeth yet, use the virtual slot (-ap.id) where product data was pre-fetched
                       const repTn = resolveAddedCardRepTooth(
@@ -3231,62 +3226,38 @@ export function MandibularPanel({
                       );
                       const apToothProduct =
                         getToothProduct("mandibular", apFirstTn) ?? apProduct;
-                      const apFixedChain = getRetentionFieldChain(apToothProduct?.advance_fields, apToothProduct);
                       const apRetentionTypes = cardTeeth.flatMap(tn => mandibularRetentionTypes[tn] || []);
-                      const apIsFixed = (step: FieldStep) =>
-                        isFieldVisible("mandibular", apFirstTn, step, apFixedChain);
-                      const apFixedShadeProductId = resolveFixedShadeProductId(
-                        apToothProduct?.id,
-                        apFirstTn
-                      );
-                      const apNamedShadeFields = getShadeGuideAdvanceFields(apToothProduct?.advance_fields);
-                      const apFirstMissingShadeField = getFirstMissingShadeGuideField(
-                        apToothProduct?.advance_fields,
-                        apFixedShadeProductId,
-                        "mandibular",
-                        getSelectedShade
-                      );
-                      const apNeedsStumpShade = apNamedShadeFields.length > 0
-                        ? apNamedShadeFields.some((field) => getShadeFieldType(field) === "stump_shade")
-                        : apFixedChain.includes("fixed_stump_shade") &&
-                        (apToothProduct?.has_gum_shade === "Yes" ||
-                          (apToothProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
-                      const apHasLegacyToothShade = apToothProduct?.has_teeth_shade === "Yes" ||
-                        (apToothProduct?.advance_fields || []).some((f) => {
-                          const n = (f.name || "").toLowerCase();
-                          return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade");
-                        });
-                      const apHasLegacyTrioShade = apToothProduct?.has_teeth_shade === "Yes" ||
-                        (apToothProduct?.advance_fields || []).some((f) => {
-                          const n = (f.name || "").toLowerCase();
-                          return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade");
-                        });
-                      const apNeedsToothShade = apNamedShadeFields.length > 0
-                        ? apNamedShadeFields.some((field) => getShadeFieldType(field) === "tooth_shade")
-                        : (apFixedChain.includes("fixed_stump_shade") && apHasLegacyToothShade) ||
-                        (apFixedChain.includes("fixed_shade_trio") && apHasLegacyTrioShade);
-                      const apShadeRequired = apNamedShadeFields.length > 0 ? !!apFirstMissingShadeField : (apNeedsStumpShade || apNeedsToothShade);
-                      // Gum shade may live only in the fixed_stump_shade field value (picked via
-                      // the panel gum picker) — accept it so post-shade fields aren't blocked.
-                      const apStumpShadeFieldDone =
-                        isFieldCompleted("mandibular", apFirstTn, "fixed_stump_shade") ||
-                        !!getFieldValue("mandibular", apFirstTn, "fixed_stump_shade")?.trim();
-                      const apFixedShadesComplete = areFixedProductShadesComplete(
-                        apToothProduct?.advance_fields,
-                        apFixedShadeProductId,
-                        "mandibular",
-                        getSelectedShade,
-                        { needsStumpShade: apNeedsStumpShade && !apStumpShadeFieldDone, needsToothShade: apNeedsToothShade }
-                      );
-                      const apFixedShadeIncomplete = !apFixedShadesComplete;
-                      const apUsesAccordionShadePicker = shouldUseAccordionOnlyFixedShades(
-                        apToothProduct?.advance_fields
-                      );
                       const apGroupStageProductIdFixed = `mandibular_fixed_${apFirstTn}`;
-                      const apRetentionFieldsVisible = isFixedRetentionSetupComplete(
-                        apProduct,
-                        caseSubmitted
-                      );
+                      // Shared with card 0 — see utils/fixedCardGating.ts
+                      const apGating = resolveFixedCardGating({
+                        arch: "mandibular",
+                        product: apToothProduct,
+                        cardProduct: apProduct,
+                        cardId: ap.id,
+                        toothNumbers: cardTeeth,
+                        stageToothNumber: apFirstTn,
+                        caseSubmitted,
+                        isAnyModalOpen,
+                        openShadeFieldType: shadeSelectionState.fieldType,
+                        hasSelectedStage: !!selectedStages[apGroupStageProductIdFixed],
+                        getSelectedShade,
+                        isFieldCompleted,
+                        getFieldValue,
+                        isFieldVisible,
+                        isFixedRetentionSetupComplete,
+                      });
+                      const apFixedChain = apGating.fixedChain;
+                      const apIsFixed = apGating.isFixedStep;
+                      const apFixedShadeProductId = apGating.fixedShadeProductId;
+                      const apNamedShadeFields = apGating.namedShadeFields;
+                      const apFirstMissingShadeField = apGating.firstMissingShadeField;
+                      const apNeedsStumpShade = apGating.needsStumpShade;
+                      const apNeedsToothShade = apGating.needsToothShade;
+                      const apShadeRequired = apGating.shadeRequired;
+                      const apFixedShadesComplete = apGating.fixedShadesComplete;
+                      const apFixedShadeIncomplete = apGating.fixedShadeIncomplete;
+                      const apUsesAccordionShadePicker = apGating.usesAccordionShadePicker;
+                      const apRetentionFieldsVisible = apGating.retentionFieldsVisible;
 
                       return (
                         <>
@@ -3295,13 +3266,8 @@ export function MandibularPanel({
                               retentionFieldsVisible={apRetentionFieldsVisible}
                               isExpanded={isCardAccordionExpanded(apSlotId)}
                               caseSubmitted={caseSubmitted}
-                              isStageVisible={
-                                !isSingleStageNoStages(apToothProduct) && apIsFixed("fixed_stage")
-                              }
-                              isStageEmpty={
-                                !isFieldCompleted("mandibular", apFirstTn, "fixed_stage") &&
-                                !selectedStages[apGroupStageProductIdFixed]
-                              }
+                              isStageVisible={apGating.stageVisible}
+                              isStageEmpty={apGating.stageEmpty}
                               onOpenStage={handleOpenStageModal}
                               stageProductId={apGroupStageProductIdFixed}
                               arch="mandibular"
@@ -3325,14 +3291,16 @@ export function MandibularPanel({
                               fixedShadesComplete={apFixedShadesComplete}
                             />
                           )}
-                          {!isSingleStageNoStages(apToothProduct) && (
+                          {/* Same gate as card 0: the retention "Done" acknowledgement comes
+                              first — never pop the stage modal on the first tooth click. */}
+                          {apRetentionFieldsVisible && (
                             <AutoOpenStageIfEmpty
                               productId={apGroupStageProductIdFixed}
                               arch="mandibular"
                               toothNumber={apFirstTn}
                               isExpanded={isCardAccordionExpanded(apSlotId)}
-                              isStageVisible={apIsFixed("fixed_stage")}
-                              isStageEmpty={!isFieldCompleted("mandibular", apFirstTn, "fixed_stage") && !(selectedStages[apGroupStageProductIdFixed])}
+                              isStageVisible={apGating.stageVisible}
+                              isStageEmpty={apGating.stageEmpty}
                               onOpenStage={handleOpenStageModal}
                               caseSubmitted={caseSubmitted}
                             />
@@ -3351,13 +3319,8 @@ export function MandibularPanel({
                             skipAutoOpen={apUsesAccordionShadePicker || apFixedShadesComplete}
                           />
                           <AutoOpenGumShade
-                            visible={
-                              apNamedShadeFields.length === 0 &&
-                              apNeedsStumpShade &&
-                              !!getSelectedShade(apFixedShadeProductId, "mandibular", "tooth_shade") &&
-                              !getSelectedShade(apFixedShadeProductId, "mandibular", "stump_shade")
-                            }
-                            hasValue={!!getSelectedShade(apFixedShadeProductId, "mandibular", "stump_shade")}
+                            visible={apGating.gumAutoOpenVisible}
+                            hasValue={apGating.gumAutoOpenHasValue}
                             onOpen={() =>
                               setPanelGumShadePicker({
                                 toothNumber: apFirstTn,
@@ -3538,71 +3501,38 @@ export function MandibularPanel({
                   getFieldValue
                 );
                 const groupStageProductIdFixed = `mandibular_fixed_${groupStageToothNumber}`;
-                // Helper: check visibility within the product-specific fixed chain
-                const isFixed = (step: FieldStep) =>
-                  isFieldVisible("mandibular", groupStageToothNumber, step, fixedChain);
-
-                // Gate: hide product fields while shade guide is open and incomplete for this product
-                const _mandFixedShadeProductId = resolveFixedShadeProductId(
-                  selectedProduct?.id,
-                  groupStageToothNumber
-                );
-                const namedShadeFields = getShadeGuideAdvanceFields(selectedProduct?.advance_fields);
-                const firstMissingShadeField = getFirstMissingShadeGuideField(
-                  selectedProduct?.advance_fields,
-                  _mandFixedShadeProductId,
-                  "mandibular",
-                  getSelectedShade
-                );
-                const _needsStumpShade = namedShadeFields.length > 0
-                  ? namedShadeFields.some((field) => getShadeFieldType(field) === "stump_shade")
-                  : fixedChain.includes("fixed_stump_shade") &&
-                  (selectedProduct?.has_gum_shade === "Yes" ||
-                    (selectedProduct?.advance_fields || []).some((f) => { const n = (f.name || "").toLowerCase(); return (n.includes("stump") || n.includes("gum")) && n.includes("shade"); }));
-                const hasLegacyToothShade = selectedProduct?.has_teeth_shade === "Yes" ||
-                  (selectedProduct?.advance_fields || []).some((f) => {
-                    const n = (f.name || "").toLowerCase();
-                    return (n.includes("teeth") || (n.includes("tooth") && !n.includes("stump") && !n.includes("gum"))) && n.includes("shade");
-                  });
-                const hasLegacyTrioShade = selectedProduct?.has_teeth_shade === "Yes" ||
-                  (selectedProduct?.advance_fields || []).some((f) => {
-                    const n = (f.name || "").toLowerCase();
-                    return (n.includes("cervical") || n.includes("incisal") || n.includes("body") || n.includes("crown") || (n.includes("tooth") && !n.includes("stump"))) && n.includes("shade");
-                  });
-                const _needsToothShade = namedShadeFields.length > 0
-                  ? namedShadeFields.some((field) => getShadeFieldType(field) === "tooth_shade")
-                  : (fixedChain.includes("fixed_stump_shade") && hasLegacyToothShade) ||
-                  (fixedChain.includes("fixed_shade_trio") && hasLegacyTrioShade);
-                const _shadeRequired = namedShadeFields.length > 0 ? !!firstMissingShadeField : (_needsStumpShade || _needsToothShade);
-                // Gum shade may live only in the fixed_stump_shade field value (picked via
-                // the panel gum picker) — accept it so post-shade fields aren't blocked.
-                const stumpShadeFieldDone =
-                  isFieldCompleted("mandibular", firstToothNumber, "fixed_stump_shade") ||
-                  !!getFieldValue("mandibular", firstToothNumber, "fixed_stump_shade")?.trim();
-                // Gum picked via the panel picker completes at groupStageToothNumber,
-                // which can differ from firstToothNumber once extraction teeth join the group.
-                const gumShadeFieldDone =
-                  stumpShadeFieldDone ||
-                  isFieldCompleted("mandibular", groupStageToothNumber, "fixed_stump_shade") ||
-                  !!getFieldValue("mandibular", groupStageToothNumber, "fixed_stump_shade")?.trim();
-                // Teeth shade satisfied via shade state OR the completed fixed_shade_trio
-                // field — shade-state keys can miss (late product hydration / group shifts)
-                // even though the step completed, which used to stall the gum auto-open.
-                const toothShadeSatisfiedForGum =
-                  !_needsToothShade ||
-                  !!getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade") ||
-                  isFieldCompleted("mandibular", groupStageToothNumber, "fixed_shade_trio");
-                const fixedShadesComplete = areFixedProductShadesComplete(
-                  selectedProduct?.advance_fields,
-                  _mandFixedShadeProductId,
-                  "mandibular",
+                // Shared with added-product cards — see utils/fixedCardGating.ts
+                const card0Gating = resolveFixedCardGating({
+                  arch: "mandibular",
+                  product: selectedProduct,
+                  cardProduct: selectedProduct,
+                  cardId: 0,
+                  toothNumbers,
+                  stageToothNumber: groupStageToothNumber,
+                  shadeToothNumber: firstToothNumber,
+                  caseSubmitted,
+                  isAnyModalOpen,
+                  openShadeFieldType: shadeSelectionState.fieldType,
+                  hasSelectedStage: !!selectedStages[groupStageProductIdFixed],
                   getSelectedShade,
-                  { needsStumpShade: _needsStumpShade && !stumpShadeFieldDone, needsToothShade: _needsToothShade }
-                );
-                const fixedShadeIncomplete = !fixedShadesComplete;
-                const usesAccordionShadePicker = shouldUseAccordionOnlyFixedShades(
-                  selectedProduct?.advance_fields
-                );
+                  isFieldCompleted,
+                  getFieldValue,
+                  isFieldVisible,
+                  isFixedRetentionSetupComplete,
+                });
+                const isFixed = card0Gating.isFixedStep;
+                const _mandFixedShadeProductId = card0Gating.fixedShadeProductId;
+                const namedShadeFields = card0Gating.namedShadeFields;
+                const firstMissingShadeField = card0Gating.firstMissingShadeField;
+                const _needsStumpShade = card0Gating.needsStumpShade;
+                const _needsToothShade = card0Gating.needsToothShade;
+                const _shadeRequired = card0Gating.shadeRequired;
+                const stumpShadeFieldDone = card0Gating.stumpShadeFieldDone;
+                const gumShadeFieldDone = card0Gating.stumpShadeFieldDone;
+                const toothShadeSatisfiedForGum = card0Gating.toothShadeSatisfiedForGum;
+                const fixedShadesComplete = card0Gating.fixedShadesComplete;
+                const fixedShadeIncomplete = card0Gating.fixedShadeIncomplete;
+                const usesAccordionShadePicker = card0Gating.usesAccordionShadePicker;
                 // ---- Product Accordion (progressive step-by-step) ----
                 const showFixedActionsMand = hasRetentionOptions(selectedProduct) && isFieldCompleted("mandibular", groupStageToothNumber, "fixed_impression") && !caseSubmitted;
                 const showPrepActionsMand = !hasRetentionOptions(selectedProduct) && isFieldCompleted("mandibular", firstToothNumber, "addons") && !caseSubmitted;
@@ -3618,6 +3548,10 @@ export function MandibularPanel({
                 // fields phase is reached.
                 const card0ShowFixedFieldsContent =
                   card0ShowFixedFields && !guidedHideCard0Fields;
+                // Auto-open gate — identical to the added-product cards, so a card 0 whose
+                // product is mid-hydration can't jump ahead of its own Done button either.
+                const card0AutoOpenReady =
+                  card0ShowFixedFieldsContent && card0Gating.retentionFieldsVisible;
                 const showFixedRetentionDone =
                   hasRetentionOptions(selectedProduct) &&
                   !caseSubmitted;
@@ -3736,16 +3670,13 @@ export function MandibularPanel({
                       />
                     }
                   >
-                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
+                    {card0AutoOpenReady && hasRetentionOptions(selectedProduct) && (
                       <AutoOpenFirstFixedFieldAfterRetentionDone
-                        retentionFieldsVisible={card0ShowFixedFields}
+                        retentionFieldsVisible={card0Gating.retentionFieldsVisible}
                         isExpanded={card0FixedExpanded}
                         caseSubmitted={caseSubmitted}
-                        isStageVisible={!isSingleStageNoStages(selectedProduct) && isFixed("fixed_stage")}
-                        isStageEmpty={
-                          !(selectedStages[groupStageProductIdFixed] ||
-                            getFieldValue("mandibular", groupStageToothNumber, "fixed_stage"))
-                        }
+                        isStageVisible={card0Gating.stageVisible}
+                        isStageEmpty={card0Gating.stageEmpty}
                         onOpenStage={handleOpenStageModal}
                         stageProductId={groupStageProductIdFixed}
                         arch="mandibular"
@@ -3769,19 +3700,19 @@ export function MandibularPanel({
                         fixedShadesComplete={fixedShadesComplete}
                       />
                     )}
-                    {card0ShowFixedFieldsContent && !isSingleStageNoStages(selectedProduct) && (
+                    {card0AutoOpenReady && !isSingleStageNoStages(selectedProduct) && (
                       <AutoOpenStageIfEmpty
                         productId={hasRetentionOptions(selectedProduct) ? groupStageProductIdFixed : `mandibular_prep_${firstToothNumber}`}
                         arch="mandibular"
                         toothNumber={hasRetentionOptions(selectedProduct) ? groupStageToothNumber : firstToothNumber}
                         isExpanded={isCardAccordionExpanded(slotId)}
-                        isStageVisible={hasRetentionOptions(selectedProduct) ? isFixed("fixed_stage") : isFieldVisible("mandibular", firstToothNumber, "stage")}
-                        isStageEmpty={hasRetentionOptions(selectedProduct) ? !(selectedStages[groupStageProductIdFixed] || getFieldValue("mandibular", groupStageToothNumber, "fixed_stage")) : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
+                        isStageVisible={hasRetentionOptions(selectedProduct) ? card0Gating.stageVisible : isFieldVisible("mandibular", firstToothNumber, "stage")}
+                        isStageEmpty={hasRetentionOptions(selectedProduct) ? card0Gating.stageEmpty : !(selectedStages[`mandibular_prep_${firstToothNumber}`] || getFieldValue("mandibular", firstToothNumber, "stage"))}
                         onOpenStage={handleOpenStageModal}
                         caseSubmitted={caseSubmitted}
                       />
                     )}
-                    {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) && (
+                    {card0AutoOpenReady && hasRetentionOptions(selectedProduct) && (
                       <>
                         <AutoOpenShadeGuideIfEmpty
                           arch="mandibular"
@@ -3797,19 +3728,8 @@ export function MandibularPanel({
                           skipAutoOpen={usesAccordionShadePicker || fixedShadesComplete}
                         />
                         <AutoOpenGumShade
-                          visible={
-                            namedShadeFields.length === 0 &&
-                            _needsStumpShade &&
-                            !isAnyModalOpen &&
-                            shadeSelectionState.fieldType === null &&
-                            toothShadeSatisfiedForGum &&
-                            !getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade") &&
-                            !gumShadeFieldDone
-                          }
-                          hasValue={
-                            !!getSelectedShade(_mandFixedShadeProductId, "mandibular", "stump_shade") ||
-                            gumShadeFieldDone
-                          }
+                          visible={card0Gating.gumAutoOpenVisible}
+                          hasValue={card0Gating.gumAutoOpenHasValue}
                           onOpen={() =>
                             setPanelGumShadePicker({
                               toothNumber: groupStageToothNumber,
