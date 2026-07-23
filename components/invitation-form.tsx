@@ -61,6 +61,8 @@ export function InvitationForm({
   const customerType = selectedLocation?.type || null
   const customerId = selectedLocation?.id || null
   const roleOptions = getRoleOptions(customerType)
+  const namePlaceholder = type === "User" ? "Full Name *" : `${type} Name *`
+  const nameRequiredLabel = type === "User" ? "Full Name" : `${type} Name`
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,7 +70,7 @@ export function InvitationForm({
     if (!name.trim() || !email.trim()) {
       toast({
         title: "Error",
-        description: `${type} Name and Email address are required.`,
+        description: `${nameRequiredLabel} and Email address are required.`,
         variant: "destructive",
       })
       return
@@ -185,7 +187,7 @@ export function InvitationForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div className="flex flex-col sm:flex-row gap-3">
         <Input
-          placeholder={`${type} Name *`}
+          placeholder={namePlaceholder}
           value={name}
           onChange={(e) => setName(e.target.value)}
           required

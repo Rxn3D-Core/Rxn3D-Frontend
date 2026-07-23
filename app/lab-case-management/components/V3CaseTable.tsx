@@ -209,7 +209,7 @@ export function V3CaseTable(props: Props) {
                           row={row}
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
-                          canSendBack={props.canSendBack(row)}
+                          canSendBack={!officeProfile && props.canSendBack(row)}
                           allowDriverActions={!officeProfile}
                           onClose={() => setPopoverRow(null)}
                         />
@@ -231,16 +231,22 @@ export function V3CaseTable(props: Props) {
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">DUE DATE</div>
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 justify-end"
-                          onClick={(e) => { e.stopPropagation(); props.rowActions.onChangeDueDate(row) }}
-                        >
-                          <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
+                        {officeProfile ? (
                           <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
                             {formatDueDate(row)}
                           </span>
-                        </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 justify-end"
+                            onClick={(e) => { e.stopPropagation(); props.rowActions.onChangeDueDate(row) }}
+                          >
+                            <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
+                            <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
+                              {formatDueDate(row)}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -426,7 +432,7 @@ export function V3CaseTable(props: Props) {
                         row={row}
                         actions={props.rowActions}
                         canPrintStatement={props.canPrintStatement(row)}
-                        canSendBack={props.canSendBack(row)}
+                        canSendBack={!officeProfile && props.canSendBack(row)}
                         allowDriverActions={!officeProfile}
                         onClose={() => setPopoverRow(null)}
                       />
@@ -560,15 +566,23 @@ function DesktopCell({
     return (
       <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-          <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
-          <button
-            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-            style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer" }}
-            type="button"
-            onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
-          >
-            {formatDueDate(row)}
-          </button>
+          {allowDriverActions ? (
+            <>
+              <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
+              <button
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+                style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer" }}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
+              >
+                {formatDueDate(row)}
+              </button>
+            </>
+          ) : (
+            <span style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
+              {formatDueDate(row)}
+            </span>
+          )}
         </div>
       </td>
     )
