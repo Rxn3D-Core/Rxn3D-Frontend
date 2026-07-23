@@ -402,7 +402,7 @@ export const officeAdminMenu: MenuItem[] = [
     id: "user-management",
     title: "User Management",
     icon: <Users className="h-5 w-5" />,
-    path: "#",
+    // Parent-only: waffle launcher drills into children when there is no real path.
     children: [
       {
         id: "all-users",
