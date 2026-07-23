@@ -14,32 +14,60 @@ function isActiveAddon(addon: ProductAddon): boolean {
   return String(addon.status ?? "Active").trim().toLowerCase() !== "inactive";
 }
 
-/** Same default-qty rules as the add-ons modal when seeding from product config. */
-export function getDefaultSeedQtyFromProductAddon(a: {
+type ProductAddonDefaultSource = {
   id?: number;
   addon_id?: number;
   status?: string;
   is_default?: string;
-  quantity?: number;
-}): number | null {
+  quantity?: number | string | null;
+  lab_addon?: { is_default?: string; quantity?: number | string | null } | null;
+  pivot?: { is_default?: string; quantity?: number | string | null } | null;
+};
+
+function resolveProductAddonIsDefault(a: ProductAddonDefaultSource): boolean {
+  const raw =
+    a.is_default ?? a.lab_addon?.is_default ?? a.pivot?.is_default ?? "";
+  return String(raw).trim().toLowerCase() === "yes";
+}
+
+function resolveProductAddonQuantity(a: ProductAddonDefaultSource): number {
+  const qRaw = a.quantity ?? a.lab_addon?.quantity ?? a.pivot?.quantity;
+  if (typeof qRaw === "number") return qRaw;
+  if (qRaw != null && String(qRaw).trim() !== "") return Number(qRaw);
+  return NaN;
+}
+
+/**
+ * Qty to preselect on slip creation / add-ons modal.
+ * Only `is_default: "Yes"` add-ons are auto-selected; other product-linked
+ * add-ons stay optional (qty 0) until the user picks them.
+ */
+export function getDefaultSeedQtyFromProductAddon(
+  a: ProductAddonDefaultSource
+): number | null {
   const addonId = a.addon_id ?? a.id;
   if (!addonId) return null;
   const status = String(a.status ?? "Active").trim().toLowerCase();
   if (status === "inactive") return null;
-  const isDef = String(a.is_default ?? "").trim().toLowerCase() === "yes";
-  const qRaw = a.quantity;
-  const q =
-    typeof qRaw === "number"
-      ? qRaw
-      : qRaw != null && String(qRaw).trim() !== ""
-        ? Number(qRaw)
-        : NaN;
-  if (isDef) {
-    if (Number.isFinite(q) && q > 0) return Math.max(1, Math.floor(q));
-    return 1;
-  }
+  if (!resolveProductAddonIsDefault(a)) return null;
+  const q = resolveProductAddonQuantity(a);
   if (Number.isFinite(q) && q > 0) return Math.max(1, Math.floor(q));
-  return null;
+  return 1;
+}
+
+/** Structured default selections for tooth/store seeding from product config. */
+export function buildDefaultSeedEntriesFromProduct(
+  product: Pick<ProductApiData, "addons"> | null | undefined
+): Array<{ addon_id: number; qty: number; name?: string }> {
+  const entries: Array<{ addon_id: number; qty: number; name?: string }> = [];
+  for (const a of product?.addons ?? []) {
+    const addonId = a.addon_id ?? a.id;
+    const qty = getDefaultSeedQtyFromProductAddon(a);
+    if (!addonId || qty == null || qty <= 0) continue;
+    const name = a.name?.trim();
+    entries.push(name ? { addon_id: addonId, qty, name } : { addon_id: addonId, qty });
+  }
+  return entries;
 }
 
 function addonEntryName(entry: StoredAddonEntry): string {
@@ -78,16 +106,7 @@ export function buildAddonDisplayFromEntries(
 export function getDefaultAddonDisplayFromProduct(
   product: Pick<ProductApiData, "addons"> | null | undefined
 ): string {
-  const entries: Array<{ addon_id: number; qty: number; name: string }> = [];
-  for (const a of product?.addons ?? []) {
-    const addonId = a.addon_id ?? a.id;
-    const qty = getDefaultSeedQtyFromProductAddon(a);
-    if (!addonId || qty == null || qty <= 0) continue;
-    const name = a.name?.trim();
-    if (!name) continue;
-    entries.push({ addon_id: addonId, qty, name });
-  }
-  return buildAddonDisplayFromEntries(entries);
+  return buildAddonDisplayFromEntries(buildDefaultSeedEntriesFromProduct(product));
 }
 
 export function structuredAddonsToDisplay(
@@ -132,20 +151,24 @@ export interface ResolveRemovableAddonDisplayParams {
 }
 
 /**
- * Resolve the add-ons label shown in product fields. Prefers saved field progress,
- * then modal store selections, structured tooth selections, then product defaults.
+ * Resolve the add-ons label shown in product fields.
+ * Prefers the modal store first (written synchronously on Add), then per-tooth
+ * structured selections, then saved field progress, then product defaults.
+ * Store-first avoids a race where stale auto-populated structured data
+ * (e.g. "2x Wire clasp") hides the qtys just confirmed in the modal.
  */
 export function resolveRemovableAddonDisplay(
   params: ResolveRemovableAddonDisplayParams
 ): string {
   const { fieldValue, structuredAddons, storeAddons, product } = params;
-  if (hasVisibleAddonDisplay(fieldValue)) return (fieldValue ?? "").trim();
 
   const fromStore = storeAddonsToDisplay(storeAddons, product?.addons);
   if (hasVisibleAddonDisplay(fromStore)) return fromStore;
 
   const fromStructured = structuredAddonsToDisplay(structuredAddons, product?.addons);
   if (hasVisibleAddonDisplay(fromStructured)) return fromStructured;
+
+  if (hasVisibleAddonDisplay(fieldValue)) return (fieldValue ?? "").trim();
 
   const fromDefaults = getDefaultAddonDisplayFromProduct(product);
   if (hasVisibleAddonDisplay(fromDefaults)) return fromDefaults;

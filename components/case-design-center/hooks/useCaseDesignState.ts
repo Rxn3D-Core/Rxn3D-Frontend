@@ -46,7 +46,7 @@ import {
   implantOnlySelectionModeForArch,
   resolveDefaultToothChartSlipAssignmentForArch,
 } from "@/lib/product-default-tooth-chart-slip-display";
-import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, getDefaultSeedQtyFromProductAddon } from "../utils/addonDisplayHelpers";
+import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, buildDefaultSeedEntriesFromProduct } from "../utils/addonDisplayHelpers";
 import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   getRepToothForRemovableCard,
@@ -1426,39 +1426,71 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (!hasVisibleAddonDisplay(resolved)) return;
       if (
         toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep) &&
-        hasVisibleAddonDisplay(existing)
+        hasVisibleAddonDisplay(existing) &&
+        existing.trim() === resolved.trim()
       ) {
         return;
       }
 
       toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, resolved);
 
-      if (!structured?.length) {
-        const structuredFromStore = (storeAddons ?? [])
-          .map((entry) => {
-            const addonId = entry.addon_id;
-            const qty = entry.qty ?? entry.quantity ?? 0;
-            if (!addonId || qty <= 0) return null;
-            return { addon_id: addonId, qty };
-          })
-          .filter((e): e is { addon_id: number; qty: number } => e != null);
+      const structuredFromStore = (storeAddons ?? [])
+        .map((entry) => {
+          const addonId = entry.addon_id;
+          const qty = entry.qty ?? entry.quantity ?? 0;
+          if (!addonId || qty <= 0) return null;
+          return { addon_id: addonId, qty };
+        })
+        .filter((e): e is { addon_id: number; qty: number } => e != null);
+
+      const structuredSig = (structured ?? [])
+        .map((e) => `${e.addon_id}:${e.qty}`)
+        .sort()
+        .join("|");
+      const storeSig = structuredFromStore
+        .map((e) => `${e.addon_id}:${e.qty}`)
+        .sort()
+        .join("|");
+
+      // Keep per-tooth structured selections aligned with the modal store after Add.
+      if (structuredFromStore.length > 0 && storeSig !== structuredSig) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [addonKey]: structuredFromStore,
+        }));
+      } else if (!structured?.length) {
+        const defaultSeeds = buildDefaultSeedEntriesFromProduct(product);
         const fallbackStructured =
           structuredFromStore.length > 0
             ? structuredFromStore
-            : (product.addons ?? [])
-                .map((a) => {
-                  const addonId = a.addon_id ?? a.id;
-                  const qty = getDefaultSeedQtyFromProductAddon(a);
-                  if (!addonId || qty == null || qty <= 0) return null;
-                  return { addon_id: addonId, qty };
-                })
-                .filter((e): e is { addon_id: number; qty: number } => e != null);
+            : defaultSeeds.map(({ addon_id, qty }) => ({ addon_id, qty }));
 
         if (fallbackStructured.length > 0) {
           setSelectedAddonsByTooth((prev) => ({
             ...prev,
             [addonKey]: fallbackStructured,
           }));
+        }
+
+        // Mirror defaults into the modal store so "+ Add ons" opens with qty preselected.
+        if (productId && structuredFromStore.length === 0 && defaultSeeds.length > 0) {
+          const storeState = useCaseDesignStore.getState();
+          const existingStore =
+            storeState.productAddOns[productId] || { maxillary: [], mandibular: [] };
+          const archEntries = existingStore[arch] || [];
+          if (archEntries.length === 0) {
+            storeState.setProductAddOns(productId, {
+              ...existingStore,
+              [arch]: defaultSeeds.map((e) => ({
+                addon_id: e.addon_id,
+                qty: e.qty,
+                quantity: e.qty,
+                name: e.name,
+                addOn: e.name,
+                label: e.name,
+              })),
+            });
+          }
         }
       }
     },
