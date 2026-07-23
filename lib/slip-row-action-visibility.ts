@@ -38,8 +38,8 @@ export type SlipRowActionVisibilityInput = SlipLocationRef & {
   /** Lab listing / virtual slip — rush is lab-only. Defaults true. */
   allowRush?: boolean;
   /**
-   * Driver actions (ready to send, pick up, drop off) are lab-only — office
-   * profiles cannot run them. Defaults true.
+   * Lab-only listing actions (ready to send, pick up / drop off, send back to
+   * office, change delivery date). Office profiles cannot run them. Defaults true.
    */
   allowDriverActions?: boolean;
 };
@@ -82,10 +82,10 @@ export function resolveSlipRowActionVisibility(
     rush: allowRush && !caseOnHold && !caseFinished && !caseCancelled,
     hold: !caseBlocked && !slipInOffice && canPutOnHold,
     cancel: !caseBlocked && !slipInOffice && canDeleteCase,
-    sendBack: canSendBack && !caseCancelled && !caseFinished,
+    sendBack: allowDriverActions && canSendBack && !caseCancelled && !caseFinished,
     print: !caseCancelled,
     invoice: canPrintStatement && !caseCancelled,
-    schedule: !caseCancelled && !caseFinished,
+    schedule: allowDriverActions && !caseCancelled && !caseFinished,
     addOns: !caseOnHold && !caseFinished && !caseCancelled,
     callLog: true,
     attach: true,
