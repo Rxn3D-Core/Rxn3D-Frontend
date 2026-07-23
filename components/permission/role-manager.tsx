@@ -90,17 +90,18 @@ export function RoleManager() {
     loadData()
   }, [loadData])
 
+  // Superadmin manages global role bundles, so expose every role the backend
+  // returns (lab, office, doctor, etc.) rather than intersecting with the
+  // lab-only editable list used by the per-lab admin view.
   const superadminRows = useMemo(
     () =>
-      backendRoles
-        .filter((role) => (LAB_EDITABLE_ROLE_NAMES as readonly string[]).includes(role.name) || role.name === "lab_admin")
-        .map((backend) => ({
-          id: backend.id,
-          name: backend.name,
-          permissions: backend.permissions?.map((p) => p.name) ?? [],
-          is_customized: true,
-          scope: "global" as const,
-        })),
+      backendRoles.map((backend) => ({
+        id: backend.id,
+        name: backend.name,
+        permissions: backend.permissions?.map((p) => p.name) ?? [],
+        is_customized: true,
+        scope: "global" as const,
+      })),
     [backendRoles],
   )
 

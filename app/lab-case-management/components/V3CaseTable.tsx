@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { slipIsInOffice } from "@/lib/slip-location"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
@@ -143,7 +144,7 @@ export function V3CaseTable(props: Props) {
               </div>
             )
           : props.rows.map((row) => {
-              const dueDateColor = dueDateTextColor(row.dueDate, row.rush, row.status)
+              const dueDateColor = dueDateTextColor(row)
               // The amber rush highlight is a lab-visibility cue — office
               // profiles keep the rush bolt icon but not the tinted row.
               const cardBg = row.rush && !officeProfile ? AMBER : "#FFFFFF"
@@ -237,7 +238,7 @@ export function V3CaseTable(props: Props) {
                         >
                           <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
                           <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                            {formatDueDate(row.dueDate, row.status)}
+                            {formatDueDate(row)}
                           </span>
                         </button>
                       </div>
@@ -353,7 +354,7 @@ export function V3CaseTable(props: Props) {
             props.rows.map((row, idx) => {
               const isEvenRow = idx % 2 === 1
               const rowBg = row.rush && !officeProfile ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
-              const dueDateColor = dueDateTextColor(row.dueDate, row.rush, row.status)
+              const dueDateColor = dueDateTextColor(row)
               const isLocked = !!row.rush
 
               return (
@@ -566,7 +567,7 @@ function DesktopCell({
             type="button"
             onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
           >
-            {formatDueDate(row.dueDate, row.status)}
+            {formatDueDate(row)}
           </button>
         </div>
       </td>
@@ -650,10 +651,16 @@ function isReadyToSendLocation(row: V2CaseRowData) {
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
 }
 
-function dueDateTextColor(dueDate: string, rush?: boolean, status?: string): string {
+/** Delivered = physically in office (id 6) or workflow finished — either way it's done. */
+function isDeliveredRow(row: V2CaseRowData): boolean {
+  return slipIsInOffice({ locationId: row.locationId, location: row.location }) || isSlipCaseFinished(row.status)
+}
+
+function dueDateTextColor(row: V2CaseRowData): string {
   // A delivered case can't be late, so it keeps the settled green even when its
   // due date has passed.
-  if (isSlipCaseFinished(status)) return "#347B4E"
+  if (isDeliveredRow(row)) return "#347B4E"
+  const { dueDate, rush } = row
   if (!dueDate) return "#575757"
   const due = new Date(dueDate)
   if (isNaN(due.getTime())) return "#575757"
@@ -666,16 +673,23 @@ function dueDateTextColor(dueDate: string, rush?: boolean, status?: string): str
   return due.getTime() === today.getTime() ? "#347B4E" : "#2BA5DE"
 }
 
-function formatDueDate(dueDate: string, status?: string): string {
-  if (isSlipCaseFinished(status)) return "Delivered"
+function formatDueDate(row: V2CaseRowData): string {
+  const { dueDate } = row
+  const due = dueDate ? new Date(dueDate) : null
+  const dueValid = due && !isNaN(due.getTime())
+  // A delivered case (in office / finished) shows the delivery date instead of a
+  // countdown: "Delivered 04/30".
+  if (isDeliveredRow(row)) {
+    if (!dueValid) return "Delivered"
+    return `Delivered ${due!.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })}`
+  }
   if (!dueDate) return "—"
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return dueDate
+  if (!dueValid) return dueDate
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
-  const mmdd = due.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+  due!.setHours(0, 0, 0, 0)
+  const days = Math.round((due!.getTime() - today.getTime()) / 86_400_000)
+  const mmdd = due!.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
   const label = days === 0 ? "Today" : days < 0 ? `${Math.abs(days)}d ago` : `${days}d`
   return `${label} · ${mmdd}`
 }
