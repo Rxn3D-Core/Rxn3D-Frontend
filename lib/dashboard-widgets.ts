@@ -121,9 +121,10 @@ export function getDefaultWidgetsForRole(role: string): DashboardWidget[] {
     case "lab_admin":
       return getDefaultLabAdminWidgets()
     case "office_admin":
+    // doctor_admin renders OfficeAdminDashboard (My Labs / My Users with invite CTAs)
+    case "doctor_admin":
       return getDefaultOfficeAdminWidgets()
     case "doctor":
-    case "doctor_admin":
       return getDefaultDoctorWidgets()
     case "lab_user":
       return getDefaultLabUserWidgets()

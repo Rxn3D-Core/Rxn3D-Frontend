@@ -1944,23 +1944,42 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             if (card0.length > 0) toothNum = card0[0];
           }
 
-          const addonLabels = addOns.map((a) => `${a.qty}x ${a.name}`);
+          const addonLabels = addOns
+            .filter((a) => a.qty > 0 && a.name)
+            .map((a) => `${a.qty}x ${a.name}`);
           const value = addonLabels.length === 0 ? "0 selected" : addonLabels.join(", ");
           const product = state.getToothProduct(arch, toothNum);
           const isFixed = meta?.isFixed ?? hasRetentionOptions(product);
-          if (isFixed) {
-            state.completeFieldStep(arch, toothNum, "fixed_addons", value);
-          } else {
-            state.completeFieldStep(arch, toothNum, "addons", value);
+          const addonStep = isFixed ? "fixed_addons" : "addons";
+
+          const cardId =
+            meta?.cardId ??
+            state.toothProductCardMap[`${arch}_${toothNum}`] ??
+            0;
+          const allArchTeeth =
+            arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+          const cardTeeth = (allArchTeeth ?? []).filter(
+            (tn) => (state.toothProductCardMap[`${arch}_${tn}`] ?? 0) === cardId
+          );
+          const virtualTooth = cardId === 0 ? -0 : -cardId;
+          const teethToWrite = Array.from(
+            new Set([toothNum, virtualTooth, ...cardTeeth].filter((tn) => tn != null && !Number.isNaN(tn)))
+          );
+
+          for (const tn of teethToWrite) {
+            state.completeFieldStep(arch, tn, addonStep, value);
           }
+
           const structuredAddons = addOns
             .filter((a) => a.qty > 0)
             .map((a) => ({ addon_id: a.addon_id, qty: a.qty }));
-          const addonKey = `${arch}_${toothNum}`;
-          state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => ({
-            ...prev,
-            [addonKey]: structuredAddons,
-          }));
+          state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => {
+            const next = { ...prev };
+            for (const tn of teethToWrite) {
+              next[`${arch}_${tn}`] = structuredAddons;
+            }
+            return next;
+          });
         }}
         showAttachModal={state.showAttachModal}
         setShowAttachModal={state.setShowAttachModal}

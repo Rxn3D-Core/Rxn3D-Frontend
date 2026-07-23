@@ -543,6 +543,9 @@ export interface ProductAddon {
   is_default?: string;
   price?: string | number | null;
   quantity?: number;
+  /** Some library payloads nest default/qty on the join row. */
+  lab_addon?: { is_default?: string; quantity?: number | string | null } | null;
+  pivot?: { is_default?: string; quantity?: number | string | null } | null;
   subcategory?: {
     id: number;
     name: string;

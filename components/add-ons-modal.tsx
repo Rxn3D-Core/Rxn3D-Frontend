@@ -25,6 +25,7 @@ import {
   mergeLinkedAddonsIntoCatalog,
   type SlipAddonCatalogRow,
 } from "@/lib/slip-product-addon-catalog"
+import { getDefaultSeedQtyFromProductAddon } from "@/components/case-design-center/utils/addonDisplayHelpers"
 
 /** A product available in the case for add-on selection */
 export interface AddOnsProduct {
@@ -41,6 +42,8 @@ export interface AddOnsProduct {
     is_default?: string
     price?: string | number | null
     quantity?: number
+    lab_addon?: { is_default?: string; quantity?: number | string | null } | null
+    pivot?: { is_default?: string; quantity?: number | string | null } | null
     subcategory?: { id: number; name: string; code?: string } | null
     category?: { id: number; name: string; code?: string } | null
   }>
@@ -125,37 +128,6 @@ type SelectedAddOn = {
 const ITEMS_PER_PAGE = 10
 const DEFAULT_PRODUCTS: AddOnsProduct[] = []
 const DEFAULT_VISIBLE_ARCHES: ("maxillary" | "mandibular")[] = ["maxillary", "mandibular"]
-
-/**
- * Default QTY when the modal opens with an empty store — follows lab product config
- * (`is_default` + `quantity`), with legacy support for addons that only set `quantity`.
- */
-function getDefaultSeedQtyFromProductAddon(a: {
-  id: number
-  addon_id?: number
-  status?: string
-  is_default?: string
-  quantity?: number
-}): number | null {
-  const addonId = a.addon_id ?? a.id
-  if (!addonId) return null
-  const status = String(a.status ?? "Active").trim().toLowerCase()
-  if (status === "inactive") return null
-  const isDef = String(a.is_default ?? "").trim().toLowerCase() === "yes"
-  const qRaw = a.quantity
-  const q =
-    typeof qRaw === "number"
-      ? qRaw
-      : qRaw != null && String(qRaw).trim() !== ""
-        ? Number(qRaw)
-        : NaN
-  if (isDef) {
-    if (Number.isFinite(q) && q > 0) return Math.max(1, Math.floor(q))
-    return 1
-  }
-  if (Number.isFinite(q) && q > 0) return Math.max(1, Math.floor(q))
-  return null
-}
 
 function slotQtyKey(rushKey: string, addonId: number) {
   return `${rushKey}_${addonId}`
@@ -317,56 +289,51 @@ export default function AddOnsModal({
       return
     }
 
-    if (!justOpened) return
+    const buildRestoredQtys = (): Record<string, number> => {
+      const restored: Record<string, number> = {}
 
-    const restored: Record<string, number> = {}
-
-    if (useSlotColumns) {
-      for (const slot of archSlots) {
-        const pid = slot.apiProductId
-        const existing =
-          storeProductAddOns[pid.toString()] || { maxillary: [], mandibular: [] }
-        let slotHasQty = false
-        for (const a of existing[slot.arch] || []) {
-          const addonId = (a as Record<string, unknown>).addon_id as number
-          const qty =
-            ((a as Record<string, unknown>).qty as number) ||
-            ((a as Record<string, unknown>).quantity as number) ||
-            1
-          if (addonId && qty > 0) {
-            restored[slotQtyKey(slot.rushKey, addonId)] = qty
-            slotHasQty = true
-          }
-        }
-        if (!slotHasQty) {
-          const productAddons =
-            products.find((p) => p.id === pid)?.addons ?? []
-          for (const a of productAddons) {
-            const addonId = a.addon_id ?? a.id
-            const qty = getDefaultSeedQtyFromProductAddon(a)
-            if (addonId && qty != null && qty > 0) {
+      if (useSlotColumns) {
+        for (const slot of archSlots) {
+          const pid = slot.apiProductId
+          const existing =
+            storeProductAddOns[pid.toString()] || { maxillary: [], mandibular: [] }
+          let slotHasQty = false
+          for (const a of existing[slot.arch] || []) {
+            const addonId = (a as Record<string, unknown>).addon_id as number
+            const qty =
+              ((a as Record<string, unknown>).qty as number) ||
+              ((a as Record<string, unknown>).quantity as number) ||
+              0
+            if (addonId && qty > 0) {
               restored[slotQtyKey(slot.rushKey, addonId)] = qty
+              slotHasQty = true
+            }
+          }
+          if (!slotHasQty) {
+            const productAddons =
+              products.find((p) => p.id === pid)?.addons ?? []
+            for (const a of productAddons) {
+              const addonId = a.addon_id ?? a.id
+              const qty = getDefaultSeedQtyFromProductAddon(a)
+              if (addonId && qty != null && qty > 0) {
+                restored[slotQtyKey(slot.rushKey, addonId)] = qty
+              }
             }
           }
         }
+        return restored
       }
-      const firstSlot = archSlots[0]
-      if (firstSlot) setActiveProductId(firstSlot.apiProductId)
-      setSelectedQtys(restored)
-      return
-    }
 
-    // Legacy: tabs + maxillary/mandibular columns for one active product
-    let pid: number | null = null
-    if (products.length === 1) {
-      pid = products[0].id
-    } else {
-      const initialId = parseInt(productId, 10)
-      if (!isNaN(initialId)) pid = initialId
-      else if (products.length > 0) pid = products[0].id
-    }
-    if (pid !== null) {
-      setActiveProductId(pid)
+      let pid: number | null = null
+      if (products.length === 1) {
+        pid = products[0].id
+      } else {
+        const initialId = parseInt(productId, 10)
+        if (!isNaN(initialId)) pid = initialId
+        else if (products.length > 0) pid = products[0].id
+      }
+      if (pid === null) return restored
+
       const existing = storeProductAddOns[pid.toString()] || { maxillary: [], mandibular: [] }
       for (const archVal of ["maxillary", "mandibular"] as const) {
         for (const a of existing[archVal] || []) {
@@ -374,7 +341,7 @@ export default function AddOnsModal({
           const qty =
             ((a as Record<string, unknown>).qty as number) ||
             ((a as Record<string, unknown>).quantity as number) ||
-            1
+            0
           if (addonId && qty > 0) {
             restored[legacyQtyKey(pid, archVal, addonId)] = qty
           }
@@ -396,6 +363,37 @@ export default function AddOnsModal({
           }
         }
       }
+      return restored
+    }
+
+    if (!justOpened) {
+      // Product/store data may arrive after open — seed defaults only while still empty
+      // so we never overwrite qty the user already changed.
+      setSelectedQtys((prev) => {
+        if (Object.keys(prev).length > 0) return prev
+        return buildRestoredQtys()
+      })
+      return
+    }
+
+    const restored = buildRestoredQtys()
+    if (useSlotColumns) {
+      const firstSlot = archSlots[0]
+      if (firstSlot) setActiveProductId(firstSlot.apiProductId)
+      setSelectedQtys(restored)
+      return
+    }
+
+    let pid: number | null = null
+    if (products.length === 1) {
+      pid = products[0].id
+    } else {
+      const initialId = parseInt(productId, 10)
+      if (!isNaN(initialId)) pid = initialId
+      else if (products.length > 0) pid = products[0].id
+    }
+    if (pid !== null) {
+      setActiveProductId(pid)
       setSelectedQtys(restored)
     } else {
       setSelectedQtys({})
@@ -811,23 +809,34 @@ export default function AddOnsModal({
       if (qty <= 0 || !keyMatcher(key)) continue
       const addonId = parseInt(key.split("_").pop() ?? "", 10)
       if (!addonId) continue
-      const found = catalog.find((a) => a.addon.id === addonId)
-      if (!found) continue
+      const found = catalog.find((a) => Number(a.addon.id) === addonId)
+      const productAddon = products
+        .flatMap((p) => p.addons ?? [])
+        .find((a) => Number(a.addon_id ?? a.id) === addonId)
+      const name =
+        found?.addon.name?.trim() ||
+        productAddon?.name?.trim() ||
+        ""
+      if (!name) continue
       const price = Number(
-        typeof found.addon.price === "string"
-          ? parseFloat(found.addon.price as unknown as string)
-          : found.addon.price
+        found
+          ? typeof found.addon.price === "string"
+            ? parseFloat(found.addon.price as unknown as string)
+            : found.addon.price
+          : typeof productAddon?.price === "string"
+            ? parseFloat(productAddon.price)
+            : (productAddon?.price ?? 0)
       )
       entries.push({
         addon_id: addonId,
         qty,
         quantity: qty,
-        category: found.category,
-        subcategory: found.subcategory,
-        name: found.addon.name,
-        addOn: found.addon.name,
-        label: found.addon.name,
-        price,
+        category: found?.category ?? productAddon?.category?.name ?? "",
+        subcategory: found?.subcategory ?? productAddon?.subcategory?.name ?? "",
+        name,
+        addOn: name,
+        label: name,
+        price: Number.isFinite(price) ? price : 0,
       })
     }
     return entries
@@ -835,8 +844,12 @@ export default function AddOnsModal({
 
   const handleConfirmSlot = (slot: RushArchSlot) => {
     const pid = slot.apiProductId.toString()
-    const catalog = slotAddonsByRushKey[slot.rushKey] ?? []
-    const prefix = `${slot.rushKey}_`
+    const catalog = useSlipSlotColumns
+      ? (slipSlotAddonsByRushKey[slot.rushKey] ?? [])
+      : (slotAddonsByRushKey[slot.rushKey] ?? [])
+    const prefix = useSlipSlotColumns
+      ? `slip_${slipId}_${slot.arch}_`
+      : `${slot.rushKey}_`
     const archEntries = buildStoreEntries(
       slot.rushKey,
       slot.arch,
@@ -870,6 +883,9 @@ export default function AddOnsModal({
         isFixed: slot.isFixed,
       }
     )
+
+    setSelectedQtys({})
+    onClose()
   }
 
   const handleConfirmSlipAddons = async () => {
