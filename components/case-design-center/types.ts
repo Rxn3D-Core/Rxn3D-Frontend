@@ -154,6 +154,13 @@ export interface CaseDesignProps {
    */
   preloadInitialSlipState?: boolean;
   /**
+   * Edit-slip only: suppress every field auto-open helper (stage, teeth/stump shade,
+   * gum shade, impression). The slip is fully preloaded with the user's existing
+   * selections, so the design center displays them (like the read-only virtual slip)
+   * without re-prompting for each already-selected field.
+   */
+  suppressFieldAutoOpen?: boolean;
+  /**
    * Add-new-stage only: per-arch stage history from eligibility API and optional
    * sequential stage modal prompt on load (maxillary, then mandibular).
    */

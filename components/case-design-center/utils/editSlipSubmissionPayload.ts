@@ -24,6 +24,9 @@ export type EditSlipPayload = {
   status?: string;
   casepan_id?: number;
   casepan_number?: string;
+  patient_name?: string;
+  gender?: string;
+  age?: number;
   products?: EditSlipProduct[];
   notes?: SlipCreationNote[];
 };
@@ -37,6 +40,10 @@ export interface BuildEditSlipPayloadParams {
   casepanNumber?: string | null;
   labCustomerId?: number;
   caseSummaryNotes?: string;
+  /** Patient details from the editable header — sent so name/gender/age edits persist. */
+  patientName?: string | null;
+  gender?: string | null;
+  age?: string | number | null;
 }
 
 function normalizeSlipProductType(type: string | null | undefined): "Upper" | "Lower" | null {
@@ -103,6 +110,9 @@ export async function buildEditSlipSubmissionPayloadAsync(
     casepanNumber,
     labCustomerId,
     caseSummaryNotes,
+    patientName,
+    gender,
+    age,
   } = params;
 
   const baselineProducts = buildBaselineEditSlipProducts(apiProducts);
@@ -152,11 +162,21 @@ export async function buildEditSlipSubmissionPayloadAsync(
 
   const slipNotes = buildSlipLevelNotes(products, caseSummaryNotes, 0);
 
+  const trimmedPatientName = patientName?.trim();
+  const trimmedGender = gender?.trim();
+  const parsedAge =
+    age === null || age === undefined || String(age).trim() === ""
+      ? undefined
+      : Number(age);
+
   const payload: EditSlipPayload = {
     ...(locationId ? { location_id: locationId } : {}),
     ...(status ? { status } : {}),
     ...(casepanId ? { casepan_id: casepanId } : {}),
     ...(casepanNumber ? { casepan_number: casepanNumber } : {}),
+    ...(trimmedPatientName ? { patient_name: trimmedPatientName } : {}),
+    ...(trimmedGender ? { gender: trimmedGender } : {}),
+    ...(parsedAge !== undefined && !Number.isNaN(parsedAge) ? { age: parsedAge } : {}),
     products,
     ...(slipNotes.length > 0 ? { notes: slipNotes } : {}),
   };

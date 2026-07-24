@@ -8,6 +8,7 @@ import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useTooth
 import { resolveGroupStageToothNumber } from "../utils/implantDetailHelpers";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
+import { AutoOpenSuppressionContext } from "./auto-open-suppression";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
@@ -1456,6 +1457,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
+        <AutoOpenSuppressionContext.Provider value={Boolean(props.suppressFieldAutoOpen)}>
         <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
@@ -1771,6 +1773,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           selectedAddonsByTooth={state.selectedAddonsByTooth}
         />
       </div>
+        </AutoOpenSuppressionContext.Provider>
 
       </div>
     </div>
