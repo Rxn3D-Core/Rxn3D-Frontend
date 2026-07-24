@@ -69,6 +69,15 @@ export function buildEditSlipFormData(
   if (payload.casepan_number) {
     appendFormDataValue(formData, "casepan_number", payload.casepan_number);
   }
+  if (payload.patient_name) {
+    appendFormDataValue(formData, "patient_name", payload.patient_name);
+  }
+  if (payload.gender) {
+    appendFormDataValue(formData, "gender", payload.gender);
+  }
+  if (payload.age != null) {
+    appendFormDataValue(formData, "age", payload.age);
+  }
 
   payload.products?.forEach((product, productIndex) => {
     Object.entries(product).forEach(([key, value]) => {

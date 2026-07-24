@@ -228,6 +228,9 @@ export function EditSlipFlow({ slipId }: Props) {
         casepanNumber: casepanMeta.number ?? undefined,
         labCustomerId: labCustomerId ?? undefined,
         caseSummaryNotes: caseSummaryNotesRef.current,
+        patientName: wizard.completedPatientName,
+        gender: wizard.completedGender,
+        age: wizard.completedAge,
       });
 
       const res = await putEditSlip(slipId, payload, multipartFiles);
@@ -374,6 +377,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 initialArch={wizard.initialArch}
                 initialSlipState={initialSlipState}
                 preloadInitialSlipState
+                suppressFieldAutoOpen
                 slipCollectorRef={slipCollectorRef}
                 caseSummaryNotesRef={caseSummaryNotesRef}
                 confirmDetailsChecked={confirmDetailsChecked}

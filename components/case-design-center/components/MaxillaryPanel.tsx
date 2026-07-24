@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useAutoOpenSuppressed } from "./auto-open-suppression";
 import {
   Plus,
   Eye,
@@ -249,9 +250,10 @@ function AutoOpenStageIfEmpty({
   onOpenStage: (productId: string, arch: Arch, toothNumber?: number) => void;
   caseSubmitted?: boolean;
 }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
-    if (caseSubmitted) return; // never auto-open stage modal in read-only mode
+    if (caseSubmitted || autoOpenSuppressed) return; // never auto-open stage modal in read-only / edit-slip mode
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
@@ -259,7 +261,7 @@ function AutoOpenStageIfEmpty({
     if (!isStageVisible || !isStageEmpty || hasAutoOpenedRef.current) return;
     hasAutoOpenedRef.current = true;
     onOpenStage(productId, arch, toothNumber);
-  }, [caseSubmitted, isExpanded, isStageVisible, isStageEmpty, productId, arch, toothNumber, onOpenStage]);
+  }, [caseSubmitted, autoOpenSuppressed, isExpanded, isStageVisible, isStageEmpty, productId, arch, toothNumber, onOpenStage]);
   return null;
 }
 
@@ -290,9 +292,10 @@ function AutoOpenShadeGuideIfEmpty({
   /** Accordion-only shades or all shades already set — do not reopen picker on expand. */
   skipAutoOpen?: boolean;
 }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const hasAutoOpenedRef = useRef(false);
   useEffect(() => {
-    if (caseSubmitted || skipAutoOpen) return;
+    if (caseSubmitted || skipAutoOpen || autoOpenSuppressed) return;
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
@@ -318,6 +321,7 @@ function AutoOpenShadeGuideIfEmpty({
   }, [
     caseSubmitted,
     skipAutoOpen,
+    autoOpenSuppressed,
     isExpanded,
     isShadeSectionVisible,
     stumpShadeEmpty,
@@ -353,10 +357,11 @@ function AutoOpenImpressionIfEmpty({
   caseSubmitted?: boolean;
   blockAutoOpen?: boolean;
 }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const hasAutoOpenedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (caseSubmitted || blockAutoOpen) return;
+    if (caseSubmitted || blockAutoOpen || autoOpenSuppressed) return;
     if (!isExpanded) {
       hasAutoOpenedRef.current = false;
       return;
@@ -375,7 +380,7 @@ function AutoOpenImpressionIfEmpty({
       timerRef.current = null;
       onOpenImpressionModal(arch, productId, toothNumber);
     }, 350);
-  }, [caseSubmitted, blockAutoOpen, isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
+  }, [caseSubmitted, blockAutoOpen, autoOpenSuppressed, isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber]);
   // Cleanup only on unmount, not on re-renders
   useEffect(() => {
     return () => {
@@ -790,19 +795,23 @@ function getAdvanceFieldsForStep(
 
 /** Auto-opens the shade picker when this component mounts (i.e. shade field becomes visible) and the field has no value */
 function AutoOpenShade({ hasValue, onOpen }: { hasValue: boolean; onOpen: () => void }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const opened = useRef(false);
   useEffect(() => {
+    if (autoOpenSuppressed) return;
     if (!hasValue && !opened.current) {
       opened.current = true;
       onOpen();
     }
-  }, [hasValue, onOpen]);
+  }, [autoOpenSuppressed, hasValue, onOpen]);
   return null;
 }
 
 function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; hasValue: boolean; onOpen: () => void }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const opened = useRef(false);
   useEffect(() => {
+    if (autoOpenSuppressed) return;
     if (visible && !hasValue && !opened.current) {
       opened.current = true;
       onOpen();
@@ -810,7 +819,7 @@ function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; has
     if (!visible || hasValue) {
       opened.current = false;
     }
-  }, [visible, hasValue, onOpen]);
+  }, [autoOpenSuppressed, visible, hasValue, onOpen]);
   return null;
 }
 
