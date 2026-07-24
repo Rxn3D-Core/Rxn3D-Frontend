@@ -445,6 +445,7 @@ export function ToothChartConfigurationsSection({
               }>
             }
             allExtractions={allExtractions}
+            isExtractionsLoading={isExtractionsLoading}
             defaultToothChartEnabled
             defaultToothChart={defaultToothChart}
             onDefaultToothChartChange={handleDefaultToothChartChange}

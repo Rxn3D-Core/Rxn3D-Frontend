@@ -6,6 +6,7 @@
 export type PickupDeliveryEntry = {
   id: string;
   office: string;
+  labName: string;
   patientName: string;
   location: string;
   isChecked: boolean;
@@ -44,6 +45,7 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
 
   const caseObj = (raw.case as Record<string, unknown> | undefined) ?? {};
   const office = (caseObj.office as Record<string, unknown> | undefined) ?? (raw.office as Record<string, unknown> | undefined);
+  const lab = (caseObj.lab as Record<string, unknown> | undefined) ?? (raw.lab as Record<string, unknown> | undefined);
   const locationObj = (raw.location as Record<string, unknown> | undefined) ?? {};
   const locationCurrent = (locationObj.current as Record<string, unknown> | undefined) ?? {};
 
@@ -71,9 +73,18 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
 
   const customerId = firstNum(raw.customer_id, office?.id, caseObj.customer_id);
 
+  const labName = firstStr(
+    raw.lab_name,
+    raw.lab_code,
+    lab?.name,
+    lab?.code,
+    caseObj.lab_name
+  );
+
   return {
     id: `virtual-slip-${slipId}`,
     office: customerCode,
+    labName,
     patientName: firstStr(raw.patient_name, raw.patient, caseObj.patient_name),
     location: locationName,
     isChecked: true,

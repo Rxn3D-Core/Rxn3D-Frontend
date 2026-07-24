@@ -180,6 +180,8 @@ export function UserProfileModal({
         avatarFile
       ),
   )
+  const isSaveDisabled =
+    !onSave || isLoading || isSaving || !firstName.trim() || !lastName.trim() || !hasChanges
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -507,15 +509,20 @@ export function UserProfileModal({
           {userData ? (
             <Button
               onClick={handleSave}
-              disabled={
-                !onSave ||
-                isLoading ||
-                isSaving ||
-                !firstName.trim() ||
-                !lastName.trim() ||
-                !hasChanges
+              disabled={isSaveDisabled}
+              style={
+                isSaveDisabled
+                  ? {
+                      background:
+                        "linear-gradient(#fff,#fff) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box",
+                    }
+                  : undefined
               }
-              className="h-11 min-w-[160px] rounded-full bg-[#1162a8] px-6 text-white hover:bg-[#0d4f8c] disabled:bg-slate-300 disabled:text-slate-500"
+              className={`h-11 min-w-[160px] rounded-full px-6 transition ${
+                isSaveDisabled
+                  ? "border-2 border-transparent font-semibold text-[#82298D] disabled:opacity-100"
+                  : "bg-[#1162a8] text-white hover:bg-[#0d4f8c]"
+              }`}
             >
               {isSaving ? "Saving..." : "Save changes"}
             </Button>

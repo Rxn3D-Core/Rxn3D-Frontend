@@ -238,7 +238,13 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                             <div
                               key={lab.id}
                               className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                              onClick={() => handleRequestConnection(lab)}
+                              onClick={() => {
+                                if (lab.status === "connected") {
+                                  handleLabSelect(lab)
+                                } else {
+                                  handleRequestConnection(lab)
+                                }
+                              }}
                             >
                               <div className="flex items-center gap-3">
                                 <img
@@ -249,9 +255,26 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                                     e.currentTarget.src = "/images/office-default.png"
                                   }}
                                 />
-                                <div>
-                                  <p className="font-medium text-sm">{lab.name}</p>
-                                  <p className="text-xs text-gray-500">{lab.location}</p>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-sm truncate">{lab.name}</p>
+                                    {lab.status === "requested" && (
+                                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#fff3e1] text-[#ff9500]">
+                                        Pending
+                                      </span>
+                                    )}
+                                    {lab.status === "connected" && (
+                                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#c3f2cf] text-[#119933]">
+                                        Connected
+                                      </span>
+                                    )}
+                                    {lab.status === "available" && (
+                                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[#eeeeee] text-[#575757]">
+                                        Invite
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-gray-500 truncate">{lab.location}</p>
                                 </div>
                               </div>
                             </div>
@@ -259,7 +282,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                         </div>
                       ) : (
                         <div className="p-4 text-center text-gray-500 text-sm">
-                          No labs found for '{searchTerm}'
+                          No labs found for '{searchTerm}'. You can still invite them above.
                         </div>
                       )}
                     </div>
@@ -376,7 +399,6 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
             <div className="flex justify-end">
               <Button
-                variant="destructive"
                 onClick={() => onOpenChange(false)}
                 className="min-w-[120px] h-10 text-base font-semibold"
               >
@@ -391,7 +413,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
       {showConnectionModal && selectedLabForConnection && (
         <>
           <div className="fixed inset-0 z-[10003] bg-black/50" onClick={() => setShowConnectionModal(false)} />
-          <div className="fixed left-1/2 top-1/2 z-[10004] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="fixed left-1/2 top-1/2 z-[10004] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
@@ -406,24 +428,27 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                 You can send a request only, or send a request and submit the case at the same time.
               </p>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Button
                   variant="outline"
                   onClick={() => setShowConnectionModal(false)}
-                  className="flex-1"
+                  className="w-full sm:flex-1 sm:min-w-[140px]"
                 >
                   Cancel
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => handleConnectionRequest(true)}
-                  className="flex-1"
+                  onClick={async () => {
+                    const lab = await handleConnectionRequest(true)
+                    if (lab) handleLabSelect(lab)
+                  }}
+                  className="w-full sm:flex-1 sm:min-w-[140px]"
                 >
                   Send Request and Submit
                 </Button>
                 <Button
                   onClick={() => handleConnectionRequest(false)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="w-full sm:flex-1 sm:min-w-[140px]"
                 >
                   Send Request only
                 </Button>
@@ -580,24 +605,24 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                 </div>
               </form>
 
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Button
                   variant="outline"
                   onClick={() => setShowInviteModal(false)}
-                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 py-3 text-base"
+                  className="w-full sm:flex-1 sm:min-w-[140px] border-gray-300 text-gray-700 hover:bg-gray-50 py-3 text-base"
                 >
                   Cancel
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleSubmit((data) => handleInviteSubmit(true))()}
-                  className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 py-3 text-base"
+                  className="w-full sm:flex-1 sm:min-w-[140px] border-gray-300 text-gray-700 hover:bg-gray-50 py-3 text-base"
                 >
                   Send Invite and Submit
                 </Button>
                 <Button
                   onClick={() => handleSubmit((data) => handleInviteSubmit(false))()}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 text-base"
+                  className="w-full sm:flex-1 sm:min-w-[140px] py-3 text-base"
                 >
                   Send Invite only
                 </Button>

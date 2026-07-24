@@ -678,7 +678,7 @@ export default function GenerateStatementsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Generate Statements</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 rounded-lg mr-4">
@@ -696,21 +696,6 @@ export default function GenerateStatementsPage() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg mr-4">
-              <div className="text-blue-600 text-xl">↙</div>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Incoming</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {summaryFetching ? "..." : summary?.incoming ?? 0}
-              </p>
-              <p className="text-xs text-gray-500">From vendors</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center">
             <div className="p-2 bg-red-100 rounded-lg mr-4">
               <div className="text-red-600 text-xl">⚠</div>
             </div>
@@ -720,21 +705,6 @@ export default function GenerateStatementsPage() {
                 {summaryFetching ? "..." : summary?.overdue ?? 0}
               </p>
               <p className="text-xs text-gray-500">Pending payment</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg mr-4">
-              <div className="text-yellow-600 text-xl">⚡</div>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Disputed</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {summaryFetching ? "..." : summary?.disputed ?? 0}
-              </p>
-              <p className="text-xs text-gray-500">Needs attention</p>
             </div>
           </div>
         </div>
@@ -786,8 +756,6 @@ export default function GenerateStatementsPage() {
                 <option value="billed">Billed</option>
                 <option value="paid">Paid</option>
                 <option value="overdue">Overdue</option>
-                <option value="disputed">Disputed</option>
-                <option value="refunded">Refunded</option>
               </select>
             </div>
           </div>
