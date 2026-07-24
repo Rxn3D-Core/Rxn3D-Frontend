@@ -352,13 +352,12 @@ export function OfficeAdminDashboard() {
         </div>
         )}
 
-        {/* Status Cards */}
+        {/* Status Cards — New Stage notes hidden for office profiles while case notes work is in progress */}
         {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <StatusCard title="Rush Cases" count={15} color="text-red-500" />
           <StatusCard title="On Hold Cases" count={135} color="text-red-500" />
           <StatusCard title="Due Today" count={15} color="text-green-500" />
-          <StatusCard title="New Stage notes" count={110} color="text-black" />
           <StatusCard title="Late Cases" count={10} color="text-black" />
         </div>
         )}

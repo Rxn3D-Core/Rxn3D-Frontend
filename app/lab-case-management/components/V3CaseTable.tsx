@@ -5,7 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
-import { slipIsInOffice } from "@/lib/slip-location"
+import { slipIsInOffice, slipShowsPickupDropoff } from "@/lib/slip-location"
+import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
@@ -101,7 +102,11 @@ export function V3CaseTable(props: Props) {
   // one on every tap inside it.
   const mobilePopoverRef = useRef<HTMLDivElement>(null)
   const desktopPopoverRef = useRef<HTMLTableRowElement>(null)
-  const officeProfile = props.officeProfile === true
+  const officeProfile =
+    props.officeProfile === true || isOfficeCustomerContext()
+  // Lab listings tint rush rows amber; office profiles (admin / doctor / user)
+  // keep the rush bolt only — no yellow row adaptation.
+  const highlightRushRows = !officeProfile
   const desktopColumns = buildDesktopColumns(props.visibleColumns, officeProfile)
   const columnCount = desktopColumns.length + 2
 
@@ -147,7 +152,7 @@ export function V3CaseTable(props: Props) {
               const dueDateColor = dueDateTextColor(row)
               // The amber rush highlight is a lab-visibility cue — office
               // profiles keep the rush bolt icon but not the tinted row.
-              const cardBg = row.rush && !officeProfile ? AMBER : "#FFFFFF"
+              const cardBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
 
               return (
                 <div
@@ -251,48 +256,79 @@ export function V3CaseTable(props: Props) {
                     </div>
 
                     {/* LOCATION */}
-                    {row.location && (
-                      <div
-                        className="flex flex-row items-center gap-2 rounded-[10px] px-2 py-2"
-                        style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
-                      >
-                        <img
-                          src={mobileLocationIcon(row.locationId)}
-                          alt=""
-                          className="shrink-0"
-                          style={{ width: 29, height: 22, objectFit: "contain" }}
-                        />
-                        <div className="flex flex-col items-start min-w-0 flex-1">
-                          <span
-                            className="tracking-[0.275px] uppercase"
-                            style={{ fontSize: 11, lineHeight: "16px", color: "#968F8F", fontFamily: "Inter, sans-serif" }}
-                          >
-                            Location
-                          </span>
-                          <span
-                            className="truncate w-full"
-                            style={{ fontSize: 14, lineHeight: "21px", color: "#000000", fontFamily: "Helvetica, Arial, sans-serif" }}
-                          >
-                            {row.location}
-                          </span>
-                        </div>
-                        {row.pan && (
-                          <div
-                            className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
-                            style={{
-                              background: PAN_BG,
-                              height: 24,
-                              ...row.panColorStyle,
-                              ...(row.rush && props.rushCasePanColor ? { backgroundColor: props.rushCasePanColor } : null),
-                            }}
-                          >
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Helvetica, Arial, sans-serif" }}>
-                              {row.pan}
+                    {row.location && (() => {
+                      const mobileLocationAction = !officeProfile
+                        ? isReadyToSendLocation(row)
+                          ? "readyToSend"
+                          : isPickupDropoffLocation(row)
+                            ? "driverHistory"
+                            : null
+                        : null
+                      const locationInner = (
+                        <>
+                          <img
+                            src={mobileLocationIcon(row.locationId)}
+                            alt=""
+                            className="shrink-0"
+                            style={{ width: 29, height: 22, objectFit: "contain" }}
+                          />
+                          <div className="flex flex-col items-start min-w-0 flex-1">
+                            <span
+                              className="tracking-[0.275px] uppercase"
+                              style={{ fontSize: 11, lineHeight: "16px", color: "#968F8F", fontFamily: "Inter, sans-serif" }}
+                            >
+                              Location
+                            </span>
+                            <span
+                              className="truncate w-full text-left"
+                              style={{ fontSize: 14, lineHeight: "21px", color: "#000000", fontFamily: "Helvetica, Arial, sans-serif" }}
+                            >
+                              {row.location}
                             </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          {row.pan && (
+                            <div
+                              className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
+                              style={{
+                                background: PAN_BG,
+                                height: 24,
+                                ...row.panColorStyle,
+                                ...(row.rush && highlightRushRows && props.rushCasePanColor
+                                  ? { backgroundColor: props.rushCasePanColor }
+                                  : null),
+                              }}
+                            >
+                              <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Helvetica, Arial, sans-serif" }}>
+                                {row.pan}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )
+                      return mobileLocationAction ? (
+                        <button
+                          type="button"
+                          className="flex w-full flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
+                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
+                          title={mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            mobileLocationAction === "readyToSend"
+                              ? props.rowActions.onReadyToSend(row)
+                              : props.rowActions.onDriverHistory(row)
+                          }}
+                        >
+                          {locationInner}
+                        </button>
+                      ) : (
+                        <div
+                          className="flex flex-row items-center gap-2 rounded-[10px] px-2 py-2"
+                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
+                        >
+                          {locationInner}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )
@@ -359,9 +395,11 @@ export function V3CaseTable(props: Props) {
           ) : (
             props.rows.map((row, idx) => {
               const isEvenRow = idx % 2 === 1
-              const rowBg = row.rush && !officeProfile ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
+              const rowBg = row.rush && highlightRushRows ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
               const dueDateColor = dueDateTextColor(row)
-              const isLocked = !!row.rush
+              // Only lab rush rows lock hover (amber stays put). Office rush rows
+              // use normal zebra + hover like every other row.
+              const isLocked = !!row.rush && highlightRushRows
 
               return (
                 <tr
@@ -408,6 +446,7 @@ export function V3CaseTable(props: Props) {
                       rushCasePanColor={props.rushCasePanColor}
                       showTimestamp={props.visibleColumns.has("timestamp")}
                       allowDriverActions={!officeProfile}
+                      highlightRushRows={highlightRushRows}
                     />
                   ))}
 
@@ -458,11 +497,13 @@ function DesktopCell({
   rushCasePanColor,
   showTimestamp,
   allowDriverActions,
+  highlightRushRows,
 }: {
   column: DesktopColumn
   dueDateColor: string
   showTimestamp: boolean
   allowDriverActions: boolean
+  highlightRushRows: boolean
   row: V2CaseRowData
   rowActions: V2RowActions
   rowBg: string
@@ -510,7 +551,9 @@ function DesktopCell({
               height: 24,
               gap: 10,
               ...row.panColorStyle,
-              ...(row.rush && rushCasePanColor ? { backgroundColor: rushCasePanColor } : null),
+              ...(row.rush && highlightRushRows && rushCasePanColor
+                ? { backgroundColor: rushCasePanColor }
+                : null),
             }}
           >
             <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
@@ -528,7 +571,15 @@ function DesktopCell({
   if (column.key === "location") {
     // Office profiles run neither ready to send nor pick up / drop off, so the
     // location label stays plain text for them rather than opening a modal.
-    if (!allowDriverActions) {
+    const locationAction = allowDriverActions
+      ? isReadyToSendLocation(row)
+        ? "readyToSend"
+        : isPickupDropoffLocation(row)
+          ? "driverHistory"
+          : null
+      : null
+
+    if (!locationAction) {
       return (
         <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
           <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
@@ -544,18 +595,20 @@ function DesktopCell({
     return (
       <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-          {locationIcon(row.locationId)}
           <button
-            className="whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer" }}
-            title={isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
+            className="inline-flex items-center gap-2.5 whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            title={locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              isReadyToSendLocation(row) ? rowActions.onReadyToSend(row) : rowActions.onDriverHistory(row)
+              locationAction === "readyToSend"
+                ? rowActions.onReadyToSend(row)
+                : rowActions.onDriverHistory(row)
             }}
           >
-            {row.location || "Unknown"}
+            {locationIcon(row.locationId)}
+            <span>{row.location || "Unknown"}</span>
           </button>
         </div>
       </td>
@@ -567,17 +620,16 @@ function DesktopCell({
       <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
           {allowDriverActions ? (
-            <>
+            <button
+              className="inline-flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+              style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              type="button"
+              title="Change due date"
+              onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
+            >
               <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
-              <button
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-                style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer" }}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
-              >
-                {formatDueDate(row)}
-              </button>
-            </>
+              <span>{formatDueDate(row)}</span>
+            </button>
           ) : (
             <span style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
               {formatDueDate(row)}
@@ -663,6 +715,10 @@ function formatCreatedAt(createdAt: string): string {
 function isReadyToSendLocation(row: V2CaseRowData) {
   if (row.locationId === 3) return true
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
+}
+
+function isPickupDropoffLocation(row: V2CaseRowData) {
+  return slipShowsPickupDropoff({ locationId: row.locationId, location: row.location || "" })
 }
 
 /** Delivered = physically in office (id 6) or workflow finished — either way it's done. */

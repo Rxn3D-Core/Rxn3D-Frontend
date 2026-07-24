@@ -136,27 +136,6 @@ export function LabProfileForm({
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <Input
-            type="text"
-            name="address"
-            label="Street Address"
-            value={registrationData.address}
-            onChange={handleLabFormChange}
-            placeholder="Street Address"
-            validationState={validationErrors.address ? "error" : registrationData.address ? "valid" : "default"}
-            errorMessage={validationErrors.address}
-          />
-
-          <Input
-            type="text"
-            name="city"
-            label="City"
-            value={registrationData.city}
-            onChange={handleLabFormChange}
-            placeholder="City"
-            validationState={validationErrors.city ? "error" : registrationData.city ? "valid" : "default"}
-            errorMessage={validationErrors.city}
-          />
           <div>
             <Select
               value={
@@ -215,6 +194,28 @@ export function LabProfileForm({
             </div>
             {validationErrors.state_id && <p className="text-red-500 text-xs mt-1">{validationErrors.state_id}</p>}
           </div>
+
+          <Input
+            type="text"
+            name="city"
+            label="City"
+            value={registrationData.city}
+            onChange={handleLabFormChange}
+            placeholder="City"
+            validationState={validationErrors.city ? "error" : registrationData.city ? "valid" : "default"}
+            errorMessage={validationErrors.city}
+          />
+
+          <Input
+            type="text"
+            name="address"
+            label="Street Address"
+            value={registrationData.address}
+            onChange={handleLabFormChange}
+            placeholder="Street Address"
+            validationState={validationErrors.address ? "error" : registrationData.address ? "valid" : "default"}
+            errorMessage={validationErrors.address}
+          />
         </div>
 
         <Input
