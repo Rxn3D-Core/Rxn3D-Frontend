@@ -32,8 +32,9 @@ interface Props {
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
   /**
-   * Office profile listing: counterparty column reads "Lab", driver actions
-   * are withheld, and rush rows lose the amber highlight. Defaults false.
+   * Office profile listing: counterparty column reads "Lab", driver actions and
+   * rush-submit icons are withheld (rush status bolt still shows), and rush rows
+   * lose the amber highlight. Defaults false.
    */
   officeProfile?: boolean
   printMenuRow: number | null

@@ -35,7 +35,11 @@ export type SlipRowActionVisibilityInput = SlipLocationRef & {
   canPrintStatement?: boolean;
   canEditSlip?: boolean;
   canDeleteCase?: boolean;
-  /** Lab listing / virtual slip — rush is lab-only. Defaults true. */
+  /**
+   * Submit/change rush from listing or virtual slip. Office profiles can still
+   * see rush status indicators but must not get the rush action icon; rush is
+   * submitted during slip creation only. Defaults true (lab).
+   */
   allowRush?: boolean;
   /**
    * Lab-only listing actions (ready to send, pick up / drop off, send back to

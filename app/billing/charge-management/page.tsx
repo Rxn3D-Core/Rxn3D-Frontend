@@ -9,7 +9,6 @@ import {
   Search,
   Calendar as CalendarIcon,
   Download,
-  RefreshCw,
   Send,
   CheckCircle,
   Eye,
@@ -1966,29 +1965,6 @@ export default function ChargeManagementPage() {
         )}
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                {t("chargeManagement.tableTitle", { defaultValue: "Charges" })}
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {t("chargeManagement.tableSubtitle", {
-                  defaultValue: "Line items from billing invoices for your connected offices.",
-                })}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="h-9 text-sm gap-2 shrink-0"
-              type="button"
-              onClick={() => void onRefresh()}
-              disabled={!customerId || isFetching}
-              title="Revert charges to default system settings. Manual edits will be undone. Due date will not be affected."
-            >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              {t("chargeManagement.refreshCharges", { defaultValue: "Refresh Charges" })}
-            </Button>
-          </div>
           <Table>
             <TableHeader>
               <TableRow className="border-b border-gray-200 bg-gray-50/80 hover:bg-gray-50/80">
