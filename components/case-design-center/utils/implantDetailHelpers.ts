@@ -31,6 +31,11 @@ export function isImplantDetailFilled(data: ImplantDetailData | undefined): bool
     data.size ||
     data.abutmentType ||
     data.abutmentDetail ||
+    data.implantId ||
+    data.platformId ||
+    data.sizeId ||
+    data.abutmentId ||
+    data.abutmentOptionId ||
     Object.values(data.dynamicFields ?? {}).some(Boolean)
   );
 }

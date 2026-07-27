@@ -114,6 +114,7 @@ import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
+  isImplantDetailFilled,
   resolveGroupStageToothNumber,
 } from "../utils/implantDetailHelpers";
 import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
@@ -650,6 +651,8 @@ interface MaxillaryPanelProps {
   onCheckedTeethChange?: (teeth: number[]) => void;
   /** Called whenever implant detail data changes for any tooth (so CaseDesignCenter can include it in the slip snapshot). */
   onImplantDetailChange?: (implantDetailByTooth: Record<number, ImplantDetailData>) => void;
+  /** Edit-slip preload for saved implant and abutment selections. */
+  initialImplantDetailByTooth?: Record<number, ImplantDetailData>;
   /** Called whenever implant completion state changes (so the peer arch can use it for cross-arch mirroring). */
   onImplantDetailCompleteChange?: (completeByTooth: Record<number, boolean>) => void;
   /** Called whenever splint link state changes (so CaseDesignCenter can include it in the slip snapshot). */
@@ -918,6 +921,7 @@ export function MaxillaryPanel({
   selectAllOpposingTeeth,
   onCheckedTeethChange,
   onImplantDetailChange,
+  initialImplantDetailByTooth = {},
   onImplantDetailCompleteChange,
   onSplintLinksChange,
   peerImplantDetailByTooth,
@@ -1078,9 +1082,20 @@ export function MaxillaryPanel({
     onCheckedTeethChange?.(teeth);
   }, [onCheckedTeethChange]);
   /** Tracks implant detail completion per tooth (firstToothNumber) so we can block impression modal until complete. */
-  const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<Record<number, boolean>>({});
+  const [implantDetailCompleteByTooth, setImplantDetailCompleteByTooth] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      Object.entries(initialImplantDetailByTooth).map(([tooth, detail]) => [
+        Number(tooth),
+        isImplantDetailFilled(detail),
+      ])
+    )
+  );
   /** Persists implant detail form data per tooth so it survives accordion collapse/expand. */
-  const [implantDetailByTooth, setImplantDetailByTooth] = useState<Record<number, ImplantDetailData>>({});
+  const [implantDetailByTooth, setImplantDetailByTooth] = useState<
+    Record<number, ImplantDetailData>
+  >(() => initialImplantDetailByTooth);
   /** Only one implant detail accordion open at a time on this arch. */
   const [expandedImplantTooth, setExpandedImplantTooth] = useState<number | undefined>(undefined);
   // Sync peer state to CaseDesignCenter after commit — never from inside setState updaters
@@ -3418,6 +3433,7 @@ export function MaxillaryPanel({
                             getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                             selectedImpressions={selectedImpressions}
                             setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
+                            setSelectedShades={setSelectedShades}
                             peerImplantDetailByTooth={peerImplantDetailByTooth}
                             peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                             expandedImplantTooth={expandedImplantTooth}
@@ -3835,6 +3851,7 @@ export function MaxillaryPanel({
                         getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: string) => string}
                         selectedImpressions={selectedImpressions}
                         setPanelGumShadePicker={(s) => setPanelGumShadePicker({ ...s, stepOverride: "fixed_stump_shade" })}
+                        setSelectedShades={setSelectedShades}
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                         expandedImplantTooth={expandedImplantTooth}

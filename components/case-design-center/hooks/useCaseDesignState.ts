@@ -1539,12 +1539,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
           autoPopulateDefaultAddons(arch, repTooth, product, [virtualTooth]);
         }
         if (props.preloadInitialSlipState) {
+          const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+          const cardTeeth = allTeeth.filter(
+            (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
+          );
           const hydrationKey = `${arch}_${ap.id}`;
           if (!preloadCardHydrationDoneRef.current.has(hydrationKey)) {
-            const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
-            const cardTeeth = allTeeth.filter(
-              (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
-            );
             if (cardTeeth.length > 0) {
               for (const tn of cardTeeth) {
                 const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
@@ -1558,6 +1558,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
               }
               preloadCardHydrationDoneRef.current.add(hydrationKey);
             }
+          }
+
+          // Merge initialSlipState because this effect can run before the mount hydration
+          // effect copies selectedShades into useShadeSelection. Classic Teeth/Gum live on
+          // product-level keys; named shade_guide fields stay on their own advance_field ids
+          // and must not be filled from top-level teeth/gum.
+          const preloadShades = props.initialSlipState?.selectedShades ?? {};
+          if (Object.keys(preloadShades).length > 0) {
+            shades.setSelectedShades((prev) => {
+              let changed = false;
+              const next = { ...prev };
+              for (const [key, value] of Object.entries(preloadShades)) {
+                if (!value || next[key]) continue;
+                next[key] = value;
+                changed = true;
+              }
+              return changed ? next : prev;
+            });
           }
         }
       };
@@ -1596,6 +1614,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     props.addedProducts,
     props.caseSubmitted,
     props.preloadInitialSlipState,
+    props.initialSlipState,
     enrichProductWithGrades,
     modals.setSelectedImpressions,
     applyAddedProductDefaultExtractions,
@@ -1603,6 +1622,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     toothFieldProgress.getToothProduct,
     toothFieldProgress.getToothProductCard,
     toothFieldProgress.setToothProduct,
+    shades.setSelectedShades,
   ]);
 
   /**

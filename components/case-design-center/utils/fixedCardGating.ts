@@ -151,18 +151,21 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
     getSelectedShade
   );
 
-  const needsStumpShade =
-    namedShadeFields.length > 0
-      ? namedShadeFields.some((field) => getShadeFieldType(field) === "stump_shade")
-      : fixedChain.includes("fixed_stump_shade") &&
-        (product?.has_gum_shade === "Yes" ||
-          matchesShadeName(
-            product,
-            (n) => (n.includes("stump") || n.includes("gum")) && n.includes("shade")
-          ));
+  // Classic Teeth Shade / Gum Shade (has_* flags) are separate from named shade_guide
+  // fields (Body / Cervical / …). Prefer the removaables-style classic flags whenever set.
+  const needsClassicToothShade = product?.has_teeth_shade === "Yes";
+  const needsClassicGumShade = product?.has_gum_shade === "Yes";
+  const hasClassicShadeFlags = needsClassicToothShade || needsClassicGumShade;
+
+  const needsNamedStumpShade = namedShadeFields.some(
+    (field) => getShadeFieldType(field) === "stump_shade"
+  );
+  const needsNamedToothShade = namedShadeFields.some(
+    (field) => getShadeFieldType(field) === "tooth_shade"
+  );
 
   const hasLegacyToothShade =
-    product?.has_teeth_shade === "Yes" ||
+    needsClassicToothShade ||
     matchesShadeName(
       product,
       (n) =>
@@ -171,7 +174,7 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
         n.includes("shade")
     );
   const hasLegacyTrioShade =
-    product?.has_teeth_shade === "Yes" ||
+    needsClassicToothShade ||
     matchesShadeName(
       product,
       (n) =>
@@ -183,38 +186,87 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
         n.includes("shade")
     );
 
-  const needsToothShade =
-    namedShadeFields.length > 0
-      ? namedShadeFields.some((field) => getShadeFieldType(field) === "tooth_shade")
+  const needsStumpShade = hasClassicShadeFlags
+    ? needsClassicGumShade
+    : namedShadeFields.length > 0
+      ? needsNamedStumpShade
+      : fixedChain.includes("fixed_stump_shade") &&
+        (needsClassicGumShade ||
+          matchesShadeName(
+            product,
+            (n) => (n.includes("stump") || n.includes("gum")) && n.includes("shade")
+          ));
+
+  const needsToothShade = hasClassicShadeFlags
+    ? needsClassicToothShade
+    : namedShadeFields.length > 0
+      ? needsNamedToothShade
       : (fixedChain.includes("fixed_stump_shade") && hasLegacyToothShade) ||
         (fixedChain.includes("fixed_shade_trio") && hasLegacyTrioShade);
 
-  const shadeRequired =
-    namedShadeFields.length > 0 ? !!firstMissingShadeField : needsStumpShade || needsToothShade;
+  const shadeRequired = needsStumpShade || needsToothShade || !!firstMissingShadeField;
 
   // Gum shade may live only in the fixed_stump_shade field value (picked via the panel
   // gum picker) rather than in shade state — accept either, at the card's rep tooth or
   // the group stage tooth, which diverge once extraction teeth join the group.
+  // Do not treat "completed with empty/placeholder value" as done (edit preload used to
+  // mark the whole chain complete even when no shade was saved).
+  const isRealShadeValue = (raw: string | undefined) => {
+    const trimmed = raw?.trim() ?? "";
+    if (!trimmed) return false;
+    if (
+      trimmed === "shade-sync" ||
+      trimmed === "shade-sync-skip-stump" ||
+      trimmed === "selected"
+    ) {
+      return false;
+    }
+    try {
+      if (trimmed.startsWith("{")) {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed?.name === "string" && parsed.name.trim()) {
+          const name = parsed.name.trim().toLowerCase();
+          return (
+            name !== "shade-sync" &&
+            name !== "shade-sync-skip-stump" &&
+            name !== "selected"
+          );
+        }
+        return false;
+      }
+    } catch {
+      /* plain */
+    }
+    return true;
+  };
+
   const stumpShadeFieldDone =
-    isFieldCompleted(arch, stageToothNumber, "fixed_stump_shade") ||
-    !!getFieldValue(arch, stageToothNumber, "fixed_stump_shade")?.trim() ||
-    isFieldCompleted(arch, shadeToothNumber, "fixed_stump_shade") ||
-    !!getFieldValue(arch, shadeToothNumber, "fixed_stump_shade")?.trim();
+    !!getSelectedShade(fixedShadeProductId, arch, "stump_shade") ||
+    isRealShadeValue(getFieldValue(arch, stageToothNumber, "fixed_stump_shade")) ||
+    isRealShadeValue(getFieldValue(arch, shadeToothNumber, "fixed_stump_shade"));
+
+  const toothShadeFieldDone =
+    !!getSelectedShade(fixedShadeProductId, arch, "tooth_shade") ||
+    isRealShadeValue(getFieldValue(arch, stageToothNumber, "fixed_shade_trio")) ||
+    isRealShadeValue(getFieldValue(arch, shadeToothNumber, "fixed_shade_trio"));
 
   // Trivially satisfied when the product needs no tooth shade at all, otherwise the gum
   // picker would wait forever on a shade that is never going to be selected.
-  const toothShadeSatisfiedForGum =
-    !needsToothShade ||
-    !!getSelectedShade(fixedShadeProductId, arch, "tooth_shade") ||
-    isFieldCompleted(arch, stageToothNumber, "fixed_shade_trio");
+  const toothShadeSatisfiedForGum = !needsToothShade || toothShadeFieldDone;
 
   const fixedShadesComplete = areFixedProductShadesComplete(
     product?.advance_fields,
     fixedShadeProductId,
     arch,
     getSelectedShade,
-    { needsStumpShade: needsStumpShade && !stumpShadeFieldDone, needsToothShade }
+    {
+      needsStumpShade: needsStumpShade && !stumpShadeFieldDone,
+      needsToothShade: needsToothShade && !toothShadeFieldDone,
+      classicShadeFlags: hasClassicShadeFlags,
+    }
   );
+  // Named shade_guide fields still use the accordion picker; classic Teeth/Gum render
+  // alongside them and gate completeness via classicShadeFlags.
   const usesAccordionShadePicker = shouldUseAccordionOnlyFixedShades(product?.advance_fields);
 
   // isFixedRetentionSetupComplete answers "true" for a null product ("nothing to
@@ -251,7 +303,6 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
     stageVisible,
     stageEmpty,
     gumAutoOpenVisible:
-      namedShadeFields.length === 0 &&
       needsStumpShade &&
       !isAnyModalOpen &&
       openShadeFieldType === null &&

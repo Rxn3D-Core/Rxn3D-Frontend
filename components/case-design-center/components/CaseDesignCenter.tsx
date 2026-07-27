@@ -5,7 +5,10 @@ import type { CaseDesignProps } from "../types";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
-import { resolveGroupStageToothNumber } from "../utils/implantDetailHelpers";
+import {
+  isImplantDetailFilled,
+  resolveGroupStageToothNumber,
+} from "../utils/implantDetailHelpers";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
 import { AutoOpenSuppressionContext } from "./auto-open-suppression";
@@ -79,18 +82,42 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ...props,
     onToothOwnershipConflict: handleToothOwnershipConflict,
   });
-  const maxillaryImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
-  const mandibularImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
+  const initialMaxillaryImplants =
+    props.initialSlipState?.maxillaryImplantDetailsByTooth ?? {};
+  const initialMandibularImplants =
+    props.initialSlipState?.mandibularImplantDetailsByTooth ?? {};
+  const maxillaryImplantDetailRef =
+    useRef<Record<number, ImplantDetailData>>(initialMaxillaryImplants);
+  const mandibularImplantDetailRef =
+    useRef<Record<number, ImplantDetailData>>(initialMandibularImplants);
   const maxillarySplintLinksRef = useRef<Record<string, number[]>>({});
   const mandibularSplintLinksRef = useRef<Record<string, number[]>>({});
   const [maxillaryImplantDetailPeer, setMaxillaryImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
-  >({});
+  >(initialMaxillaryImplants);
   const [mandibularImplantDetailPeer, setMandibularImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
-  >({});
-  const [maxillaryImplantCompletePeer, setMaxillaryImplantCompletePeer] = useState<Record<number, boolean>>({});
-  const [mandibularImplantCompletePeer, setMandibularImplantCompletePeer] = useState<Record<number, boolean>>({});
+  >(initialMandibularImplants);
+  const [maxillaryImplantCompletePeer, setMaxillaryImplantCompletePeer] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      Object.entries(initialMaxillaryImplants).map(([tooth, detail]) => [
+        Number(tooth),
+        isImplantDetailFilled(detail),
+      ])
+    )
+  );
+  const [mandibularImplantCompletePeer, setMandibularImplantCompletePeer] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      Object.entries(initialMandibularImplants).map(([tooth, detail]) => [
+        Number(tooth),
+        isImplantDetailFilled(detail),
+      ])
+    )
+  );
   // Tracks when the user explicitly hides the mandibular panel while it's force-shown by the opposing condition.
   const [userHidMandibular, setUserHidMandibular] = useState(false);
   const [showSelectTeethToReplaceMaxillary, setShowSelectTeethToReplaceMaxillary] = useState(false);
@@ -1587,6 +1614,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             maxillaryImplantDetailRef.current = detail;
             setMaxillaryImplantDetailPeer(detail);
           }}
+          initialImplantDetailByTooth={initialMaxillaryImplants}
           onImplantDetailCompleteChange={(complete) => setMaxillaryImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             maxillarySplintLinksRef.current = linksByKey;
@@ -1746,6 +1774,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             mandibularImplantDetailRef.current = detail;
             setMandibularImplantDetailPeer(detail);
           }}
+          initialImplantDetailByTooth={initialMandibularImplants}
           onImplantDetailCompleteChange={(complete) => setMandibularImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             mandibularSplintLinksRef.current = linksByKey;

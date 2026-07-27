@@ -90,6 +90,11 @@ export function EditSlipFlow({ slipId }: Props) {
 
   const slipCollectorRef = useRef<(() => SlipProductSnapshot[]) | null>(null);
   const caseSummaryNotesRef = useRef("");
+  // Edit slip warms up: once the design center mounts, hold a short overlay so the
+  // preloaded selections (shades, stages, grade, impression) hydrate onto the fields
+  // before the user sees them — fields load first, then appear already selected.
+  const [warmingUpFields, setWarmingUpFields] = useState(true);
+  const warmupStartedRef = useRef(false);
   const [confirmDetailsChecked, setConfirmDetailsChecked] = useState(true);
   const [caseReady, setCaseReady] = useState(false);
   const [incompleteFieldLabel, setIncompleteFieldLabel] = useState<string | null>(null);
@@ -211,6 +216,14 @@ export function EditSlipFlow({ slipId }: Props) {
         setLabBusinessHours(null);
       });
   }, [step, labCustomerId]);
+
+  useEffect(() => {
+    if (warmupStartedRef.current) return;
+    if (step !== "design" || !wizard.wizardComplete || !wizard.caseDesignMounted) return;
+    warmupStartedRef.current = true;
+    const timer = setTimeout(() => setWarmingUpFields(false), 2000);
+    return () => clearTimeout(timer);
+  }, [step, wizard.wizardComplete, wizard.caseDesignMounted]);
 
   const submitEditSlip = async () => {
     if (submissionState === "submitting") return;
@@ -411,6 +424,15 @@ export function EditSlipFlow({ slipId }: Props) {
           {submitError}
         </p>
       ) : null}
+
+      {warmingUpFields && wizard.wizardComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/85 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#E2E8F0] border-t-[#2563EB]" />
+            <p className="text-sm text-[#64748B]">Loading slip details…</p>
+          </div>
+        </div>
+      )}
 
       <CaseSubmissionOverlays submissionState={submissionState} />
 
