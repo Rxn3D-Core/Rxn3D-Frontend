@@ -527,6 +527,8 @@ export function AddLabProductModal({
     show_jaw_photo: "No",
     enable_default_tooth_chart: "No",
     allow_select_only_implant: "No",
+    enable_custom_label: "No",
+    custom_label: "",
     default_tooth_chart: [],
   }), [officeCustomers, stages])
 
@@ -1601,6 +1603,10 @@ export function AddLabProductModal({
             : "No",
         allow_select_only_implant:
           editingProduct.allow_select_only_implant === "Yes" ? "Yes" : "No",
+        enable_custom_label:
+          editingProduct.enable_custom_label === "Yes" ? "Yes" : "No",
+        custom_label:
+          typeof editingProduct.custom_label === "string" ? editingProduct.custom_label : "",
         default_tooth_chart: hydrateDefaultToothChartFromProduct(
           editingProduct as Record<string, unknown>,
           (() => {
@@ -2390,6 +2396,8 @@ export function AddLabProductModal({
         "apply_same_status_to_opposing",
         "enable_default_tooth_chart",
         "allow_select_only_implant",
+        "enable_custom_label",
+        "custom_label",
         "default_tooth_chart",
       ],
       retention: ["retentions", "retention_options", "apply_retention_mechanism", "retention_type"],

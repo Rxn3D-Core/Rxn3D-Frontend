@@ -50,3 +50,18 @@ export function isRemovableToothSelectionFocused({
 
 export const FLIPPER_STAYPLATE_SELECTION_HINT =
   "Select teeth that will be included in flipper/stayplate";
+
+/**
+ * Returns the product's custom tooth-chart label when it opted in
+ * (`enable_custom_label === "Yes"`) and provided a non-empty `custom_label`;
+ * otherwise null. Used to override the default "Select teeth to replace …"
+ * prompt above the slip tooth chart while keeping current behavior for
+ * products without a custom label.
+ */
+export function resolveProductCustomLabel(product: unknown): string | null {
+  if (!product || typeof product !== "object") return null;
+  const p = product as { enable_custom_label?: unknown; custom_label?: unknown };
+  if (p.enable_custom_label !== "Yes") return null;
+  const label = typeof p.custom_label === "string" ? p.custom_label.trim() : "";
+  return label.length > 0 ? label : null;
+}
