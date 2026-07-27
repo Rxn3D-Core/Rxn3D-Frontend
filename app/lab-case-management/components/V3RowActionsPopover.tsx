@@ -15,6 +15,8 @@ interface Props {
   canEditSlip?: boolean
   canDeleteCase?: boolean
   allowDriverActions?: boolean
+  /** Office profiles may see rush status on the row but cannot submit rush from listing. */
+  allowRush?: boolean
   onClose: () => void
   // The mobile card list and desktop table both mount a popover instance for
   // the same row.id (one CSS-hidden per breakpoint, never unmounted), so
@@ -25,7 +27,7 @@ interface Props {
 }
 
 export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
-  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canDeleteCase = true, allowDriverActions = true, onClose, variant },
+  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, onClose, variant },
   ref,
 ) {
   const [kebabOpen, setKebabOpen] = useState(false)
@@ -39,10 +41,10 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
         canPrintStatement,
         canEditSlip,
         canDeleteCase,
-        allowRush: true,
+        allowRush,
         allowDriverActions,
       }),
-    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canDeleteCase, allowDriverActions]
+    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canDeleteCase, allowRush, allowDriverActions]
   )
 
   function act(fn: () => void) {

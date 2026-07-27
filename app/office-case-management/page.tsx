@@ -20,14 +20,9 @@ import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
-import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
-import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings"
-import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
-import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import CallLogModal from "@/components/call-log-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import CaseActionModal from "@/components/CaseActionModal"
-import RushRequestModal from "@/components/rush-request-modal"
 import { useToast } from "@/components/ui/use-toast"
 import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
@@ -180,10 +175,6 @@ function OfficeCaseManagementPage() {
   const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
   const [readyToSendSlip, setReadyToSendSlip] = useState<V2CaseRowData | null>(null)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
-  const [showRushModal, setShowRushModal] = useState(false)
-  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null)
-  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null)
-  const [selectedSlipForRush, setSelectedSlipForRush] = useState<V2CaseRowData | null>(null)
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
@@ -195,7 +186,7 @@ function OfficeCaseManagementPage() {
 
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { fetchDriverPrintData, readyToSend } = useSlipContext()
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip } = useSlipCreation()
+  const { fetchProductAddons, cancelSlip, holdSlip } = useSlipCreation()
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
@@ -303,8 +294,6 @@ function OfficeCaseManagementPage() {
 
   const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
     setAddonInputs(null)
-    setRushCaseSchedule(null)
-    setLabBusinessHours(null)
     if (!slipId) return
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
@@ -316,20 +305,6 @@ function OfficeCaseManagementPage() {
       const json = await res.json()
       const details = json?.data ?? null
       setAddonInputs(buildVirtualSlipAddonInputs(details))
-      // Load the lab's rush settings (fee %, turnaround, weekoffs/holidays) from the
-      // same slip details payload, exactly as the virtual slip does.
-      const customerId = resolveLibraryCustomerId(resolveLabIdFromSlipDetails(details))
-      if (customerId) {
-        getBusinessSettings(customerId)
-          .then((settings) => {
-            setRushCaseSchedule(settings?.case_schedule ?? null)
-            setLabBusinessHours(settings?.business_hours ?? null)
-          })
-          .catch(() => {
-            setRushCaseSchedule(null)
-            setLabBusinessHours(null)
-          })
-      }
     } catch {
       setAddonInputs(null)
     }
@@ -410,34 +385,6 @@ function OfficeCaseManagementPage() {
         toast({ title: "Failed to load statement", description: "Could not retrieve the statement from the server.", variant: "destructive" })
       }
     })()
-  }
-
-  const handleOpenRushCase = (slip: V2CaseRowData) => {
-    setSelectedSlipForRush(slip); setShowRushModal(true); void loadAddonInputsForSlip(slip.id)
-  }
-  const handleRemoveRushCase = async () => {
-    if (!selectedSlipForRush?.id) return
-    try {
-      await cancelSlipRush(selectedSlipForRush.id)
-      toast({ title: "Rush removed", description: "The rush request was cancelled.", duration: 3000 })
-      setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
-    } catch (error) {
-      toast({ title: "Unable to remove rush", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
-    }
-  }
-  const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
-    if (!selectedSlipForRush?.id) return
-    if (!rushData?.targetDate) {
-      toast({ title: "Rush date required", description: "Please select a target delivery date first.", variant: "destructive" })
-      return
-    }
-    try {
-      await requestSlipRush(selectedSlipForRush.id, { requested_delivery_date: rushData.targetDate })
-      toast({ title: "Rush case updated", description: "The rush request was submitted successfully.", duration: 3000 })
-      setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
-    } catch (error) {
-      toast({ title: "Unable to rush case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
-    }
   }
 
   const handleConfirmCancelCase = async (reason: string) => {
@@ -757,7 +704,7 @@ function OfficeCaseManagementPage() {
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
             onReadyToSend: handleOpenReadyToSend,
             onSendBack: () => {},
-            onRush: handleOpenRushCase,
+            onRush: () => {},
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
           }}
           canPrintStatement={canPrintStatement}
@@ -819,41 +766,6 @@ function OfficeCaseManagementPage() {
           title="Ready to send"
           signatureRequired={readyToSendRequired}
         />
-
-        {(() => {
-          const rushSlots = addonInputs?.rushArchSlots ?? []
-          const hasMax = rushSlots.some((s) => s.arch === "maxillary" && s.isRushed)
-          const hasMand = rushSlots.some((s) => s.arch === "mandibular" && s.isRushed)
-          return (
-            <RushRequestModal
-              isOpen={showRushModal && rushSlots.length > 0}
-              onClose={() => { setShowRushModal(false); setSelectedSlipForRush(null); setAddonInputs(null); setRushCaseSchedule(null); setLabBusinessHours(null) }}
-              onConfirm={handleConfirmRushCase}
-              isRushed={(addonInputs?.slipIsRush ?? false) || rushSlots.some((s) => s.isRushed)}
-              existingRushDate={rushSlots.find((s) => s.existingRushDate)?.existingRushDate}
-              onRemoveRush={handleRemoveRushCase}
-              onRemoveRushByKey={() => { void handleRemoveRushCase() }}
-              maxRushed={hasMax}
-              maxExistingRushDate={rushSlots.find((s) => s.arch === "maxillary")?.existingRushDate}
-              mandRushed={hasMand}
-              mandExistingRushDate={rushSlots.find((s) => s.arch === "mandibular")?.existingRushDate}
-              onRemoveMaxRush={hasMax ? handleRemoveRushCase : undefined}
-              onRemoveMandRush={hasMand ? handleRemoveRushCase : undefined}
-              archSlots={rushSlots}
-              mirrorRushAcrossArches={virtualSlipRushSlotsShareProduct(rushSlots)}
-              hasMaxillary={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "maxillary") : undefined}
-              hasMandibular={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "mandibular") : undefined}
-              product={{
-                name: rushSlots[0]?.productName ?? selectedSlipForRush?.product ?? "Case",
-                stage: rushSlots[0]?.stageName ?? selectedSlipForRush?.product ?? "Unknown Stage",
-                deliveryDate: addonInputs?.deliveryDateIso || selectedSlipForRush?.dueDate || "",
-                price: rushSlots.reduce((sum, s) => sum + (s.price ?? 0), 0),
-              }}
-              rushCaseSchedule={rushCaseSchedule}
-              labBusinessHours={labBusinessHours}
-            />
-          )
-        })()}
 
         <CaseActionModal
           open={cancelSlipModalOpen}

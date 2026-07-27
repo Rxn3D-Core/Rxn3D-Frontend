@@ -440,6 +440,14 @@ export const officeAdminMenu: MenuItem[] = [
     permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
   },
   {
+    // Read-only view of statements the office has received from its labs.
+    id: "office-statements",
+    title: "Statements",
+    icon: <FileText className="h-5 w-5" />,
+    path: "/office-statements",
+    permission: ["view_statements", "manage_statements"],
+  },
+  {
     id: "settings",
     title: "System Settings",
     icon: <Cog className="h-5 w-5" />,

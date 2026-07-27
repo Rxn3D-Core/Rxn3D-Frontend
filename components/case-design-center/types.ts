@@ -260,6 +260,9 @@ export interface VirtualSlipInitialState {
    */
   maxillaryNoActiveBoxTeeth: number[];
   mandibularNoActiveBoxTeeth: number[];
+  /** Saved edit-slip implant and abutment selections keyed by tooth number. */
+  maxillaryImplantDetailsByTooth: Record<number, ImplantDetailData>;
+  mandibularImplantDetailsByTooth: Record<number, ImplantDetailData>;
 }
 
 export interface NotesProps {

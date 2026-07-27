@@ -28,6 +28,16 @@ export interface ImplantDetailData {
   /** Specific abutment type, e.g. Stock Abutment. */
   abutmentDetail: string;
   dynamicFields: Record<number, string>;
+  /**
+   * Edit-slip preload may only have catalog IDs from slip details.
+   * ImplantDetailSection resolves these to brand/platform/size names once the
+   * product implant catalog loads.
+   */
+  implantId?: number | null;
+  platformId?: number | null;
+  sizeId?: number | null;
+  abutmentId?: number | null;
+  abutmentOptionId?: number | null;
 }
 
 export const defaultImplantDetailData = (): ImplantDetailData => ({
@@ -40,6 +50,11 @@ export const defaultImplantDetailData = (): ImplantDetailData => ({
   abutmentDetail: "",
   abutmentType: "",
   dynamicFields: {},
+  implantId: null,
+  platformId: null,
+  sizeId: null,
+  abutmentId: null,
+  abutmentOptionId: null,
 });
 
 interface ImplantDetailSectionProps {
@@ -109,6 +124,113 @@ export function ImplantDetailSection({
     fetchProductImplants(productId, customerId).then(setApiImplants).catch(() => setApiImplants([]));
   }, [productId, customerId]);
 
+  // Edit-slip: slip details often store implant/platform/size IDs without nested names.
+  // Resolve those IDs against the product implant catalog so the form shows the saved values.
+  useEffect(() => {
+    if (!apiImplants.length) return;
+    if (!data.implantId && !data.platformId && !data.sizeId) return;
+
+    const implant =
+      (data.implantId
+        ? apiImplants.find((row) => row.id === data.implantId)
+        : null) ??
+      (data.brand
+        ? apiImplants.find(
+            (row) =>
+              row.brand_name === data.brand &&
+              (!data.systemName || row.system_name === data.systemName)
+          )
+        : null);
+    if (!implant) return;
+
+    const platform =
+      (data.platformId
+        ? implant.platforms?.find((row) => row.id === data.platformId)
+        : null) ??
+      (data.platform
+        ? implant.platforms?.find((row) => row.name === data.platform)
+        : null);
+    const size =
+      (data.sizeId
+        ? platform?.sizes?.find((row) => row.id === data.sizeId)
+        : null) ??
+      (data.size
+        ? platform?.sizes?.find((row) => row.label === data.size)
+        : null);
+
+    const nextBrand = implant.brand_name || data.brand;
+    const nextSystem = implant.system_name || data.systemName;
+    const nextPlatform = platform?.name || data.platform;
+    const nextSize = size?.label || data.size;
+    if (
+      nextBrand === data.brand &&
+      nextSystem === data.systemName &&
+      nextPlatform === data.platform &&
+      nextSize === data.size
+    ) {
+      return;
+    }
+
+    update({
+      brand: nextBrand,
+      systemName: nextSystem,
+      platform: nextPlatform,
+      size: nextSize,
+      implantId: implant.id,
+      platformId: platform?.id ?? data.platformId ?? null,
+      sizeId: size?.id ?? data.sizeId ?? null,
+    });
+  }, [
+    apiImplants,
+    data.implantId,
+    data.platformId,
+    data.sizeId,
+    data.brand,
+    data.systemName,
+    data.platform,
+    data.size,
+  ]);
+
+  // Edit-slip: resolve abutment category/type names from saved abutment IDs.
+  useEffect(() => {
+    if (!productAbutments?.length) return;
+    if (!data.abutmentId && !data.abutmentOptionId) return;
+
+    const abutment =
+      (data.abutmentId
+        ? productAbutments.find((row) => row.id === data.abutmentId)
+        : null) ??
+      (data.abutmentType
+        ? productAbutments.find((row) => row.type === data.abutmentType)
+        : null);
+    if (!abutment) return;
+
+    const option =
+      (data.abutmentOptionId
+        ? abutment.options?.find((row) => row.id === data.abutmentOptionId)
+        : null) ??
+      (data.abutmentDetail
+        ? abutment.options?.find((row) => row.name === data.abutmentDetail)
+        : null);
+
+    const nextType = abutment.type || data.abutmentType;
+    const nextDetail = option?.name || data.abutmentDetail;
+    if (nextType === data.abutmentType && nextDetail === data.abutmentDetail) return;
+
+    update({
+      abutmentType: nextType,
+      abutmentDetail: nextDetail,
+      abutmentId: abutment.id,
+      abutmentOptionId: option?.id ?? data.abutmentOptionId ?? null,
+    });
+  }, [
+    productAbutments,
+    data.abutmentId,
+    data.abutmentOptionId,
+    data.abutmentType,
+    data.abutmentDetail,
+  ]);
+
   const labels = useMemo(() => getImplantDetailFieldLabels(advanceFields), [advanceFields]);
   const { inclusionField } = labels;
 
@@ -134,10 +256,14 @@ export function ImplantDetailSection({
 
   const selectedImplant = useMemo(
     () =>
+      (data.implantId
+        ? apiImplants.find((i) => i.id === data.implantId)
+        : null) ??
       apiImplants.find(
         (i) => i.brand_name === brand && i.system_name === (systemName || i.system_name)
-      ) ?? null,
-    [apiImplants, brand, systemName]
+      ) ??
+      null,
+    [apiImplants, brand, systemName, data.implantId]
   );
 
   useEffect(() => {

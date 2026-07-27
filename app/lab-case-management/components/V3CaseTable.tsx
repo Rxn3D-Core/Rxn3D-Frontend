@@ -216,6 +216,7 @@ export function V3CaseTable(props: Props) {
                           canPrintStatement={props.canPrintStatement(row)}
                           canSendBack={!officeProfile && props.canSendBack(row)}
                           allowDriverActions={!officeProfile}
+                          allowRush={!officeProfile}
                           onClose={() => setPopoverRow(null)}
                         />
                       )}
@@ -473,6 +474,7 @@ export function V3CaseTable(props: Props) {
                         canPrintStatement={props.canPrintStatement(row)}
                         canSendBack={!officeProfile && props.canSendBack(row)}
                         allowDriverActions={!officeProfile}
+                        allowRush={!officeProfile}
                         onClose={() => setPopoverRow(null)}
                       />
                     )}

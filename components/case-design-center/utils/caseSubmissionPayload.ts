@@ -218,6 +218,104 @@ function resolveGumShadeIds(
   return null;
 }
 
+/**
+ * Placeholder field values written by the fixed shade sync effects — these are not
+ * real shade names, so a resolver must ignore them and fall back to the shade map.
+ */
+const FIXED_SHADE_PLACEHOLDER_NAMES = new Set([
+  "shade-sync",
+  "shade-sync-skip-stump",
+  "selected",
+]);
+
+function stripFixedShadePlaceholder(name: string): string {
+  return FIXED_SHADE_PLACEHOLDER_NAMES.has(name.trim().toLowerCase()) ? "" : name;
+}
+
+/**
+ * Resolve a fixed product's picked shade NAME from the shade-selection map, mirroring the
+ * panels' display source (`getSelectedShade(fixedShadeProductId, arch, fieldType)`), with a
+ * legacy per-tooth `fixed_{tooth}` fallback for the brief window before the product-scoped id
+ * loads (see migrateFixedShadeProductId).
+ */
+function resolveFixedSelectedShadeName(
+  snap: SlipProductSnapshot,
+  arch: Arch,
+  fixedShadeProductId: string,
+  fieldType: "tooth_shade" | "stump_shade"
+): string | undefined {
+  const primary =
+    snap.selectedShades[buildShadeSelectionKey(fixedShadeProductId, arch, fieldType)]?.trim();
+  if (primary) return primary;
+  for (const tn of collectCardRepToothNumbers(snap)) {
+    const val = snap.selectedShades[buildShadeSelectionKey(`fixed_${tn}`, arch, fieldType)]?.trim();
+    if (val) return val;
+  }
+  return undefined;
+}
+
+/**
+ * Fixed restoration classic Teeth Shade (has_teeth_shade / fixed_shade_trio). The field value
+ * carries the resolved ids on edit/add-stage preload; on fresh create only the shade NAME is in
+ * the shade-selection map, so fall back to resolving it against the product's teeth_shades catalog.
+ * Returns null for named shade_guide products (classic keys unset) so nothing duplicate is emitted.
+ */
+function resolveFixedTeethShadeIds(
+  snap: SlipProductSnapshot,
+  product: SlipProductSnapshot["productApiData"],
+  arch: Arch,
+  fixedShadeProductId: string
+): { teeth_shade_id: number; teeth_shade_brand_id: number } | null {
+  const parsed = parseRemovableTeethShadeField(snap.fieldValues["fixed_shade_trio"] ?? "");
+  if (parsed.teeth_shade_id > 0 && parsed.teeth_shade_brand_id > 0) {
+    return {
+      teeth_shade_id: parsed.teeth_shade_id,
+      teeth_shade_brand_id: parsed.teeth_shade_brand_id,
+    };
+  }
+  const name =
+    stripFixedShadePlaceholder(parsed.name) ||
+    resolveFixedSelectedShadeName(snap, arch, fixedShadeProductId, "tooth_shade");
+  if (name) {
+    const fromCatalog = resolveTeethShadeSelection(product, name, snap.shadeGuide ?? "");
+    if (fromCatalog) return fromCatalog;
+  }
+  return null;
+}
+
+/**
+ * Fixed restoration classic Gum Shade (has_gum_shade). Fixed products keep the gum pick in the
+ * `fixed_stump_shade` field value as JSON `{ gum_shade_id, brand_id, name }`; when only the name
+ * is present, resolve it against the product's gum_shades catalog.
+ */
+function resolveFixedGumShadeIds(
+  snap: SlipProductSnapshot,
+  product: SlipProductSnapshot["productApiData"],
+  arch: Arch,
+  fixedShadeProductId: string
+): { gum_shade_id: number; gum_shade_brand_id: number } | null {
+  const parsed = parseGumShadeField(snap.fieldValues["fixed_stump_shade"] ?? "");
+  if (parsed.gum_shade_id > 0 && parsed.gum_shade_brand_id > 0) {
+    return { gum_shade_id: parsed.gum_shade_id, gum_shade_brand_id: parsed.gum_shade_brand_id };
+  }
+  const name =
+    stripFixedShadePlaceholder(parsed.name) ||
+    resolveFixedSelectedShadeName(snap, arch, fixedShadeProductId, "stump_shade");
+  if (name && product?.gum_shades?.length) {
+    const matched = product.gum_shades.find(
+      (s: { name?: string }) => (s.name ?? "").trim() === name
+    );
+    if (matched) {
+      const id = Number(matched.gum_shade_id ?? matched.id ?? 0);
+      const brandId = Number(matched.brand?.id ?? 0);
+      if (id > 0 && brandId > 0) {
+        return { gum_shade_id: id, gum_shade_brand_id: brandId };
+      }
+    }
+  }
+  return null;
+}
+
 function resolveVariationId(
   product: SlipProductSnapshot["productApiData"],
   selectedTeethCount: number
@@ -486,9 +584,17 @@ export function snapshotToProduct(
       }
     }
 
+    // Classic Teeth Shade / Gum Shade (has_teeth_shade / has_gum_shade) — emitted the same
+    // way as removables so fixed products persist the picked shades. Named shade_guide fields
+    // stay in shade_details/advance_fields above; these resolvers return null for those.
+    const teethShadeIds = resolveFixedTeethShadeIds(snap, product, snapArch, fixedShadeProductId);
+    const gumShadeIds = resolveFixedGumShadeIds(snap, product, snapArch, fixedShadeProductId);
+
     return {
       ...sharedProductFields,
       ...(grade_id ? { grade_id } : {}),
+      ...(teethShadeIds ? { ...teethShadeIds } : {}),
+      ...(gumShadeIds ? { ...gumShadeIds } : {}),
       ...(shade_details.length > 0 ? { shade_details } : {}),
       ...(advance_fields.length > 0 ? { advance_fields } : {}),
       ...(implant_details.length > 0 ? { implant_details } : {}),

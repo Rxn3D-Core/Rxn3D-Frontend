@@ -47,9 +47,11 @@ import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-info";
 import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
 import {
+  canSubmitSlipRush,
   getStoredSlipUserRole,
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
+import { isOfficeCustomerContext } from "@/lib/role-utils";
 import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print";
 import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -106,6 +108,10 @@ export default function VirtualSlipV2Page() {
   }, []);
 
   const canRunLabDriverActions = isLabSlipUserRole(userRole);
+  // Office profiles can see rush status on the slip but must not submit/remove
+  // rush here — only during slip creation. Match office listing `allowRush={false}`.
+  const canRushFromVirtualSlip =
+    canSubmitSlipRush(userRole) && !isOfficeCustomerContext();
 
   useEffect(() => {
     if (!slipId || isNaN(slipId)) {
@@ -651,7 +657,7 @@ export default function VirtualSlipV2Page() {
               ? () => setSendBackToOfficeOpen(true)
               : undefined
           }
-          allowRush={canRunLabDriverActions}
+          allowRush={canRushFromVirtualSlip}
           openNotesModal={fabNotesOpen}
           onOpenNotesModalChange={setFabNotesOpen}
           openRushModal={fabRushOpen}

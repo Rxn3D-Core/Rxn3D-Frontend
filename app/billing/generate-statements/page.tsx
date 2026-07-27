@@ -229,6 +229,7 @@ export default function GenerateStatementsPage() {
   const [dateRangeInput, setDateRangeInput] = useState("")
   const [directionFilter, setDirectionFilter] = useState("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("")
+  const [page, setPage] = useState(1)
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
@@ -243,10 +244,15 @@ export default function GenerateStatementsPage() {
     return () => window.clearTimeout(timer)
   }, [searchInput])
 
+  // Reset to the first page whenever the active filters change.
+  useEffect(() => {
+    setPage(1)
+  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter])
+
   const listParams = useMemo((): StatementListParams => {
     const params: StatementListParams = {
       per_page: 15,
-      page: 1,
+      page,
       sort_by: "created_at",
       sort_direction: "desc",
     }
@@ -267,7 +273,7 @@ export default function GenerateStatementsPage() {
       ...params,
       ...parseDateRangeInput(dateRangeInput),
     }
-  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter])
+  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter, page])
 
   const {
     data: listResult,
@@ -1218,15 +1224,45 @@ export default function GenerateStatementsPage() {
           </table>
         </div>
 
-        <div className="px-6 py-3 border-t bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
-          <span>
-            Showing {statements.length} of {listResult?.pagination.total ?? statements.length} statements
-          </span>
-          {isFetching && !isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Refreshing...
+        <div className="px-6 py-3 border-t bg-gray-50 text-xs text-gray-500 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing {statements.length === 0 ? 0 : (listResult ? (listResult.pagination.current_page - 1) * listResult.pagination.per_page + 1 : 1)}
+              –{listResult ? (listResult.pagination.current_page - 1) * listResult.pagination.per_page + statements.length : statements.length} of{" "}
+              {listResult?.pagination.total ?? statements.length} statements
             </span>
+            {isFetching && !isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Refreshing...
+              </span>
+            ) : null}
+          </div>
+
+          {listResult && listResult.pagination.last_page > 1 ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1 || isFetching}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                className="rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="px-2">
+                Page {listResult.pagination.current_page} of {listResult.pagination.last_page}
+              </span>
+              <button
+                type="button"
+                disabled={page >= listResult.pagination.last_page || isFetching}
+                onClick={() =>
+                  setPage((current) => Math.min(listResult.pagination.last_page, current + 1))
+                }
+                className="rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

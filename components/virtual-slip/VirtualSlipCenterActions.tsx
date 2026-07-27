@@ -55,7 +55,10 @@ export interface VirtualSlipCenterActionsProps {
   canPutOnHold?: boolean;
   /** When true, edit slip, add-ons, and rush icons are hidden. */
   caseOnHold?: boolean;
-  /** Lab-only: rush changes delivery date on an existing slip. */
+  /**
+   * Submit/change rush on an existing slip. Office profiles view rush status
+   * only; they submit rush during slip creation. Defaults true (lab).
+   */
   allowRush?: boolean;
   rushCaseSchedule?: CaseSchedule | null;
   labBusinessHours?: BusinessHour[] | null;
