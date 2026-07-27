@@ -1,4 +1,11 @@
-import type { BillingInvoice, BillingProduct, StatementRecord } from "@/lib/redux/api/billingApi";
+import type { CustomerAddressProfile } from "@/lib/api/customers";
+import type {
+  BillingInvoice,
+  BillingProduct,
+  StatementParty,
+  StatementPartyNamedRef,
+  StatementRecord,
+} from "@/lib/redux/api/billingApi";
 
 export type StatementHeaderDraft = {
   statementId: string;
@@ -23,6 +30,78 @@ export type StatementItemLike = {
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
+}
+
+function namedRefText(value: string | StatementPartyNamedRef | null | undefined): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  return (value.name ?? "").trim();
+}
+
+/**
+ * Builds a multi-line address from whatever party fields the statement API
+ * returns (street, city, state, postal, country). Missing parts are omitted.
+ */
+export function formatStatementPartyAddress(
+  party: StatementParty | null | undefined,
+  fallback = "—",
+): string {
+  if (!party) return fallback;
+
+  const street = (party.address ?? "").trim();
+  const city = (party.city ?? "").trim();
+  const state = namedRefText(party.state);
+  const postal = (party.postal_code ?? "").trim();
+  const country = namedRefText(party.country);
+
+  const cityLine = [city, [state, postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const lines = [street, cityLine, country].filter(Boolean);
+
+  return lines.length > 0 ? lines.join("\n") : fallback;
+}
+
+/** True when city or state is missing — statement payloads often only include street `address`. */
+export function statementPartyNeedsLocationEnrichment(
+  party: StatementParty | null | undefined,
+): boolean {
+  if (!party) return true;
+  const city = (party.city ?? "").trim();
+  const state = namedRefText(party.state);
+  return !city || !state;
+}
+
+/**
+ * Fills missing address parts on a statement party from a customer profile
+ * (`GET /customers/{id}`). Existing party values win.
+ */
+export function mergeStatementPartyWithProfile(
+  party: StatementParty | null | undefined,
+  profile: CustomerAddressProfile | null | undefined,
+): StatementParty | null {
+  if (!party && !profile) return null;
+  if (!profile) return party ?? null;
+
+  if (!party) {
+    return {
+      id: profile.id,
+      name: profile.name ?? null,
+      email: profile.email ?? null,
+      address: profile.address ?? null,
+      city: profile.city ?? null,
+      postal_code: profile.postal_code ?? null,
+      state: profile.state ?? null,
+      country: profile.country ?? null,
+    };
+  }
+
+  return {
+    ...party,
+    address: (party.address ?? "").trim() || profile.address || party.address,
+    city: (party.city ?? "").trim() || profile.city || party.city,
+    postal_code: (party.postal_code ?? "").trim() || profile.postal_code || party.postal_code,
+    state: namedRefText(party.state) ? party.state : (profile.state ?? party.state),
+    country: namedRefText(party.country) ? party.country : (profile.country ?? party.country),
+  };
 }
 
 function toNumber(value: number | string | null | undefined): number {
@@ -121,6 +200,46 @@ function sumAdvanceFieldTotal(product: BillingProduct): number {
     const quantity = field.quantity != null && field.quantity > 0 ? field.quantity : 1;
     return sum + toNumber(field.price) * quantity;
   }, 0);
+}
+
+export function parseStatementMoney(value: number | string | null | undefined): number {
+  if (value === null || value === undefined || value === "") return 0;
+  const parsed = typeof value === "string" ? Number.parseFloat(value) : value;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export type StatementPreviewRefundSummary = {
+  lineItemRefund: number;
+  statementRefund: number;
+  totalRefund: number;
+  grandTotal: number;
+  showRefundLine: boolean;
+  refundReason: string | null;
+};
+
+/** Combines line-item refunds (negative billing rows) with statement-level `refund_amount`. */
+export function summarizeStatementPreviewTotals(
+  subtotal: number,
+  lineItemRefundTotal: number,
+  options?: {
+    statementRefundAmount?: number | string | null;
+    refundReason?: string | null;
+  },
+): StatementPreviewRefundSummary {
+  const lineItemRefund = Math.max(0, lineItemRefundTotal);
+  const statementRefund = Math.max(0, parseStatementMoney(options?.statementRefundAmount));
+  const totalRefund = lineItemRefund + statementRefund;
+  const grandTotal = subtotal - totalRefund;
+  const refundReason = (options?.refundReason ?? "").trim() || null;
+
+  return {
+    lineItemRefund,
+    statementRefund,
+    totalRefund,
+    grandTotal,
+    showRefundLine: totalRefund > 0,
+    refundReason,
+  };
 }
 
 export function computeBasePriceFromTargetGross(

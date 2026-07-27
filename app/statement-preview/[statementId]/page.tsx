@@ -21,8 +21,11 @@ import {
   buildStatementHeaderDraft,
   computeBasePriceFromTargetGross,
   findMatchingBillingTarget,
+  formatStatementPartyAddress,
+  summarizeStatementPreviewTotals,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
+import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
 
 type StatementPreviewBillingItem = StatementBillingItem & {
   product_type?: string | null
@@ -230,20 +233,19 @@ function StatementPreviewContent({
       }, 0),
     [previewItems, amountDrafts],
   )
-  const previewRefundTotal = useMemo(
-    () =>
-      Math.abs(
-        previewItems.reduce((sum, item, index) => {
-          const gross = effectiveGross(item, index)
-          return gross < 0 ? sum + gross : sum
-        }, 0),
-      ),
-    [previewItems, amountDrafts],
-  )
-  const previewTotal = useMemo(
-    () => previewItems.reduce((sum, item, index) => sum + effectiveGross(item, index), 0),
-    [previewItems, amountDrafts],
-  )
+  const previewRefundSummary = useMemo(() => {
+    const lineItemRefund = Math.abs(
+      previewItems.reduce((sum, item, index) => {
+        const gross = effectiveGross(item, index)
+        return gross < 0 ? sum + gross : sum
+      }, 0),
+    )
+    return summarizeStatementPreviewTotals(previewSubtotal, lineItemRefund, {
+      statementRefundAmount: statement.refund_amount,
+      refundReason: statement.refund_reason,
+    })
+  }, [previewItems, amountDrafts, previewSubtotal, statement.refund_amount, statement.refund_reason])
+  const previewTotal = previewRefundSummary.grandTotal
 
   return (
     <div
@@ -254,7 +256,7 @@ function StatementPreviewContent({
         <div className="min-w-0">
           <img src="/images/hmc.svg" alt="RXN3D logo" className="mb-3 h-auto w-[120px] object-contain" />
           <div className="space-y-0.5 text-[13px] leading-5 text-slate-800">
-            <p>{statement.lab?.address || "—"}</p>
+            <p className="whitespace-pre-line">{formatStatementPartyAddress(statement.lab)}</p>
             <p>
               Phone: {statement.lab?.phone || "—"} | Email {statement.lab?.email || "—"}
             </p>
@@ -322,7 +324,9 @@ function StatementPreviewContent({
         <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-3xl font-bold leading-tight text-black">
           {statement.office?.name || previewRecipient}
         </h3>
-        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-6 text-slate-700">{statement.office?.address || "—"}</p>
+        <p className="whitespace-pre-line text-[15px] leading-6 text-slate-700">
+          {formatStatementPartyAddress(statement.office)}
+        </p>
         {isEditMode && headerDraft ? (
           <label className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-6 text-slate-500">
             <span>Code: {previewCode} | Recipient: </span>
@@ -500,10 +504,17 @@ function StatementPreviewContent({
             <span>Sub Total</span>
             <span className="tabular-nums">{formatMoney(previewSubtotal)}</span>
           </div>
-          <div className="mb-2.5 flex items-center justify-between text-[15px] font-bold tracking-[-0.02em] text-[#CF0202]">
-            <span>Refund</span>
-            <span className="tabular-nums">{formatMoney(previewRefundTotal)}</span>
-          </div>
+          {previewRefundSummary.showRefundLine ? (
+            <div className="mb-2.5">
+              <div className="flex items-center justify-between text-[15px] font-bold tracking-[-0.02em] text-[#CF0202]">
+                <span>Refund</span>
+                <span className="tabular-nums">{formatMoney(previewRefundSummary.totalRefund)}</span>
+              </div>
+              {previewRefundSummary.refundReason ? (
+                <p className="mt-1 text-[13px] leading-5 text-slate-600">{previewRefundSummary.refundReason}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="border-t-2 border-slate-300 pt-2.5">
             <div className="flex items-center justify-between text-xl font-bold tracking-[-0.02em] text-black">
               <span>Total</span>
@@ -531,6 +542,7 @@ export default function StatementPreviewPage() {
   const { data: statement, isLoading, isError, error } = useGetStatementByIdQuery(statementId, {
     skip: !Number.isInteger(statementId) || statementId <= 0,
   })
+  const { office: enrichedOffice, lab: enrichedLab } = useEnrichedStatementParties(statement)
   // Invoices are only needed in edit mode, to match statement items back to a
   // billing product so an edited Gross can be persisted.
   const { data: invoiceList } = useListBillingInvoicesQuery(
@@ -556,15 +568,20 @@ export default function StatementPreviewPage() {
 
   const effectiveStatement = useMemo(() => {
     if (!statement) return null
-    if (!headerDraft) return statement
-    return {
+    const withParties: StatementRecord = {
       ...statement,
+      office: enrichedOffice,
+      lab: enrichedLab,
+    }
+    if (!headerDraft) return withParties
+    return {
+      ...withParties,
       statement_id: headerDraft.statementId || statement.statement_id,
       recipient_email: headerDraft.recipientEmail || statement.recipient_email,
       created_at: headerDraft.statementDate || statement.created_at,
       due_date: headerDraft.dueDate || statement.due_date,
     } satisfies StatementRecord
-  }, [statement, headerDraft])
+  }, [statement, headerDraft, enrichedOffice, enrichedLab])
 
   const pageTitle = effectiveStatement?.statement_id || (Number.isInteger(statementId) && statementId > 0 ? `Statement #${statementId}` : "Statement Preview")
 

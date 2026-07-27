@@ -63,27 +63,41 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
     raw.locationId
   );
 
-  const customerCode = firstStr(
-    raw.customer_code,
+  // Office: prefer an office code, then the office name. The flat pickup response
+  // can carry the lab's code in customer_code, so it must never take priority over
+  // the real office fields — it is only an absolute last resort for display.
+  const officeCode = firstStr(
+    raw.office_code,
     office?.code,
     office?.customer_code,
-    caseObj.customer_code,
-    office?.name
+    caseObj.office_code
+  );
+  const officeName = firstStr(
+    raw.office_name,
+    office?.name,
+    caseObj.office_name
+  );
+  const officeDisplay = firstStr(
+    officeCode,
+    officeName,
+    raw.customer_code,
+    caseObj.customer_code
   );
 
   const customerId = firstNum(raw.customer_id, office?.id, caseObj.customer_id);
 
+  // Lab: prefer a code, fall back to the full name.
   const labName = firstStr(
-    raw.lab_name,
     raw.lab_code,
-    lab?.name,
     lab?.code,
+    raw.lab_name,
+    lab?.name,
     caseObj.lab_name
   );
 
   return {
     id: `virtual-slip-${slipId}`,
-    office: customerCode,
+    office: officeDisplay,
     labName,
     patientName: firstStr(raw.patient_name, raw.patient, caseObj.patient_name),
     location: locationName,
@@ -98,7 +112,7 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
       (caseObj.casepan as Record<string, unknown> | undefined)?.number
     ),
     location_id: locationId,
-    customer_code: customerCode || undefined,
+    customer_code: officeCode || undefined,
     customer_id: customerId,
   };
 }
