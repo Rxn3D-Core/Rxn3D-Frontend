@@ -681,6 +681,9 @@ export interface ProductApiData {
   has_impression?: "Yes" | "No" | null;
   has_default_tooth_chart?: "Yes" | "No" | null;
   allow_select_only_implant?: "Yes" | "No" | null;
+  /** When "Yes", `custom_label` overrides the default tooth-chart selection prompt on the slip. */
+  enable_custom_label?: "Yes" | "No" | null;
+  custom_label?: string | null;
   default_tooth_chart?: Array<{
     tooth_number: number
     retention_option_id?: number | null

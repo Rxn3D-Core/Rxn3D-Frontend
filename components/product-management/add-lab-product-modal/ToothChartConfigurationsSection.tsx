@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react"
 import { Switch } from "@/components/ui/switch"
 import { Info, AlertCircle, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Tooltip,
   TooltipContent,
@@ -83,6 +84,8 @@ export function ToothChartConfigurationsSection({
   const defaultToothChartEnabled = watch("enable_default_tooth_chart") === "Yes"
   const defaultToothChart = (watch("default_tooth_chart") || []) as ProductDefaultToothChartEntry[]
   const allowSelectOnlyImplant = watch("allow_select_only_implant") === "Yes"
+  const customLabelEnabled = watch("enable_custom_label") === "Yes"
+  const customLabel = (watch("custom_label") as string | undefined) ?? ""
 
   const retentionEnabled = sections.retention !== false
   const extractionsEnabled = sections.extractions !== false
@@ -156,6 +159,14 @@ export function ToothChartConfigurationsSection({
     setValue("allow_select_only_implant", checked ? "Yes" : "No", { shouldDirty: true })
   }
 
+  const handleCustomLabelToggle = (checked: boolean) => {
+    setValue("enable_custom_label", checked ? "Yes" : "No", { shouldDirty: true })
+  }
+
+  const handleCustomLabelChange = (value: string) => {
+    setValue("custom_label", value, { shouldDirty: true })
+  }
+
   const defaultChartSig = useMemo(
     () => defaultToothChartSignature(defaultToothChart),
     [defaultToothChart],
@@ -225,6 +236,52 @@ export function ToothChartConfigurationsSection({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
+          <Switch
+            id="tooth-chart-custom-label-toggle"
+            checked={customLabelEnabled}
+            onCheckedChange={handleCustomLabelToggle}
+            className="data-[state=checked]:bg-[#1162a8]"
+          />
+          <label
+            htmlFor="tooth-chart-custom-label-toggle"
+            className="text-sm font-medium cursor-pointer"
+          >
+            Enable custom label
+          </label>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="rounded-sm text-gray-400 outline-none hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-[#1162a8] focus-visible:ring-offset-1"
+                  aria-label="About custom label"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-left">
+                <p className="text-sm font-medium">Add a custom label for this product</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  When on, enter the label text to save with this product. Off (No) by default.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        {customLabelEnabled ? (
+          <Input
+            value={customLabel}
+            onChange={(e) => handleCustomLabelChange(e.target.value)}
+            placeholder="Enter custom label"
+            maxLength={120}
+            aria-label="Custom label"
+            className="h-9 w-full max-w-xl flex-1"
+          />
+        ) : null}
+      </div>
+
       <div className="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 flex-1 min-w-0">
           <div className="flex items-center gap-2">

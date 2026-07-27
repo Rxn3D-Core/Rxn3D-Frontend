@@ -71,6 +71,7 @@ import {
   isFlipperOrStayplateProduct,
   isRemovableToothSelectionFocused,
   isRemovableToothStatusPopoverEligible,
+  resolveProductCustomLabel,
 } from "../utils/removableSelectionHints";
 import {
   parseAddonDisplayItems,
@@ -1895,9 +1896,9 @@ export function MaxillaryPanel({
       const hintAckCardId = useMaxillaryArchSharedRemovable
         ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
         : hintUsesArchCard0 ? 0 : activeProductCardId;
-      const baseProductName = hintUsesArchCard0
-        ? (hintCard0Product?.name ?? "")
-        : (hintActiveAp?.product?.name ?? "");
+      const hintProduct = hintUsesArchCard0 ? hintCard0Product : hintActiveAp?.product;
+      const baseProductName = hintProduct?.name ?? "";
+      const hintCustomLabel = resolveProductCustomLabel(hintProduct);
       if (
         isFlipperOrStayplateProduct(baseProductName) &&
         isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
@@ -1914,7 +1915,7 @@ export function MaxillaryPanel({
         return { kind: "flipper", text: FLIPPER_STAYPLATE_SELECTION_HINT, className: "text-center font-bold text-sm mb-1 text-red-600" };
       }
       if (activeExtractionCode === null) {
-        return { kind: "replace", text: `Select teeth to replace${baseProductName ? ` ${baseProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+        return { kind: "replace", text: hintCustomLabel ?? `Select teeth to replace${baseProductName ? ` ${baseProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
       }
       return { kind: "reference", text: `Select teeth for reference (not added to ${baseProductName || "product"})`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
     }
@@ -1933,11 +1934,12 @@ export function MaxillaryPanel({
       (!opposingProductData || useScopedRetentionMode) &&
       (isCardActiveForToothStatus(activeProductCardId) || forceOwnArchChartEnabled)
     ) {
-      const fixedProductName = (activeProductCardId !== 0
-        ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product?.name ?? "")
-        : (() => { const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("maxillary", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("maxillary", t)?.name ?? "") : ""; })())
-        || initialProductName || "";
-      return { kind: "replace", text: `Select teeth to replace${fixedProductName ? ` with ${fixedProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
+      const fixedProduct = activeProductCardId !== 0
+        ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "maxillary")?.product
+        : (() => { const t = MAXILLARY_ALL_TEETH.find(tn => getToothProductCard("maxillary", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("maxillary", tn)?.id === activeFixedGroupProductId)); return t ? getToothProduct("maxillary", t) : undefined; })();
+      const fixedProductName = (fixedProduct?.name ?? "") || initialProductName || "";
+      const fixedCustomLabel = resolveProductCustomLabel(fixedProduct);
+      return { kind: "replace", text: fixedCustomLabel ?? `Select teeth to replace${fixedProductName ? ` with ${fixedProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };
     }
     const checkedCount = maxillaryCheckedTeeth.length;
     const activeProductName = activeProductCardId !== 0
