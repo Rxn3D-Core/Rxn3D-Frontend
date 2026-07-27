@@ -227,6 +227,11 @@ export interface StatementListParams {
   page?: number
 }
 
+export interface StatementPartyNamedRef {
+  id?: number | null
+  name?: string | null
+}
+
 export interface StatementParty {
   id?: number | null
   name?: string | null
@@ -234,6 +239,11 @@ export interface StatementParty {
   phone?: string | null
   code?: string | null
   address?: string | null
+  city?: string | null
+  postal_code?: string | null
+  /** API may return a plain string or `{ name }` object (same shape as customer profiles). */
+  state?: string | StatementPartyNamedRef | null
+  country?: string | StatementPartyNamedRef | null
 }
 
 export interface StatementHistoryEntry {
@@ -283,6 +293,10 @@ export interface StatementRecord {
   lab?: StatementParty | null
   billing_items?: StatementBillingItem[]
   history?: StatementHistoryEntry[]
+  /** Statement-level refund deducted from total (API may return string e.g. "50.00"). */
+  refund_amount?: number | string | null
+  /** Refund explanation shown on the statement. */
+  refund_reason?: string | null
 }
 
 export interface StatementListResult {
@@ -325,6 +339,10 @@ export interface GenerateStatementBody {
   direction: "outgoing" | "incoming"
   template?: string
   auto_mark_billed?: boolean
+  /** Statement-level refund deducted from total (when supported by API). */
+  refund_amount?: number
+  /** Refund explanation shown on statement (maps to backend `refund_reason`). */
+  refund_reason?: string
 }
 
 export interface StatementPdfResult {

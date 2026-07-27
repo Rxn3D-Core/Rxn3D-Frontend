@@ -37,6 +37,14 @@ import {
   type DeliveryInfoField,
 } from "@/components/driver-delivery/delivery-parts"
 
+/** First non-empty, trimmed string among the given values (or "" if none). */
+function firstNonEmpty(...values: unknown[]): string {
+  for (const v of values) {
+    if (v != null && String(v).trim() !== "") return String(v).trim()
+  }
+  return ""
+}
+
 function pickupDropoffModalCopy(action: SlipPickupDropoffAction | null) {
   if (action === "dropoff") {
     return { title: "Drop off", confirmLabel: "Drop off" }
@@ -99,8 +107,10 @@ export default function DriverHistoryModal({
   const convertQRDataToDeliveryEntries = (qrData: QRScanResponseData[]): DeliveryEntry[] => {
     return qrData.map((item, index) => ({
       id: `qr-${item.slip_id}-${index}`,
-      office: item.customer_code || "Unknown Office",
-      labName: (item as any).lab_name || (item as any).lab_code || "",
+      // Show the code when the backend provides one, otherwise the full name.
+      // Note: customer_code is the lab's code here, so it must not feed office.
+      office: firstNonEmpty(item.office_code, item.office_name),
+      labName: firstNonEmpty(item.lab_code, item.lab_name),
       patientName: item.patient_name,
       location: item.location || item.current_driver_location,
       isChecked: true, // Auto-select QR scanned items

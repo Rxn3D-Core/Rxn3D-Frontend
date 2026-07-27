@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Calendar, Check, Download, Eye, Loader2, Mail, Pencil, Printer, Search, Send } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Check, Download, Eye, Loader2, Mail, Pencil, Printer, Search, Send } from "lucide-react"
 import {
   DialogClose,
   Dialog,
@@ -28,8 +29,11 @@ import {
   computeBasePriceFromTargetGross,
   findMatchingBillingTarget,
   findMatchingBillingInvoiceId,
+  formatStatementPartyAddress,
+  summarizeStatementPreviewTotals,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
+import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
 import { buildStatementPreviewRoute } from "./preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
@@ -208,6 +212,45 @@ function buildApiUrl(pathOrUrl: string): string {
 
 const EMPTY_STATEMENTS: StatementRecord[] = []
 
+type SortKey = NonNullable<StatementListParams["sort_by"]>
+type SortDirection = NonNullable<StatementListParams["sort_direction"]>
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey
+  direction: SortDirection
+  onSort: (key: SortKey) => void
+}) {
+  const isActive = activeKey === sortKey
+  return (
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700"
+      >
+        {label}
+        {isActive ? (
+          direction === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </th>
+  )
+}
+
 async function fetchAuthorizedBlob(pathOrUrl: string): Promise<Blob> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
   const response = await fetch(buildApiUrl(pathOrUrl), {
@@ -222,6 +265,7 @@ async function fetchAuthorizedBlob(pathOrUrl: string): Promise<Blob> {
 }
 
 export default function GenerateStatementsPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [searchInput, setSearchInput] = useState("")
@@ -230,6 +274,8 @@ export default function GenerateStatementsPage() {
   const [directionFilter, setDirectionFilter] = useState("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("")
   const [page, setPage] = useState(1)
+  const [sortBy, setSortBy] = useState<SortKey>("created_at")
+  const [sortDir, setSortDir] = useState<SortDirection>("desc")
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
@@ -244,17 +290,26 @@ export default function GenerateStatementsPage() {
     return () => window.clearTimeout(timer)
   }, [searchInput])
 
-  // Reset to the first page whenever the active filters change.
+  // Reset to the first page whenever the active filters or sort change.
   useEffect(() => {
     setPage(1)
-  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter])
+  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter, sortBy, sortDir])
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(key)
+      setSortDir("asc")
+    }
+  }
 
   const listParams = useMemo((): StatementListParams => {
     const params: StatementListParams = {
       per_page: 15,
       page,
-      sort_by: "created_at",
-      sort_direction: "desc",
+      sort_by: sortBy,
+      sort_direction: sortDir,
     }
 
     if (debouncedSearch) {
@@ -273,7 +328,7 @@ export default function GenerateStatementsPage() {
       ...params,
       ...parseDateRangeInput(dateRangeInput),
     }
-  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter, page])
+  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter, page, sortBy, sortDir])
 
   const {
     data: listResult,
@@ -290,6 +345,11 @@ export default function GenerateStatementsPage() {
   } = useGetStatementByIdQuery(previewStatement?.id ?? 0, {
     skip: !previewDialogOpen || previewStatement == null,
   })
+
+  const activePreviewStatementBase = previewStatementDetail ?? previewStatement
+  const { office: enrichedOffice, lab: enrichedLab } = useEnrichedStatementParties(
+    previewDialogOpen ? activePreviewStatementBase : null,
+  )
 
   const { data: summary, isFetching: summaryFetching } = useGetStatementSummaryQuery()
   const [sendStatement] = useSendStatementMutation()
@@ -319,7 +379,14 @@ export default function GenerateStatementsPage() {
   })
 
   const statements = listResult?.data ?? EMPTY_STATEMENTS
-  const activePreviewStatement = previewStatementDetail ?? previewStatement
+  const activePreviewStatement = useMemo(() => {
+    if (!activePreviewStatementBase) return null
+    return {
+      ...activePreviewStatementBase,
+      office: enrichedOffice,
+      lab: enrichedLab,
+    } satisfies StatementRecord
+  }, [activePreviewStatementBase, enrichedOffice, enrichedLab])
 
   const statementIds = useMemo(
     () => statements.map((statement) => String(statement.id)),
@@ -361,13 +428,7 @@ export default function GenerateStatementsPage() {
       return
     }
 
-    const anchor = document.createElement("a")
-    anchor.href = previewRoute
-    anchor.target = "_blank"
-    anchor.rel = "noopener noreferrer"
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
+    router.push(previewRoute)
   }
 
   useEffect(() => {
@@ -434,12 +495,24 @@ export default function GenerateStatementsPage() {
     [previewItems],
   )
 
-  const previewRefundTotal = useMemo(
-    () => previewItems.filter((item) => getBillingItemGross(item) < 0).reduce((sum, item) => sum + getBillingItemGross(item), 0),
-    [previewItems],
-  )
+  const previewRefundSummary = useMemo(() => {
+    const lineItemRefund = Math.abs(
+      previewItems
+        .filter((item) => getBillingItemGross(item) < 0)
+        .reduce((sum, item) => sum + getBillingItemGross(item), 0),
+    )
+    return summarizeStatementPreviewTotals(previewSubtotal, lineItemRefund, {
+      statementRefundAmount: activePreviewStatement?.refund_amount,
+      refundReason: activePreviewStatement?.refund_reason,
+    })
+  }, [
+    activePreviewStatement?.refund_amount,
+    activePreviewStatement?.refund_reason,
+    previewItems,
+    previewSubtotal,
+  ])
 
-  const previewTotal = useMemo(() => previewSubtotal + previewRefundTotal, [previewRefundTotal, previewSubtotal])
+  const previewTotal = previewRefundSummary.grandTotal
 
   const previewCode = effectivePreviewStatement ? getStatementCode(effectivePreviewStatement) : "—"
   const previewRecipient = effectivePreviewStatement ? getRecipient(effectivePreviewStatement) : "—"
@@ -801,7 +874,7 @@ export default function GenerateStatementsPage() {
                 <div>
                   <img src="/images/hmc.svg" alt="RXN3D logo" className="h-20 w-auto object-contain" />
                   <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
-                    <p>{activePreviewStatement?.lab?.address || "—"}</p>
+                    <p className="whitespace-pre-line">{formatStatementPartyAddress(activePreviewStatement?.lab)}</p>
                     <p>
                       Phone: {activePreviewStatement?.lab?.phone || "—"} | Email {activePreviewStatement?.lab?.email || "—"}
                     </p>
@@ -854,7 +927,9 @@ export default function GenerateStatementsPage() {
                 <h3 className="mt-3 text-3xl font-bold text-black sm:text-4xl">
                   {activePreviewStatement?.office?.name || previewRecipient}
                 </h3>
-                <p className="mt-2 text-[16px] text-slate-700 sm:text-[18px]">{activePreviewStatement?.office?.address || "—"}</p>
+                <p className="mt-2 whitespace-pre-line text-[16px] text-slate-700 sm:text-[18px]">
+                  {formatStatementPartyAddress(activePreviewStatement?.office)}
+                </p>
                 {isEditMode && headerDraft ? (
                   <div className="mt-3 max-w-xl">
                     <label className="block text-[15px] text-slate-500 sm:text-[17px]">
@@ -997,10 +1072,17 @@ export default function GenerateStatementsPage() {
                     <span>Sub Total</span>
                     <span>{formatMoney(previewSubtotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[18px] font-semibold text-red-600">
-                    <span>Refund</span>
-                    <span>{formatMoney(previewRefundTotal)}</span>
-                  </div>
+                  {previewRefundSummary.showRefundLine ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[18px] font-semibold text-red-600">
+                        <span>Refund</span>
+                        <span>{formatMoney(previewRefundSummary.totalRefund)}</span>
+                      </div>
+                      {previewRefundSummary.refundReason ? (
+                        <p className="text-left text-sm text-slate-600">{previewRefundSummary.refundReason}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between border-t border-slate-200 pt-4 text-[22px] font-bold text-black">
                     <span>Total</span>
                     <span>{formatMoney(activePreviewStatement?.amount_due ?? previewTotal)}</span>
@@ -1072,30 +1154,14 @@ export default function GenerateStatementsPage() {
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statement ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Code
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Receipient
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date Sent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount due
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Direction
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment
-                </th>
+                <SortableHeader label="Statement ID" sortKey="statement_id" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Code" sortKey="office_name" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Receipient" sortKey="recipient_email" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Date Sent" sortKey="date_sent" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Due Date" sortKey="due_date" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Amount due" sortKey="amount_due" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Direction" sortKey="direction" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Payment" sortKey="payment_status" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>

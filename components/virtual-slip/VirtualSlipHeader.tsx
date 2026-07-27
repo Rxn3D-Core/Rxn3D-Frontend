@@ -127,12 +127,15 @@ export function VirtualSlipHeader({
             sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
           />
           {hasDisplayValue(header.doctorName) && (
-            <p
-              className="max-w-[clamp(72px,8vw,120px)] truncate text-center font-sans text-[clamp(11px,0.75vw,13.5px)] font-semibold leading-[1.2] tracking-[-0.02em] text-[#1162A8]"
-              title={header.doctorName.trim()}
-            >
-              {header.doctorName.trim()}
-            </p>
+            <div className="flex flex-col items-center gap-[2px] text-center font-sans">
+              <span className="text-[clamp(10px,0.65vw,12px)] text-[#7F7F7F]">Doctor:</span>
+              <span
+                className="max-w-[clamp(72px,8vw,120px)] truncate text-[clamp(11px,0.75vw,13.5px)] font-semibold leading-[1.2] tracking-[-0.02em] text-[#1162A8]"
+                title={header.doctorName.trim()}
+              >
+                {header.doctorName.trim()}
+              </span>
+            </div>
           )}
         </div>
 

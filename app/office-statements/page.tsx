@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { ArrowDown, ArrowUp, ArrowUpDown, Download, Eye, Loader2, Search } from "lucide-react"
 import {
   useGenerateStatementPdfMutation,
@@ -148,6 +149,7 @@ function SortableHeader({
 }
 
 export default function OfficeStatementsPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
@@ -217,13 +219,7 @@ export default function OfficeStatementsPage() {
       return
     }
 
-    const anchor = document.createElement("a")
-    anchor.href = previewRoute
-    anchor.target = "_blank"
-    anchor.rel = "noopener noreferrer"
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
+    router.push(previewRoute)
   }
 
   const handleDownload = async (statement: StatementRecord) => {
