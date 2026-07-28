@@ -30,6 +30,7 @@ import {
   findMatchingBillingTarget,
   findMatchingBillingInvoiceId,
   formatStatementPartyAddress,
+  resolveStatementTotals,
   summarizeStatementPreviewTotals,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
@@ -1085,7 +1086,7 @@ export default function GenerateStatementsPage() {
                   ) : null}
                   <div className="flex items-center justify-between border-t border-slate-200 pt-4 text-[22px] font-bold text-black">
                     <span>Total</span>
-                    <span>{formatMoney(activePreviewStatement?.amount_due ?? previewTotal)}</span>
+                    <span>{formatMoney(previewTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -1159,6 +1160,9 @@ export default function GenerateStatementsPage() {
                 <SortableHeader label="Receipient" sortKey="recipient_email" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Date Sent" sortKey="date_sent" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Due Date" sortKey="due_date" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Refund
+                </th>
                 <SortableHeader label="Amount due" sortKey="amount_due" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Direction" sortKey="direction" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Payment" sortKey="payment_status" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
@@ -1170,7 +1174,7 @@ export default function GenerateStatementsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-6 py-10 text-center text-sm text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading statements...
@@ -1181,7 +1185,7 @@ export default function GenerateStatementsPage() {
 
               {!isLoading && statements.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-6 py-10 text-center text-sm text-gray-500">
                     {isError
                       ? `Unable to load statements${error ? "." : "."}`
                       : "No statements found for the current filters."}
@@ -1193,6 +1197,7 @@ export default function GenerateStatementsPage() {
                 statements.map((statement) => {
                   const statementId = String(statement.id)
                   const paymentStatus = statement.payment_status ?? statement.status
+                  const totals = resolveStatementTotals(statement)
                   return (
                     <tr key={statement.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1226,8 +1231,13 @@ export default function GenerateStatementsPage() {
                           {formatShortDate(statement.due_date)}
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <span className={totals.refund > 0 ? "text-red-600" : "text-gray-400"}>
+                          {totals.refund > 0 ? formatMoney(totals.refund) : "-"}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {formatMoney(statement.amount_due)}
+                        {formatMoney(totals.netTotal)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">

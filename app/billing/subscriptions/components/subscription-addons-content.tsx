@@ -2,17 +2,34 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { BarChart3, Box, ChevronLeft, Database, FileText, Headphones, Loader2, TriangleAlert, UserRound } from "lucide-react"
+import {
+  BarChart3,
+  Box,
+  ChevronLeft,
+  Database,
+  FileText,
+  Headphones,
+  Loader2,
+  Ticket,
+  TriangleAlert,
+  UserRound,
+} from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useAuth } from "@/contexts/auth-context"
 import {
   createAddOnCheckoutSession,
   deleteCustomerAddOn,
+  getBillingCreditBalance,
   listBillingCatalogAddOns,
   listCustomerAddOns,
   type CatalogAddOn,
   type CustomerAddOn,
 } from "@/lib/api/billing-subscription"
+import {
+  createCreditBookCheckoutSession,
+  listBillingCatalogCreditBooks,
+  type CatalogCreditBook,
+} from "@/lib/api/customer-credit-books"
 import {
   cancelCustomerStorageTier,
   createStorageTierCheckoutSession,
@@ -29,8 +46,9 @@ type AddOn = {
   name: string
   description: string
   price: number
-  icon: "box" | "support" | "analytics" | "user" | "invoice" | "storage"
+  icon: "box" | "support" | "analytics" | "user" | "invoice" | "storage" | "credits"
   active: boolean
+  slipAmount?: number
 }
 
 function AddOnIcon({ icon }: { icon: AddOn["icon"] }) {
@@ -39,6 +57,7 @@ function AddOnIcon({ icon }: { icon: AddOn["icon"] }) {
   if (icon === "user") return <UserRound className="h-6 w-6 text-[#7C8798]" />
   if (icon === "invoice") return <FileText className="h-6 w-6 text-[#F0B867]" />
   if (icon === "storage") return <Database className="h-6 w-6 text-[#2E9E6C]" />
+  if (icon === "credits") return <Ticket className="h-6 w-6 text-[#7C5CDB]" />
   return <Box className="h-6 w-6 text-[#A86C31]" />
 }
 
@@ -104,6 +123,12 @@ export function SubscriptionAddOnsContent() {
   const [isRemovingStorageTier, setIsRemovingStorageTier] = useState(false)
   const [removeStorageTierError, setRemoveStorageTierError] = useState<string | null>(null)
 
+  const [creditBooks, setCreditBooks] = useState<CatalogCreditBook[]>([])
+  const [creditBalance, setCreditBalance] = useState<number | null>(null)
+  const [selectedCreditBook, setSelectedCreditBook] = useState<AddOn | null>(null)
+  const [isProcessingCreditBook, setIsProcessingCreditBook] = useState(false)
+  const [creditBookError, setCreditBookError] = useState<string | null>(null)
+
   useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -120,11 +145,13 @@ export function SubscriptionAddOnsContent() {
 
     const loadAddOnData = async () => {
       try {
-        const [catalog, customerAddOns, tiers, currentStorageTier] = await Promise.all([
+        const [catalog, customerAddOns, tiers, currentStorageTier, books, credits] = await Promise.all([
           listBillingCatalogAddOns(customerId),
           listCustomerAddOns(customerId),
           listBillingCatalogStorageTiers(customerId),
           getCustomerStorageTier(customerId),
+          listBillingCatalogCreditBooks(customerId).catch(() => []),
+          getBillingCreditBalance(customerId).catch(() => null),
         ])
 
         if (cancelled) return
@@ -133,6 +160,8 @@ export function SubscriptionAddOnsContent() {
         setCustomerAddOns(customerAddOns)
         setStorageTiers(tiers)
         setCustomerStorageTier(currentStorageTier)
+        setCreditBooks(books)
+        setCreditBalance(credits?.balance ?? credits?.available_credits ?? null)
       } catch (error) {
         console.error("Failed to load add-on data:", error)
       }
@@ -225,6 +254,30 @@ export function SubscriptionAddOnsContent() {
         return a.name.localeCompare(b.name)
       })
   }, [storageTiers, activeStorageTierId, customerStorageTier])
+
+  const creditBookAddOns = useMemo(() => {
+    return creditBooks
+      .filter((book) => book.active !== false)
+      .map((book) => {
+        const parsedPrice = Number(book.price)
+        const slipAmount = Number(book.slip_amount)
+
+        return {
+          key: `credit-book-${book.id}`,
+          id: book.id,
+          customerAddOnId: null,
+          name: book.name,
+          description: Number.isFinite(slipAmount)
+            ? `One-time purchase of ${slipAmount.toLocaleString()} slip credits added to your balance.`
+            : "One-time slip credit pack for when you exceed your plan capacity.",
+          price: Number.isFinite(parsedPrice) ? parsedPrice : 0,
+          icon: "credits" as const,
+          active: false,
+          slipAmount: Number.isFinite(slipAmount) ? slipAmount : undefined,
+        } satisfies AddOn
+      })
+      .sort((a, b) => a.price - b.price || a.name.localeCompare(b.name))
+  }, [creditBooks])
 
   const handleConfirmAddOn = async () => {
     if (!resolvedCustomerId) {
@@ -353,6 +406,44 @@ export function SubscriptionAddOnsContent() {
     }
   }
 
+  const handleConfirmCreditBook = async () => {
+    if (!resolvedCustomerId) {
+      setCreditBookError("Missing customer billing context. Please refresh and try again.")
+      return
+    }
+
+    if (!selectedCreditBook) {
+      setCreditBookError("Please choose a credit book first.")
+      return
+    }
+
+    try {
+      setIsProcessingCreditBook(true)
+      setCreditBookError(null)
+
+      const returnUrl = `${window.location.origin}/billing/subscriptions/add-ons`
+      const response = await createCreditBookCheckoutSession({
+        customer_id: resolvedCustomerId,
+        billing_credit_book_id: selectedCreditBook.id,
+        quantity: 1,
+        success_url: `${returnUrl}?checkout=success`,
+        cancel_url: `${returnUrl}?checkout=cancel`,
+      })
+
+      if (response.success && response.url) {
+        window.location.href = response.url
+        return
+      }
+
+      throw new Error(response.message || "Failed to create credit book checkout session")
+    } catch (error: any) {
+      console.error("Credit book checkout error:", error)
+      setCreditBookError(error?.message || "Failed to start credit book checkout. Please try again.")
+    } finally {
+      setIsProcessingCreditBook(false)
+    }
+  }
+
   return (
     <div className="w-full px-4 py-5 sm:px-6 lg:px-8">
       <div className="mb-7 flex items-start justify-between gap-6">
@@ -437,6 +528,67 @@ export function SubscriptionAddOnsContent() {
                 </div>
               )
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 border-t border-[#E8EBF1] pt-6">
+        <p className="mb-4 text-[15px] text-[#767C83]">
+          Need more slips beyond your plan? Purchase a credit book anytime. Credits are added to your balance after checkout.
+          {creditBalance != null ? (
+            <span className="ml-1 font-medium text-[#222]">
+              Current balance: {creditBalance.toLocaleString()} credits.
+            </span>
+          ) : null}
+        </p>
+
+        <p className="mb-4 text-[14px] font-semibold uppercase tracking-[0.12em] text-[#6D7278]">Credit Books</p>
+
+        {creditBookAddOns.length === 0 ? (
+          <div className="rounded-xl border border-[#DCE2EE] bg-white px-5 py-8 text-[14px] text-[#757A80] shadow-sm">
+            No credit books are currently available for this customer.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {creditBookAddOns.map((book) => (
+              <div key={book.key} className="rounded-xl border border-[#DCE2EE] bg-white p-4 shadow-sm">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <AddOnIcon icon={book.icon} />
+                    <div>
+                      <h2 className="text-[16px] font-semibold text-[#222]">{book.name}</h2>
+                      {book.slipAmount != null ? (
+                        <p className="mt-0.5 text-[12px] font-medium text-[#7C5CDB]">
+                          {book.slipAmount.toLocaleString()} slip credits
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center rounded-md bg-[#F3EEFF] px-3 py-1 text-[12px] font-semibold text-[#7C5CDB]">
+                    ONE-TIME
+                  </span>
+                </div>
+
+                <p className="min-h-[48px] text-[14px] leading-6 text-[#757A80]">{book.description}</p>
+
+                <div className="mt-12 flex items-end justify-between gap-4">
+                  <div className="text-[#111]">
+                    <span className="text-[22px] font-bold">{currency(book.price)}</span>
+                    <span className="ml-1 text-[14px] text-[#7A8087]">one-time</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreditBookError(null)
+                      setSelectedCreditBook(book)
+                    }}
+                    className="min-w-[112px] rounded-[10px] bg-[#1567B8] px-5 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#11569A]"
+                  >
+                    Purchase
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -666,6 +818,64 @@ export function SubscriptionAddOnsContent() {
 
                 {storageTierError ? (
                   <p className="mt-3 text-[12px] leading-[15px] text-[#DC2626]">{storageTierError}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selectedCreditBook} onOpenChange={(open) => !open && setSelectedCreditBook(null)}>
+        <DialogContent showCloseButton={false} className="w-[min(480px,calc(100vw-24px))] max-w-none overflow-hidden rounded-[10px] border-0 bg-white p-0 shadow-2xl">
+          {selectedCreditBook ? (
+            <div>
+              <div className="border-b border-[#E4E6EF] bg-[#F9FAFB] px-6 pb-[11px] pt-[10px]">
+                <h2 className="text-[16px] font-bold leading-[19px] text-black">
+                  Purchase {selectedCreditBook.name}
+                </h2>
+                <p className="mt-[5px] text-[12px] leading-[15px] text-[#666666]">
+                  One-time purchase. Credits are added to your balance after payment.
+                </p>
+              </div>
+
+              <div className="px-6 pb-5 pt-4">
+                <div className="rounded-[6px] border border-[#E4E6EF] bg-[#F9FAFB] px-3 pb-[9px] pt-2">
+                  <div className="text-[13px] leading-4 text-[#666666]">
+                    {selectedCreditBook.name}
+                    <span className="mx-1.5">·</span>
+                    One-time credit pack
+                  </div>
+                  {selectedCreditBook.slipAmount != null ? (
+                    <div className="mt-1 text-[13px] leading-4 text-[#7C5CDB]">
+                      {selectedCreditBook.slipAmount.toLocaleString()} slip credits
+                    </div>
+                  ) : null}
+                  <div className="mt-2 text-[16px] font-bold leading-[19px] text-black">
+                    ${selectedCreditBook.price.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCreditBook(null)}
+                    className="h-9 w-[120px] rounded-[6px] border border-[#E4E6EF] bg-white text-[13px] font-medium leading-4 text-[#666666] transition-colors hover:bg-[#F8FAFC]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmCreditBook()}
+                    disabled={isProcessingCreditBook}
+                    className="inline-flex h-9 w-[180px] items-center justify-center gap-2 rounded-[6px] bg-[#1162A8] text-[13px] font-semibold leading-4 text-white transition-colors hover:bg-[#0E548F] disabled:cursor-not-allowed disabled:bg-[#8AB4DA]"
+                  >
+                    {isProcessingCreditBook ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Confirm & Pay
+                  </button>
+                </div>
+
+                {creditBookError ? (
+                  <p className="mt-3 text-[12px] leading-[15px] text-[#DC2626]">{creditBookError}</p>
                 ) : null}
               </div>
             </div>

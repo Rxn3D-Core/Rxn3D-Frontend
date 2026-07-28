@@ -1834,7 +1834,8 @@ export default function ChargeManagementPage() {
         )}
 
         {customerId && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {/* Total invoices card hidden for now — restore this card and set grid back to sm:grid-cols-3 to bring it back:
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalInvoices", { defaultValue: "Total invoices" })}
@@ -1842,7 +1843,7 @@ export default function ChargeManagementPage() {
               <p className="text-2xl font-bold text-gray-900 tabular-nums">
                 {statsFetching ? "—" : stats?.total_invoices ?? "—"}
               </p>
-            </div>
+            </div> */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalAmount", { defaultValue: "Total amount" })}
@@ -1862,6 +1863,8 @@ export default function ChargeManagementPage() {
           </div>
         )}
 
+        {/* Advanced-search banner + "Back to standard list" hidden for now.
+            (Exiting advanced search still works via "Clear all filters" in the Advance Filter panel.)
         {activeSource === "advanced" && (
           <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
             {t("chargeManagement.advancedBanner", {
@@ -1877,6 +1880,7 @@ export default function ChargeManagementPage() {
             </button>
           </div>
         )}
+        */}
 
         <div className="bg-white rounded-lg mb-3">
           <div className="px-4 py-2">

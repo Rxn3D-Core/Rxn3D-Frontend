@@ -92,6 +92,14 @@ function getInvoiceDownloadUrl(invoice: SubscriptionInvoice): string | null {
   return invoice.invoice_pdf || invoice.hosted_invoice_url || null
 }
 
+function getInvoiceHostedUrl(invoice: SubscriptionInvoice): string | null {
+  return invoice.hosted_invoice_url || null
+}
+
+function getInvoiceDateLabel(value?: string | null): string {
+  return value ? formatBillingDate(value) : "—"
+}
+
 function openInvoiceLinks(urls: string[]) {
   urls.forEach((url, index) => {
     window.setTimeout(() => {
@@ -301,7 +309,7 @@ export default function SubscriptionInvoicesPage() {
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-white text-left">
-                  {["Invoice #", "Date", "Description", "Amount", "Status", "Actions"].map((heading) => (
+                  {["Invoice #", "Dates", "Amounts", "Status", "Actions"].map((heading) => (
                     <th
                       key={heading}
                       className="border-b border-[#E7EDF4] px-4 py-4 text-sm font-semibold text-[#6B7280] first:pl-5"
@@ -314,39 +322,58 @@ export default function SubscriptionInvoicesPage() {
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-[#6B7280]">
+                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-[#6B7280]">
                       Loading invoices...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-[#CF0202]">
+                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-[#CF0202]">
                       {error}
                     </td>
                   </tr>
                 ) : paginatedInvoices.items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-sm text-[#6B7280]">
+                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-[#6B7280]">
                       No invoices matched the current filters.
                     </td>
                   </tr>
                 ) : (
                   paginatedInvoices.items.map((invoice) => {
                     const downloadUrl = getInvoiceDownloadUrl(invoice)
+                    const hostedInvoiceUrl = getInvoiceHostedUrl(invoice)
 
                     return (
                       <tr key={invoice.id} className="bg-white">
-                        <td className="border-b border-[#E7EDF4] px-4 py-4 text-[15px] font-semibold text-[#111827] first:pl-5">
-                          {invoice.invoice_number || `INV-${invoice.id}`}
+                        <td className="border-b border-[#E7EDF4] px-4 py-4 first:pl-5">
+                          <p className="text-[15px] font-semibold text-[#111827]">
+                            {invoice.invoice_number || `INV-${invoice.id}`}
+                          </p>
+                          <p className="mt-1 text-xs text-[#6B7280]">
+                            {invoice.customer?.name || invoice.customer?.email || "Subscription billing"}
+                          </p>
                         </td>
-                        <td className="border-b border-[#E7EDF4] px-4 py-4 text-[15px] text-[#6B7280]">
-                          {formatBillingDate(invoice.created_at || invoice.paid_at)}
+                        <td className="border-b border-[#E7EDF4] px-4 py-4 text-[14px] text-[#6B7280]">
+                          <p>
+                            Created: <span className="text-[#111827]">{getInvoiceDateLabel(invoice.created_at)}</span>
+                          </p>
+                          <p>
+                            Paid: <span className="text-[#111827]">{getInvoiceDateLabel(invoice.paid_at)}</span>
+                          </p>
                         </td>
-                        <td className="border-b border-[#E7EDF4] px-4 py-4 text-[15px] text-[#111827]">
-                          Subscription billing
-                        </td>
-                        <td className="border-b border-[#E7EDF4] px-4 py-4 text-[15px] font-semibold text-[#111827]">
-                          {formatCurrency(getSubscriptionInvoiceDisplayAmount(invoice), invoice.currency || "USD")}
+                        <td className="border-b border-[#E7EDF4] px-4 py-4 text-[14px] text-[#6B7280]">
+                          <p>
+                            Paid:{" "}
+                            <span className="font-semibold text-[#111827]">
+                              {formatCurrency(invoice.amount_paid, invoice.currency || "USD")}
+                            </span>
+                          </p>
+                          <p>
+                            Due:{" "}
+                            <span className="font-semibold text-[#111827]">
+                              {formatCurrency(invoice.amount_due ?? getSubscriptionInvoiceDisplayAmount(invoice), invoice.currency || "USD")}
+                            </span>
+                          </p>
                         </td>
                         <td className="border-b border-[#E7EDF4] px-4 py-4">
                           <span
@@ -356,7 +383,7 @@ export default function SubscriptionInvoicesPage() {
                           </span>
                         </td>
                         <td className="border-b border-[#E7EDF4] px-4 py-4">
-                          <div className="flex flex-wrap items-center gap-4">
+                          <div className="flex flex-wrap items-center gap-3">
                             <Link
                               href={`/billing/subscriptions/invoices/${invoice.id}`}
                               className="inline-flex items-center gap-1.5 text-[15px] font-medium text-[#1162A8] transition-colors hover:text-[#0D4C83]"
@@ -364,6 +391,17 @@ export default function SubscriptionInvoicesPage() {
                               <ExternalLink className="h-4 w-4" />
                               View
                             </Link>
+                            {hostedInvoiceUrl ? (
+                              <a
+                                href={hostedInvoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-[15px] font-medium text-[#1162A8] transition-colors hover:text-[#0D4C83]"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                Hosted
+                              </a>
+                            ) : null}
                             {downloadUrl ? (
                               <a
                                 href={downloadUrl}

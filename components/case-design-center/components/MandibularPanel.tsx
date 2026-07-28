@@ -1861,7 +1861,9 @@ export function MandibularPanel({
         : hintUsesArchCard0 ? 0 : activeProductCardId;
       const hintProduct = hintUsesArchCard0 ? hintCard0Product : hintActiveAp?.product;
       const baseProductName = hintProduct?.name ?? "";
-      const hintCustomLabel = resolveProductCustomLabel(hintProduct);
+      const hintCustomLabel = resolveProductCustomLabel(
+        hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
+      );
       if (
         isFlipperOrStayplateProduct(baseProductName) &&
         isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
@@ -1897,7 +1899,7 @@ export function MandibularPanel({
     ) {
       const fixedProduct = activeProductCardId !== 0
         ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product
-        : (() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? getToothProduct("mandibular", t) : undefined; })();
+        : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? getToothProduct("mandibular", t) : undefined; })() ?? card0InitialProduct);
       const fixedProductName = (fixedProduct?.name ?? "") || initialProductName || "";
       const fixedCustomLabel = resolveProductCustomLabel(fixedProduct);
       return { kind: "replace", text: fixedCustomLabel ?? `Select teeth to replace${fixedProductName ? ` with ${fixedProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };

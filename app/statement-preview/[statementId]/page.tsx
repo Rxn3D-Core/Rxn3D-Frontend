@@ -976,7 +976,8 @@ export default function StatementPreviewPage() {
               </div>
               <div className="bg-white px-8 pb-8 print:hidden sm:px-12">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {/* Edit Statement button hidden for now — grid reduced to 2 cols. Restore the button below and set this back to sm:grid-cols-3 to bring it back. */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -999,6 +1000,7 @@ export default function StatementPreviewPage() {
                       {isPrinting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />}
                       Print
                     </Button>
+                    {/* Edit Statement button hidden for now:
                     <Button
                       type="button"
                       variant="outline"
@@ -1010,6 +1012,7 @@ export default function StatementPreviewPage() {
                       <Pencil className="h-5 w-5" />
                       {isEditMode ? "Editing Statement" : "Edit Statement"}
                     </Button>
+                    */}
                   </div>
                   <Button
                     type="button"

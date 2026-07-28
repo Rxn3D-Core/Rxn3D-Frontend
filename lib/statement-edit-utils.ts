@@ -242,6 +242,73 @@ export function summarizeStatementPreviewTotals(
   };
 }
 
+/** Signed gross for a statement billing row — already-negative or refund-status rows count as negative. */
+function statementItemSignedGross(item: {
+  gross_amount?: number | string | null;
+  amount?: number | string | null;
+  status?: string | null;
+}): number {
+  const amount = toNumber(item.gross_amount ?? item.amount);
+  if (amount < 0) return amount;
+  const status = (item.status ?? "").trim().toLowerCase();
+  return status === "refund" || status === "refunded" ? -amount : amount;
+}
+
+export type StatementNetTotalInput = {
+  billing_items?: Array<{
+    gross_amount?: number | string | null;
+    amount?: number | string | null;
+    status?: string | null;
+  }> | null;
+  amount_due?: number | string | null;
+  refund_amount?: number | string | null;
+};
+
+export type StatementTotals = {
+  /** Sum of positive line items (gross, pre-refund). */
+  subtotal: number;
+  /** Total refund deducted: line-item refunds + statement-level `refund_amount`. */
+  refund: number;
+  /** subtotal − refund; matches the statement preview's grand total. */
+  netTotal: number;
+};
+
+/**
+ * Resolves a statement's subtotal / refund / net total, consistent with the statement
+ * preview's grand total: (sum of positive line items) − (line-item refunds +
+ * statement-level `refund_amount`). When the record carries no `billing_items` (e.g.
+ * lightweight list rows), it falls back to `amount_due` (subtotal) and `refund_amount`
+ * (refund) so listings still net out the refund.
+ *
+ * NOTE: for the deduction to show on listings, the statements list API must return
+ * `refund_amount` (and/or `billing_items`) on each row. If neither is present, refund
+ * is 0 and netTotal equals `amount_due`.
+ */
+export function resolveStatementTotals(statement: StatementNetTotalInput): StatementTotals {
+  const items = statement.billing_items ?? [];
+  if (items.length > 0) {
+    let subtotal = 0;
+    let lineItemRefund = 0;
+    for (const item of items) {
+      const gross = statementItemSignedGross(item);
+      if (gross > 0) subtotal += gross;
+      else if (gross < 0) lineItemRefund += Math.abs(gross);
+    }
+    const summary = summarizeStatementPreviewTotals(subtotal, lineItemRefund, {
+      statementRefundAmount: statement.refund_amount,
+    });
+    return { subtotal, refund: summary.totalRefund, netTotal: summary.grandTotal };
+  }
+  const subtotal = parseStatementMoney(statement.amount_due);
+  const refund = Math.max(0, parseStatementMoney(statement.refund_amount));
+  return { subtotal, refund, netTotal: subtotal - refund };
+}
+
+/** Net total for a statement (subtotal − refund). See {@link resolveStatementTotals}. */
+export function resolveStatementNetTotal(statement: StatementNetTotalInput): number {
+  return resolveStatementTotals(statement).netTotal;
+}
+
 export function computeBasePriceFromTargetGross(
   targetGross: number,
   product: BillingProduct,

@@ -357,11 +357,10 @@ export const useLabModal = () => {
     }
   }, [store, sendLabInvitation])
 
-  // Handle connection request. Returns the lab when sendAndSubmit succeeds so the
-  // caller can select it for case creation.
-  const handleConnectionRequest = useCallback(async (sendAndSubmit: boolean = false) => {
+  // Handle connection request (send request only; closes the modal after success).
+  const handleConnectionRequest = useCallback(async () => {
     const lab = store.selectedLabForConnection
-    if (!lab) return null
+    if (!lab) return
 
     const connectionData: LabConnectionInput = {
       labId: lab.id,
@@ -380,15 +379,12 @@ export const useLabModal = () => {
       setTimeout(() => {
         store.setRequestSent(false)
         store.setSelectedLabForConnection(null)
-        if (!sendAndSubmit) {
-          store.setOpen(false)
-        }
-      }, sendAndSubmit ? 400 : 1500)
-      return sendAndSubmit ? lab : null
+        store.setOpen(false)
+      }, 1500)
+      return
     }
 
     store.setIsSendingRequest(false)
-    return null
   }, [store, sendConnectionRequest])
 
   // Debounced search effect
