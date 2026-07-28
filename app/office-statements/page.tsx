@@ -10,6 +10,7 @@ import {
   type StatementRecord,
 } from "@/lib/redux/api/billingApi"
 import { useToast } from "@/hooks/use-toast"
+import { resolveStatementTotals } from "@/lib/statement-edit-utils"
 import { buildStatementPreviewRoute } from "@/app/billing/generate-statements/preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
@@ -314,6 +315,9 @@ export default function OfficeStatementsPage() {
                 <SortableHeader label="Lab" sortKey="lab_name" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Date Received" sortKey="date_sent" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Due Date" sortKey="due_date" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Refund
+                </th>
                 <SortableHeader label="Amount Due" sortKey="amount_due" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <SortableHeader label="Payment" sortKey="payment_status" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -324,7 +328,7 @@ export default function OfficeStatementsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading statements...
@@ -335,7 +339,7 @@ export default function OfficeStatementsPage() {
 
               {!isLoading && statements.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-500">
                     {isError
                       ? "Unable to load statements."
                       : "No statements received yet."}
@@ -346,6 +350,7 @@ export default function OfficeStatementsPage() {
               {!isLoading &&
                 statements.map((statement) => {
                   const paymentStatus = statement.payment_status ?? statement.status
+                  const totals = resolveStatementTotals(statement)
                   return (
                     <tr key={statement.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -368,8 +373,13 @@ export default function OfficeStatementsPage() {
                           {formatShortDate(statement.due_date)}
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <span className={totals.refund > 0 ? "text-red-600" : "text-gray-400"}>
+                          {totals.refund > 0 ? formatMoney(totals.refund) : "-"}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {formatMoney(statement.amount_due)}
+                        {formatMoney(totals.netTotal)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span

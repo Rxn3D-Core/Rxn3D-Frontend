@@ -424,8 +424,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
 
             <div className="p-6">
               <p className="text-gray-700 mb-6">
-                Choose how you'd like to connect with this lab.
-                You can send a request only, or send a request and submit the case at the same time.
+                Send a connection request to this lab. You can continue once the lab accepts.
               </p>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -437,17 +436,7 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                   Cancel
                 </Button>
                 <Button
-                  variant="outline"
-                  onClick={async () => {
-                    const lab = await handleConnectionRequest(true)
-                    if (lab) handleLabSelect(lab)
-                  }}
-                  className="w-full sm:flex-1 sm:min-w-[140px]"
-                >
-                  Send Request and Submit
-                </Button>
-                <Button
-                  onClick={() => handleConnectionRequest(false)}
+                  onClick={() => handleConnectionRequest()}
                   className="w-full sm:flex-1 sm:min-w-[140px]"
                 >
                   Send Request only
@@ -538,10 +527,10 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                   (() => {
                     const role = localStorage.getItem("role");
                     if (role === "lab_admin") {
-                      return "Invite a new office by entering their details below. You can send an invite only, or send an invite and submit the case at the same time.";
+                      return "Invite a new office by entering their details below. You can send an invite only.";
                     }
                     // Default text for office_admin, superadmin, or any other role
-                    return "Invite a new lab by entering their details below. You can send an invite only, or send an invite and submit the case at the same time.";
+                    return "Invite a new lab by entering their details below. You can send an invite only.";
                   })()
                 )}
               </p>
@@ -613,13 +602,15 @@ export function AddNewLabModal({ open, onOpenChange, onLabSelect, onInviteLab }:
                 >
                   Cancel
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleSubmit((data) => handleInviteSubmit(true))()}
-                  className="w-full sm:flex-1 sm:min-w-[140px] border-gray-300 text-gray-700 hover:bg-gray-50 py-3 text-base"
-                >
-                  Send Invite and Submit
-                </Button>
+                {false && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleSubmit((data) => handleInviteSubmit(true))()}
+                    className="w-full sm:flex-1 sm:min-w-[140px] border-gray-300 text-gray-700 hover:bg-gray-50 py-3 text-base"
+                  >
+                    Send Invite and Submit
+                  </Button>
+                )}
                 <Button
                   onClick={() => handleSubmit((data) => handleInviteSubmit(false))()}
                   className="w-full sm:flex-1 sm:min-w-[140px] py-3 text-base"

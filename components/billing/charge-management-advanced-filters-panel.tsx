@@ -250,12 +250,14 @@ export function ChargeManagementAdvancedFiltersPanel({
         </div>
       </div>
 
+      {/* Advance-filters description hidden for now.
       <p className="text-xs text-gray-500 mb-3">
         {t("chargeManagement.advancedFiltersIndependent", {
           defaultValue:
             "Category, subcategory, product, and stage can be used alone or together. Toolbar filters apply automatically.",
         })}
       </p>
+      */}
 
       <div className="flex flex-nowrap items-end gap-2 md:gap-3 min-w-0 overflow-x-auto pb-1 [scrollbar-width:thin]">
         <div className="space-y-1.5 min-w-[160px] flex-1 shrink-0">

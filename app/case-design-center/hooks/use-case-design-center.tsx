@@ -6,6 +6,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
 import { debounce } from "@/lib/performance"
 import { useToast } from "@/hooks/use-toast"
+import {
+  isSlipLimitExceededError,
+  LAB_SLIP_LIMIT_MESSAGE,
+  OFFICE_LAB_UNAVAILABLE_MESSAGE,
+} from "@/lib/slip-creation-guardrails"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
 import { useImplants } from "@/lib/api/advance-mode-query"
@@ -7181,8 +7186,14 @@ export function useCaseDesignCenter() {
       console.error("Error submitting case:", error)
 
       // Handle validation errors from API
-      let errorMessage = error.message || "Failed to submit case"
-      if (error.errors) {
+      const role = typeof window !== "undefined" ? localStorage.getItem("role") : null
+      const limitHit = isSlipLimitExceededError(error)
+      let errorMessage = limitHit
+        ? role === "office_admin"
+          ? OFFICE_LAB_UNAVAILABLE_MESSAGE
+          : LAB_SLIP_LIMIT_MESSAGE
+        : (error.message || "Failed to submit case")
+      if (!limitHit && error.errors) {
         const errorDetails = Object.entries(error.errors)
           .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
           .join("\n")

@@ -15,6 +15,11 @@ import {
   type CaseSubmissionState,
 } from "../utils/caseCompletionDestination";
 import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
+import {
+  isSlipLimitExceededError,
+  LAB_SLIP_LIMIT_MESSAGE,
+  OFFICE_LAB_UNAVAILABLE_MESSAGE,
+} from "@/lib/slip-creation-guardrails";
 
 interface ToastApi {
   (options: { title: string; description: string; variant?: "destructive" }): void;
@@ -205,7 +210,13 @@ export function useCaseSubmissionFlow({
         redirectTimerRef.current = null;
       }
 
-      const message = error?.message ?? "Something went wrong.";
+      const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+      const limitHit = isSlipLimitExceededError(error);
+      const message = limitHit
+        ? role === "office_admin"
+          ? OFFICE_LAB_UNAVAILABLE_MESSAGE
+          : LAB_SLIP_LIMIT_MESSAGE
+        : (error?.message ?? "Something went wrong.");
       setSubmissionError(message);
       setSlipHeaderLoading(false);
       setCaseSubmitted(false);

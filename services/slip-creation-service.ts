@@ -1,6 +1,7 @@
 // Slip Creation Service
 // Handles API calls for creating slips/cases
 
+import { SlipCreationApiError } from "@/lib/slip-creation-guardrails";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 // Helper to ensure URL is absolute
@@ -281,6 +282,13 @@ export interface SlipCreationResponse {
   errors?: Record<string, string[]>;
 }
 
+interface ApiErrorBody {
+  message?: string;
+  error?: string;
+  code?: string;
+  errors?: Record<string, string[]>;
+}
+
 class SlipCreationService {
   /**
    * Create a slip/case via API
@@ -347,12 +355,16 @@ class SlipCreationService {
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json().catch(() => ({})) as ApiErrorBody;
       const errorMessage =
         errorData.message ||
         errorData.error ||
         `Failed to create slip: ${response.statusText}`;
-      throw new Error(errorMessage);
+      throw new SlipCreationApiError(errorMessage, {
+        status: response.status,
+        code: errorData.code,
+        errors: errorData.errors,
+      });
     }
 
     const data: SlipCreationResponse = await response.json();
@@ -383,12 +395,16 @@ class SlipCreationService {
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const errorData = await response.json().catch(() => ({})) as ApiErrorBody;
       const errorMessage =
         errorData.message ||
         errorData.error ||
         `Failed to create slip: ${response.statusText}`;
-      throw new Error(errorMessage);
+      throw new SlipCreationApiError(errorMessage, {
+        status: response.status,
+        code: errorData.code,
+        errors: errorData.errors,
+      });
     }
 
     const data: SlipCreationResponse = await response.json();
