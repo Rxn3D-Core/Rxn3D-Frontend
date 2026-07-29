@@ -376,7 +376,6 @@ function StatementPreviewContent({
                 <th className="whitespace-nowrap px-1.5 py-2.5">Stage</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Base total</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Add-on</th>
-                <th className="whitespace-nowrap px-1.5 py-2.5 text-right">QTY</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Sub Total</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">R%</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Gross</th>
@@ -386,7 +385,7 @@ function StatementPreviewContent({
             <tbody>
               {previewItems.length === 0 ? (
                 <tr>
-                  <td colSpan={isEditMode ? 12 : 11} className="px-4 py-10 text-center text-[13px] text-slate-500">
+                  <td colSpan={isEditMode ? 11 : 10} className="px-4 py-10 text-center text-[13px] text-slate-500">
                     No billing items available for this statement.
                   </td>
                 </tr>
@@ -406,7 +405,6 @@ function StatementPreviewContent({
                     <td className="break-words px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">{item.stage_name || "—"}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{formatMoney(item.base_total)}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</td>
-                    <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{item.quantity ?? "-"}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.rush_percentage) === 0 ? "-" : `${toNumber(item.rush_percentage)}%`}</td>
                     {isEditMode ? (
@@ -486,7 +484,6 @@ function StatementPreviewContent({
                   <div className="flex justify-between"><dt className="text-slate-500">U/L</dt><dd>{item.product_type || "—"}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Grade</dt><dd className="truncate">{item.grade_name || "—"}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Stage</dt><dd className="truncate">{item.stage_name || "—"}</dd></div>
-                  <div className="flex justify-between"><dt className="text-slate-500">QTY</dt><dd>{item.quantity ?? "-"}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Base</dt><dd>{formatMoney(item.base_total)}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Add-on</dt><dd>{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Sub Total</dt><dd>{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</dd></div>

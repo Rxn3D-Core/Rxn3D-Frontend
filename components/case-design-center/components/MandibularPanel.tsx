@@ -970,9 +970,16 @@ export function MandibularPanel({
   const skipsRemovableToothSelectionHint =
     activeProductIsRemovables && !hasConfiguredExtractions(activeRemovableExtractionsForHint);
 
-  const shouldShowSelectTeethToReplace = !caseSubmitted && activeProductCardId !== null && !confirmDetailsChecked && !skipsRemovableToothSelectionHint && !activeProductSkipsChartSetup && (
-    teethCount === 0 || isSelectionModeActive
-  );
+  // Hide until card-0 product details resolve — otherwise the header flashes
+  // "SELECT TEETH TO REPLACE" before we know product type / custom label.
+  const shouldShowSelectTeethToReplace =
+    !caseSubmitted &&
+    activeProductCardId !== null &&
+    !confirmDetailsChecked &&
+    !skipsRemovableToothSelectionHint &&
+    !activeProductSkipsChartSetup &&
+    !(activeProductCardId === 0 && initialProductDetailsPending) &&
+    (teethCount === 0 || isSelectionModeActive);
 
   useEffect(() => {
     onShowSelectTeethToReplaceChange?.(shouldShowSelectTeethToReplace);
@@ -1836,6 +1843,7 @@ export function MandibularPanel({
   const mandibularToothHint: { kind: "replace" | "reference" | "flipper" | "count"; text: string; className: string } | null = (() => {
     if (!showMandibular) return null;
     if (activeProductSkipsChartSetup) return null;
+    if (activeProductCardId === 0 && initialProductDetailsPending) return null;
     if (activeProductIsRemovables) {
       const hintActiveAp = activeProductCardId !== 0
         ? addedProducts.find(ap => ap.id === activeProductCardId && (ap.arch === "mandibular" || ap.arch === "both"))
