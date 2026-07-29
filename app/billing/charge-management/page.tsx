@@ -130,11 +130,12 @@ type ChargeRow = {
   patient: string
   ul: string
   product: string
+  /** Selected product variation label, shown under the product name */
+  variation: string
   grade: string
   stage: string
   baseTotal: string
   addOn: string
-  qty: string
   subTotal: string
   rPercent: string
   gross: string
@@ -390,11 +391,11 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
         patient,
         ul: "—",
         product: "—",
+        variation: "—",
         grade: "—",
         stage: "—",
         baseTotal: formatMoney(inv.total_amount),
         addOn: "—",
-        qty: "—",
         subTotal: "—",
         rPercent: "—",
         gross: formatMoney(inv.total_amount),
@@ -405,11 +406,20 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   }
 
   return products.map((p: BillingProduct, idx: number) => {
+    // Show each add-on as "Name xQty" (e.g. "Crown x2"); the per-add-on total
+    // is shown, aligned line-for-line, in the Sub Total column.
     const addons = p.addons?.length
-      ? p.addons.map((a) => a.addon_name ?? "").filter(Boolean).join("\n")
+      ? p.addons
+          .map((a) => {
+            const name = (a.addon_name ?? "").trim()
+            if (!name) return ""
+            const qtyNum = a.quantity != null && String(a.quantity) !== "" ? Number(a.quantity) : NaN
+            const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1
+            return `${name} x${qty}`
+          })
+          .filter(Boolean)
+          .join("\n") || "—"
       : "—"
-    const addonQty =
-      p.addons?.map((a) => (a.quantity != null ? String(a.quantity) : "—")).join("\n") || "—"
     const addonSub = p.addons?.map((a) => formatMoney(a.total)).join("\n") || "—"
     const rush =
       p.rush_percentage != null && p.rush_percentage !== ""
@@ -429,11 +439,11 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       patient,
       ul: mapProductType(p.product_type),
       product: p.product_name ?? "—",
+      variation: p.variation_name?.trim() || "—",
       grade: p.grade_name ?? "—",
       stage: p.stage_name ?? "—",
       baseTotal: formatMoney(p.base_price),
       addOn: addons || "—",
-      qty: p.teeth_count != null ? String(p.teeth_count) : addonQty,
       subTotal: addonSub,
       rPercent: rush,
       gross: formatMoney(p.total_price),
@@ -2166,8 +2176,7 @@ export default function ChargeManagementPage() {
                 <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Grade</TableHead>
                 <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Stage</TableHead>
                 <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
+                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Add-on(s) with quantity (e.g. Crown x2).">Add-on</TableHead>
                 <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
                 <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
                 <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">
@@ -2184,14 +2193,14 @@ export default function ChargeManagementPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={16} className="py-12 text-center text-sm text-gray-500">
+                  <TableCell colSpan={15} className="py-12 text-center text-sm text-gray-500">
                     Loading charges…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && charges.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={16} className="py-12 text-center text-sm text-gray-500">
+                  <TableCell colSpan={15} className="py-12 text-center text-sm text-gray-500">
                     No charges match your filters.
                   </TableCell>
                 </TableRow>
@@ -2217,17 +2226,17 @@ export default function ChargeManagementPage() {
                     <TableCell className="py-3 text-sm font-medium text-gray-900">{charge.officeCode}</TableCell>
                     <TableCell className="py-3 text-sm text-gray-900">{charge.patient}</TableCell>
                     <TableCell className="py-3 text-sm text-gray-900">{charge.ul}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.product}</TableCell>
+                    <TableCell className="py-3 text-sm text-gray-900">
+                      <div>{charge.product}</div>
+                      {charge.variation && charge.variation !== "—" && (
+                        <div className="text-xs text-gray-500">{charge.variation}</div>
+                      )}
+                    </TableCell>
                     <TableCell className="py-3 text-sm text-gray-900">{charge.grade}</TableCell>
                     <TableCell className="py-3 text-sm text-gray-900">{charge.stage}</TableCell>
                     <TableCell className="py-3 text-sm text-gray-900">{charge.baseTotal}</TableCell>
                     <TableCell className="py-3 text-sm text-gray-900">
                       {charge.addOn.split("\n").map((line, i) => (
-                        <div key={i}>{line}</div>
-                      ))}
-                    </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
-                      {charge.qty.split("\n").map((line, i) => (
                         <div key={i}>{line}</div>
                       ))}
                     </TableCell>

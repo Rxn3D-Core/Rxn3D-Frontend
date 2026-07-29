@@ -18,6 +18,7 @@ import {
   useListBillingInvoicesQuery,
   useListStatementsQuery,
   useSendStatementMutation,
+  useUpdateStatementDueDateMutation,
   type BillingProduct,
   type StatementListParams,
   type StatementBillingItem,
@@ -62,6 +63,19 @@ function formatShortDate(value: string | null | undefined): string {
 function toTitleCase(value: string | null | undefined): string {
   if (!value) return "—"
   return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+/** Normalize a stored due date (ISO or YYYY-MM-DD) to the YYYY-MM-DD value a <input type="date"> expects. */
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return ""
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value)
+  if (match) return match[1]
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
 }
 
 function getStatusColor(status: string | null | undefined): string {
@@ -284,6 +298,9 @@ export default function GenerateStatementsPage() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [headerDraft, setHeaderDraft] = useState<StatementHeaderDraft | null>(null)
   const [inlineAmountDrafts, setInlineAmountDrafts] = useState<Record<string, InlineAmountDraft>>({})
+  const [dueDateStatement, setDueDateStatement] = useState<StatementRecord | null>(null)
+  const [dueDateValue, setDueDateValue] = useState("")
+  const [dueDateNotes, setDueDateNotes] = useState("")
   const previewContentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -356,6 +373,7 @@ export default function GenerateStatementsPage() {
   const [sendStatement] = useSendStatementMutation()
   const [generateStatementPdf] = useGenerateStatementPdfMutation()
   const [updateBillingInvoicePricing] = useUpdateBillingInvoicePricingMutation()
+  const [updateStatementDueDate, { isLoading: savingDueDate }] = useUpdateStatementDueDateMutation()
 
   const officeInvoiceParams = useMemo(
     () => ({
@@ -752,6 +770,37 @@ export default function GenerateStatementsPage() {
     }
   }
 
+  const openDueDateDialog = (statement: StatementRecord) => {
+    setDueDateStatement(statement)
+    setDueDateValue(toDateInputValue(statement.due_date))
+    setDueDateNotes("")
+  }
+
+  const closeDueDateDialog = () => {
+    setDueDateStatement(null)
+    setDueDateValue("")
+    setDueDateNotes("")
+  }
+
+  const handleSaveDueDate = async () => {
+    if (!dueDateStatement || !dueDateValue) return
+    try {
+      const body: { due_date: string; notes?: string } = { due_date: dueDateValue }
+      const trimmedNotes = dueDateNotes.trim()
+      if (trimmedNotes) body.notes = trimmedNotes
+      await updateStatementDueDate({ id: dueDateStatement.id, body }).unwrap()
+      toast({ title: "Due date updated" })
+      closeDueDateDialog()
+    } catch (dueDateError) {
+      toast({
+        title: "Unable to update due date",
+        description:
+          dueDateError instanceof Error ? dueDateError.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
@@ -962,7 +1011,6 @@ export default function GenerateStatementsPage() {
                       <th className="px-4 py-3">Stage</th>
                       <th className="px-4 py-3">Base total</th>
                       <th className="px-4 py-3">Add-on</th>
-                      <th className="px-4 py-3">QTY</th>
                       <th className="px-4 py-3">Sub Total</th>
                       <th className="px-4 py-3">R%</th>
                       <th className="px-4 py-3">Gross</th>
@@ -972,7 +1020,7 @@ export default function GenerateStatementsPage() {
                   <tbody>
                     {previewItems.length === 0 ? (
                       <tr>
-                        <td colSpan={isEditMode ? 12 : 11} className="px-4 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={isEditMode ? 11 : 10} className="px-4 py-10 text-center text-sm text-slate-500">
                           No billing items available for this statement.
                         </td>
                       </tr>
@@ -993,7 +1041,6 @@ export default function GenerateStatementsPage() {
                             <td className="px-4 py-4 text-[15px] text-slate-900">{item.stage_name || "—"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{formatMoney(item.base_total)}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</td>
-                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.quantity ?? "-"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.rush_percentage) === 0 ? "-" : `${toNumber(item.rush_percentage)}%`}</td>
                             <td className={`px-4 py-4 text-[15px] font-semibold ${getBillingItemGross(item) < 0 ? "text-red-600" : "text-slate-900"}`}>
@@ -1142,6 +1189,73 @@ export default function GenerateStatementsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={dueDateStatement !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDueDateDialog()
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change due date</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              {dueDateStatement
+                ? `${dueDateStatement.statement_id || `ST-${dueDateStatement.id}`} · currently ${formatShortDate(dueDateStatement.due_date)}`
+                : ""}
+            </p>
+            <div className="space-y-1.5">
+              <label htmlFor="statement-due-date" className="text-sm font-medium text-gray-700">
+                Due date
+              </label>
+              <input
+                id="statement-due-date"
+                type="date"
+                value={dueDateValue}
+                onChange={(event) => setDueDateValue(event.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#1565b3] focus:outline-none focus:ring-1 focus:ring-[#1565b3]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="statement-due-date-notes" className="text-sm font-medium text-gray-700">
+                Notes <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                id="statement-due-date-notes"
+                value={dueDateNotes}
+                onChange={(event) => setDueDateNotes(event.target.value)}
+                rows={3}
+                placeholder="e.g. Extended payment terms"
+                className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#1565b3] focus:outline-none focus:ring-1 focus:ring-[#1565b3]"
+              />
+            </div>
+            <p className="text-xs text-gray-400">
+              This also updates the line-item due dates and records the change in history.
+            </p>
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeDueDateDialog}
+              disabled={savingDueDate}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveDueDate}
+              disabled={savingDueDate || !dueDateValue}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1565b3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0f4d8b] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingDueDate ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Save
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -1284,6 +1398,13 @@ export default function GenerateStatementsPage() {
                             ) : (
                               <Download className="h-4 w-4" />
                             )}
+                          </button>
+                          <button
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Change due date"
+                            onClick={() => openDueDateDialog(statement)}
+                          >
+                            <Calendar className="h-4 w-4" />
                           </button>
                           {(statement.is_overdue ||
                             (paymentStatus ?? "").toLowerCase() === "overdue") && (

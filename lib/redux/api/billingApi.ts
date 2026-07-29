@@ -113,6 +113,11 @@ export interface BillingProduct {
   product_name?: string | null
   product_code?: string | null
   product_type?: string | null
+  /** Selected product variation (when the product has variations) */
+  variation_id?: number | null
+  variation_name?: string | null
+  variation_image_url?: string | null
+  variation_teeth_spec?: string | null
   grade_name?: string | null
   stage_name?: string | null
   teeth_count?: number | null
@@ -345,6 +350,14 @@ export interface GenerateStatementBody {
   refund_reason?: string
 }
 
+/** Body for `PUT /statements/{id}/due-date` — updates the statement (and its line-item) due dates + writes history. Requires `update_statements`. */
+export interface UpdateStatementDueDateBody {
+  /** New due date as YYYY-MM-DD */
+  due_date: string
+  /** Optional reason/notes recorded in history */
+  notes?: string
+}
+
 export interface StatementPdfResult {
   pdf_url?: string
   download_url?: string
@@ -545,6 +558,22 @@ export const billingApi = apiSlice.injectEndpoints({
         url: `/statements/${id}/generate-pdf`,
         method: "GET",
       }),
+    }),
+
+    updateStatementDueDate: builder.mutation<
+      { success?: boolean; data?: StatementRecord; message?: string },
+      { id: number; body: UpdateStatementDueDateBody }
+    >({
+      query: ({ id, body }) => ({
+        url: `/statements/${id}/due-date`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Statements", id: "LIST" },
+        { type: "Statements", id: "SUMMARY" },
+        { type: "Statements", id: String(id) },
+      ],
     }),
 
     getBillingStatistics: builder.query<BillingStatistics, BillingListParams | void>({
@@ -910,6 +939,7 @@ export const {
   useSendStatementMutation,
   useGenerateStatementMutation,
   useGenerateStatementPdfMutation,
+  useUpdateStatementDueDateMutation,
   useGetBillingStatisticsQuery,
   useAdvancedBillingSearchMutation,
   useGetBillingInvoiceByIdQuery,
