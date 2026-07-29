@@ -97,6 +97,35 @@ export const useInvitation = () => {
 // Get API base URL from environment variable or use a fallback for development
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api"
 
+/** Prefer API `message`, then field errors in `data`/`errors`, then legacy `error_description`. */
+function getInvitationApiErrorMessage(result: unknown, fallback = "Failed to send invitation."): string {
+  if (!result || typeof result !== "object") return fallback
+  const body = result as Record<string, unknown>
+
+  if (typeof body.message === "string" && body.message.trim()) {
+    return body.message.trim()
+  }
+  if (typeof body.error_description === "string" && body.error_description.trim()) {
+    return body.error_description.trim()
+  }
+
+  const collectFieldMessage = (bag: unknown): string | null => {
+    if (!bag || typeof bag !== "object" || Array.isArray(bag)) return null
+    for (const value of Object.values(bag as Record<string, unknown>)) {
+      if (Array.isArray(value)) {
+        const first = value.find((m) => typeof m === "string" && String(m).trim())
+        if (typeof first === "string") return first.trim()
+      } else if (typeof value === "string" && value.trim()) {
+        return value.trim()
+      }
+    }
+    return null
+  }
+
+  // On error responses, Laravel may put field messages in `data` or `errors`
+  return collectFieldMessage(body.data) || collectFieldMessage(body.errors) || fallback
+}
+
 export const InvitationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [offices, setOffices] = useState<Entity[]>([])
   const [labs, setLabs] = useState<Entity[]>([])
@@ -333,45 +362,19 @@ export const InvitationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (handleUnauthorized(response)) return false
 
         const result = await response.json()
-        if (!response.ok) {
-          if (
-            response.status === 422 &&
-            result?.error_description ===
-              "An invitation has already been sent to this email by the same inviter."
-          ) {
-            toast({
-              title: "Duplicate Invitation",
-              description: result.error_description,
-              variant: "destructive",
-            })
-            setAnimationType("error")
-            setError(result.error_description)
+        if (!response.ok || result?.status === false) {
+          const errorMessage = getInvitationApiErrorMessage(result, "Something went wrong")
+          const isDuplicate =
+            /already been sent/i.test(errorMessage) || response.status === 422
 
-            setError(result.error_description)
-            return false
-          }
-
-          if (result.errors) {
-            Object.entries(result.errors).forEach(([field, messages]: [string, any]) => {
-              if (Array.isArray(messages)) {
-                messages.forEach((message) => {
-                  toast({
-                    title: `Validation Error - ${field}`,
-                    description: message,
-                    variant: "destructive",
-                  })
-                })
-              }
-            })
-          }
           toast({
-            title: "Error",
-            description: result?.error_description || "Something went wrong",
+            title: isDuplicate ? "Duplicate Invitation" : "Error",
+            description: errorMessage,
             variant: "destructive",
           })
 
           setAnimationType("error")
-          setError(result.error_description || "Failed to send invitation.")
+          setError(errorMessage)
           console.error("Error sending invitation:", result)
           return false
         }

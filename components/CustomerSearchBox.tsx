@@ -107,38 +107,39 @@ export function CustomerSearchBox({
 
   const handleSendInvitation = async (customer: Customer, e: React.MouseEvent) => {
     e.stopPropagation()
-  
+
     try {
       const entityType: EntityType =
         type === "Office" ? "Office" :
         type === "Lab" ? "Lab" : "Supplier"
-  
+
       const selectedLocation = JSON.parse(localStorage.getItem("selectedLocation") || "null")
       const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
-  
-      await sendInvitation({
+
+      const success = await sendInvitation({
         name: customer.name,
         email: customer.email,
         invited_by: invitedBy,
         type: entityType,
       })
-  
+
+      if (!success) {
+        // Toast already shows the API error message from invitation context
+        return
+      }
+
       // Invalidate queries to refresh dashboard
       queryClient.invalidateQueries({ queryKey: ["invitations"] })
       queryClient.invalidateQueries({ queryKey: ["connections"] })
 
-      toast({
-        title: "Invitation Sent",
-        description: `Invitation sent to ${customer.name}`,
-      })
       if (onInviteSuccess) {
         onInviteSuccess(customer)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending invitation:", error)
       toast({
         title: "Error",
-        description: `Failed to send invitation. Please try again.`,
+        description: error?.message || "Failed to send invitation. Please try again.",
         variant: "destructive",
       })
     }
