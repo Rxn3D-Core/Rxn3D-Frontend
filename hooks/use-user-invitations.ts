@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import type { AuthData } from "@/hooks/use-login"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -153,13 +154,114 @@ export interface AcceptUserInvitationPayload {
   signature?: string
 }
 
+export interface AcceptUserInvitationAuth {
+  access_token: string
+  token_type: string
+  expires_in: number
+  user: AuthData["user"]
+}
+
+export interface AcceptUserInvitationResponse {
+  message: string
+  data: {
+    user?: Record<string, unknown> & {
+      customers?: AuthData["user"]["customers"]
+      customer_users?: Array<{
+        customer_id: number
+        role?: string | { id?: number; name?: string }
+      }>
+    }
+    auth?: AcceptUserInvitationAuth
+  }
+}
+
+function extractRoleName(role: unknown): string | undefined {
+  if (typeof role === "string" && role) return role
+  if (role && typeof role === "object" && "name" in role) {
+    const name = (role as { name?: unknown }).name
+    return typeof name === "string" && name ? name : undefined
+  }
+  return undefined
+}
+
+/**
+ * Build AuthData for setAuthFromData from the accept-invitation response.
+ * Backend returns auth.user (token/roles/permissions) plus data.user (customers).
+ */
+export function buildAuthDataFromInvitationAccept(
+  response: AcceptUserInvitationResponse,
+  existingUser?: { customers?: AuthData["user"]["customers"] } | null,
+): AuthData | null {
+  const auth = response?.data?.auth
+  if (!auth?.access_token || !auth?.user) return null
+
+  const profileUser = response.data.user
+  const customerUsers = profileUser?.customer_users
+  const authCustomers = auth.user.customers
+  const profileCustomers = profileUser?.customers
+  const existingCustomers = existingUser?.customers
+
+  const withRoles = (
+    list: NonNullable<AuthData["user"]["customers"]>,
+  ): NonNullable<AuthData["user"]["customers"]> =>
+    list.map((customer) => {
+      if (customer.role) return customer
+      const match = customerUsers?.find((cu) => cu.customer_id === customer.id)
+      const roleName = extractRoleName(match?.role)
+      return roleName ? { ...customer, role: roleName } : customer
+    })
+
+  let customers: NonNullable<AuthData["user"]["customers"]> = []
+  if (Array.isArray(authCustomers) && authCustomers.length > 0) {
+    customers = withRoles(authCustomers)
+  } else if (Array.isArray(profileCustomers) && profileCustomers.length > 0) {
+    customers = withRoles(profileCustomers)
+  } else if (Array.isArray(existingCustomers) && existingCustomers.length > 0) {
+    customers = withRoles([...existingCustomers])
+  }
+
+  // Existing multi-profile users: keep prior customers and add any newly linked ones
+  if (
+    Array.isArray(existingCustomers) &&
+    existingCustomers.length > 0 &&
+    Array.isArray(profileCustomers) &&
+    profileCustomers.length > 0
+  ) {
+    const byId = new Map(withRoles([...existingCustomers]).map((c) => [c.id, c]))
+    for (const profileCustomer of withRoles(profileCustomers)) {
+      byId.set(profileCustomer.id, { ...byId.get(profileCustomer.id), ...profileCustomer })
+    }
+    customers = Array.from(byId.values())
+  }
+
+  const topLevelPermissions = (auth as { permissions?: unknown }).permissions
+  const permissions =
+    (Array.isArray(topLevelPermissions) ? topLevelPermissions : null) ||
+    auth.user.permissions ||
+    []
+
+  return {
+    access_token: auth.access_token,
+    token_type: auth.token_type,
+    expires_in: auth.expires_in,
+    permissions,
+    user: {
+      ...auth.user,
+      customers,
+      customer_id: auth.user.customer_id || customers[0]?.id,
+      roles: auth.user.roles || (auth.user.role ? [auth.user.role] : undefined),
+      permissions: auth.user.permissions || permissions,
+    },
+  }
+}
+
 // Accept a user invitation by token.
 // New / Invited users: no auth. Existing ACTIVE users (requires_login): pass the Bearer token.
 export const acceptUserInvitation = async (
   token: string,
   payload: AcceptUserInvitationPayload = {},
   authToken?: string | null,
-): Promise<{ message: string; data: any }> => {
+): Promise<AcceptUserInvitationResponse> => {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   }
