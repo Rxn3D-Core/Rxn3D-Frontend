@@ -979,6 +979,7 @@ export default function SubscriptionsPage() {
     priceText = `$${Number(fee).toLocaleString()} / month`
   }
 
+  // Plan allotment (shown on Current plan card) — does not include add-ons/credits.
   const slipCapacity =
     billingUsage?.slip_capacity ||
     getSlipCapacity(currentPlanDetails ?? billingProfile?.plan) ||
@@ -992,11 +993,15 @@ export default function SubscriptionsPage() {
     billingProfile?.plan?.feature_limits?.max_user_seats
 
   const usageCount = billingUsage?.slip_count ?? billingProfile?.usage_count ?? 0
-  const usagePercent =
-    slipCapacity > 0 ? Math.min((usageCount / slipCapacity) * 100, 100) : 0
   const remainingSlips =
     billingUsage?.remaining_slips ??
     (slipCapacity > 0 ? Math.max(slipCapacity - usageCount, 0) : null)
+  // Usage counter denominator: total available this period (used + remaining),
+  // so add-ons/extra capacity stay consistent with the "remaining" line.
+  const usageLimit =
+    remainingSlips != null ? usageCount + remainingSlips : slipCapacity
+  const usagePercent =
+    usageLimit > 0 ? Math.min((usageCount / usageLimit) * 100, 100) : 0
   const creditUsed = billingUsage?.credit_used ?? 0
   const overageCount = billingUsage?.overage_count ?? 0
   const usagePeriodLabel =
@@ -1090,7 +1095,7 @@ export default function SubscriptionsPage() {
 
           <OverviewCard
             title="Usage"
-            hint={`Slips created in the current billing period${usagePeriodLabel ? ` (${usagePeriodLabel})` : ""}. ${slipCapacity > 0 ? `${usageCount.toLocaleString()} of ${slipCapacity.toLocaleString()} used.` : "Unlimited plan — no monthly slip cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
+            hint={`Slips created in the current billing period${usagePeriodLabel ? ` (${usagePeriodLabel})` : ""}. ${usageLimit > 0 ? `${usageCount.toLocaleString()} of ${usageLimit.toLocaleString()} available used.` : "Unlimited plan — no monthly slip cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
             action={
               <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="w-full sm:w-[210px]">
                 Explore Add-ons
@@ -1100,13 +1105,13 @@ export default function SubscriptionsPage() {
             <div className="space-y-3">
               <div className="space-y-0.5">
                 <h2 className="text-[26px] font-bold leading-none tracking-[-0.02em] text-black">
-                  {slipCapacity > 0
-                    ? `${usageCount.toLocaleString()} / ${slipCapacity.toLocaleString()}`
+                  {usageLimit > 0
+                    ? `${usageCount.toLocaleString()} / ${usageLimit.toLocaleString()}`
                     : usageCount.toLocaleString()}
                 </h2>
                 <div className="space-y-0.5 text-[13px] leading-6 tracking-[-0.02em] text-black">
                   <p>
-                    {slipCapacity > 0
+                    {usageLimit > 0
                       ? `${usagePercent.toFixed(1)}% used`
                       : "Unlimited plan"}
                     {remainingSlips != null ? ` · ${remainingSlips.toLocaleString()} remaining` : ""}
@@ -1126,7 +1131,7 @@ export default function SubscriptionsPage() {
                 </div>
               </div>
               <div className="h-[5px] w-full rounded-full bg-[#EAEAEB]">
-                {slipCapacity > 0 && (
+                {usageLimit > 0 && (
                   <div
                     className="h-[5px] rounded-full transition-all duration-500"
                     style={{
