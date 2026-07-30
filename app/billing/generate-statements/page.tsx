@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Check, Download, Eye, Loader2, Mail, Pencil, Printer, Search, Send } from "lucide-react"
 import {
   DialogClose,
@@ -19,9 +20,11 @@ import {
   useListStatementsQuery,
   useSendStatementMutation,
   useUpdateStatementDueDateMutation,
+  useUpdateStatementStatusMutation,
   type BillingProduct,
   type StatementListParams,
   type StatementBillingItem,
+  type StatementPaymentStatus,
   type StatementRecord,
 } from "@/lib/redux/api/billingApi"
 import { useToast } from "@/hooks/use-toast"
@@ -36,6 +39,8 @@ import {
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
 import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
+import { useConnectedOffices } from "@/hooks/use-connected-offices"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { buildStatementPreviewRoute } from "./preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
@@ -60,6 +65,23 @@ function formatShortDate(value: string | null | undefined): string {
   })
 }
 
+/**
+ * Mirrors lab case-listing overdue styling (`V3CaseTable.dueDateTextColor`):
+ * due date before local today, excluding settled/paid rows (analogue of delivered).
+ * Uses the same local-day parser as slip listing (`parseSlipListingDueDate`).
+ */
+function isStatementDueDateOverdue(
+  dueDate: string | null | undefined,
+  paymentStatus: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if ((paymentStatus ?? "").toLowerCase() === "paid") return false
+  const due = dueDate ? parseSlipListingDueDate(dueDate) : null
+  if (!due) return false
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return due.getTime() < today.getTime()
+}
+
 function toTitleCase(value: string | null | undefined): string {
   if (!value) return "—"
   return value.charAt(0).toUpperCase() + value.slice(1)
@@ -78,6 +100,16 @@ function toDateInputValue(value: string | null | undefined): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+/** Payment statuses selectable in the PAYMENT column (matches `PUT /statements/{id}/status`). */
+const STATEMENT_PAYMENT_STATUS_OPTIONS: StatementPaymentStatus[] = [
+  "sent",
+  "billed",
+  "paid",
+  "overdue",
+  "disputed",
+  "refunded",
+]
+
 function getStatusColor(status: string | null | undefined): string {
   switch ((status ?? "").toLowerCase()) {
     case "overdue":
@@ -95,6 +127,22 @@ function getStatusColor(status: string | null | undefined): string {
     default:
       return "bg-gray-100 text-gray-800"
   }
+}
+
+function normalizePaymentStatus(status: string | null | undefined): StatementPaymentStatus | "" {
+  const normalized = (status ?? "").toLowerCase()
+  return STATEMENT_PAYMENT_STATUS_OPTIONS.includes(normalized as StatementPaymentStatus)
+    ? (normalized as StatementPaymentStatus)
+    : ""
+}
+
+function getMutationErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  if (error && typeof error === "object" && "data" in error) {
+    const data = (error as { data?: { message?: string } }).data
+    if (data?.message) return data.message
+  }
+  return fallback
 }
 
 function getDirectionLabel(direction: string | null | undefined): string {
@@ -282,17 +330,20 @@ async function fetchAuthorizedBlob(pathOrUrl: string): Promise<Blob> {
 export default function GenerateStatementsPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [dateRangeInput, setDateRangeInput] = useState("")
   const [directionFilter, setDirectionFilter] = useState("")
+  const [officeFilter, setOfficeFilter] = useState("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("")
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<SortKey>("created_at")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
   const [previewStatement, setPreviewStatement] = useState<StatementRecord | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -308,10 +359,14 @@ export default function GenerateStatementsPage() {
     return () => window.clearTimeout(timer)
   }, [searchInput])
 
+  const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
+  })
+
   // Reset to the first page whenever the active filters or sort change.
   useEffect(() => {
     setPage(1)
-  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter, sortBy, sortDir])
+  }, [dateRangeInput, debouncedSearch, directionFilter, officeFilter, paymentStatusFilter, sortBy, sortDir])
 
   const handleSort = (key: SortKey) => {
     if (sortBy === key) {
@@ -338,6 +393,11 @@ export default function GenerateStatementsPage() {
       params.direction = directionFilter as StatementListParams["direction"]
     }
 
+    if (officeFilter) {
+      const officeId = Number.parseInt(officeFilter, 10)
+      if (!Number.isNaN(officeId)) params.office_id = officeId
+    }
+
     if (paymentStatusFilter) {
       params.payment_status = paymentStatusFilter as StatementListParams["payment_status"]
     }
@@ -346,7 +406,7 @@ export default function GenerateStatementsPage() {
       ...params,
       ...parseDateRangeInput(dateRangeInput),
     }
-  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter, page, sortBy, sortDir])
+  }, [dateRangeInput, debouncedSearch, directionFilter, officeFilter, paymentStatusFilter, page, sortBy, sortDir])
 
   const {
     data: listResult,
@@ -374,6 +434,7 @@ export default function GenerateStatementsPage() {
   const [generateStatementPdf] = useGenerateStatementPdfMutation()
   const [updateBillingInvoicePricing] = useUpdateBillingInvoicePricingMutation()
   const [updateStatementDueDate, { isLoading: savingDueDate }] = useUpdateStatementDueDateMutation()
+  const [updateStatementStatus] = useUpdateStatementStatusMutation()
 
   const officeInvoiceParams = useMemo(
     () => ({
@@ -801,6 +862,39 @@ export default function GenerateStatementsPage() {
     }
   }
 
+  const handlePaymentStatusChange = async (
+    statement: StatementRecord,
+    nextStatus: string,
+  ) => {
+    const status = nextStatus as StatementPaymentStatus
+    if (!STATEMENT_PAYMENT_STATUS_OPTIONS.includes(status)) return
+
+    const current = normalizePaymentStatus(statement.payment_status ?? statement.status)
+    if (current === status) return
+
+    setUpdatingPaymentId(statement.id)
+    try {
+      await updateStatementStatus({
+        id: statement.id,
+        body: { status },
+      }).unwrap()
+      // Dashboard outstanding balance uses React Query (`dashboard-stats`), not RTK tags.
+      void queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+      toast({
+        title: "Payment status updated",
+        description: `Marked as ${toTitleCase(status)}.`,
+      })
+    } catch (statusError) {
+      toast({
+        title: "Unable to update payment status",
+        description: getMutationErrorMessage(statusError, "Please try again."),
+        variant: "destructive",
+      })
+    } finally {
+      setUpdatingPaymentId(null)
+    }
+  }
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
@@ -873,6 +967,22 @@ export default function GenerateStatementsPage() {
                 <option value="">Select Direction</option>
                 <option value="outgoing">Outgoing</option>
                 <option value="incoming">Incoming</option>
+              </select>
+
+              <select
+                value={officeFilter}
+                onChange={(event) => setOfficeFilter(event.target.value)}
+                disabled={officesLoading}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60"
+              >
+                <option value="">
+                  {officesLoading ? "Loading offices…" : "Select Office"}
+                </option>
+                {officesAsLabs.map((office) => (
+                  <option key={office.id} value={String(office.id)}>
+                    {office.name}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -1312,6 +1422,10 @@ export default function GenerateStatementsPage() {
                   const statementId = String(statement.id)
                   const paymentStatus = statement.payment_status ?? statement.status
                   const totals = resolveStatementTotals(statement)
+                  const dueDateOverdue = isStatementDueDateOverdue(
+                    statement.due_date,
+                    paymentStatus,
+                  )
                   return (
                     <tr key={statement.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1337,9 +1451,7 @@ export default function GenerateStatementsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <span
                           className={
-                            (paymentStatus ?? "").toLowerCase() === "overdue"
-                              ? "text-red-600 font-medium"
-                              : ""
+                            dueDateOverdue ? "text-red-600 font-medium" : undefined
                           }
                         >
                           {formatShortDate(statement.due_date)}
@@ -1360,11 +1472,29 @@ export default function GenerateStatementsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(paymentStatus)}`}
-                        >
-                          {toTitleCase(paymentStatus)}
-                        </span>
+                        <div className="relative inline-flex items-center gap-1.5">
+                          <select
+                            value={normalizePaymentStatus(paymentStatus)}
+                            onChange={(event) =>
+                              void handlePaymentStatusChange(statement, event.target.value)
+                            }
+                            disabled={updatingPaymentId === statement.id}
+                            aria-label={`Payment status for ${statement.statement_id || statement.id}`}
+                            className={`px-2 py-1 text-xs font-medium rounded-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:cursor-wait ${getStatusColor(paymentStatus)}`}
+                          >
+                            {!normalizePaymentStatus(paymentStatus) ? (
+                              <option value="">—</option>
+                            ) : null}
+                            {STATEMENT_PAYMENT_STATUS_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {toTitleCase(option)}
+                              </option>
+                            ))}
+                          </select>
+                          {updatingPaymentId === statement.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" />
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">

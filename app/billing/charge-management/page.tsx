@@ -826,6 +826,12 @@ export default function ChargeManagementPage() {
     return selectedChargeRows.length > 0 && selectedChargeRows.every((charge) => charge.status.toLowerCase() === "checked")
   }, [charges, selectedItems])
 
+  const selectedChargesAllRefunded = useMemo(() => {
+    if (selectedItems.length === 0) return false
+    const selectedChargeRows = charges.filter((charge) => selectedItems.includes(charge.id))
+    return selectedChargeRows.length > 0 && selectedChargeRows.every((charge) => isRefundLikeStatus(charge.status))
+  }, [charges, selectedItems])
+
   const selectedGrossTotal = useMemo(() => {
     return charges
       .filter((charge) => selectedItems.includes(charge.id))
@@ -2131,11 +2137,17 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled}
-                title="Mark selected line(s) as refunded. These amounts will be deducted from future statements."
-                onClick={() => void handleBulk("mark_refund")}
+                title={
+                  selectedChargesAllRefunded
+                    ? "Remove refund status from selected lines and move them back to “Pending”."
+                    : "Mark selected line(s) as refunded. These amounts will be deducted from future statements."
+                }
+                onClick={() => void handleBulk(selectedChargesAllRefunded ? "mark_pending" : "mark_refund")}
               >
-                <CheckCircle className="h-4 w-4" />
-                {t("chargeManagement.markRefund", { defaultValue: "Mark as Refund" })}
+                {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                {selectedChargesAllRefunded
+                  ? t("chargeManagement.removeRefund", { defaultValue: "Remove Refund" })
+                  : t("chargeManagement.markRefund", { defaultValue: "Mark as Refund" })}
               </Button>
               <p className="w-full text-xs text-gray-500">
                 {selectedStatementOfficeSummary.officeCount <= 1
@@ -2159,48 +2171,48 @@ export default function ChargeManagementPage() {
         )}
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <Table>
+          <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-b border-gray-200 bg-gray-50/80 hover:bg-gray-50/80">
-                <TableHead className="w-12 py-3">
+                <TableHead className="w-8 px-1.5 py-2">
                   <Checkbox
                     checked={charges.length > 0 && selectedItems.length === charges.length}
                     onCheckedChange={toggleSelectAll}
                     disabled={charges.length === 0}
                   />
                 </TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Office Code</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Patient</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">U/L</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Product</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Grade</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Stage</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Add-on(s) with quantity (e.g. Crown x2).">Add-on</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Office Code</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Patient</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">U/L</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Product</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Grade</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Stage</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Add-on(s) with quantity (e.g. Crown x2).">Add-on</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Rush fee percentage.">R%</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Final calculated charge. Editing this does not auto-update other values.">
                   Gross
                   {selectedItems.length > 0 && (
-                    <div className="mt-0.5 text-sm font-bold text-black">{formatMoney(selectedGrossTotal)}</div>
+                    <div className="mt-0.5 text-[11px] font-bold text-black tabular-nums">{formatMoney(selectedGrossTotal)}</div>
                   )}
                 </TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Due Date</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Status</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Actions</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Due Date</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Status</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={15} className="py-12 text-center text-sm text-gray-500">
+                  <TableCell colSpan={15} className="px-1.5 py-8 text-center text-xs text-gray-500">
                     Loading charges…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && charges.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={15} className="py-12 text-center text-sm text-gray-500">
+                  <TableCell colSpan={15} className="px-1.5 py-8 text-center text-xs text-gray-500">
                     No charges match your filters.
                   </TableCell>
                 </TableRow>
@@ -2217,56 +2229,56 @@ export default function ChargeManagementPage() {
                         : index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
                     }`}
                   >
-                    <TableCell className="py-3">
+                    <TableCell className="px-1.5 py-1.5">
                       <Checkbox
                         checked={selectedItems.includes(charge.id)}
                         onCheckedChange={() => toggleSelectItem(charge.id)}
                       />
                     </TableCell>
-                    <TableCell className="py-3 text-sm font-medium text-gray-900">{charge.officeCode}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.patient}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.ul}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
-                      <div>{charge.product}</div>
+                    <TableCell className="px-1.5 py-1.5 text-xs font-medium text-gray-900 whitespace-nowrap">{charge.officeCode}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.patient}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 text-center whitespace-nowrap">{charge.ul}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 max-w-[9rem]">
+                      <div className="leading-snug">{charge.product}</div>
                       {charge.variation && charge.variation !== "—" && (
-                        <div className="text-xs text-gray-500">{charge.variation}</div>
+                        <div className="text-[10px] leading-snug text-gray-500">{charge.variation}</div>
                       )}
                     </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.grade}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.stage}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.baseTotal}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.grade}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.stage}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 tabular-nums whitespace-nowrap">{charge.baseTotal}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 max-w-[7rem]">
                       {charge.addOn.split("\n").map((line, i) => (
-                        <div key={i}>{line}</div>
+                        <div key={i} className="leading-snug">{line}</div>
                       ))}
                     </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 tabular-nums whitespace-nowrap">
                       {charge.subTotal.split("\n").map((line, i) => (
                         <div key={i}>{line}</div>
                       ))}
                     </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.rPercent}</TableCell>
-                    <TableCell className="py-3 text-sm font-medium text-gray-900">{charge.gross}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.dueDate}</TableCell>
-                    <TableCell className="py-3">
-                      <Badge className={getStatusColor(charge.status)}>{charge.status}</Badge>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 text-center whitespace-nowrap">{charge.rPercent}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs font-medium text-gray-900 tabular-nums whitespace-nowrap">{charge.gross}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.dueDate}</TableCell>
+                    <TableCell className="px-1.5 py-1.5">
+                      <Badge className={`text-[10px] px-1.5 py-0 ${getStatusColor(charge.status)}`}>{charge.status}</Badge>
                     </TableCell>
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-0.5">
+                    <TableCell className="px-1 py-1.5">
+                      <div className="flex items-center gap-0">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-gray-700 hover:text-gray-900"
+                          className="h-7 w-7 text-gray-700 hover:text-gray-900"
                           type="button"
                           title={t("chargeManagement.editInvoice", { defaultValue: "Edit invoice pricing" })}
                           onClick={() => setEditInvoiceId(charge.billingInvoiceId)}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={`h-8 w-8 disabled:opacity-50 ${
+                          className={`h-7 w-7 disabled:opacity-50 ${
                             charge.status.toLowerCase() === "checked"
                               ? "text-green-600 hover:text-green-700"
                               : "text-gray-400 hover:text-gray-500"
@@ -2284,15 +2296,15 @@ export default function ChargeManagementPage() {
                           onClick={() => void handleMarkCheckedForRow(charge)}
                         >
                           {markingCheckedChargeId === charge.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <Check className="h-4 w-4" />
+                            <Check className="h-3.5 w-3.5" />
                           )}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-amber-700 hover:text-amber-900 disabled:opacity-50"
+                          className="h-7 w-7 text-amber-700 hover:text-amber-900 disabled:opacity-50"
                           type="button"
                           disabled={
                             !charge.slipId ||
@@ -2304,41 +2316,41 @@ export default function ChargeManagementPage() {
                           onClick={() => void handleRegenerateInvoice(charge)}
                         >
                           {regenerateInvoiceLoading && regeneratingSlipId === charge.slipId ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <RotateCcw className="h-4 w-4" />
+                            <RotateCcw className="h-3.5 w-3.5" />
                           )}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-blue-600 hover:text-blue-800"
+                          className="h-7 w-7 text-blue-600 hover:text-blue-800"
                           type="button"
                           disabled={!charge.slipId}
                           title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
                           onClick={() => router.push(buildVirtualSlipV2Path(charge.slipId))}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-amber-600 hover:text-amber-800"
+                          className="h-7 w-7 text-amber-600 hover:text-amber-800"
                           type="button"
                           title={t("chargeManagement.viewInvoice", { defaultValue: "View invoice" })}
                           onClick={() => void handleViewInvoicePdf(charge)}
                         >
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-blue-600 hover:text-blue-800"
+                          className="h-7 w-7 text-blue-600 hover:text-blue-800"
                           type="button"
                           title={t("chargeManagement.downloadInvoicePdf", { defaultValue: "Download invoice PDF" })}
                           onClick={() => void handleDownloadPdf(charge.billingInvoiceId, charge)}
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -2348,10 +2360,10 @@ export default function ChargeManagementPage() {
             {allChargesSelected && (
               <TableFooter>
                 <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                  <TableCell colSpan={12} className="py-3 text-right text-base font-bold text-black">
+                  <TableCell colSpan={12} className="px-1.5 py-2 text-right text-xs font-bold text-black">
                     Total:
                   </TableCell>
-                  <TableCell className="py-3 text-base font-bold text-black">
+                  <TableCell className="px-1.5 py-2 text-xs font-bold text-black tabular-nums">
                     {formatMoney(selectedGrossTotal)}
                   </TableCell>
                   <TableCell colSpan={3} />

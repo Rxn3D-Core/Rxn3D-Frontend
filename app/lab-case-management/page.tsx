@@ -50,7 +50,7 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "./components/V3CaseWidget"
@@ -144,7 +144,7 @@ function normalizeStatusFilterValue(status: string): string {
 export default function LabSlipV3Page() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint()
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
 
   const [search, setSearch] = useState("")

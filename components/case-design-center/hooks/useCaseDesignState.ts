@@ -2534,7 +2534,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
     if (!isGuidedArchInteractive("maxillary")) return;
     if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
     if (implantOnlySelectionModeFor("maxillary")) {
-      if (teeth.maxillaryTeeth.includes(toothNumber)) {
+      // Toggle by Implant retention — not maxillaryTeeth membership — so default-chart
+      // product teeth (TIM/extraction rows) stay selected without being treated as implants.
+      const hasImplant = !!teeth.maxillaryRetentionTypes[toothNumber]?.includes("Implant");
+      if (hasImplant) {
         handleMaxillaryToothDeselect(toothNumber);
       } else {
         teeth.setMaxillaryTeeth((prev) =>
@@ -2560,7 +2563,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
     if (!isGuidedArchInteractive("mandibular")) return;
     if (!canModifyToothForActiveProduct("mandibular", toothNumber)) return;
     if (implantOnlySelectionModeFor("mandibular")) {
-      if (teeth.mandibularTeeth.includes(toothNumber)) {
+      // Toggle by Implant retention — not mandibularTeeth membership — so default-chart
+      // product teeth (TIM/extraction rows) stay selected without being treated as implants.
+      const hasImplant = !!teeth.mandibularRetentionTypes[toothNumber]?.includes("Implant");
+      if (hasImplant) {
         handleMandibularToothDeselect(toothNumber);
       } else {
         teeth.setMandibularTeeth((prev) =>

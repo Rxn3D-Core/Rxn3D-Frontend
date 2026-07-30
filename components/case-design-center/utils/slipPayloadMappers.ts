@@ -24,6 +24,11 @@ import {
 } from "./retentionMechanismTypes";
 import type { RetentionOptionItem } from "@/components/retention-type-popover";
 import {
+  productAllowsSelectOnlyImplant,
+  productHasDefaultToothChartEnabled,
+  resolveDefaultToothChartPayloadIdsForTooth,
+} from "@/lib/product-default-tooth-chart-slip-display";
+import {
   retentionOptionMatchesChartType,
   type RetentionChartType,
 } from "./retentionOptionChartType.ts";
@@ -402,6 +407,71 @@ function resolveRetentionOptionIdForTooth(
   };
 }
 
+function resolvePayloadRetentionOptionIdForTooth(
+  product: ProductApiData,
+  retentionTypesByTooth: Record<number, string[]>,
+  toothNumber: number,
+): number | undefined {
+  const userTypes = retentionTypesByTooth[toothNumber] ?? []
+  if (userTypes.length > 0) {
+    const fromUser = resolveRetentionOptionIdForTooth(
+      product,
+      retentionTypesByTooth,
+      toothNumber,
+    )
+    if (fromUser.retention_option_id) return fromUser.retention_option_id
+  }
+
+  if (!productHasDefaultToothChartEnabled(product)) return undefined
+
+  const defaultIds = resolveDefaultToothChartPayloadIdsForTooth(product, toothNumber)
+  if (!defaultIds.retention_option_id) return undefined
+
+  const skipDefaultImplant =
+    productAllowsSelectOnlyImplant(product) &&
+    defaultIds.chart_type === "Implant" &&
+    userTypes.length === 0
+  if (skipDefaultImplant) return undefined
+
+  return defaultIds.retention_option_id
+}
+
+function resolvePayloadExtractionIdForTooth(
+  product: ProductApiData,
+  toothNumber: number,
+  toothExtractionMap: Record<number, string>,
+  claspTeeth: number[],
+): number | undefined {
+  const fromState =
+    product.has_extraction === "Yes"
+      ? resolveExtractionIdForTooth(product, toothNumber, toothExtractionMap, claspTeeth)
+      : undefined
+  if (fromState) return fromState
+
+  if (!productHasDefaultToothChartEnabled(product)) return undefined
+  return resolveDefaultToothChartPayloadIdsForTooth(product, toothNumber).extraction_id
+}
+
+function resolvePayloadChartTypeForTooth(
+  product: ProductApiData,
+  retentionTypesByTooth: Record<number, string[]>,
+  toothNumber: number,
+): string | undefined {
+  const userTypes = retentionTypesByTooth[toothNumber] ?? []
+  if (userTypes.length > 0) return userTypes[0]
+
+  if (!productHasDefaultToothChartEnabled(product)) return undefined
+
+  const defaultIds = resolveDefaultToothChartPayloadIdsForTooth(product, toothNumber)
+  const skipDefaultImplant =
+    productAllowsSelectOnlyImplant(product) &&
+    defaultIds.chart_type === "Implant" &&
+    userTypes.length === 0
+  if (skipDefaultImplant) return undefined
+
+  return defaultIds.chart_type
+}
+
 /** Per selected tooth → `teeth_selection[]` rows for slip create API. */
 export function buildTeethSelection(
   product: ProductApiData | null | undefined,
@@ -414,13 +484,27 @@ export function buildTeethSelection(
 
   const out: SlipCreationTeethSelection[] = [];
   for (const toothNumber of [...cardTeeth].sort((a, b) => a - b)) {
-    const { retention_option_id } =
+    const retention_option_id =
       product.has_retention === "Yes"
-        ? resolveRetentionOptionIdForTooth(product, retentionTypesByTooth, toothNumber)
-        : {};
+        ? resolvePayloadRetentionOptionIdForTooth(
+            product,
+            retentionTypesByTooth,
+            toothNumber,
+          )
+        : productHasDefaultToothChartEnabled(product)
+          ? resolveDefaultToothChartPayloadIdsForTooth(product, toothNumber)
+              .retention_option_id
+          : undefined;
+    const extraction_id = resolvePayloadExtractionIdForTooth(
+      product,
+      toothNumber,
+      toothExtractionMap,
+      claspTeeth,
+    );
     out.push({
       teeth_number: toothNumber,
       ...(retention_option_id ? { retention_option_id } : {}),
+      ...(extraction_id ? { extraction_ids: [extraction_id] } : {}),
     });
   }
   return out;
@@ -442,13 +526,18 @@ export function buildToothChart(
   const out: SlipCreationToothChart[] = [];
 
   for (const toothNumber of [...cardTeeth].sort((a, b) => a - b)) {
-    const { chart_type, retention_option_id } = resolveRetentionOptionIdForTooth(
+    const chart_type = resolvePayloadChartTypeForTooth(
       product,
       retentionTypesByTooth,
-      toothNumber
+      toothNumber,
+    );
+    const retention_option_id = resolvePayloadRetentionOptionIdForTooth(
+      product,
+      retentionTypesByTooth,
+      toothNumber,
     );
     const retention_id =
-      product.has_retention === "Yes"
+      product.has_retention === "Yes" && chart_type
         ? resolveRetentionIdForTooth(
             product,
             fieldValues,
@@ -456,15 +545,12 @@ export function buildToothChart(
             toothNumber
           )
         : undefined;
-    const extraction_id =
-      product.has_extraction === "Yes"
-        ? resolveExtractionIdForTooth(
-            product,
-            toothNumber,
-            toothExtractionMap,
-            claspTeeth
-          )
-        : undefined;
+    const extraction_id = resolvePayloadExtractionIdForTooth(
+      product,
+      toothNumber,
+      toothExtractionMap,
+      claspTeeth,
+    );
     const opposite_extraction_id = oppositeByTooth[toothNumber];
 
     out.push({

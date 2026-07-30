@@ -202,6 +202,7 @@ export interface BillingListResult {
 
 export interface StatementListParams {
   search?: string
+  office_id?: number
   office_code?: string
   recipient_email?: string
   statement_id?: string
@@ -356,6 +357,18 @@ export interface UpdateStatementDueDateBody {
   due_date: string
   /** Optional reason/notes recorded in history */
   notes?: string
+}
+
+/** Valid `payment_status` values for statements (matches backend `UpdateStatementStatusRequest`). */
+export type StatementPaymentStatus = "sent" | "billed" | "paid" | "overdue" | "disputed" | "refunded"
+
+/** Body for `PUT /statements/{id}/status` — manual payment status update (no payment gateway). Requires `update_statements`. */
+export interface UpdateStatementStatusBody {
+  status: StatementPaymentStatus
+  notes?: string
+  is_disputed?: boolean
+  dispute_reason?: string
+  dispute_notes?: string
 }
 
 export interface StatementPdfResult {
@@ -573,6 +586,25 @@ export const billingApi = apiSlice.injectEndpoints({
         { type: "Statements", id: "LIST" },
         { type: "Statements", id: "SUMMARY" },
         { type: "Statements", id: String(id) },
+      ],
+    }),
+
+    /** Manual mark paid / change payment status — `PUT /statements/{id}/status` (no payment gateway). */
+    updateStatementStatus: builder.mutation<
+      { success?: boolean; data?: StatementRecord; message?: string },
+      { id: number; body: UpdateStatementStatusBody }
+    >({
+      query: ({ id, body }) => ({
+        url: `/statements/${id}/status`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Statements", id: "LIST" },
+        { type: "Statements", id: "SUMMARY" },
+        { type: "Statements", id: String(id) },
+        { type: "Billing", id: "LIST" },
+        { type: "Billing", id: "STATS" },
       ],
     }),
 
@@ -940,6 +972,7 @@ export const {
   useGenerateStatementMutation,
   useGenerateStatementPdfMutation,
   useUpdateStatementDueDateMutation,
+  useUpdateStatementStatusMutation,
   useGetBillingStatisticsQuery,
   useAdvancedBillingSearchMutation,
   useGetBillingInvoiceByIdQuery,

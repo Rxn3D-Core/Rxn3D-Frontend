@@ -29,6 +29,8 @@ import {
   buildSlipLevelNotes,
   clearProductNotesWhenUsingCaseSummary,
 } from "./caseSummaryNotesPayload";
+import { mergeDefaultToothChartIntoSlipPayloadMaps } from "@/lib/product-default-tooth-chart-slip-display";
+import type { RetentionChartType } from "./retentionOptionChartType";
 
 interface BuildCaseSubmissionPayloadParams {
   snapshots: SlipProductSnapshot[];
@@ -372,9 +374,22 @@ export function snapshotToProduct(
       ? [...snap.allCardTeeth].sort((a, b) => a - b)
       : productTeeth;
 
-  const retentionTypesByTooth = snap.retentionTypesByTooth ?? {};
-  const toothExtractionMap = snap.toothExtractionMap ?? {};
-  const claspTeeth = snap.claspTeeth ?? [];
+  const mergedChartMaps = mergeDefaultToothChartIntoSlipPayloadMaps(
+    product,
+    snapArch,
+    {
+      retentionTypesByTooth: (snap.retentionTypesByTooth ?? {}) as Record<
+        number,
+        RetentionChartType[]
+      >,
+      toothExtractionMap: snap.toothExtractionMap ?? {},
+      claspTeeth: snap.claspTeeth ?? [],
+      teeth: [...new Set([...productTeeth, ...extractionScopeTeeth])],
+    },
+  );
+  const retentionTypesByTooth = mergedChartMaps.retentionTypesByTooth;
+  const toothExtractionMap = mergedChartMaps.toothExtractionMap;
+  const claspTeeth = mergedChartMaps.claspTeeth;
 
   const extractions = buildProductExtractions(
     product,
