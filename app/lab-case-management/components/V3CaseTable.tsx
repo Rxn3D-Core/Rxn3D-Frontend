@@ -258,7 +258,9 @@ export function V3CaseTable(props: Props) {
 
                     {/* LOCATION */}
                     {row.location && (() => {
-                      const mobileLocationAction = !officeProfile
+                      const mobileLocationAction = row.newStageEligible
+                        ? "addStage"
+                        : !officeProfile
                         ? isReadyToSendLocation(row)
                           ? "readyToSend"
                           : isPickupDropoffLocation(row)
@@ -268,7 +270,7 @@ export function V3CaseTable(props: Props) {
                       const locationInner = (
                         <>
                           <img
-                            src={mobileLocationIcon(row.locationId)}
+                            src={mobileLocationIcon(row)}
                             alt=""
                             className="shrink-0"
                             style={{ width: 29, height: 22, objectFit: "contain" }}
@@ -311,10 +313,12 @@ export function V3CaseTable(props: Props) {
                           type="button"
                           className="flex w-full flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
                           style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
-                          title={mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
+                          title={mobileLocationAction === "addStage" ? "Add stage" : mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
                           onClick={(e) => {
                             e.stopPropagation()
-                            mobileLocationAction === "readyToSend"
+                            mobileLocationAction === "addStage"
+                              ? props.rowActions.onAddStage(row)
+                              : mobileLocationAction === "readyToSend"
                               ? props.rowActions.onReadyToSend(row)
                               : props.rowActions.onDriverHistory(row)
                           }}
@@ -573,19 +577,21 @@ function DesktopCell({
   if (column.key === "location") {
     // Office profiles run neither ready to send nor pick up / drop off, so the
     // location label stays plain text for them rather than opening a modal.
-    const locationAction = allowDriverActions
-      ? isReadyToSendLocation(row)
-        ? "readyToSend"
-        : isPickupDropoffLocation(row)
-          ? "driverHistory"
-          : null
-      : null
+    const locationAction = row.newStageEligible
+      ? "addStage"
+      : allowDriverActions
+        ? isReadyToSendLocation(row)
+          ? "readyToSend"
+          : isPickupDropoffLocation(row)
+            ? "driverHistory"
+            : null
+        : null
 
     if (!locationAction) {
       return (
         <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
           <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-            {locationIcon(row.locationId)}
+            {locationIcon(row)}
             <span className="whitespace-nowrap" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>
               {row.location || "Unknown"}
             </span>
@@ -600,16 +606,18 @@ function DesktopCell({
           <button
             className="inline-flex items-center gap-2.5 whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
             style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-            title={locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
+            title={locationAction === "addStage" ? "Add stage" : locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              locationAction === "readyToSend"
+              locationAction === "addStage"
+                ? rowActions.onAddStage(row)
+                : locationAction === "readyToSend"
                 ? rowActions.onReadyToSend(row)
                 : rowActions.onDriverHistory(row)
             }}
           >
-            {locationIcon(row.locationId)}
+            {locationIcon(row)}
             <span>{row.location || "Unknown"}</span>
           </button>
         </div>
@@ -690,7 +698,9 @@ function StatusPill({ status }: { status: string }) {
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
 }
 
-function mobileLocationIcon(locationId?: number): string {
+function mobileLocationIcon(row: V2CaseRowData): string {
+  if (row.newStageEligible) return `${VS}/add-stage.svg`
+  const locationId = row.locationId
   if (locationId === 1 || locationId === 4) return `${VS}/pick-up.svg`
   if (locationId === 2 || locationId === 5) return `${VS}/drop-off.svg`
   if (locationId === 3) return `/images/paper-airplane.svg`
@@ -698,7 +708,9 @@ function mobileLocationIcon(locationId?: number): string {
   return `${VS}/pick-up.svg`
 }
 
-function locationIcon(locationId?: number) {
+function locationIcon(row: V2CaseRowData) {
+  if (row.newStageEligible) return <img src={`${VS}/add-stage.svg`} style={{ width: 28, height: 28, objectFit: "contain" as const }} aria-hidden alt="" />
+  const locationId = row.locationId
   const imgProps = { style: { width: 28, height: 28, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
   if (locationId === 1 || locationId === 4) return <img src={`${VS}/pick-up.svg`} {...imgProps} />
   if (locationId === 2 || locationId === 5) return <img src={`${VS}/drop-off.svg`} {...imgProps} />

@@ -1073,6 +1073,7 @@ export default function LabSlipPage() {
             onChangeDueDate: handleDateIconClick,
             onDriverHistory: handleLocationIconClick,
             onReadyToSend: handleOpenReadyToSend,
+            onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
             onSendBack: handleOpenSendBackToOffice,
             onRush: handleOpenRushCase,
             onCancel: handleOpenCancelCase,

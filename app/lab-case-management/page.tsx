@@ -851,6 +851,7 @@ export default function LabSlipV3Page() {
             onChangeDueDate: (slip) => { setSelectedSlipForDateChange(slip); setShowChangeDateModal(true) },
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
             onReadyToSend: handleOpenReadyToSend,
+            onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
             onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
             onRush: handleOpenRushCase,
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
