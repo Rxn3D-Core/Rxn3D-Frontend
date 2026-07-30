@@ -18,6 +18,7 @@ import type {
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { getRetentionFieldChain } from "../hooks/useToothFieldProgress";
 import { isSingleStageNoStages } from "./categoryHelpers";
+import { getActiveGrades, isGradeStepCompleteForDisplay } from "./gradeHelpers";
 import {
   areFixedProductShadesComplete,
   getFirstMissingShadeGuideField,
@@ -103,6 +104,13 @@ export interface FixedCardGating {
 
   stageVisible: boolean;
   stageEmpty: boolean;
+
+  /**
+   * Product exposes selectable grades AND the grade step is not yet complete. Grade is
+   * not part of the fixed field chain (it renders alongside stage), so the teeth-shade
+   * auto-open must wait on this to keep the order Stage → Grade → Teeth Shade.
+   */
+  gradeIncomplete: boolean;
 
   /** Legacy gum shade picker (fixed_stump_shade slot) should open by itself. */
   gumAutoOpenVisible: boolean;
@@ -282,6 +290,18 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
     !getFieldValue(arch, stageToothNumber, "fixed_stage")?.trim() &&
     !hasSelectedStage;
 
+  // Grade renders (and is required) only when the product carries selectable grades —
+  // the same condition the Grade field itself uses to render. Keyed off the stage tooth
+  // where RetentionProductFields stores the grade. Gate off `getActiveGrades` (not the
+  // has_grade flag) so a flag-only product with no grade list can't deadlock the shade.
+  const gradeIncomplete =
+    getActiveGrades(product?.grades).length > 0 &&
+    !isGradeStepCompleteForDisplay(
+      getFieldValue(arch, stageToothNumber, "grade") ?? "",
+      isFieldCompleted(arch, stageToothNumber, "grade"),
+      product as ProductApiData | null | undefined
+    );
+
   const gumShadePicked =
     !!getSelectedShade(fixedShadeProductId, arch, "stump_shade") || stumpShadeFieldDone;
 
@@ -302,6 +322,7 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
     retentionFieldsVisible,
     stageVisible,
     stageEmpty,
+    gradeIncomplete,
     gumAutoOpenVisible:
       needsStumpShade &&
       !isAnyModalOpen &&

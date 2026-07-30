@@ -298,7 +298,11 @@ function AutoOpenShadeGuideIfEmpty({
     }
     if (!isShadeSectionVisible || hasAutoOpenedRef.current) return;
 
-    const hasNamedShadeFields = firstMissingShadeField !== undefined;
+    // Classic Teeth/Gum-shade products carry no named shade_guide field, so
+    // firstMissingShadeField is null (not undefined). Treat null as "no named field"
+    // and fall back to the classic empties — otherwise teeth shade never auto-opens
+    // after stage for classic fixed products (regressed when named shades were added).
+    const hasNamedShadeFields = firstMissingShadeField != null;
     const shouldOpen = hasNamedShadeFields
       ? firstMissingShadeField != null
       : stumpShadeEmpty || toothShadeEmpty;
@@ -3325,6 +3329,7 @@ export function MandibularPanel({
                                 !getSelectedShade(apFixedShadeProductId, "mandibular", "tooth_shade")
                               }
                               fixedShadesComplete={apFixedShadesComplete}
+                              gradeIncomplete={apGating.gradeIncomplete}
                             />
                           )}
                           {/* Same gate as card 0: the retention "Done" acknowledgement comes
@@ -3352,7 +3357,7 @@ export function MandibularPanel({
                             storageToothNumber={apFirstTn}
                             setShadeSelectionState={setShadeSelectionState}
                             caseSubmitted={caseSubmitted}
-                            skipAutoOpen={apUsesAccordionShadePicker || apFixedShadesComplete}
+                            skipAutoOpen={apUsesAccordionShadePicker || apFixedShadesComplete || apGating.gradeIncomplete}
                           />
                           <AutoOpenGumShade
                             visible={apGating.gumAutoOpenVisible}
@@ -3743,6 +3748,7 @@ export function MandibularPanel({
                           !getSelectedShade(_mandFixedShadeProductId, "mandibular", "tooth_shade")
                         }
                         fixedShadesComplete={fixedShadesComplete}
+                        gradeIncomplete={card0Gating.gradeIncomplete}
                       />
                     )}
                     {card0AutoOpenReady && !isSingleStageNoStages(selectedProduct) && (
@@ -3770,7 +3776,7 @@ export function MandibularPanel({
                           storageToothNumber={groupStageToothNumber}
                           setShadeSelectionState={setShadeSelectionState}
                           caseSubmitted={caseSubmitted}
-                          skipAutoOpen={usesAccordionShadePicker || fixedShadesComplete}
+                          skipAutoOpen={usesAccordionShadePicker || fixedShadesComplete || card0Gating.gradeIncomplete}
                         />
                         <AutoOpenGumShade
                           visible={card0Gating.gumAutoOpenVisible}
