@@ -53,6 +53,9 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
 
   function locationBtn(): { label: string; icon: string; onClick: (e: React.MouseEvent) => void } | null {
     if (!visibility.location) return null
+    if (row.newStageEligible) {
+      return { label: "Add stage", icon: `${VS}/add-stage.svg`, onClick: act(() => actions.onAddStage(row)) }
+    }
     const id = row.locationId
     if (id === 3) return visibility.readyToSend ? { label: "Ready to Send", icon: `/images/paper-airplane.svg`, onClick: act(() => actions.onReadyToSend(row)) } : null
     if (id === 2 || id === 5) return { label: "Drop Off", icon: `${VS}/drop-off.svg`, onClick: act(() => actions.onDriverHistory(row)) }

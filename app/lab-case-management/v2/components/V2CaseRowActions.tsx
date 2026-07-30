@@ -21,7 +21,9 @@ function MonoImg({ src, size = 24, alt = "", color = false }: { src: string; siz
   return <img alt={alt} aria-hidden src={src} style={{ width: size, height: size, filter: color ? undefined : monoFilter, objectFit: "contain" }} />
 }
 
-function locationImg(locationId?: number) {
+function locationImg(row: V2CaseRowData) {
+  if (row.newStageEligible) return <MonoImg src={`${VS}/add-stage.svg`} color />
+  const locationId = row.locationId
   if (locationId === 1 || locationId === 4) return <MonoImg src={`${VS}/pick-up.svg`} />
   if (locationId === 2 || locationId === 5) return <MonoImg src={`${VS}/drop-off.svg`} />
   if (locationId === 3) return <MonoImg src={`${VS}/ready-to-send.svg`} />
@@ -52,8 +54,15 @@ export function V2CaseRowActions({ row, actions, canPrintStatement, canSendBack,
           <MonoImg src={`${SL}/view-virtual-slip.svg`} />
         </button>
       )}
-      <button aria-label="Location" className={btn} title={row.location ?? "Location"} type="button" onClick={(e) => { stop(e); row.locationId === 3 ? actions.onReadyToSend(row) : actions.onDriverHistory(row) }}>
-        {locationImg(row.locationId)}
+      <button aria-label="Location" className={btn} title={row.newStageEligible ? "Add stage" : row.location ?? "Location"} type="button" onClick={(e) => {
+        stop(e)
+        if (row.newStageEligible) {
+          actions.onAddStage(row)
+          return
+        }
+        row.locationId === 3 ? actions.onReadyToSend(row) : actions.onDriverHistory(row)
+      }}>
+        {locationImg(row)}
       </button>
       <Popover open={printOpen} onOpenChange={onPrintOpenChange}>
         <PopoverTrigger asChild>
