@@ -197,7 +197,7 @@ test("buildTeethSelection emits per-tooth rows with optional retention/extractio
   };
   const rows = buildTeethSelection(product, { 8: ["Prep"] }, { 8: "MT" }, [], [8, 9]);
   assert.deepEqual(rows, [
-    { teeth_number: 8, retention_option_id: 55 },
+    { teeth_number: 8, retention_option_id: 55, extraction_ids: [202] },
     { teeth_number: 9 },
   ]);
 });

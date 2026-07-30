@@ -40,7 +40,7 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "@/app/lab-case-management/components/V3CaseWidget"
@@ -137,7 +137,7 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 function OfficeCaseManagementPage() {
   const { toast } = useToast()
   const router = useRouter()
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint()
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
 
   const [search, setSearch] = useState("")
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])

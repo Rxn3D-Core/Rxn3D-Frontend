@@ -52,7 +52,7 @@ import {
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
 import { isOfficeCustomerContext } from "@/lib/role-utils";
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print";
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2";
 import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
@@ -383,7 +383,7 @@ export default function VirtualSlipV2Page() {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
   }, [router, slipId]);
 
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint();
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2();
   const handlePrint = useCallback(() => {
     if (!slipId || isNaN(slipId)) return;
     printPaperSlip([slipId], []);

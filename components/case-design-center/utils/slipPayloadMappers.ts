@@ -418,9 +418,14 @@ export function buildTeethSelection(
       product.has_retention === "Yes"
         ? resolveRetentionOptionIdForTooth(product, retentionTypesByTooth, toothNumber)
         : {};
+    const extraction_id =
+      product.has_extraction === "Yes"
+        ? resolveExtractionIdForTooth(product, toothNumber, toothExtractionMap, claspTeeth)
+        : undefined;
     out.push({
       teeth_number: toothNumber,
       ...(retention_option_id ? { retention_option_id } : {}),
+      ...(extraction_id ? { extraction_ids: [extraction_id] } : {}),
     });
   }
   return out;
