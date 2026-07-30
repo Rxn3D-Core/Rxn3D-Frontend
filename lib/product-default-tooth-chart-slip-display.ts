@@ -260,7 +260,7 @@ export type DefaultToothChartSlipAssignment = {
   retentionTypesByTooth: Record<number, RetentionChartType[]>
   toothExtractionMap: Record<number, string>
   claspTeeth: number[]
-  /** Teeth to bind to the initial product on slip creation. */
+  /** Teeth to bind to the initial product on slip creation (all default-chart rows). */
   productTeeth: number[]
 }
 
@@ -300,8 +300,21 @@ export function resolveDefaultToothChartSlipAssignmentForArch(
 
   const archTeeth = getChartTeethForArch(arch)
 
-  // Select-only-implant: bind only the implant-configured teeth to the product;
-  // extraction/clasp/TIM chart rows stay display-only defaults.
+  // Every tooth configured on the default chart belongs to the product (product box /
+  // teeth_selection), including when select-only-implant is on.
+  const productTeethSet = new Set<number>()
+  for (const tooth of archTeeth) {
+    if (retentionTypesByTooth[tooth]?.length) productTeethSet.add(tooth)
+    if (Object.prototype.hasOwnProperty.call(extractionMap, tooth)) {
+      productTeethSet.add(tooth)
+    }
+    if (claspTeeth.includes(tooth)) productTeethSet.add(tooth)
+    if (timTeeth.includes(tooth)) productTeethSet.add(tooth)
+  }
+  const productTeeth = [...productTeethSet].sort((a, b) => a - b)
+
+  // Select-only-implant: seed only Implant retention into slip state (clicks still
+  // toggle implants only); extraction/clasp/TIM rows stay display-only defaults.
   if (productAllowsSelectOnlyImplant(product)) {
     const implantRetention: Record<number, RetentionChartType[]> = {}
     for (const tooth of archTeeth) {
@@ -313,26 +326,14 @@ export function resolveDefaultToothChartSlipAssignmentForArch(
       retentionTypesByTooth: implantRetention,
       toothExtractionMap: {},
       claspTeeth: [],
-      productTeeth: Object.keys(implantRetention)
-        .map(Number)
-        .sort((a, b) => a - b),
+      productTeeth,
     }
-  }
-
-  const productTeethSet = new Set<number>()
-  for (const tooth of archTeeth) {
-    if (retentionTypesByTooth[tooth]?.length) productTeethSet.add(tooth)
-    if (Object.prototype.hasOwnProperty.call(extractionMap, tooth)) {
-      productTeethSet.add(tooth)
-    }
-    if (claspTeeth.includes(tooth)) productTeethSet.add(tooth)
-    if (timTeeth.includes(tooth)) productTeethSet.add(tooth)
   }
 
   return {
     retentionTypesByTooth,
     toothExtractionMap: extractionMap,
     claspTeeth,
-    productTeeth: [...productTeethSet].sort((a, b) => a - b),
+    productTeeth,
   }
 }

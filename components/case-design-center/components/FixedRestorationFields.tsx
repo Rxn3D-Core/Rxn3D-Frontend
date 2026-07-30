@@ -585,10 +585,10 @@ export function RetentionProductFields({
     shadeSelectionState?.arch === arch &&
     shadeSelectionState?.productId === fixedShadeProductId &&
     shadeSelectionState?.fieldType != null &&
-    // Named guides use the accordion picker; classic Teeth Shade must too — the panel
-    // ShadeSelectionGuide is hidden for accordion-only products and is easy to miss above
-    // the tooth chart for products without named guides.
-    (usesAccordionShadePicker || shadeSelectionState.advanceFieldId == null);
+    // Named advance shade_guide fields use the in-accordion picker.
+    // Classic/general Teeth Shade (has_teeth_shade, no named guides) uses the
+    // panel ShadeSelectionGuide above the chart — not this bottom block.
+    usesAccordionShadePicker;
   const [inlineGumPickerOpen, setInlineGumPickerOpen] = useState(false);
   const shadeEditActiveFieldId =
     isAccordionShadePickerActive && shadeSelectionState?.fillMode === "edit"

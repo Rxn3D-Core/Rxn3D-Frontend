@@ -3513,16 +3513,14 @@ export function MaxillaryPanel({
                   ? `${fixedDays} work day${fixedDays === 1 ? "" : "s"} after submission`
                   : "10 work days after submission";
                 const toothNumbers = teeth.map((t) => t.toothNumber);
-                const variationDisplay = resolveVariationDisplay(selectedProduct, toothNumbers.length);
-                const productName = variationDisplay.name || "Select Product";
-                const productImage =
-                  variationDisplay.imageUrl ||
-                  selectedProduct?.image_url ||
-                  "/placeholder.svg?height=48&width=48&query=dental+crown+tooth";
-                const headerTeeth = toothNumbers.filter(tn => !!maxillaryToothExtractionMap[tn]);
-                // Product tooth numbers include extraction-status teeth assigned to this
-                // product via the combined popover / status boxes — they stay product-
-                // selected (parity with removables), they just have no retention type.
+                // Product box lists every tooth owned by this product (Prep/Pontic/Implant,
+                // extraction-status, and default-tooth-chart TIM/extraction rows).
+                const assignedProductTeeth = MAXILLARY_ALL_TEETH.filter(
+                  (tn) =>
+                    getToothProductCard("maxillary", tn) === 0 &&
+                    selectedProduct?.id != null &&
+                    getToothProduct("maxillary", tn)?.id === selectedProduct.id
+                );
                 const statusTeethForProduct = MAXILLARY_ALL_TEETH.filter(
                   (tn) =>
                     !toothNumbers.includes(tn) &&
@@ -3531,9 +3529,19 @@ export function MaxillaryPanel({
                     selectedProduct?.id != null &&
                     getToothProduct("maxillary", tn)?.id === selectedProduct.id
                 );
-                const displayToothNumbers = [...toothNumbers, ...statusTeethForProduct].sort(
-                  (a, b) => a - b
+                const displayToothNumbers = [
+                  ...new Set([...toothNumbers, ...statusTeethForProduct, ...assignedProductTeeth]),
+                ].sort((a, b) => a - b);
+                const variationDisplay = resolveVariationDisplay(
+                  selectedProduct,
+                  displayToothNumbers.length || toothNumbers.length,
                 );
+                const productName = variationDisplay.name || "Select Product";
+                const productImage =
+                  variationDisplay.imageUrl ||
+                  selectedProduct?.image_url ||
+                  "/placeholder.svg?height=48&width=48&query=dental+crown+tooth";
+                const headerTeeth = toothNumbers.filter(tn => !!maxillaryToothExtractionMap[tn]);
                 const toothNumbersDisplay =
                   displayToothNumbers.length > 0 ? `#${displayToothNumbers.join(",")}` : "";
                 const retentionTypes = [...new Set(teeth.map((t) => t.retentionType))];
