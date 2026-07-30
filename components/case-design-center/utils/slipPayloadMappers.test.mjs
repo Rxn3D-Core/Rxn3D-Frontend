@@ -202,6 +202,39 @@ test("buildTeethSelection emits per-tooth rows with optional retention/extractio
   ]);
 });
 
+test("buildTeethSelection fills default tooth chart retention and extraction ids", () => {
+  const product = {
+    type: "Upper",
+    has_retention: "Yes",
+    has_extraction: "Yes",
+    has_default_tooth_chart: "Yes",
+    allow_select_only_implant: "Yes",
+    retention_options: [
+      { id: 1, retention_option_id: 7, tooth_chart_type: "Implant", name: "Implant" },
+    ],
+    extractions: [
+      {
+        id: 1,
+        extraction_id: 1,
+        code: "Def",
+        name: "Default",
+        status: "Active",
+        is_default: "Yes",
+        overlay: "No",
+      },
+    ],
+    default_tooth_chart: [
+      { tooth_number: 3, retention_option_id: 7, chart_type: "Implant" },
+      { tooth_number: 4, extraction_id: null, retention_option_id: null, chart_type: null },
+    ],
+  };
+  const rows = buildTeethSelection(product, { 3: ["Implant"] }, {}, [], [3, 4]);
+  assert.deepEqual(rows, [
+    { teeth_number: 3, retention_option_id: 7 },
+    { teeth_number: 4, extraction_ids: [1] },
+  ]);
+});
+
 test("buildRetentions falls back to field names when chart map empty", () => {
   const product = {
     has_retention: "Yes",

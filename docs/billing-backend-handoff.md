@@ -12,7 +12,7 @@ This document lists **backend** items to verify or implement. The frontend does 
 
 4. **`POST /billing/advanced-search`** — Confirm `lab_name` / scoping matches your security model when the frontend passes `lab_name` from the customer profile.
 
-5. **`POST /billing/bulk-action`** — Actions: `mark_checked`, `mark_billed`, `mark_refund`, `refresh_charges`, `send_statement`. Confirm IDs are `slip_billings.id` (billing invoice ids) as documented.
+5. **`POST /billing/bulk-action`** — Actions: `mark_checked`, `mark_pending`, `mark_billed`, `mark_refund`, `refresh_charges`, `send_statement`. Confirm IDs are `slip_billings.id` (billing invoice ids) as documented. Frontend uses `mark_pending` both to **Uncheck** (checked → pending) and to **Remove Refund** (refund/refunded → pending).
 
 6. **List vs advanced search** — Invoice-level `status` on `GET /billing` vs item-level `item_status` on advanced search: ensure product resources expose whatever the UI must show for line items.
 
