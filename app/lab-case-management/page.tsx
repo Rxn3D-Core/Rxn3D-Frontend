@@ -26,7 +26,8 @@ import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
-import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
+import DriverLabelSheetModal from "@/components/driver-labels/DriverLabelSheetModal"
+import type { DriverLabelSlip } from "@/lib/driver-labels/generate-driver-label-pdf"
 import CaseActionModal from "@/components/CaseActionModal"
 import RushRequestModal from "@/components/rush-request-modal"
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
@@ -183,8 +184,9 @@ export default function LabSlipV3Page() {
   const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<V2CaseRowData | null>(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [selectedSlipForPrint, setSelectedSlipForPrint] = useState<V2CaseRowData | null>(null)
-  const [showPrintDriverTags, setShowPrintDriverTags] = useState(false)
-  const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<V2CaseRowData | null>(null)
+  const [showDriverLabelModal, setShowDriverLabelModal] = useState(false)
+  const [driverLabelSlips, setDriverLabelSlips] = useState<DriverLabelSlip[]>([])
+  const [driverLabelLoading, setDriverLabelLoading] = useState(false)
   const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
   const [readyToSendSlip, setReadyToSendSlip] = useState<V2CaseRowData | null>(null)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
@@ -584,12 +586,28 @@ export default function LabSlipV3Page() {
     }
   }
 
-  const handleDriverPrint = async (slip: V2CaseRowData, slots: number[]) => {
+  const openDriverLabelModal = async (rowIds: number[]) => {
+    if (!rowIds.length) {
+      toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
+      return
+    }
+    setDriverLabelSlips([])
+    setDriverLabelLoading(true)
+    setShowDriverLabelModal(true)
     try {
-      const data = await fetchDriverPrintData([slip.id])
-      if (!data?.slips?.length) { alert("Failed to fetch driver print data."); return }
-      openDriverLabelsWindow(data.slips[0], slots)
-    } catch { alert("Failed to generate driver labels.") }
+      const data = await fetchDriverPrintData(rowIds)
+      if (!data?.slips?.length) {
+        toast({ title: "Failed to fetch driver print data.", variant: "destructive" })
+        setShowDriverLabelModal(false)
+        return
+      }
+      setDriverLabelSlips(data.slips as unknown as DriverLabelSlip[])
+    } catch {
+      toast({ title: "Failed to load driver labels.", variant: "destructive" })
+      setShowDriverLabelModal(false)
+    } finally {
+      setDriverLabelLoading(false)
+    }
   }
 
   const handleBulkPrintPaperSlip = () => {
@@ -605,40 +623,6 @@ export default function LabSlipV3Page() {
     printPaperSlip(slipIds, [])
   }
 
-  const handleBulkDriverPrint = async () => {
-    if (!selected.length) {
-      toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
-      return
-    }
-    try {
-      const data = await fetchDriverPrintData(selected)
-      if (!data?.slips?.length) {
-        toast({ title: "Failed to fetch driver print data.", variant: "destructive" })
-        return
-      }
-      const allSlots = Array.from({ length: 8 }, (_, i) => i)
-      data.slips.forEach((driverSlip, index) => {
-        setTimeout(() => openDriverLabelsWindow(driverSlip, allSlots), index * 500)
-      })
-    } catch {
-      toast({ title: "Failed to bulk print driver labels.", variant: "destructive" })
-    }
-  }
-
-  const openDriverLabelsWindow = (driverSlip: any, selectedSlots: number[]) => {
-    const iframe = document.createElement("iframe")
-    iframe.style.cssText = "position:absolute;left:-9999px;width:0;height:0;border:none"
-    document.body.appendChild(iframe)
-    const content = Array.from({ length: 8 }, (_, i) =>
-      selectedSlots.includes(i)
-        ? `<div class="driver-label"><div class="header"><div><div class="bold">${driverSlip.lab_name || ""}</div><div>OFC: ${driverSlip.office_code || ""}</div><div>PT: ${driverSlip.pt_name || ""}</div><div>DR: ${driverSlip.doctor_name || ""}</div></div><div class="qr"><img src="${driverSlip.qr_code || ""}" /></div></div><div class="body"><div>Stage: ${driverSlip.stage_code || ""} PAN#: ${driverSlip.case_pan_number || ""}</div><div>CASE#: ${driverSlip.case_number || ""} SLIP#: ${driverSlip.slip_number || ""}</div></div></div>`
-        : '<div class="empty"></div>'
-    ).join("")
-    const html = `<!DOCTYPE html><html><head><style>body{margin:0;padding:20px;font-family:Arial,sans-serif}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}.driver-label{border:2px solid #000;padding:12px;min-height:200px}.empty{border:none}.bold{font-weight:bold}.header{display:flex;justify-content:space-between}.qr img{width:58px;height:58px}.body{border-top:1px solid #ccc;margin-top:10px;padding-top:6px;font-size:11px}@media print{body{margin:0}}</style></head><body><div class="grid">${content}</div><script>setTimeout(()=>{window.print()},500)<\/script></body></html>`
-    const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (doc) { doc.open(); doc.write(html); doc.close() }
-    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
-  }
 
   const advancedFilterContent = showAdvancedFilter ? (
     <div className="border-b border-[#e5e7eb] bg-white px-4 py-4">
@@ -853,7 +837,7 @@ export default function LabSlipV3Page() {
           rowActions={{
             onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
-            onPrintDriverLabel: (slip) => { setSelectedSlipForDriverTags(slip); setShowPrintDriverTags(true) },
+            onPrintDriverLabel: (slip) => void openDriverLabelModal([slip.id]),
             onPrintStatement: handlePrintStatement,
             onCallLog: (slip) => { setSelectedSlipForCallLog(slip); setShowCallLogModal(true) },
             onAddOns: (slip) => { setSelectedSlipForAddOns(slip); setShowAddOnsModal(true); void loadAddonInputsForSlip(slip.id) },
@@ -873,7 +857,7 @@ export default function LabSlipV3Page() {
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
-          onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
+          onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
@@ -1062,12 +1046,11 @@ export default function LabSlipV3Page() {
           } : { lab: "", address: "", office: "", doctor: "", patient: "", pickupDate: "", panNumber: "", caseNumber: "", slipNumber: "", products: [], contact: "", email: "" }}
         />
 
-        <PrintDriverTagsModal
-          isOpen={showPrintDriverTags}
-          slip={selectedSlipForDriverTags}
-          onClose={() => setShowPrintDriverTags(false)}
-          onRegularPrint={async (slip, allSlots) => { if (slip) await handleDriverPrint(slip, allSlots.map((v, i) => v ? i : -1).filter((i) => i !== -1)) }}
-          onGenerateLabels={async (slip, selectedSlots) => { if (slip) await handleDriverPrint(slip, selectedSlots.map((v, i) => v ? i : -1).filter((i) => i !== -1)) }}
+        <DriverLabelSheetModal
+          isOpen={showDriverLabelModal}
+          onClose={() => setShowDriverLabelModal(false)}
+          slips={driverLabelSlips}
+          loading={driverLabelLoading}
         />
       </main>
     </div>
