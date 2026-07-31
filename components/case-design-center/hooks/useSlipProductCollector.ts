@@ -48,6 +48,21 @@ export function useSlipProductCollector({
     const getOpposingArchTeeth = (arch: "maxillary" | "mandibular") =>
       arch === "maxillary" ? MANDIBULAR_ALL : MAXILLARY_ALL;
 
+    // An arch "has its own product" when any tooth on it is bound to a product, or it
+    // carries a retention / removable selection of its own. Used to enforce the opposing
+    // rule: never mirror a product's opposite_extractions onto an arch that already owns
+    // a card (card 0 or an added product). Opposing-mirror data lives in the separate
+    // opposing* state, so this stays false for an arch that only shows a mirror.
+    const archHasOwnProduct = (a: "maxillary" | "mandibular"): boolean => {
+      const teeth = a === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      if (teeth.some((tn) => !!state.getToothProduct(a, tn))) return true;
+      return a === "maxillary"
+        ? Object.keys(state.maxillaryRetentionTypes).length > 0 ||
+            state.maxillaryTeeth.length > 0
+        : Object.keys(state.mandibularRetentionTypes ?? {}).length > 0 ||
+            (state.mandibularTeeth ?? []).length > 0;
+    };
+
     const processArch = (arch: "maxillary" | "mandibular", type: "Upper" | "Lower", allTeeth: number[]) => {
       const cardGroups = new Map<number, number[]>();
       for (const tn of allTeeth) {
@@ -237,8 +252,14 @@ export function useSlipProductCollector({
                   .map((tn) => [tn, [...(state.mandibularRetentionTypes?.[tn] ?? [])]])
               );
 
+        // Opposing rule: only carry this product's opposite_extractions onto the other arch
+        // when that arch has no product of its own. Once the opposing arch owns a card
+        // (card 0 or an added product), that product owns its chart and must not be
+        // overwritten by this product's opposing configuration.
+        const opposingArchHasOwnProduct = archHasOwnProduct(getOpposingArch(arch));
         let oppositeExtractions: Array<{ extraction_id: number; teeth_numbers: number[] }> | undefined;
         if (
+          !opposingArchHasOwnProduct &&
           Object.keys(state.opposingToothExtractionMap).length > 0 &&
           productApiData?.opposite_extractions?.length
         ) {
@@ -254,7 +275,7 @@ export function useSlipProductCollector({
               (opExt as { extraction_id?: number })?.extraction_id ?? opExt?.id ?? 0;
             return { extraction_id, teeth_numbers: toothNums.sort((a, b) => a - b) };
           }).filter((entry) => entry.extraction_id !== 0);
-        } else if (productApiData?.opposite_extractions?.length) {
+        } else if (!opposingArchHasOwnProduct && productApiData?.opposite_extractions?.length) {
           const defaultOpposingExtraction = productApiData.opposite_extractions.find(
             (ext) => String((ext as { is_default?: string })?.is_default ?? "").trim().toLowerCase() === "yes"
           );
