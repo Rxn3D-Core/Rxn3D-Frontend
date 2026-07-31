@@ -92,7 +92,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
 import { EditBillingInvoiceDialog } from "@/components/billing/edit-billing-invoice-dialog"
 import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
-import { format } from "date-fns"
+import { addDays, format } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import {
   applyStatementEmailMessageToPreviewHtml,
@@ -487,6 +487,9 @@ export default function ChargeManagementPage() {
   const [statementModalOpen, setStatementModalOpen] = useState(false)
   const [statementModalStep, setStatementModalStep] = useState<"confirm" | "generating" | "sending">("confirm")
   const [statementAutoMarkBilled, setStatementAutoMarkBilled] = useState(false)
+  /** Per-office YYYY-MM-DD due dates for statement generate (defaults to Net 30). */
+  const [statementGroupDueDates, setStatementGroupDueDates] = useState<Record<number, string>>({})
+  const [statementDueDateOpenOfficeId, setStatementDueDateOpenOfficeId] = useState<number | null>(null)
   const [statementGroupRefunds, setStatementGroupRefunds] = useState<Record<number, StatementOfficeRefund>>({})
   const [refundAmountEditingOfficeId, setRefundAmountEditingOfficeId] = useState<number | null>(null)
   const [refundAmountDraft, setRefundAmountDraft] = useState("")
@@ -1184,6 +1187,16 @@ export default function ChargeManagementPage() {
     setStatementAutoMarkBilled((value) => !value)
   }, [])
 
+  const getStatementGroupDueDate = useCallback(
+    (officeId: number): string =>
+      statementGroupDueDates[officeId] ?? formatDateInput(addDays(new Date(), 30)),
+    [statementGroupDueDates],
+  )
+
+  const updateStatementGroupDueDate = useCallback((officeId: number, dueDate: string) => {
+    setStatementGroupDueDates((current) => ({ ...current, [officeId]: dueDate }))
+  }, [])
+
   const getStatementGroupRefund = useCallback(
     (officeId: number): StatementOfficeRefund => statementGroupRefunds[officeId] ?? { amount: null, notes: "" },
     [statementGroupRefunds],
@@ -1438,6 +1451,11 @@ export default function ChargeManagementPage() {
     }
 
     setStatementAutoMarkBilled(false)
+    const defaultDueDate = formatDateInput(addDays(new Date(), 30))
+    setStatementGroupDueDates(
+      Object.fromEntries(selectedStatementGroups.map((group) => [group.officeId, defaultDueDate])),
+    )
+    setStatementDueDateOpenOfficeId(null)
     setStatementGroupRefunds({})
     setRefundAmountEditingOfficeId(null)
     setRefundAmountDraft("")
@@ -1471,12 +1489,14 @@ export default function ChargeManagementPage() {
   const generateStatementForGroup = useCallback(
     async (group: StatementOfficeGroup): Promise<StatementRecord> => {
       const refund = statementGroupRefunds[group.officeId]
+      const dueDate = statementGroupDueDates[group.officeId]
       const body: {
         billing_ids: number[]
         office_id: number
         direction: "outgoing"
         template: string
         auto_mark_billed: boolean
+        due_date?: string
         refund_amount?: number
         refund_reason?: string
       } = {
@@ -1485,6 +1505,10 @@ export default function ChargeManagementPage() {
         direction: "outgoing",
         template: "default",
         auto_mark_billed: statementAutoMarkBilled,
+      }
+
+      if (dueDate) {
+        body.due_date = dueDate
       }
 
       if (refund?.amount != null && refund.amount > 0) {
@@ -1500,7 +1524,7 @@ export default function ChargeManagementPage() {
           return result.data
         })
     },
-    [generateStatement, statementAutoMarkBilled, statementGroupRefunds],
+    [generateStatement, statementAutoMarkBilled, statementGroupDueDates, statementGroupRefunds],
   )
 
   const downloadStatementPdfForStatement = useCallback(
@@ -2434,6 +2458,7 @@ export default function ChargeManagementPage() {
               setStatementModalOpen(false)
               setStatementActionLoading(null)
               setSendEmailPreviewOpen(false)
+              setStatementDueDateOpenOfficeId(null)
             }
           }}
         >
@@ -2470,10 +2495,12 @@ export default function ChargeManagementPage() {
                   <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
                     {selectedStatementGroups.map((group) => {
                       const refund = getStatementGroupRefund(group.officeId)
+                      const dueDate = getStatementGroupDueDate(group.officeId)
                       const isEditingRefund = refundAmountEditingOfficeId === group.officeId
                       const hasRefund = refund.amount != null && refund.amount > 0
                       const showRefundNotes = hasRefund || isEditingRefund
                       const netTotal = getStatementGroupNetTotal(group, refund.amount)
+                      const dueDateOpen = statementDueDateOpenOfficeId === group.officeId
 
                       return (
                       <div
@@ -2552,6 +2579,45 @@ export default function ChargeManagementPage() {
                               </button>
                             )}
                           </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`statement-due-date-${group.officeId}`} className="text-sm font-medium text-black">
+                            Due date
+                          </Label>
+                          <Popover
+                            open={dueDateOpen}
+                            onOpenChange={(open) =>
+                              setStatementDueDateOpenOfficeId(open ? group.officeId : null)
+                            }
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                id={`statement-due-date-${group.officeId}`}
+                                type="button"
+                                variant="outline"
+                                className="h-10 w-full max-w-xs justify-start border-gray-200 bg-white text-[14px] font-normal text-black sm:w-[240px]"
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-gray-400" />
+                                {dueDate
+                                  ? format(parseDateInput(dueDate) ?? new Date(), "MMM d, yyyy")
+                                  : "Select due date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={parseDateInput(dueDate)}
+                                defaultMonth={parseDateInput(dueDate)}
+                                onSelect={(date) => {
+                                  if (!date) return
+                                  updateStatementGroupDueDate(group.officeId, formatDateInput(date))
+                                  setStatementDueDateOpenOfficeId(null)
+                                }}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
                         </div>
 
                         {showRefundNotes ? (
