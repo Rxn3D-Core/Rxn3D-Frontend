@@ -345,6 +345,8 @@ export interface GenerateStatementBody {
   direction: "outgoing" | "incoming"
   template?: string
   auto_mark_billed?: boolean
+  /** Statement due date as YYYY-MM-DD (when supported by API). */
+  due_date?: string
   /** Statement-level refund deducted from total (when supported by API). */
   refund_amount?: number
   /** Refund explanation shown on statement (maps to backend `refund_reason`). */
