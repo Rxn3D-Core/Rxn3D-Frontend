@@ -1502,6 +1502,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onRetentionDone={() => state.handleArchRetentionDone("maxillary")}
           showMaxillary={
               state.showMaxillary ||
+              isAddingMaxillaryProduct ||
               guidedBothArchSlipCreation ||
               (props.caseSubmitted && (state.maxillaryTeeth.length > 0 || Object.keys(state.maxillaryRetentionTypes).length > 0)) ||
               (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularTeethSelected)
@@ -1661,6 +1662,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             (guidedBothArchSlipCreation
               ? guidedBothArchPhase !== "upper-selection"
               : state.showMandibular) ||
+            isAddingMandibularProduct ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
             (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular)
           }
