@@ -908,6 +908,8 @@ export default function SubscriptionsPage() {
 
   // No active subscription state → "No active subscription" UI
   if (subscriptionState === "no-subscription") {
+    const highlights = collectCatalogHighlights(catalogPlans)
+
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
 
@@ -921,12 +923,10 @@ export default function SubscriptionsPage() {
 
             {/* Title & subtitle */}
             <h2 className="text-xl font-bold text-gray-900 mb-1">
-              {subscriptionState === "cancelled" ? "Subscription cancelled" : "No active subscription"}
+              No active subscription
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              {subscriptionState === "cancelled"
-                ? "Your plan ended. Choose a plan to restore full access."
-                : "Choose a plan to unlock your lab's full potential"}
+              Choose a plan to unlock your lab's full potential
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-2 mb-8">
