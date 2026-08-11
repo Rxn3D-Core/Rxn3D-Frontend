@@ -39,9 +39,16 @@ export const ALL_COLUMNS: readonly ColumnDefinition[] = [
   { key: "status",     label: "Status",         default: true, required: true },
   { key: "office",     label: "Office",         default: false },
   { key: "caseNo",     label: "Case #",         default: false },
+  { key: "timestamp",  label: "Time stamp",     default: false },
 ]
 
-const DEFAULT_VISIBLE = new Set(ALL_COLUMNS.filter((c) => c.default || c.required).map((c) => c.key)) as Set<ColumnKey>
+// "timestamp" starts visible but is not marked `default: true`, which would
+// lock its Show/Hide Column checkbox — it has to stay toggleable from both the
+// panel and the clock button in the action icon row.
+const DEFAULT_VISIBLE = new Set<ColumnKey>([
+  ...ALL_COLUMNS.filter((c) => c.default || c.required).map((c) => c.key),
+  "timestamp",
+])
 
 interface Props {
   search: string
@@ -55,6 +62,8 @@ interface Props {
   onClearQuickFilters: () => void
   visibleColumns: Set<ColumnKey>
   onVisibleColumnsChange: (cols: Set<ColumnKey>) => void
+  /** Office profile listing — the counterparty column is labelled "Lab". */
+  officeProfile?: boolean
 }
 
 export function V3FilterBar({
@@ -69,6 +78,7 @@ export function V3FilterBar({
   onClearQuickFilters,
   visibleColumns,
   onVisibleColumnsChange,
+  officeProfile = false,
 }: Props) {
   const [colPanelOpen, setColPanelOpen] = useState(false)
   const colPanelRef = useRef<HTMLDivElement>(null)
@@ -134,8 +144,9 @@ export function V3FilterBar({
             >
               <p style={{ fontSize: 18, fontWeight: 700, color: "#000", padding: "0 16px 12px" }}>Show/Hide Column</p>
               <div style={{ borderTop: "1px solid #E2E4E8", marginBottom: 4 }} />
-              {ALL_COLUMNS.map(({ key, label, default: isDefault, required: isRequired }) => {
+              {ALL_COLUMNS.map(({ key, label: baseLabel, default: isDefault, required: isRequired }) => {
                 const locked = isDefault || isRequired
+                const label = key === "office" && officeProfile ? "Lab" : baseLabel
                 const checked = locked || visibleColumns.has(key)
                 return (
                   <button
@@ -237,12 +248,12 @@ export function V3FilterBar({
         {/* Action icons */}
         <div className="flex shrink-0 items-center gap-1 ml-2">
           <ActionIcon
-            active={statusActive("Draft")}
-            aria-label="Draft"
-            title="Draft"
-            onClick={() => onStatusChange("Draft")}
+            active={visibleColumns.has("timestamp")}
+            aria-label="Show time stamp"
+            title={visibleColumns.has("timestamp") ? "Hide time stamp" : "Show time stamp"}
+            onClick={() => toggleColumn("timestamp")}
           >
-            <StatusAssetIcon active={statusActive("Draft")} src="/icons/stage-history.svg" />
+            <ClockActionIcon active={visibleColumns.has("timestamp")} />
           </ActionIcon>
           <ActionIcon
             active={statusActive("In Progress")}
@@ -330,6 +341,38 @@ function StatusAssetIcon({ active, src }: { active: boolean; src: string }) {
       className="h-5 w-5"
       style={active ? undefined : { filter: "grayscale(1) brightness(0)", opacity: 0.65 }}
     />
+  )
+}
+
+// Inline rather than an <img> so the inactive state can recolour the ring and
+// hand only. The asset version had to be greyed with a CSS filter, which also
+// darkened the clock face and turned the whole icon into a solid disc.
+function ClockActionIcon({ active }: { active: boolean }) {
+  const inactiveFill = "#6B7280"
+
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="7 3 31 31">
+      <defs>
+        <linearGradient id="v3ClockRing" x1="11.53" y1="29.41" x2="33.41" y2="7.54" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#6558A3" />
+          <stop offset="0.47" stopColor="#965CA3" />
+          <stop offset="1" stopColor="#A35EA3" />
+        </linearGradient>
+        <linearGradient id="v3ClockHand" x1="19.2" y1="17.09" x2="28.62" y2="17.09" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#6558A3" />
+          <stop offset="0.47" stopColor="#965CA3" />
+          <stop offset="1" stopColor="#A35EA3" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M22.4699 5.24283C29.7647 5.24283 35.697 11.1751 35.697 18.4699C35.697 25.7647 29.7647 31.697 22.4699 31.697C15.1751 31.697 9.24283 25.7647 9.24283 18.4699C9.24283 11.1751 15.1751 5.24283 22.4699 5.24283ZM22.4699 3C13.9247 3 7 9.92474 7 18.4699C7 27.0151 13.9247 33.9399 22.4699 33.9399C31.0151 33.9399 37.9399 27.0151 37.9399 18.4699C37.9399 9.92474 31.0151 3 22.4699 3Z"
+        fill={active ? "url(#v3ClockRing)" : inactiveFill}
+      />
+      <path
+        d="M28.2734 25.7704L27.7744 26.1853C27.4211 26.4768 26.9165 26.4768 26.5633 26.1853L21.9991 22.4005L19.5432 20.3651C19.3245 20.1857 19.2012 19.9166 19.2012 19.6362V8.73605C19.2012 8.21459 19.6273 7.78845 20.1488 7.78845H21.0571C21.5786 7.78845 22.0047 8.21459 22.0047 8.73605V18.6718C22.0047 18.9521 22.1281 19.2213 22.3467 19.4007L28.2678 24.3125C28.7276 24.6938 28.7276 25.3947 28.2678 25.7704H28.2734Z"
+        fill={active ? "url(#v3ClockHand)" : inactiveFill}
+      />
+    </svg>
   )
 }
 

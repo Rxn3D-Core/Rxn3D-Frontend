@@ -68,9 +68,9 @@ const DEFAULT_PATIENT_NAME = "Jose Protacio Rizal Mercado y Alonzo";
 const DEFAULT_GENDER = "Male";
 
 /** Matches the virtual-slip header avatar treatment (big circle, name below). */
-const AVATAR_SIZE = "w-[clamp(80px,9vw,110px)] h-[clamp(80px,9vw,110px)]";
-const AVATAR_COLUMN_WIDTH = "w-[clamp(84px,9vw,130px)]";
-const AVATAR_NAME_MAX = "max-w-[clamp(84px,9vw,130px)]";
+const AVATAR_SIZE = "w-[clamp(87px,9vw,117px)] h-[clamp(87px,9vw,117px)]";
+const AVATAR_COLUMN_WIDTH = "w-[clamp(91px,9vw,137px)]";
+const AVATAR_NAME_MAX = "max-w-[clamp(91px,9vw,137px)]";
 
 /** One logo cell in the center top row (office on the left, lab on the right). */
 function LogoCell({
@@ -262,9 +262,9 @@ export function PatientHeader({
       <div className="flex items-stretch gap-3 py-2 sm:gap-4 lg:gap-6">
         {/* Doctor — avatar + name (spans the logo + fields rows) */}
         <div className={`flex ${AVATAR_COLUMN_WIDTH} shrink-0 flex-col items-center justify-center gap-1 self-stretch`}>
-          <div className={`relative ${AVATAR_SIZE}`}>
+          <div className="relative">
             <div className={`${AVATAR_SIZE} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center`}>
-              <span className="font-semibold text-[#1162a8] text-lg">{doctorInitials || "?"}</span>
+              <span className="absolute inset-0 flex items-center justify-center font-bold text-gray-500 text-lg">{doctorInitials || "?"}</span>
               {hasDoctorImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -273,11 +273,10 @@ export function PatientHeader({
                     e.currentTarget.remove();
                   }}
                   alt="Doctor"
-                  className="rounded-full absolute inset-0 w-full h-full object-cover"
+                  className="relative w-full h-full object-cover"
                 />
               )}
             </div>
-            {/* Edit badge sits outside the clipped circle so it's never cut off. */}
             {!caseSubmitted && canEditDoctor && onEditDoctorClick && (
               <button
                 type="button"
@@ -289,9 +288,12 @@ export function PatientHeader({
               </button>
             )}
           </div>
-          <p className={`${AVATAR_NAME_MAX} truncate text-center text-sm font-semibold leading-tight text-[#1162A8]`} title={displayName}>
-            {displayName}
-          </p>
+          <div className="flex flex-col items-center gap-[2px] text-center">
+            <span className="text-xs leading-none text-[#7F7F7F]">Doctor:</span>
+            <span className={`${AVATAR_NAME_MAX} truncate text-sm font-semibold leading-tight text-[#4C4D55]`} title={displayName}>
+              {displayName}
+            </span>
+          </div>
         </div>
 
         {/* Center: office/lab logos row over the patient fields row */}

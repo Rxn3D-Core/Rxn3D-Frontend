@@ -209,6 +209,10 @@ export default function Page() {
               rushCasesEnabled={rushCasesEnabled}
               rushCaseSchedule={rushCaseSchedule}
               labBusinessHours={labBusinessHours}
+              attachmentDoctorName={completedDoctor?.name ?? undefined}
+              attachmentPatientName={completedPatientName || undefined}
+              attachmentCaseId={slipResponseData?.id ?? undefined}
+              attachmentSlipId={slipResponseData?.slips?.[0]?.id ?? undefined}
             />
             <div style={{ height: "80px" }} />
           </div>

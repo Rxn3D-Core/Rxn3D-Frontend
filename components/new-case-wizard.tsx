@@ -550,10 +550,22 @@ function StepLab({
   entityLabel?: "lab" | "office";
   onAddNew?: () => void;
 }) {
+  const [searchTerm, setSearchTerm] = useState("");
   const entityPlural = entityLabel === "office" ? "offices" : "labs";
+  const entitySingular = entityLabel === "office" ? "Office" : "Lab";
   const loadErrorMsg = entityLabel === "office"
     ? "Unable to load connected offices. Please try again."
     : "Unable to load connected labs. Please try again.";
+
+  const filteredLabs = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return labs;
+    return labs.filter((lab) => {
+      const name = lab.name?.toLowerCase() ?? "";
+      const location = lab.location?.toLowerCase() ?? "";
+      return name.includes(query) || location.includes(query);
+    });
+  }, [labs, searchTerm]);
 
   if (error) {
     return (
@@ -587,84 +599,106 @@ function StepLab({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
+      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-4">
         {stepTitle}
       </h2>
 
-      {/* Top bar with filter and Add New button */}
-      <div className="flex items-center justify-between mb-2">
-        <button className="p-2 hover:bg-[#eef1f4] rounded transition-colors">
-          <Filter size={18} className="text-[#7f7f7f]" />
-        </button>
+      {/* Centered search — same density as product search */}
+      <div className="flex justify-center mb-4">
+        <div className="relative w-full max-w-[320px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-2 bg-white">
+          <input
+            type="text"
+            placeholder={`Search ${entitySingular}`}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label={`Search ${entityPlural}`}
+            className="flex-1 min-w-0 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+            style={{ fontFamily: "Verdana, sans-serif" }}
+          />
+          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
+        </div>
+      </div>
+
+      {/* Meta row: count + Add New, aligned with card grid */}
+      <div className="flex items-center justify-between gap-3 mb-4 max-w-[1400px] mx-auto w-full px-4">
+        <p
+          style={{ fontFamily: "Verdana, sans-serif", fontSize: 13, lineHeight: "20px", letterSpacing: "-0.02em" }}
+          className="text-[#b4b0b0]"
+        >
+          {filteredLabs.length} {entityPlural} found
+        </p>
         <button
           onClick={onAddNew}
-          style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em", borderRadius: 6, padding: "8px 16px" }}
+          style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em", borderRadius: 6, padding: "6px 14px" }}
           className="flex items-center gap-2 bg-[#1162a8] hover:bg-[#0d4a85] text-white font-bold transition-colors whitespace-nowrap"
         >
           Add New {entityLabel}
         </button>
       </div>
 
-      {/* Count */}
-      <p
-        style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px", letterSpacing: "-0.02em" }}
-        className="text-[#b4b0b0] text-right mb-6"
-      >
-        {labs.length} {entityPlural} found
-      </p>
-
       {/* Cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4">
-        {labs.map((lab, i) => (
-          <button
-            key={`${lab.id}-${i}`}
-            onClick={() => onSelect(lab.id)}
-            style={{ height: 215, borderRadius: 6, width: 307.65 }}
-            className="group relative flex flex-col items-center justify-center transition-all bg-white border-2 border-[#b4b0b0] hover:border-[#1162a8] w-full"
-          >
-            {/* "Click and select" text - shown on hover */}
-            <span className="absolute top-3 text-[11px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
-              Click and select
-            </span>
+      {filteredLabs.length === 0 ? (
+        <p
+          style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px", letterSpacing: "-0.02em" }}
+          className="text-[#7f7f7f] text-center py-12"
+        >
+          {searchTerm.trim()
+            ? `No ${entityPlural} match "${searchTerm.trim()}".`
+            : `No ${entityPlural} found.`}
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4 justify-items-center w-full">
+          {filteredLabs.map((lab, i) => (
+            <button
+              key={`${lab.id}-${i}`}
+              onClick={() => onSelect(lab.id)}
+              style={{ height: 215, borderRadius: 6, maxWidth: 307.65 }}
+              className={`group relative flex flex-col items-center justify-center transition-all bg-white border-2 w-full ${
+                selected === lab.id
+                  ? "border-[#1162a8]"
+                  : "border-[#b4b0b0] hover:border-[#1162a8]"
+              }`}
+            >
+              <span className="absolute top-3 text-[11px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
+                Click and select
+              </span>
 
-            {/* Logo area - uses logo_url from API */}
-            <div
-              style={{ width: 185, height: 117 }}
-              className="flex items-center justify-center mb-2 overflow-hidden"
-            >
-              {lab.logo ? (
-                <img
-                  src={lab.logo}
-                  alt={`${lab.name} logo`}
-                  style={{ width: "100%", objectFit: "contain" }}
-                  className="rounded"
-                />
-              ) : (
-                <span
-                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-                  className="font-bold text-[#1162a8] text-center"
-                >
-                  {lab.name}
-                </span>
-              )}
-            </div>
-            {/* Lab name */}
-            <span
-              style={{ fontFamily: "Verdana, sans-serif", fontSize: 16, lineHeight: "22px", letterSpacing: "-0.02em" }}
-              className="text-[#000000] text-center mb-1"
-            >
-              {lab.name}
-            </span>
-            {/* Location */}
-            <span
-              style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em" }}
-              className="text-[#b4b0b0] text-center"
-            >
-              {lab.location}
-            </span>
-          </button>
-        ))}
-      </div>
+              <div
+                style={{ width: 185, height: 117 }}
+                className="flex items-center justify-center mb-2 overflow-hidden"
+              >
+                {lab.logo ? (
+                  <img
+                    src={lab.logo}
+                    alt={`${lab.name} logo`}
+                    style={{ width: "100%", objectFit: "contain" }}
+                    className="rounded"
+                  />
+                ) : (
+                  <span
+                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 28, lineHeight: "32px", letterSpacing: "-0.02em" }}
+                    className="font-bold text-[#1162a8] text-center"
+                  >
+                    {getInitials(lab.name) || "?"}
+                  </span>
+                )}
+              </div>
+              <span
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: 16, lineHeight: "22px", letterSpacing: "-0.02em" }}
+                className="text-[#000000] text-center mb-1 px-3 line-clamp-2"
+              >
+                {lab.name}
+              </span>
+              <span
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em" }}
+                className="text-[#b4b0b0] text-center"
+              >
+                {lab.location}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -957,9 +991,9 @@ function StepPatientInfo({
       <div className="hidden sm:flex flex-row items-start justify-between">
         <div className="flex flex-row items-start gap-5">
           {doctor && (
-            <div className="flex flex-col items-center gap-1">
-              <div className="relative w-[70px] h-[70px] sm:w-[130px] sm:h-[130px] rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                <span className="absolute inset-0 flex items-center justify-center text-2xl sm:text-4xl font-semibold text-[#1162a8]">
+            <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
+              <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
                   {getInitials(doctor.name) || "?"}
                 </span>
                 {doctor.img && (
@@ -973,7 +1007,10 @@ function StepPatientInfo({
                   />
                 )}
               </div>
-              <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">{doctor.name}</p>
+              <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
+                <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
+                <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{doctor.name}</span>
+              </fieldset>
             </div>
           )}
 
@@ -1083,9 +1120,9 @@ function StepPatientInfo({
       <div className="flex sm:hidden flex-col items-center gap-3">
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
-          <div className="flex flex-col items-center gap-1">
-            <div className="relative flex items-center justify-center w-[90px] h-[90px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-[#eef1f4]">
-              <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
+          <div className="flex flex-col items-center gap-0">
+            <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+              <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
                 {getInitials(doctor.name) || "?"}
               </span>
               {doctor.img && (
@@ -1099,7 +1136,10 @@ function StepPatientInfo({
                 />
               )}
             </div>
-            <span className="text-[13px] font-semibold text-[#1d1d1b]">{doctor.name}</span>
+            <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
+              <legend className="text-[10px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
+              <span className="text-[12px] text-[#1d1d1b] whitespace-nowrap">{doctor.name}</span>
+            </fieldset>
           </div>
         )}
 
@@ -1902,9 +1942,9 @@ function PatientMiniHeader({
       <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
-          <div className="flex flex-col items-center gap-1 flex-shrink-0">
-            <div className="w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] hover:w-[70px] hover:h-[70px] sm:hover:w-[100px] sm:hover:h-[100px] transition-all duration-300 ease-in-out cursor-pointer rounded-full overflow-hidden bg-gray-200 flex items-center justify-center relative">
-              <span className="absolute inset-0 flex items-center justify-center text-lg sm:text-xl font-semibold text-[#1162a8]">
+          <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
+            <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+              <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
                 {getInitials(doctor.name) || "?"}
               </span>
               {doctor.img && (
@@ -1918,9 +1958,10 @@ function PatientMiniHeader({
                 />
               )}
             </div>
-            <p className="text-[18px] font-medium text-[#1d1d1b] whitespace-nowrap">
-              {doctor.name}
-            </p>
+            <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
+              <legend className="text-[12px] sm:text-[14px] text-[#7f7f7f] px-1 leading-none">Doctor</legend>
+              <span className="text-[14px] sm:text-[18px] leading-[20px] text-[#000000] whitespace-nowrap">{doctor.name}</span>
+            </fieldset>
           </div>
         )}
 
@@ -2453,8 +2494,8 @@ export default function NewCaseWizard({
             }}
             isLoading={labsLoading}
             error={labsError}
-            stepTitle={role === "office_admin" ? "Choose an Office" : "Choose a Lab"}
-            entityLabel={role === "office_admin" ? "office" : "lab"}
+            stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
+            entityLabel={role === "office_admin" ? "lab" : "office"}
             onAddNew={() => setShowAddLabModal(true)}
           />
         )}
@@ -2620,16 +2661,61 @@ export default function NewCaseWizard({
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={handleCancel}
-              className="border border-[#1162a8] text-[#1162a8] text-[12px] font-semibold px-6 py-2 rounded hover:bg-[#dfeefb]/30 transition-colors bg-transparent"
+              style={{
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                padding: "10px 16px",
+                gap: "8px",
+                minWidth: "120px",
+                height: "40px",
+                border: "1px solid #1162A8",
+                borderRadius: "5px",
+                fontFamily: "Verdana",
+                fontStyle: "normal",
+                fontWeight: 600,
+                fontSize: "16px",
+                lineHeight: "20px",
+                letterSpacing: "-0.02em",
+                color: "#1162A8",
+                background: "#FFFFFF",
+                whiteSpace: "nowrap",
+              }}
+              className="hover:bg-[#dfeefb]/40 transition-colors"
             >
               Cancel
             </button>
             {step === 3 && (
               <button
+                type="button"
                 onClick={handleNext}
                 disabled={!canProceed()}
-                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 disabled:bg-[#9ba5b7] text-white text-[12px] font-semibold px-6 py-2 rounded transition-colors"
+                style={{
+                  boxSizing: "border-box",
+                  display: "flex",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  padding: "10px 16px",
+                  gap: "8px",
+                  minWidth: "120px",
+                  height: "40px",
+                  border: "none",
+                  borderRadius: "5px",
+                  fontFamily: "Verdana",
+                  fontStyle: "normal",
+                  fontWeight: 600,
+                  fontSize: "16px",
+                  lineHeight: "20px",
+                  letterSpacing: "-0.02em",
+                  color: "#FFFFFF",
+                  whiteSpace: "nowrap",
+                }}
+                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 disabled:bg-[#9ba5b7] disabled:opacity-60 transition-colors"
               >
                 Next
               </button>

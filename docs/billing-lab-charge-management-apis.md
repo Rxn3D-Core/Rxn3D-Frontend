@@ -12,7 +12,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 | 4 | GET | `/billing/{id}` | Single invoice (full detail) |
 | 5 | PUT | `/billing/{id}/status` | Update **invoice** status (`pending`, `paid`, `overdue`, `cancelled`) |
 | 6 | DELETE | `/billing/{id}` | Soft-delete invoice |
-| 7 | POST | `/billing/bulk-action` | Bulk: `mark_checked`, `mark_billed`, `mark_refund`, `refresh_charges`, `send_statement` |
+| 7 | POST | `/billing/bulk-action` | Bulk: `mark_checked`, `mark_pending`, `mark_billed`, `mark_refund`, `refresh_charges`, `send_statement` (`mark_pending` also clears refund → pending) |
 | 8 | GET | `/billing/email-templates` | Email template list |
 | 9 | `POST` | `/billing/{id}/generate-pdf` | **Generate** invoice PDF; `data.invoice_pdf` is base64 PDF bytes (decode with `atob` → `Uint8Array` → `Blob`, same pattern as paper slip HTML); optional `data.pdf_url`, `data.download_url` |
 | 10 | `GET` | `/billing/download-pdf/{id}` | **Download** PDF bytes (`blob`); `id` is billing invoice id. Use for file download or opening in a new tab via blob URL |
@@ -69,7 +69,7 @@ Optional **`PUT /billing/products/{id}/pricing`** remains in RTK for single-line
 | 2 | Statistics `GET /billing/statistics` | `useGetBillingStatisticsQuery` — summary cards |
 | 3 | Advanced search `POST /billing/advanced-search` | `useAdvancedBillingSearchMutation` — Advance Filter |
 | 4 | Detail `GET /billing/{id}` | `useGetBillingInvoiceByIdQuery` — **Edit invoice pricing** modal (pencil) + any other flows |
-| 5 | Bulk `POST /billing/bulk-action` | `useBulkBillingActionMutation` — Mark Checked / Billed / Refund |
+| 5 | Bulk `POST /billing/bulk-action` | `useBulkBillingActionMutation` — Mark Checked / Uncheck / Billed / Mark Refund / Remove Refund |
 | 6 | Generate PDF `POST /billing/{id}/generate-pdf` | `useGenerateBillingPdfMutation` — PDF view (preferred) |
 | 7 | Download PDF `GET /billing/download-pdf/{id}` | `useLazyDownloadBillingPdfQuery` — row download + PDF view fallback |
 | 8 | Send email `POST /billing/{id}/send-statement-email` | `useSendStatementEmailMutation` — first selected “Send to Office” |

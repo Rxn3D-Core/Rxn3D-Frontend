@@ -6,6 +6,7 @@ import {
   hydrateDefaultToothChartFromProduct,
   parseDefaultToothChartToPreviewState,
   productHasDefaultToothChartEnabled,
+  resolveCatalogDefaultExtractionAssignment,
 } from "@/lib/product-default-tooth-chart"
 import {
   buildChartToothExtractionMap,
@@ -50,6 +51,30 @@ export function productDefaultToothChartAppliesToArch(
   if (slipInitialArch === "both") return true
   if (slipInitialArch) return slipInitialArch === arch
   return false
+}
+
+/** Default tooth chart is on and the product restricts slip selection to implant teeth. */
+export function productAllowsSelectOnlyImplant(
+  product: Record<string, unknown> | null | undefined,
+): boolean {
+  return (
+    productHasDefaultToothChartEnabled(product) &&
+    product?.allow_select_only_implant === "Yes"
+  )
+}
+
+/**
+ * Select-only-implant interaction mode applies to this arch's slip chart:
+ * any tooth click toggles Implant retention directly (no popover), and every
+ * other chart interaction stays locked to the product default chart display.
+ */
+export function implantOnlySelectionModeForArch(
+  product: Record<string, unknown> | null | undefined,
+  arch: "maxillary" | "mandibular",
+  slipInitialArch?: "maxillary" | "mandibular" | "both",
+): boolean {
+  if (!productAllowsSelectOnlyImplant(product)) return false
+  return productDefaultToothChartAppliesToArch(product, arch, slipInitialArch)
 }
 
 /** Own-arch product for default chart SVG overlay (not opposing-extraction mirror data). */
@@ -181,6 +206,19 @@ export function mergeProductDefaultToothChartForSlipSvgDisplay(input: {
   const defaults = parsedDefaultForArch(product, arch, resolved)
   const archTeeth = getChartTeethForArch(arch)
 
+  // Select-only-implant: implant marks render only while the tooth is selected
+  // (present in user retention state); a deselected implant tooth falls back to
+  // the catalog default extraction display.
+  if (productAllowsSelectOnlyImplant(product)) {
+    const fallback = resolveCatalogDefaultExtractionAssignment(resolved)
+    for (const toothStr of Object.keys(defaults.retentionTypesByTooth)) {
+      const tooth = Number(toothStr)
+      if (!defaults.retentionTypesByTooth[tooth]?.includes("Implant")) continue
+      delete defaults.retentionTypesByTooth[tooth]
+      if (fallback.kind === "code") defaults.extractionMap[tooth] = fallback.code
+    }
+  }
+
   const displayExtractionMap: Record<number, string> = { ...defaults.extractionMap }
   const displayClasp = [...defaults.claspTeeth]
   const displayRetention: Record<number, RetentionChartType[]> = {
@@ -222,7 +260,7 @@ export type DefaultToothChartSlipAssignment = {
   retentionTypesByTooth: Record<number, RetentionChartType[]>
   toothExtractionMap: Record<number, string>
   claspTeeth: number[]
-  /** Teeth to bind to the initial product on slip creation. */
+  /** Teeth to bind to the initial product on slip creation (all default-chart rows). */
   productTeeth: number[]
 }
 
@@ -261,6 +299,9 @@ export function resolveDefaultToothChartSlipAssignmentForArch(
       : parsed.mandibularTimOverrideTeeth
 
   const archTeeth = getChartTeethForArch(arch)
+
+  // Every tooth configured on the default chart belongs to the product (product box /
+  // teeth_selection), including when select-only-implant is on.
   const productTeethSet = new Set<number>()
   for (const tooth of archTeeth) {
     if (retentionTypesByTooth[tooth]?.length) productTeethSet.add(tooth)
@@ -270,11 +311,132 @@ export function resolveDefaultToothChartSlipAssignmentForArch(
     if (claspTeeth.includes(tooth)) productTeethSet.add(tooth)
     if (timTeeth.includes(tooth)) productTeethSet.add(tooth)
   }
+  const productTeeth = [...productTeethSet].sort((a, b) => a - b)
+
+  // Select-only-implant: seed only Implant retention into slip state (clicks still
+  // toggle implants only); extraction/clasp/TIM rows stay display-only defaults.
+  if (productAllowsSelectOnlyImplant(product)) {
+    const implantRetention: Record<number, RetentionChartType[]> = {}
+    for (const tooth of archTeeth) {
+      if (retentionTypesByTooth[tooth]?.includes("Implant")) {
+        implantRetention[tooth] = retentionTypesByTooth[tooth]
+      }
+    }
+    return {
+      retentionTypesByTooth: implantRetention,
+      toothExtractionMap: {},
+      claspTeeth: [],
+      productTeeth,
+    }
+  }
 
   return {
     retentionTypesByTooth,
     toothExtractionMap: extractionMap,
     claspTeeth,
-    productTeeth: [...productTeethSet].sort((a, b) => a - b),
+    productTeeth,
   }
+}
+
+export type DefaultToothChartPayloadIds = {
+  retention_option_id?: number
+  extraction_id?: number
+  chart_type?: RetentionChartType
+}
+
+/** Per-tooth retention / extraction ids from product `default_tooth_chart` for slip payloads. */
+export function resolveDefaultToothChartPayloadIdsForTooth(
+  product: Record<string, unknown> | null | undefined,
+  toothNumber: number,
+): DefaultToothChartPayloadIds {
+  if (!product || !productHasDefaultToothChartEnabled(product)) return {}
+
+  const arch: "maxillary" | "mandibular" =
+    toothNumber <= 16 ? "maxillary" : "mandibular"
+  if (!productDefaultToothChartAppliesToArch(product, arch)) return {}
+
+  const resolved = cdcProductExtractionsToResolved(
+    (product as { extractions?: ProductExtraction[] }).extractions,
+  )
+  const fallbackId = catalogDefaultExtractionId(resolved)
+  const entries = hydrateDefaultToothChartFromProduct(product, fallbackId)
+  const row = entries.find((entry) => entry.tooth_number === toothNumber)
+  if (!row) return {}
+
+  const out: DefaultToothChartPayloadIds = {}
+
+  if (row.retention_option_id != null && Number(row.retention_option_id) > 0) {
+    out.retention_option_id = Number(row.retention_option_id)
+    if (row.chart_type) out.chart_type = row.chart_type
+  }
+
+  if (row.extraction_id != null && Number(row.extraction_id) > 0) {
+    out.extraction_id = Number(row.extraction_id)
+  } else if (!out.retention_option_id && fallbackId && fallbackId > 0) {
+    out.extraction_id = fallbackId
+  }
+
+  return out
+}
+
+/**
+ * Merge product default chart into slip payload maps (user/state wins).
+ * Select-only-implant: never re-apply default Implant retention when the user
+ * cleared it; extraction / TIM rows still come from the default chart.
+ */
+export function mergeDefaultToothChartIntoSlipPayloadMaps(
+  product: Record<string, unknown> | null | undefined,
+  arch: "maxillary" | "mandibular",
+  input: {
+    retentionTypesByTooth: Record<number, RetentionChartType[]>
+    toothExtractionMap: Record<number, string>
+    claspTeeth: number[]
+    teeth: number[]
+  },
+): {
+  retentionTypesByTooth: Record<number, RetentionChartType[]>
+  toothExtractionMap: Record<number, string>
+  claspTeeth: number[]
+} {
+  if (!product || !productHasDefaultToothChartEnabled(product)) {
+    return input
+  }
+  if (!productDefaultToothChartAppliesToArch(product, arch)) {
+    return input
+  }
+
+  const resolved = cdcProductExtractionsToResolved(
+    (product as { extractions?: ProductExtraction[] }).extractions,
+  )
+  const defaults = parsedDefaultForArch(product, arch, resolved)
+  const selectOnlyImplant = productAllowsSelectOnlyImplant(product)
+
+  const retentionTypesByTooth = { ...input.retentionTypesByTooth }
+  const toothExtractionMap = { ...input.toothExtractionMap }
+  const claspTeeth = [...input.claspTeeth]
+
+  for (const tooth of input.teeth) {
+    const userRetention = retentionTypesByTooth[tooth] ?? []
+    const defaultRetention = defaults.retentionTypesByTooth[tooth] ?? []
+
+    if (!userRetention.length && defaultRetention.length) {
+      const skipDefaultImplant =
+        selectOnlyImplant && defaultRetention.includes("Implant")
+      if (!skipDefaultImplant) {
+        retentionTypesByTooth[tooth] = [...defaultRetention]
+      }
+    }
+
+    if (!userRetention.length) {
+      if (!Object.prototype.hasOwnProperty.call(toothExtractionMap, tooth)) {
+        const defaultCode = defaults.extractionMap[tooth]
+        if (defaultCode) toothExtractionMap[tooth] = defaultCode
+      }
+      if (!claspTeeth.includes(tooth) && defaults.claspTeeth.includes(tooth)) {
+        claspTeeth.push(tooth)
+      }
+    }
+  }
+
+  return { retentionTypesByTooth, toothExtractionMap, claspTeeth }
 }

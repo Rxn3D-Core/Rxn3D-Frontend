@@ -5,9 +5,13 @@ import type { CaseDesignProps } from "../types";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
-import { resolveGroupStageToothNumber } from "../utils/implantDetailHelpers";
+import {
+  isImplantDetailFilled,
+  resolveGroupStageToothNumber,
+} from "../utils/implantDetailHelpers";
 import { MaxillaryPanel } from "./MaxillaryPanel";
 import { MandibularPanel } from "./MandibularPanel";
+import { AutoOpenSuppressionContext } from "./auto-open-suppression";
 import { CenterNavigation } from "./CenterNavigation";
 import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
@@ -46,6 +50,7 @@ import { computeSlipValidationComplete } from "../utils/caseSummaryVisibility";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
 import { buildRushArchSlots } from "../utils/rushModalContext";
+import { useRushSlotDeliveryDates } from "../hooks/useRushSlotDeliveryDates";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
@@ -77,18 +82,42 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ...props,
     onToothOwnershipConflict: handleToothOwnershipConflict,
   });
-  const maxillaryImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
-  const mandibularImplantDetailRef = useRef<Record<number, ImplantDetailData>>({});
+  const initialMaxillaryImplants =
+    props.initialSlipState?.maxillaryImplantDetailsByTooth ?? {};
+  const initialMandibularImplants =
+    props.initialSlipState?.mandibularImplantDetailsByTooth ?? {};
+  const maxillaryImplantDetailRef =
+    useRef<Record<number, ImplantDetailData>>(initialMaxillaryImplants);
+  const mandibularImplantDetailRef =
+    useRef<Record<number, ImplantDetailData>>(initialMandibularImplants);
   const maxillarySplintLinksRef = useRef<Record<string, number[]>>({});
   const mandibularSplintLinksRef = useRef<Record<string, number[]>>({});
   const [maxillaryImplantDetailPeer, setMaxillaryImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
-  >({});
+  >(initialMaxillaryImplants);
   const [mandibularImplantDetailPeer, setMandibularImplantDetailPeer] = useState<
     Record<number, ImplantDetailData>
-  >({});
-  const [maxillaryImplantCompletePeer, setMaxillaryImplantCompletePeer] = useState<Record<number, boolean>>({});
-  const [mandibularImplantCompletePeer, setMandibularImplantCompletePeer] = useState<Record<number, boolean>>({});
+  >(initialMandibularImplants);
+  const [maxillaryImplantCompletePeer, setMaxillaryImplantCompletePeer] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      Object.entries(initialMaxillaryImplants).map(([tooth, detail]) => [
+        Number(tooth),
+        isImplantDetailFilled(detail),
+      ])
+    )
+  );
+  const [mandibularImplantCompletePeer, setMandibularImplantCompletePeer] = useState<
+    Record<number, boolean>
+  >(() =>
+    Object.fromEntries(
+      Object.entries(initialMandibularImplants).map(([tooth, detail]) => [
+        Number(tooth),
+        isImplantDetailFilled(detail),
+      ])
+    )
+  );
   // Tracks when the user explicitly hides the mandibular panel while it's force-shown by the opposing condition.
   const [userHidMandibular, setUserHidMandibular] = useState(false);
   const [showSelectTeethToReplaceMaxillary, setShowSelectTeethToReplaceMaxillary] = useState(false);
@@ -1011,6 +1040,17 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     ]
   );
 
+  const rushSlotDeliveryDates = useRushSlotDeliveryDates(rushArchSlots);
+
+  const rushArchSlotsWithDelivery = useMemo(
+    () =>
+      rushArchSlots.map((slot) => {
+        const apiDate = rushSlotDeliveryDates[slot.rushKey];
+        return apiDate ? { ...slot, actualDeliveryDate: apiDate } : slot;
+      }),
+    [rushArchSlots, rushSlotDeliveryDates]
+  );
+
   const addOnArchSlots = useMemo(
     () =>
       rushArchSlots.filter((slot) =>
@@ -1103,7 +1143,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (getMissingFixedShadeField(product, shadeId, "maxillary")) return true;
         }
       }
-      if (requireMaxillaryImpression && !hasMaxillaryArchImpressionSelected) return true;
+      // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
+      if (requireMaxillaryImpression && !hasMaxillaryArchImpressionSelected && !hasRetentionOptions(product)) return true;
     }
     return false;
   })();
@@ -1127,20 +1168,23 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           if (getMissingFixedShadeField(product, shadeId, "mandibular")) return true;
         }
       }
-      if (requireMandibularImpression && !hasMandibularArchImpressionSelected) return true;
+      // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
+      if (requireMandibularImpression && !hasMandibularArchImpressionSelected && !hasRetentionOptions(product)) return true;
     }
     return false;
   })();
 
   // True when the arch has products AND all of them have completed their accordion fields.
   // The "+ Add Product" button only shows after the first product accordion is fully complete.
+  // Fixed-restoration-only arches don't use the arch-level impression modal (they have fixed_impression
+  // field steps instead), so skip the arch impression check when there are no removable teeth.
   const allMaxillaryAccordionsComplete =
     hasMaxillaryProducts &&
-    (!requireMaxillaryImpression || hasMaxillaryArchImpressionSelected);
+    (!requireMaxillaryImpression || !maxillaryHasRemovablesTeeth || hasMaxillaryArchImpressionSelected);
 
   const allMandibularAccordionsComplete =
     hasMandibularProducts &&
-    (!requireMandibularImpression || hasMandibularArchImpressionSelected);
+    (!requireMandibularImpression || !mandibularHasRemovablesTeeth || hasMandibularArchImpressionSelected);
 
   // ── Removable restoration: pre-assign sentinel tooth so accordion shows immediately ──
   // When a removables product is active and no teeth have been assigned yet, assign the
@@ -1440,6 +1484,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
+        <AutoOpenSuppressionContext.Provider value={Boolean(props.suppressFieldAutoOpen)}>
         <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel
@@ -1457,6 +1502,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onRetentionDone={() => state.handleArchRetentionDone("maxillary")}
           showMaxillary={
               state.showMaxillary ||
+              isAddingMaxillaryProduct ||
               guidedBothArchSlipCreation ||
               (props.caseSubmitted && (state.maxillaryTeeth.length > 0 || Object.keys(state.maxillaryRetentionTypes).length > 0)) ||
               (initialProductHasOppositeSection && props.initialArch === "mandibular" && mandibularTeethSelected)
@@ -1569,6 +1615,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             maxillaryImplantDetailRef.current = detail;
             setMaxillaryImplantDetailPeer(detail);
           }}
+          initialImplantDetailByTooth={initialMaxillaryImplants}
           onImplantDetailCompleteChange={(complete) => setMaxillaryImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             maxillarySplintLinksRef.current = linksByKey;
@@ -1587,6 +1634,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductComplete={props.onInlineAddProductComplete}
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMaxillary}
+          selectedAddonsByTooth={state.selectedAddonsByTooth}
         />
 
         {/* CENTER NAVIGATION — default-extraction badge between arch panels */}
@@ -1614,6 +1662,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             (guidedBothArchSlipCreation
               ? guidedBothArchPhase !== "upper-selection"
               : state.showMandibular) ||
+            isAddingMandibularProduct ||
             (props.caseSubmitted && (state.mandibularTeeth.length > 0 || Object.keys(state.mandibularRetentionTypes || {}).length > 0)) ||
             (initialProductHasOppositeSection && props.initialArch === "maxillary" && maxillaryTeethSelected && !userHidMandibular)
           }
@@ -1727,6 +1776,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             mandibularImplantDetailRef.current = detail;
             setMandibularImplantDetailPeer(detail);
           }}
+          initialImplantDetailByTooth={initialMandibularImplants}
           onImplantDetailCompleteChange={(complete) => setMandibularImplantCompletePeer(complete)}
           onSplintLinksChange={(linksByKey) => {
             mandibularSplintLinksRef.current = linksByKey;
@@ -1751,8 +1801,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductComplete={props.onInlineAddProductComplete}
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMandibular}
+          selectedAddonsByTooth={state.selectedAddonsByTooth}
         />
       </div>
+        </AutoOpenSuppressionContext.Provider>
 
       </div>
     </div>
@@ -1767,7 +1819,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         mandibularHasRemovables={mandibularHasRemovables}
         maxillaryImplantDetailByTooth={maxillaryImplantDetailPeer}
         mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
-        rushArchSlots={rushArchSlots}
+        rushArchSlots={rushArchSlotsWithDelivery}
         caseHasAddons={caseHasAddons}
         onCaseSummaryNotesChange={(text) => {
           if (props.caseSummaryNotesRef) {
@@ -1926,23 +1978,42 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             if (card0.length > 0) toothNum = card0[0];
           }
 
-          const addonLabels = addOns.map((a) => `${a.qty}x ${a.name}`);
+          const addonLabels = addOns
+            .filter((a) => a.qty > 0 && a.name)
+            .map((a) => `${a.qty}x ${a.name}`);
           const value = addonLabels.length === 0 ? "0 selected" : addonLabels.join(", ");
           const product = state.getToothProduct(arch, toothNum);
           const isFixed = meta?.isFixed ?? hasRetentionOptions(product);
-          if (isFixed) {
-            state.completeFieldStep(arch, toothNum, "fixed_addons", value);
-          } else {
-            state.completeFieldStep(arch, toothNum, "addons", value);
+          const addonStep = isFixed ? "fixed_addons" : "addons";
+
+          const cardId =
+            meta?.cardId ??
+            state.toothProductCardMap[`${arch}_${toothNum}`] ??
+            0;
+          const allArchTeeth =
+            arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+          const cardTeeth = (allArchTeeth ?? []).filter(
+            (tn) => (state.toothProductCardMap[`${arch}_${tn}`] ?? 0) === cardId
+          );
+          const virtualTooth = cardId === 0 ? -0 : -cardId;
+          const teethToWrite = Array.from(
+            new Set([toothNum, virtualTooth, ...cardTeeth].filter((tn) => tn != null && !Number.isNaN(tn)))
+          );
+
+          for (const tn of teethToWrite) {
+            state.completeFieldStep(arch, tn, addonStep, value);
           }
+
           const structuredAddons = addOns
             .filter((a) => a.qty > 0)
             .map((a) => ({ addon_id: a.addon_id, qty: a.qty }));
-          const addonKey = `${arch}_${toothNum}`;
-          state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => ({
-            ...prev,
-            [addonKey]: structuredAddons,
-          }));
+          state.setSelectedAddonsByTooth((prev: Record<string, Array<{ addon_id: number; qty: number }>>) => {
+            const next = { ...prev };
+            for (const tn of teethToWrite) {
+              next[`${arch}_${tn}`] = structuredAddons;
+            }
+            return next;
+          });
         }}
         showAttachModal={state.showAttachModal}
         setShowAttachModal={state.setShowAttachModal}
@@ -1951,6 +2022,10 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           state.setAttachedPhotoCount(photoCount);
           state.setAttachedStlCount(stlCount);
         }}
+        attachmentDoctorName={props.attachmentDoctorName}
+        attachmentPatientName={props.attachmentPatientName}
+        attachmentCaseId={props.attachmentCaseId}
+        attachmentSlipId={props.attachmentSlipId}
         showRushModal={state.showRushModal}
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}
@@ -1960,7 +2035,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         handleRushConfirm={state.handleRushConfirm}
         rushedProducts={state.rushedProducts}
         handleRemoveRush={state.handleRemoveRush}
-        rushArchSlots={rushArchSlots}
+        rushArchSlots={rushArchSlotsWithDelivery}
         rushCaseSchedule={props.rushCaseSchedule ?? null}
         labBusinessHours={props.labBusinessHours ?? null}
         isStageModalOpen={state.isStageModalOpen}

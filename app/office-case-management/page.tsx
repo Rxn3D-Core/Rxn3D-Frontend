@@ -14,8 +14,7 @@ import { format } from "date-fns"
 import { useOfficeSlipContext, type UISlip } from "@/contexts/office-slip-context"
 import { SlipProvider, useSlipContext } from "@/app/lab-case-management/SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
-import ChangeDateModal from "@/components/change-date-modal"
+import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
 import DriverHistoryModal from "@/components/driver-history-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
@@ -24,8 +23,6 @@ import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/
 import CallLogModal from "@/components/call-log-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import CaseActionModal from "@/components/CaseActionModal"
-import RushRequestModal from "@/components/rush-request-modal"
-import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
 import { useToast } from "@/components/ui/use-toast"
 import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
@@ -38,12 +35,12 @@ import {
   SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
   SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
-import { slipCanSendBackToOffice, slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
+import { slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
 import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "@/app/lab-case-management/components/V3CaseWidget"
@@ -69,6 +66,7 @@ function toCaseRowData(slip: UISlip): V2CaseRowData {
     rush: slip.rush,
     location: slip.location,
     locationId: slip.locationId,
+    newStageEligible: slip.newStageEligible,
     attachment: slip.attachment,
     dueDate: slip.dueDate,
     doctor: slip.doctorName,
@@ -137,14 +135,10 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
   return typeof row.billingId === "number" && Number.isFinite(row.billingId)
 }
 
-function canSendBackToOffice(row: { locationId?: number; location: string }): boolean {
-  return slipCanSendBackToOffice(row)
-}
-
 function OfficeCaseManagementPage() {
   const { toast } = useToast()
   const router = useRouter()
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint()
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
 
   const [search, setSearch] = useState("")
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])
@@ -170,8 +164,6 @@ function OfficeCaseManagementPage() {
   const [selectedCaseForAttachment, setSelectedCaseForAttachment] = useState<{
     caseId: number; caseNumber: string; patient: string; doctor: string
   } | null>(null)
-  const [showChangeDateModal, setShowChangeDateModal] = useState(false)
-  const [selectedSlipForDateChange, setSelectedSlipForDateChange] = useState<V2CaseRowData | null>(null)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [selectedSlipForDriverHistory, setSelectedSlipForDriverHistory] = useState<V2CaseRowData | null>(null)
   const [showAddOnsModal, setShowAddOnsModal] = useState(false)
@@ -184,11 +176,6 @@ function OfficeCaseManagementPage() {
   const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
   const [readyToSendSlip, setReadyToSendSlip] = useState<V2CaseRowData | null>(null)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
-  const [showRushModal, setShowRushModal] = useState(false)
-  const [selectedSlipForRush, setSelectedSlipForRush] = useState<V2CaseRowData | null>(null)
-  const [showSendBackToOfficeModal, setShowSendBackToOfficeModal] = useState(false)
-  const [selectedSlipForSendBackToOffice, setSelectedSlipForSendBackToOffice] = useState<V2CaseRowData | null>(null)
-  const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] = useState(false)
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
@@ -200,7 +187,7 @@ function OfficeCaseManagementPage() {
 
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { fetchDriverPrintData, readyToSend } = useSlipContext()
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
+  const { fetchProductAddons, cancelSlip, holdSlip } = useSlipCreation()
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
@@ -317,7 +304,8 @@ function OfficeCaseManagementPage() {
       })
       if (res.status === 401) { window.location.href = "/login"; return }
       const json = await res.json()
-      setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
+      const details = json?.data ?? null
+      setAddonInputs(buildVirtualSlipAddonInputs(details))
     } catch {
       setAddonInputs(null)
     }
@@ -398,48 +386,6 @@ function OfficeCaseManagementPage() {
         toast({ title: "Failed to load statement", description: "Could not retrieve the statement from the server.", variant: "destructive" })
       }
     })()
-  }
-
-  const handleOpenRushCase = (slip: V2CaseRowData) => {
-    setSelectedSlipForRush(slip); setShowRushModal(true); void loadAddonInputsForSlip(slip.id)
-  }
-  const handleRemoveRushCase = async () => {
-    if (!selectedSlipForRush?.id) return
-    try {
-      await cancelSlipRush(selectedSlipForRush.id)
-      toast({ title: "Rush removed", description: "The rush request was cancelled.", duration: 3000 })
-      setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
-    } catch (error) {
-      toast({ title: "Unable to remove rush", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
-    }
-  }
-  const handleConfirmRushCase = async (rushData: { targetDate?: string | null }) => {
-    if (!selectedSlipForRush?.id) return
-    if (!rushData?.targetDate) {
-      toast({ title: "Rush date required", description: "Please select a target delivery date first.", variant: "destructive" })
-      return
-    }
-    try {
-      await requestSlipRush(selectedSlipForRush.id, { requested_delivery_date: rushData.targetDate })
-      toast({ title: "Rush case updated", description: "The rush request was submitted successfully.", duration: 3000 })
-      setShowRushModal(false); setSelectedSlipForRush(null); refreshCurrentListing()
-    } catch (error) {
-      toast({ title: "Unable to rush case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
-    }
-  }
-
-  const handleConfirmSendBackToOffice = async (reason: string) => {
-    if (!selectedSlipForSendBackToOffice?.id || !reason.trim()) return
-    setSendBackToOfficeSubmitting(true)
-    try {
-      await sendBackToOfficeSlip(selectedSlipForSendBackToOffice.id, reason.trim())
-      toast({ title: "Case sent back to office", description: "The case was returned to the office successfully.", duration: 3000 })
-      setShowSendBackToOfficeModal(false); setSelectedSlipForSendBackToOffice(null); refreshCurrentListing()
-    } catch (error) {
-      toast({ title: "Unable to send case back", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
-    } finally {
-      setSendBackToOfficeSubmitting(false)
-    }
   }
 
   const handleConfirmCancelCase = async (reason: string) => {
@@ -755,22 +701,19 @@ function OfficeCaseManagementPage() {
             onCopy: (row) => void handleCopyCaseIdentifier(row),
             onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.id)),
             onHold: handleOpenHoldCase,
-            onChangeDueDate: (slip) => { setSelectedSlipForDateChange(slip); setShowChangeDateModal(true) },
+            onChangeDueDate: () => {},
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
             onReadyToSend: handleOpenReadyToSend,
-            onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
-            onRush: handleOpenRushCase,
+            onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
+            onSendBack: () => {},
+            onRush: () => {},
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
           }}
           canPrintStatement={canPrintStatement}
-          canSendBack={canSendBackToOffice}
+          canSendBack={() => false}
+          officeProfile
           onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
-          onBulkPrintStatement={() => {
-            const row = slips.find((s) => s.id === selected[0])
-            if (selected.length === 1 && row) handlePrintStatement(row)
-          }}
-          onBulkArchive={() => setArchiveConfirm(-1)}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}
@@ -802,35 +745,15 @@ function OfficeCaseManagementPage() {
         {paperSlipPortal}
         <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
-        {showAttachModal && selectedCaseForAttachment && createPortal(
-          <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
-            <FileAttachmentModalContent
-              setShowAttachModal={(show) => { setShowAttachModal(show); if (!show) setSelectedCaseForAttachment(null) }}
-              isCaseSubmitted={false}
-              caseId={selectedCaseForAttachment.caseId}
-              caseNumber={selectedCaseForAttachment.caseNumber}
-              doctorName={selectedCaseForAttachment.doctor}
-              patientName={selectedCaseForAttachment.patient}
-              open={showAttachModal}
-            />
-          </div>,
-          document.body
-        )}
-
-        {selectedSlipForDateChange && (
-          <ChangeDateModal
-            open={showChangeDateModal}
-            onClose={() => { setShowChangeDateModal(false); setSelectedSlipForDateChange(null) }}
-            patient={selectedSlipForDateChange.patient}
-            stage={selectedSlipForDateChange.product || "Unknown Stage"}
-            currentDate={new Date().toLocaleDateString()}
-            deliveryDate={selectedSlipForDateChange.dueDate}
-            deliveryTime="10:00"
-            slipId={selectedSlipForDateChange.id}
-            history={[]}
-            onSaved={refreshCurrentListing}
-          />
-        )}
+        <SlipAttachmentBrowserDialog
+          open={showAttachModal && !!selectedCaseForAttachment}
+          onClose={() => { setShowAttachModal(false); setSelectedCaseForAttachment(null) }}
+          caseId={selectedCaseForAttachment?.caseId}
+          caseNumber={selectedCaseForAttachment?.caseNumber}
+          doctorName={selectedCaseForAttachment?.doctor}
+          patientName={selectedCaseForAttachment?.patient}
+          isCaseSubmitted={false}
+        />
 
         <ReadyToSendModal
           open={showReadyToSendModal}
@@ -844,45 +767,6 @@ function OfficeCaseManagementPage() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
-        />
-
-        {(() => {
-          const rushSlots = addonInputs?.rushArchSlots ?? []
-          const hasMax = rushSlots.some((s) => s.arch === "maxillary" && s.isRushed)
-          const hasMand = rushSlots.some((s) => s.arch === "mandibular" && s.isRushed)
-          return (
-            <RushRequestModal
-              isOpen={showRushModal}
-              onClose={() => { setShowRushModal(false); setSelectedSlipForRush(null); setAddonInputs(null) }}
-              onConfirm={handleConfirmRushCase}
-              isRushed={(addonInputs?.slipIsRush ?? false) || rushSlots.some((s) => s.isRushed)}
-              existingRushDate={rushSlots.find((s) => s.existingRushDate)?.existingRushDate}
-              onRemoveRush={handleRemoveRushCase}
-              onRemoveRushByKey={() => { void handleRemoveRushCase() }}
-              maxRushed={hasMax}
-              maxExistingRushDate={rushSlots.find((s) => s.arch === "maxillary")?.existingRushDate}
-              mandRushed={hasMand}
-              mandExistingRushDate={rushSlots.find((s) => s.arch === "mandibular")?.existingRushDate}
-              onRemoveMaxRush={hasMax ? handleRemoveRushCase : undefined}
-              onRemoveMandRush={hasMand ? handleRemoveRushCase : undefined}
-              archSlots={rushSlots}
-              hasMaxillary={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "maxillary") : undefined}
-              hasMandibular={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "mandibular") : undefined}
-              product={{
-                name: rushSlots[0]?.productName ?? selectedSlipForRush?.product ?? "Case",
-                stage: rushSlots[0]?.stageName ?? selectedSlipForRush?.product ?? "Unknown Stage",
-                deliveryDate: addonInputs?.deliveryDateIso || selectedSlipForRush?.dueDate || "",
-                price: 0,
-              }}
-            />
-          )
-        })()}
-
-        <SendCaseBackToOfficeModal
-          open={showSendBackToOfficeModal}
-          onClose={() => { if (sendBackToOfficeSubmitting) return; setShowSendBackToOfficeModal(false); setSelectedSlipForSendBackToOffice(null) }}
-          onConfirm={handleConfirmSendBackToOffice}
-          loading={sendBackToOfficeSubmitting}
         />
 
         <CaseActionModal

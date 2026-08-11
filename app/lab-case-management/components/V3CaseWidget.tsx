@@ -31,15 +31,19 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  /**
+   * Office profile listing: counterparty column reads "Lab", driver actions and
+   * rush-submit icons are withheld (rush status bolt still shows), and rush rows
+   * lose the amber highlight. Defaults false.
+   */
+  officeProfile?: boolean
   printMenuRow: number | null
   moreMenuRow: number | null
   onPrintMenuRowChange: (id: number | null) => void
   onMoreMenuRowChange: (id: number | null) => void
-  // bulk actions
+  // bulk actions — statement printing and archiving stay row-level only
   onBulkPrintDriverLabel: () => void
   onBulkPrintPaperSlip: () => void
-  onBulkPrintStatement: () => void
-  onBulkArchive: () => void
   // pagination
   currentPage: number
   totalPages: number
@@ -77,6 +81,7 @@ export function V3CaseWidget(props: Props) {
         onClearQuickFilters={props.onClearQuickFilters}
         visibleColumns={visibleColumns}
         onVisibleColumnsChange={setVisibleColumns}
+        officeProfile={props.officeProfile}
       />
       {props.advancedFilterContent}
       {props.selected.length > 0 && (
@@ -96,21 +101,6 @@ export function V3CaseWidget(props: Props) {
           >
             Print Paper slip
           </button>
-          <button
-            type="button"
-            className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-40"
-            disabled={props.selected.length !== 1 || !props.canPrintStatement(props.rows.find((r) => r.id === props.selected[0]) ?? ({} as V2CaseRowData))}
-            onClick={props.onBulkPrintStatement}
-          >
-            Print Statement
-          </button>
-          <button
-            type="button"
-            className="rounded px-2 py-1 text-sm text-red-600 hover:bg-red-50"
-            onClick={props.onBulkArchive}
-          >
-            Archive case
-          </button>
         </div>
       )}
       <V3CaseTable
@@ -124,6 +114,7 @@ export function V3CaseWidget(props: Props) {
         rowActions={props.rowActions}
         canPrintStatement={props.canPrintStatement}
         canSendBack={props.canSendBack}
+        officeProfile={props.officeProfile}
         printMenuRow={props.printMenuRow}
         moreMenuRow={props.moreMenuRow}
         onPrintMenuRowChange={props.onPrintMenuRowChange}

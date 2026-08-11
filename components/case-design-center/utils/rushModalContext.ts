@@ -134,6 +134,8 @@ export interface RushArchSlot {
   archLabel: string;
   productName: string;
   apiProductId: number;
+  /** Stage row ID (ProductStage.id) — used for the delivery-date API call. */
+  apiStageId?: number;
   cardId: number;
   repTooth: number;
   isFixed: boolean;
@@ -383,11 +385,19 @@ function findAllSlotsForArch(arch: Arch, params: BuildRushArchSlotsParams): Rush
         workDaysToDeliver
       );
 
+      const matchedStage = resolvedStageName && product?.stages?.length
+        ? product.stages.find((s) => s.name === resolvedStageName)
+        : undefined;
+      const apiStageId =
+        matchedStage?.id ??
+        product?.stages?.find((s) => s.is_default === "Yes")?.id;
+
       return {
         arch,
         archLabel,
         productName: product?.name?.trim() || "Product",
         apiProductId: product?.id ?? 0,
+        apiStageId,
         cardId,
         repTooth,
         isFixed,

@@ -117,3 +117,23 @@ export function archAllowsAccordionCollapse(
 ): boolean {
   return archProductAccordionCount(arch, addedProducts, options) > 1;
 }
+
+/**
+ * When an arch has exactly one product (card 0 only, or one added product and no card 0),
+ * return that card id so tooth-chart clicks can assign to it without changing accordion focus.
+ * Returns null when the arch has zero or multiple products (keep multi-product behavior).
+ */
+export function resolveSoleProductCardIdOnArch(params: {
+  arch: Arch;
+  addedProducts: AddedProduct[] | undefined;
+  /** True when the initial wizard product (card 0) exists on this arch. */
+  hasCard0OnArch: boolean;
+}): number | null {
+  const { arch, addedProducts, hasCard0OnArch } = params;
+  const archAps = (addedProducts ?? []).filter(
+    (p) => p.arch === arch || p.arch === "both"
+  );
+  if (hasCard0OnArch && archAps.length === 0) return 0;
+  if (!hasCard0OnArch && archAps.length === 1) return archAps[0].id;
+  return null;
+}

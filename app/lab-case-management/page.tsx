@@ -13,16 +13,21 @@ import { X } from "lucide-react"
 import { format } from "date-fns"
 import { useSlipContext } from "./SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content"
+import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
 import ChangeDateModal from "@/components/change-date-modal"
 import DriverHistoryModal from "@/components/driver-history-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
+import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
+import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings"
+import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
+import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
-import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
+import DriverLabelSheetModal from "@/components/driver-labels/DriverLabelSheetModal"
+import type { DriverLabelSlip } from "@/lib/driver-labels/generate-driver-label-pdf"
 import CaseActionModal from "@/components/CaseActionModal"
 import RushRequestModal from "@/components/rush-request-modal"
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
@@ -46,7 +51,7 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "./components/V3CaseWidget"
@@ -140,7 +145,7 @@ function normalizeStatusFilterValue(status: string): string {
 export default function LabSlipV3Page() {
   const { toast } = useToast()
   const searchParams = useSearchParams()
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint()
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
 
   const [search, setSearch] = useState("")
@@ -179,13 +184,16 @@ export default function LabSlipV3Page() {
   const [selectedSlipForCallLog, setSelectedSlipForCallLog] = useState<V2CaseRowData | null>(null)
   const [showPrintPreview, setShowPrintPreview] = useState(false)
   const [selectedSlipForPrint, setSelectedSlipForPrint] = useState<V2CaseRowData | null>(null)
-  const [showPrintDriverTags, setShowPrintDriverTags] = useState(false)
-  const [selectedSlipForDriverTags, setSelectedSlipForDriverTags] = useState<V2CaseRowData | null>(null)
+  const [showDriverLabelModal, setShowDriverLabelModal] = useState(false)
+  const [driverLabelSlips, setDriverLabelSlips] = useState<DriverLabelSlip[]>([])
+  const [driverLabelLoading, setDriverLabelLoading] = useState(false)
   const [showReadyToSendModal, setShowReadyToSendModal] = useState(false)
   const [readyToSendSlip, setReadyToSendSlip] = useState<V2CaseRowData | null>(null)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
   const [showRushModal, setShowRushModal] = useState(false)
   const [selectedSlipForRush, setSelectedSlipForRush] = useState<V2CaseRowData | null>(null)
+  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null)
+  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null)
   const [showSendBackToOfficeModal, setShowSendBackToOfficeModal] = useState(false)
   const [selectedSlipForSendBackToOffice, setSelectedSlipForSendBackToOffice] = useState<V2CaseRowData | null>(null)
   const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] = useState(false)
@@ -396,6 +404,8 @@ export default function LabSlipV3Page() {
 
   const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
     setAddonInputs(null)
+    setRushCaseSchedule(null)
+    setLabBusinessHours(null)
     if (!slipId) return
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
@@ -405,7 +415,22 @@ export default function LabSlipV3Page() {
       })
       if (res.status === 401) { window.location.href = "/login"; return }
       const json = await res.json()
-      setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
+      const details = json?.data ?? null
+      setAddonInputs(buildVirtualSlipAddonInputs(details))
+      // Load the lab's rush settings (fee %, turnaround, weekoffs/holidays) from the
+      // same slip details payload, exactly as the virtual slip does.
+      const customerId = resolveLibraryCustomerId(resolveLabIdFromSlipDetails(details))
+      if (customerId) {
+        getBusinessSettings(customerId)
+          .then((settings) => {
+            setRushCaseSchedule(settings?.case_schedule ?? null)
+            setLabBusinessHours(settings?.business_hours ?? null)
+          })
+          .catch(() => {
+            setRushCaseSchedule(null)
+            setLabBusinessHours(null)
+          })
+      }
     } catch {
       setAddonInputs(null)
     }
@@ -561,12 +586,28 @@ export default function LabSlipV3Page() {
     }
   }
 
-  const handleDriverPrint = async (slip: V2CaseRowData, slots: number[]) => {
+  const openDriverLabelModal = async (rowIds: number[]) => {
+    if (!rowIds.length) {
+      toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
+      return
+    }
+    setDriverLabelSlips([])
+    setDriverLabelLoading(true)
+    setShowDriverLabelModal(true)
     try {
-      const data = await fetchDriverPrintData([slip.id])
-      if (!data?.slips?.length) { alert("Failed to fetch driver print data."); return }
-      openDriverLabelsWindow(data.slips[0], slots)
-    } catch { alert("Failed to generate driver labels.") }
+      const data = await fetchDriverPrintData(rowIds)
+      if (!data?.slips?.length) {
+        toast({ title: "Failed to fetch driver print data.", variant: "destructive" })
+        setShowDriverLabelModal(false)
+        return
+      }
+      setDriverLabelSlips(data.slips as unknown as DriverLabelSlip[])
+    } catch {
+      toast({ title: "Failed to load driver labels.", variant: "destructive" })
+      setShowDriverLabelModal(false)
+    } finally {
+      setDriverLabelLoading(false)
+    }
   }
 
   const handleBulkPrintPaperSlip = () => {
@@ -582,40 +623,6 @@ export default function LabSlipV3Page() {
     printPaperSlip(slipIds, [])
   }
 
-  const handleBulkDriverPrint = async () => {
-    if (!selected.length) {
-      toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
-      return
-    }
-    try {
-      const data = await fetchDriverPrintData(selected)
-      if (!data?.slips?.length) {
-        toast({ title: "Failed to fetch driver print data.", variant: "destructive" })
-        return
-      }
-      const allSlots = Array.from({ length: 8 }, (_, i) => i)
-      data.slips.forEach((driverSlip, index) => {
-        setTimeout(() => openDriverLabelsWindow(driverSlip, allSlots), index * 500)
-      })
-    } catch {
-      toast({ title: "Failed to bulk print driver labels.", variant: "destructive" })
-    }
-  }
-
-  const openDriverLabelsWindow = (driverSlip: any, selectedSlots: number[]) => {
-    const iframe = document.createElement("iframe")
-    iframe.style.cssText = "position:absolute;left:-9999px;width:0;height:0;border:none"
-    document.body.appendChild(iframe)
-    const content = Array.from({ length: 8 }, (_, i) =>
-      selectedSlots.includes(i)
-        ? `<div class="driver-label"><div class="header"><div><div class="bold">${driverSlip.lab_name || ""}</div><div>OFC: ${driverSlip.office_code || ""}</div><div>PT: ${driverSlip.pt_name || ""}</div><div>DR: ${driverSlip.doctor_name || ""}</div></div><div class="qr"><img src="${driverSlip.qr_code || ""}" /></div></div><div class="body"><div>Stage: ${driverSlip.stage_code || ""} PAN#: ${driverSlip.case_pan_number || ""}</div><div>CASE#: ${driverSlip.case_number || ""} SLIP#: ${driverSlip.slip_number || ""}</div></div></div>`
-        : '<div class="empty"></div>'
-    ).join("")
-    const html = `<!DOCTYPE html><html><head><style>body{margin:0;padding:20px;font-family:Arial,sans-serif}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:15px}.driver-label{border:2px solid #000;padding:12px;min-height:200px}.empty{border:none}.bold{font-weight:bold}.header{display:flex;justify-content:space-between}.qr img{width:58px;height:58px}.body{border-top:1px solid #ccc;margin-top:10px;padding-top:6px;font-size:11px}@media print{body{margin:0}}</style></head><body><div class="grid">${content}</div><script>setTimeout(()=>{window.print()},500)<\/script></body></html>`
-    const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (doc) { doc.open(); doc.write(html); doc.close() }
-    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
-  }
 
   const advancedFilterContent = showAdvancedFilter ? (
     <div className="border-b border-[#e5e7eb] bg-white px-4 py-4">
@@ -830,7 +837,7 @@ export default function LabSlipV3Page() {
           rowActions={{
             onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
-            onPrintDriverLabel: (slip) => { setSelectedSlipForDriverTags(slip); setShowPrintDriverTags(true) },
+            onPrintDriverLabel: (slip) => void openDriverLabelModal([slip.id]),
             onPrintStatement: handlePrintStatement,
             onCallLog: (slip) => { setSelectedSlipForCallLog(slip); setShowCallLogModal(true) },
             onAddOns: (slip) => { setSelectedSlipForAddOns(slip); setShowAddOnsModal(true); void loadAddonInputsForSlip(slip.id) },
@@ -844,19 +851,15 @@ export default function LabSlipV3Page() {
             onChangeDueDate: (slip) => { setSelectedSlipForDateChange(slip); setShowChangeDateModal(true) },
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },
             onReadyToSend: handleOpenReadyToSend,
+            onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
             onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
             onRush: handleOpenRushCase,
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
-          onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
+          onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
-          onBulkPrintStatement={() => {
-            const row = slips.find((s) => s.id === selected[0])
-            if (selected.length === 1 && row) handlePrintStatement(row)
-          }}
-          onBulkArchive={() => setArchiveConfirm(-1)}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}
@@ -888,20 +891,15 @@ export default function LabSlipV3Page() {
         {paperSlipPortal}
         <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
-        {showAttachModal && selectedCaseForAttachment && createPortal(
-          <div style={{ position: "fixed", inset: 0, zIndex: 50 }}>
-            <FileAttachmentModalContent
-              setShowAttachModal={(show) => { setShowAttachModal(show); if (!show) setSelectedCaseForAttachment(null) }}
-              isCaseSubmitted={false}
-              caseId={selectedCaseForAttachment.caseId}
-              caseNumber={selectedCaseForAttachment.caseNumber}
-              doctorName={selectedCaseForAttachment.doctor}
-              patientName={selectedCaseForAttachment.patient}
-              open={showAttachModal}
-            />
-          </div>,
-          document.body
-        )}
+        <SlipAttachmentBrowserDialog
+          open={showAttachModal && !!selectedCaseForAttachment}
+          onClose={() => { setShowAttachModal(false); setSelectedCaseForAttachment(null) }}
+          caseId={selectedCaseForAttachment?.caseId}
+          caseNumber={selectedCaseForAttachment?.caseNumber}
+          doctorName={selectedCaseForAttachment?.doctor}
+          patientName={selectedCaseForAttachment?.patient}
+          isCaseSubmitted={false}
+        />
 
         {selectedSlipForDateChange && (
           <ChangeDateModal
@@ -938,8 +936,8 @@ export default function LabSlipV3Page() {
           const hasMand = rushSlots.some((s) => s.arch === "mandibular" && s.isRushed)
           return (
             <RushRequestModal
-              isOpen={showRushModal}
-              onClose={() => { setShowRushModal(false); setSelectedSlipForRush(null); setAddonInputs(null) }}
+              isOpen={showRushModal && rushSlots.length > 0}
+              onClose={() => { setShowRushModal(false); setSelectedSlipForRush(null); setAddonInputs(null); setRushCaseSchedule(null); setLabBusinessHours(null) }}
               onConfirm={handleConfirmRushCase}
               isRushed={(addonInputs?.slipIsRush ?? false) || rushSlots.some((s) => s.isRushed)}
               existingRushDate={rushSlots.find((s) => s.existingRushDate)?.existingRushDate}
@@ -952,14 +950,17 @@ export default function LabSlipV3Page() {
               onRemoveMaxRush={hasMax ? handleRemoveRushCase : undefined}
               onRemoveMandRush={hasMand ? handleRemoveRushCase : undefined}
               archSlots={rushSlots}
+              mirrorRushAcrossArches={virtualSlipRushSlotsShareProduct(rushSlots)}
               hasMaxillary={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "maxillary") : undefined}
               hasMandibular={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "mandibular") : undefined}
               product={{
                 name: rushSlots[0]?.productName ?? selectedSlipForRush?.product ?? "Case",
                 stage: rushSlots[0]?.stageName ?? selectedSlipForRush?.product ?? "Unknown Stage",
                 deliveryDate: addonInputs?.deliveryDateIso || selectedSlipForRush?.dueDate || "",
-                price: 0,
+                price: rushSlots.reduce((sum, s) => sum + (s.price ?? 0), 0),
               }}
+              rushCaseSchedule={rushCaseSchedule}
+              labBusinessHours={labBusinessHours}
             />
           )
         })()}
@@ -1046,12 +1047,11 @@ export default function LabSlipV3Page() {
           } : { lab: "", address: "", office: "", doctor: "", patient: "", pickupDate: "", panNumber: "", caseNumber: "", slipNumber: "", products: [], contact: "", email: "" }}
         />
 
-        <PrintDriverTagsModal
-          isOpen={showPrintDriverTags}
-          slip={selectedSlipForDriverTags}
-          onClose={() => setShowPrintDriverTags(false)}
-          onRegularPrint={async (slip, allSlots) => { if (slip) await handleDriverPrint(slip, allSlots.map((v, i) => v ? i : -1).filter((i) => i !== -1)) }}
-          onGenerateLabels={async (slip, selectedSlots) => { if (slip) await handleDriverPrint(slip, selectedSlots.map((v, i) => v ? i : -1).filter((i) => i !== -1)) }}
+        <DriverLabelSheetModal
+          isOpen={showDriverLabelModal}
+          onClose={() => setShowDriverLabelModal(false)}
+          slips={driverLabelSlips}
+          loading={driverLabelLoading}
         />
       </main>
     </div>

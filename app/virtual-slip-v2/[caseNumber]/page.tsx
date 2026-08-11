@@ -25,7 +25,6 @@ import {
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
-import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
 import { VirtualSlipArch } from "@/components/virtual-slip/VirtualSlipArch";
@@ -37,7 +36,7 @@ import DriverHistoryModal from "@/components/driver-history-modal";
 import ReadyToSendModal from "@/components/ready-to-send-modal";
 import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal";
 import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entry";
-import FileAttachmentModalContent from "@/components/file-attachment-modal-content";
+import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog";
 import CaseActionModal from "@/components/CaseActionModal";
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal";
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print";
@@ -48,12 +47,18 @@ import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-info";
 import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
 import {
+  canSubmitSlipRush,
   getStoredSlipUserRole,
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print";
+import { isOfficeCustomerContext } from "@/lib/role-utils";
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2";
+import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
+import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings";
+import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state";
+import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -80,7 +85,6 @@ export default function VirtualSlipV2Page() {
   } = useSlipCreation();
   const [loading, setLoading] = useState(true);
   const [showAttachModal, setShowAttachModal] = useState(false);
-  const [attachViewerOpen, setAttachViewerOpen] = useState(false);
   const [pickupDropoffOpen, setPickupDropoffOpen] = useState(false);
   const [driverHistoryViewOpen, setDriverHistoryViewOpen] = useState(false);
   const [fabNotesOpen, setFabNotesOpen] = useState(false);
@@ -96,12 +100,18 @@ export default function VirtualSlipV2Page() {
   const [addStageEligible, setAddStageEligible] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
+  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
 
   useEffect(() => {
     setUserRole(getStoredSlipUserRole());
   }, []);
 
   const canRunLabDriverActions = isLabSlipUserRole(userRole);
+  // Office profiles can see rush status on the slip but must not submit/remove
+  // rush here — only during slip creation. Match office listing `allowRush={false}`.
+  const canRushFromVirtualSlip =
+    canSubmitSlipRush(userRole) && !isOfficeCustomerContext();
 
   useEffect(() => {
     if (!slipId || isNaN(slipId)) {
@@ -111,6 +121,21 @@ export default function VirtualSlipV2Page() {
     setLoading(true);
     fetchVirtualSlipDetails(slipId).finally(() => setLoading(false));
   }, [slipId, fetchVirtualSlipDetails]);
+
+  useEffect(() => {
+    const labId = resolveLabIdFromSlipDetails(virtualSlipDetails);
+    const customerId = resolveLibraryCustomerId(labId);
+    if (!customerId) return;
+    getBusinessSettings(customerId)
+      .then((settings) => {
+        setRushCaseSchedule(settings?.case_schedule ?? null);
+        setLabBusinessHours(settings?.business_hours ?? null);
+      })
+      .catch(() => {
+        setRushCaseSchedule(null);
+        setLabBusinessHours(null);
+      });
+  }, [virtualSlipDetails]);
 
   const slipLocationRefForEligibility = useMemo(() => {
     const vmEarly = buildVirtualSlipVM(virtualSlipDetails);
@@ -358,10 +383,19 @@ export default function VirtualSlipV2Page() {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
   }, [router, slipId]);
 
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint();
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2();
   const handlePrint = useCallback(() => {
     if (!slipId || isNaN(slipId)) return;
     printPaperSlip([slipId], []);
+  }, [slipId, printPaperSlip]);
+
+  // A freshly created slip is marked by the submit flow; consuming the flag
+  // auto-opens the paper slip print window once — reloads never re-trigger it.
+  useEffect(() => {
+    if (!slipId || isNaN(slipId)) return;
+    if (consumeSlipAutoPrint(slipId)) {
+      printPaperSlip([slipId], []);
+    }
   }, [slipId, printPaperSlip]);
 
   const submitCaseStatusAction = async (
@@ -605,6 +639,8 @@ export default function VirtualSlipV2Page() {
           visibleArches={visibleArches}
           showEditSlip={slipInLab && !caseCancelled && canEditSlip}
           caseOnHold={caseOnHold}
+          rushCaseSchedule={rushCaseSchedule}
+          labBusinessHours={labBusinessHours}
           onAttachments={() => setShowAttachModal(true)}
           onDriverHistory={() => setDriverHistoryViewOpen(true)}
           onHold={
@@ -621,7 +657,7 @@ export default function VirtualSlipV2Page() {
               ? () => setSendBackToOfficeOpen(true)
               : undefined
           }
-          allowRush={canRunLabDriverActions}
+          allowRush={canRushFromVirtualSlip}
           openNotesModal={fabNotesOpen}
           onOpenNotesModalChange={setFabNotesOpen}
           openRushModal={fabRushOpen}
@@ -742,26 +778,15 @@ export default function VirtualSlipV2Page() {
       {paperSlipPortal}
       <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
-      {showAttachModal && typeof document !== "undefined" && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] bg-white"
-          style={{ width: "100vw", height: "100vh" }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="File Attachments"
-        >
-          <FileAttachmentModalContent
-            setShowAttachModal={setShowAttachModal}
-            isCaseSubmitted={false}
-            slipId={slipId}
-            doctorName={vm.header.doctorName}
-            patientName={vm.header.patientName}
-            onViewerToggle={setAttachViewerOpen}
-            open={showAttachModal}
-          />
-        </div>,
-        document.body
-      )}
+      <SlipAttachmentBrowserDialog
+        open={showAttachModal}
+        onClose={() => setShowAttachModal(false)}
+        caseId={caseId ?? undefined}
+        slipId={slipId}
+        doctorName={vm.header.doctorName}
+        patientName={vm.header.patientName}
+        isCaseSubmitted={false}
+      />
     </div>
   );
 }

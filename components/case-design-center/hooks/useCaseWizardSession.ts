@@ -3,6 +3,7 @@ import type { WizardDoctorShape, WizardLabShape } from "@/components/new-case-wi
 import type { AddedProduct } from "../types";
 import type { CaseDesignProductDetails } from "../utils/caseDesignProductDetails";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
+import { nextAddedProductCardId } from "../utils/nextAddedProductCardId";
 import { useOfficeDoctors } from "@/hooks/use-slip-data";
 import { mapOfficeDoctorsToWizardShape } from "../components/DoctorEditModal";
 
@@ -141,20 +142,22 @@ export function useCaseWizardSession({
           ? await fetchProductDetails(addedProductId, completedLab?.id)
           : null;
         const categoryName = details?.category_name || result.categoryName || "";
-        const newProduct: AddedProduct = {
-          id: Date.now(),
-          productId: addedProductId,
-          product: buildAddedProductStub(details, {
-            name: result.product || "Untitled Product",
-            categoryName,
-            subcategoryName: details?.subcategory_name,
-            subcategoryId: Number(result.product) || undefined,
-            imageUrl: details?.image_url ?? undefined,
-          }),
-          arch: pendingProductArch,
-          expanded: true,
-        };
-        setAddedProducts((prev) => [newProduct, ...prev.map((product) => ({ ...product, expanded: false }))]);
+        setAddedProducts((prev) => {
+          const newProduct: AddedProduct = {
+            id: nextAddedProductCardId(prev),
+            productId: addedProductId,
+            product: buildAddedProductStub(details, {
+              name: result.product || "Untitled Product",
+              categoryName,
+              subcategoryName: details?.subcategory_name,
+              subcategoryId: Number(result.product) || undefined,
+              imageUrl: details?.image_url ?? undefined,
+            }),
+            arch: pendingProductArch,
+            expanded: true,
+          };
+          return [newProduct, ...prev.map((product) => ({ ...product, expanded: false }))];
+        });
         setWizardMode("initial");
         setWizardComplete(true);
       } else {
@@ -231,23 +234,25 @@ export function useCaseWizardSession({
       const details = addedProductId ? await fetchProductDetails(addedProductId) : null;
       const categoryName = details?.category_name || result.categoryName || "";
       const arch = result.arch;
-      const newProduct: AddedProduct = {
-        id: Date.now(),
-        productId: addedProductId,
-        product: buildAddedProductStub(details, {
-          name: result.materialName || "Untitled Product",
-          categoryName,
-          subcategoryName: details?.subcategory_name,
-          subcategoryId: Number(result.product) || undefined,
-          imageUrl: details?.image_url ?? undefined,
-        }),
-        arch,
-        expanded: true,
-      };
-      setAddedProducts((prev) => [
-        newProduct,
-        ...prev.map((product) => ({ ...product, expanded: false })),
-      ]);
+      setAddedProducts((prev) => {
+        const newProduct: AddedProduct = {
+          id: nextAddedProductCardId(prev),
+          productId: addedProductId,
+          product: buildAddedProductStub(details, {
+            name: result.materialName || "Untitled Product",
+            categoryName,
+            subcategoryName: details?.subcategory_name,
+            subcategoryId: Number(result.product) || undefined,
+            imageUrl: details?.image_url ?? undefined,
+          }),
+          arch,
+          expanded: true,
+        };
+        return [
+          newProduct,
+          ...prev.map((product) => ({ ...product, expanded: false })),
+        ];
+      });
       setInlineAddProductArch(null);
     } finally {
       wizardCompletingRef.current = false;

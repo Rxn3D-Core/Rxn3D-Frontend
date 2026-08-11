@@ -38,12 +38,20 @@ import {
 } from "../utils/categoryHelpers";
 import { addedProductAppliesToArch } from "../utils/activeProductChartMode";
 import {
+  resolveActiveAddedProductOnArch,
+  resolveAddedCardProduct,
+} from "../utils/addedProductCardHelpers";
+import {
   isSingleDefaultOnlyExtractionList,
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
-import { resolveDefaultToothChartSlipAssignmentForArch } from "@/lib/product-default-tooth-chart-slip-display";
-import { productSupportsAddons } from "../utils/addonDisplayHelpers";
+import {
+  implantOnlySelectionModeForArch,
+  resolveDefaultToothChartSlipAssignmentForArch,
+} from "@/lib/product-default-tooth-chart-slip-display";
+import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, buildDefaultSeedEntriesFromProduct } from "../utils/addonDisplayHelpers";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
@@ -62,6 +70,7 @@ import {
   firstPreloadedAccordionFocus,
   guidedPhaseAllowsArch,
   productAccordionKey,
+  resolveSoleProductCardIdOnArch,
   type GuidedBothArchPhase,
 } from "../utils/productAccordionFocus";
 import { buildShadeSelectionKey } from "../utils/shadeGuideAdvanceFields";
@@ -292,14 +301,77 @@ export function useCaseDesignState(props: CaseDesignProps) {
     return true;
   };
 
+  /** True when the initial wizard product (card 0) is present on this arch. */
+  const hasCard0OnArch = useCallback(
+    (arch: Arch): boolean => {
+      if (!props.selectedProductId) return false;
+      return props.initialArch === arch || props.initialArch === "both";
+    },
+    [props.selectedProductId, props.initialArch]
+  );
+
+  /**
+   * Card + product to own a tooth click on `arch`.
+   * Prefer the globally active card when it applies; otherwise the arch's sole
+   * product (card 0 alone or one added alone) — without changing accordion focus.
+   */
+  const resolveToothAssignTarget = useCallback(
+    (arch: Arch): { cardId: number; productId: number } | null => {
+      if (activeProductCardId === 0) {
+        if (!props.selectedProductId) return null;
+        return { cardId: 0, productId: props.selectedProductId };
+      }
+      const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
+      if (ap?.productId && addedProductAppliesToArch(ap, arch)) {
+        return { cardId: activeProductCardId, productId: ap.productId };
+      }
+      const soleCardId = resolveSoleProductCardIdOnArch({
+        arch,
+        addedProducts: props.addedProducts,
+        hasCard0OnArch: hasCard0OnArch(arch),
+      });
+      if (soleCardId === null) return null;
+      if (soleCardId === 0) {
+        if (!props.selectedProductId) return null;
+        return { cardId: 0, productId: props.selectedProductId };
+      }
+      const soleAp = (props.addedProducts ?? []).find((p) => p.id === soleCardId);
+      if (!soleAp?.productId) return null;
+      return { cardId: soleCardId, productId: soleAp.productId };
+    },
+    [
+      activeProductCardId,
+      hasCard0OnArch,
+      props.addedProducts,
+      props.selectedProductId,
+    ]
+  );
+
+  const isNonRetentionForCardOnArch = (arch: Arch, cardId: number): boolean => {
+    if (cardId === 0) return isCard0NonRetentionForArch(arch);
+    const ap = (props.addedProducts ?? []).find((p) => p.id === cardId);
+    if (!ap || !addedProductAppliesToArch(ap, arch)) return false;
+    if (hasRetentionOptions(ap.product)) return false;
+    if (ap.productId) {
+      const cached = cachedProductRef.current.get(ap.productId);
+      if (cached) return !hasRetentionOptions(cached);
+    }
+    return !hasRetentionOptions(ap.product);
+  };
+
   const isActiveNonRetentionProduct = (arch: Arch): boolean => {
     if (activeProductCardId === 0) {
       return isCard0NonRetentionForArch(arch);
     }
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
-    // Active card lives on the other arch — clicks on this arch land on its own
-    // card-0 product, so derive selection-only mode from that product instead.
+    // Active card lives on the other arch — use this arch's sole product when present.
     if (ap && !addedProductAppliesToArch(ap, arch)) {
+      const soleCardId = resolveSoleProductCardIdOnArch({
+        arch,
+        addedProducts: props.addedProducts,
+        hasCard0OnArch: hasCard0OnArch(arch),
+      });
+      if (soleCardId !== null) return isNonRetentionForCardOnArch(arch, soleCardId);
       return isCard0NonRetentionForArch(arch);
     }
     if (!addedProductAppliesToArch(ap, arch)) return false;
@@ -1220,6 +1292,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     (product: ProductApiData | null | undefined, arch: string | undefined) => {
       if (!product?.id || !arch) return;
       if (shouldSkipLegacyDefaultExtractionAutoSelect(product)) return;
+      if (hasRetentionOptions(product)) return;
 
       const isSingleDefaultOnly = isSingleDefaultOnlyExtractionList(product.extractions);
       const shouldAutoDefault = shouldAutoSelectArchForDefaultExtraction(product.extractions);
@@ -1317,6 +1390,74 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ]
   );
 
+  /**
+   * Added fixed default-tooth-chart products (AOX / select-only-implant): mirror
+   * card 0's default-chart seed onto this card id only — bind productTeeth and
+   * retention map so the header/product box lists the full chart, not just implants.
+   * Does not touch card 0 ownership or the card-0 default-chart effect.
+   */
+  const applyAddedProductDefaultToothChart = useCallback(
+    (product: ProductApiData, arch: Arch, cardId: number) => {
+      if (!product?.id || props.caseSubmitted || cardId === 0) return;
+      if (!shouldSkipLegacyDefaultExtractionAutoSelect(product)) return;
+      if (!hasRetentionOptions(product)) return;
+
+      const assignment = resolveDefaultToothChartSlipAssignmentForArch(
+        product as unknown as Record<string, unknown>,
+        arch,
+        props.initialArch
+      );
+      if (!assignment || assignment.productTeeth.length === 0) return;
+
+      const { productTeeth, retentionTypesByTooth } = assignment;
+      const merged = enrichProductWithGrades(arch, product);
+
+      if (arch === "maxillary") {
+        setMaxillaryRetentionTypes((prev) => {
+          const next = { ...prev };
+          for (const [tn, types] of Object.entries(retentionTypesByTooth)) {
+            const key = Number(tn);
+            if (!next[key]?.length) next[key] = types;
+          }
+          return next;
+        });
+        setMaxillaryTeeth((prev) => [...new Set([...prev, ...productTeeth])]);
+      } else {
+        setMandibularRetentionTypes((prev) => {
+          const next = { ...prev };
+          for (const [tn, types] of Object.entries(retentionTypesByTooth)) {
+            const key = Number(tn);
+            if (!next[key]?.length) next[key] = types;
+          }
+          return next;
+        });
+        setMandibularTeeth((prev) => [...new Set([...prev, ...productTeeth])]);
+      }
+
+      for (const tooth of productTeeth) {
+        const explicit = toothFieldProgress.isToothExplicitlyAssigned(arch, tooth);
+        const existingCard = toothFieldProgress.getToothProductCard(arch, tooth);
+        // Never steal teeth already bound to card 0 or another added card.
+        if (explicit && existingCard !== cardId) continue;
+
+        toothFieldProgress.setToothProductCard(arch, tooth, cardId);
+        if (!toothFieldProgress.getToothProduct(arch, tooth)) {
+          toothFieldProgress.setToothProduct(arch, tooth, merged);
+        }
+      }
+    },
+    [
+      props.caseSubmitted,
+      props.initialArch,
+      toothFieldProgress,
+      enrichProductWithGrades,
+      setMaxillaryRetentionTypes,
+      setMaxillaryTeeth,
+      setMandibularRetentionTypes,
+      setMandibularTeeth,
+    ]
+  );
+
   const opposingAutoSelectedRef = useRef(false);
   const runOpposingExtractionsAutoSelect = useCallback(
     (product: ProductApiData | null | undefined, primaryArch: string | undefined) => {
@@ -1380,6 +1521,118 @@ export function useCaseDesignState(props: CaseDesignProps) {
     runOpposingExtractionsAutoSelect,
   ]);
 
+  // Auto-populate addon field from field progress, modal store, structured selections, or product defaults.
+  const autoPopulateDefaultAddons = useCallback(
+    (arch: Arch, toothNumber: number, product: ProductApiData, lookupTeeth: number[] = []) => {
+      if (!productSupportsAddons(product)) return;
+      const isFixed = hasRetentionOptions(product);
+      const addonStep = isFixed ? "fixed_addons" as const : "addons" as const;
+      let existing = toothFieldProgress.getFieldValue(arch, toothNumber, addonStep);
+      if (!hasVisibleAddonDisplay(existing)) {
+        for (const tn of lookupTeeth) {
+          const candidate = toothFieldProgress.getFieldValue(arch, tn, addonStep);
+          if (hasVisibleAddonDisplay(candidate)) {
+            existing = candidate;
+            break;
+          }
+        }
+      }
+      const addonKey = `${arch}_${toothNumber}`;
+      let structured = selectedAddonsByTooth[addonKey];
+      if (!structured?.length) {
+        for (const tn of lookupTeeth) {
+          const candidate = selectedAddonsByTooth[`${arch}_${tn}`];
+          if (candidate?.length) {
+            structured = candidate;
+            break;
+          }
+        }
+      }
+      const productId = product.id?.toString();
+      const storeAddons = productId
+        ? useCaseDesignStore.getState().productAddOns[productId]?.[arch]
+        : undefined;
+
+      const resolved = resolveRemovableAddonDisplay({
+        fieldValue: existing,
+        structuredAddons: structured,
+        storeAddons,
+        product,
+      });
+      if (!hasVisibleAddonDisplay(resolved)) return;
+      if (
+        toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep) &&
+        hasVisibleAddonDisplay(existing) &&
+        existing.trim() === resolved.trim()
+      ) {
+        return;
+      }
+
+      toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, resolved);
+
+      const structuredFromStore = (storeAddons ?? [])
+        .map((entry) => {
+          const addonId = entry.addon_id;
+          const qty = entry.qty ?? entry.quantity ?? 0;
+          if (!addonId || qty <= 0) return null;
+          return { addon_id: addonId, qty };
+        })
+        .filter((e): e is { addon_id: number; qty: number } => e != null);
+
+      const structuredSig = (structured ?? [])
+        .map((e) => `${e.addon_id}:${e.qty}`)
+        .sort()
+        .join("|");
+      const storeSig = structuredFromStore
+        .map((e) => `${e.addon_id}:${e.qty}`)
+        .sort()
+        .join("|");
+
+      // Keep per-tooth structured selections aligned with the modal store after Add.
+      if (structuredFromStore.length > 0 && storeSig !== structuredSig) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [addonKey]: structuredFromStore,
+        }));
+      } else if (!structured?.length) {
+        const defaultSeeds = buildDefaultSeedEntriesFromProduct(product);
+        const fallbackStructured =
+          structuredFromStore.length > 0
+            ? structuredFromStore
+            : defaultSeeds.map(({ addon_id, qty }) => ({ addon_id, qty }));
+
+        if (fallbackStructured.length > 0) {
+          setSelectedAddonsByTooth((prev) => ({
+            ...prev,
+            [addonKey]: fallbackStructured,
+          }));
+        }
+
+        // Mirror defaults into the modal store so "+ Add ons" opens with qty preselected.
+        if (productId && structuredFromStore.length === 0 && defaultSeeds.length > 0) {
+          const storeState = useCaseDesignStore.getState();
+          const existingStore =
+            storeState.productAddOns[productId] || { maxillary: [], mandibular: [] };
+          const archEntries = existingStore[arch] || [];
+          if (archEntries.length === 0) {
+            storeState.setProductAddOns(productId, {
+              ...existingStore,
+              [arch]: defaultSeeds.map((e) => ({
+                addon_id: e.addon_id,
+                qty: e.qty,
+                quantity: e.qty,
+                name: e.name,
+                addOn: e.name,
+                label: e.name,
+              })),
+            });
+          }
+        }
+      }
+    },
+    [toothFieldProgress, selectedAddonsByTooth, setSelectedAddonsByTooth]
+  );
+
   // Added products — cache detail; apply default-extraction auto-select per card when applicable.
   useEffect(() => {
     if (props.caseSubmitted) return;
@@ -1400,6 +1653,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         if (!addedProductSetupDoneRef.current.has(setupKey)) {
           addedProductSetupDoneRef.current.add(setupKey);
           applyAddedProductDefaultExtractions(product, arch, ap.id);
+          applyAddedProductDefaultToothChart(product, arch, ap.id);
           if (!autoSelectedArchKeysRef.current.has(key)) {
             autoSelectedArchKeysRef.current.add(key);
           }
@@ -1412,14 +1666,22 @@ export function useCaseDesignState(props: CaseDesignProps) {
           !isHydratedProductApiData(existingVirtual)
         ) {
           toothFieldProgress.setToothProduct(arch, virtualTooth, product);
+          autoPopulateDefaultAddons(arch, virtualTooth, product);
+        }
+        const cardTeethOnArch = (arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL).filter(
+          (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
+        );
+        if (cardTeethOnArch.length > 0) {
+          const repTooth = Math.min(...cardTeethOnArch);
+          autoPopulateDefaultAddons(arch, repTooth, product, [virtualTooth]);
         }
         if (props.preloadInitialSlipState) {
+          const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+          const cardTeeth = allTeeth.filter(
+            (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
+          );
           const hydrationKey = `${arch}_${ap.id}`;
           if (!preloadCardHydrationDoneRef.current.has(hydrationKey)) {
-            const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
-            const cardTeeth = allTeeth.filter(
-              (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
-            );
             if (cardTeeth.length > 0) {
               for (const tn of cardTeeth) {
                 const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
@@ -1433,6 +1695,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
               }
               preloadCardHydrationDoneRef.current.add(hydrationKey);
             }
+          }
+
+          // Merge initialSlipState because this effect can run before the mount hydration
+          // effect copies selectedShades into useShadeSelection. Classic Teeth/Gum live on
+          // product-level keys; named shade_guide fields stay on their own advance_field ids
+          // and must not be filled from top-level teeth/gum.
+          const preloadShades = props.initialSlipState?.selectedShades ?? {};
+          if (Object.keys(preloadShades).length > 0) {
+            shades.setSelectedShades((prev) => {
+              let changed = false;
+              const next = { ...prev };
+              for (const [key, value] of Object.entries(preloadShades)) {
+                if (!value || next[key]) continue;
+                next[key] = value;
+                changed = true;
+              }
+              return changed ? next : prev;
+            });
           }
         }
       };
@@ -1471,12 +1751,16 @@ export function useCaseDesignState(props: CaseDesignProps) {
     props.addedProducts,
     props.caseSubmitted,
     props.preloadInitialSlipState,
+    props.initialSlipState,
     enrichProductWithGrades,
     modals.setSelectedImpressions,
     applyAddedProductDefaultExtractions,
+    applyAddedProductDefaultToothChart,
+    autoPopulateDefaultAddons,
     toothFieldProgress.getToothProduct,
     toothFieldProgress.getToothProductCard,
     toothFieldProgress.setToothProduct,
+    shades.setSelectedShades,
   ]);
 
   /**
@@ -1638,29 +1922,6 @@ export function useCaseDesignState(props: CaseDesignProps) {
     ]
   );
 
-  // Auto-populate addon field with product's is_default addons when field not yet set
-  const autoPopulateDefaultAddons = useCallback(
-    (arch: Arch, toothNumber: number, product: ProductApiData) => {
-      if (!productSupportsAddons(product)) return;
-      const defaultAddons = (product.addons ?? []).filter(
-        (a) => String(a.is_default ?? "").trim().toLowerCase() === "yes" &&
-               String(a.status ?? "Active").trim().toLowerCase() === "active"
-      );
-      if (defaultAddons.length === 0) return;
-      const isFixed = hasRetentionOptions(product);
-      const addonStep = isFixed ? "fixed_addons" as const : "addons" as const;
-      if (toothFieldProgress.isFieldCompleted(arch, toothNumber, addonStep)) return;
-      const value = defaultAddons.map((a) => `${a.quantity ?? 1}x ${a.name}`).join(", ");
-      toothFieldProgress.completeFieldStep(arch, toothNumber, addonStep, value);
-      const key = `${arch}_${toothNumber}`;
-      setSelectedAddonsByTooth((prev) => ({
-        ...prev,
-        [key]: defaultAddons.map((a) => ({ addon_id: a.id, qty: a.quantity ?? 1 })),
-      }));
-    },
-    [toothFieldProgress, setSelectedAddonsByTooth]
-  );
-
   const maybeMirrorFixedProgressFromOpposite = useCallback(
     (targetArch: Arch, product: ProductApiData) => {
       if (!hasRetentionOptions(product) || product.id == null) return;
@@ -1707,6 +1968,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         maybeMirrorFixedProgressFromOpposite(arch, merged);
         if (toothNumber < 0) {
           applyAddedProductDefaultExtractions(merged, arch, -toothNumber);
+          applyAddedProductDefaultToothChart(merged, arch, -toothNumber);
         }
         const catalog = getImpressionOptionsForProduct(merged);
         if (catalog.length > 0) {
@@ -1739,6 +2001,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         maybeMirrorFixedProgressFromOpposite(arch, merged);
         if (toothNumber < 0) {
           applyAddedProductDefaultExtractions(merged, arch, -toothNumber);
+          applyAddedProductDefaultToothChart(merged, arch, -toothNumber);
         }
         const catalog = getImpressionOptionsForProduct(merged);
         if (catalog.length > 0) {
@@ -1757,6 +2020,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
       enrichProductWithGrades,
       modals.setSelectedImpressions,
       applyAddedProductDefaultExtractions,
+      applyAddedProductDefaultToothChart,
     ]
   );
 
@@ -1999,8 +2263,24 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (sourceStage && !modals.selectedStages[targetStageKey]) {
         modals.setSelectedStages((prev) => ({ ...prev, [targetStageKey]: sourceStage }));
       }
+
+      // Also migrate structured addon selections (addon_id/qty) so the submission payload
+      // is populated even when migration runs before fetchAndAssignProduct completes.
+      const sourceAddonKey = `${arch}_${virtualTooth}`;
+      const targetAddonKey = `${arch}_${targetTooth}`;
+      if (selectedAddonsByTooth[sourceAddonKey]?.length && !selectedAddonsByTooth[targetAddonKey]?.length) {
+        setSelectedAddonsByTooth((prev) => ({
+          ...prev,
+          [targetAddonKey]: [...(prev[sourceAddonKey] ?? [])],
+        }));
+      }
+
+      const product = toothFieldProgress.getToothProduct(arch, targetTooth);
+      if (product) {
+        autoPopulateDefaultAddons(arch, targetTooth, product);
+      }
     },
-    [modals.selectedStages, modals.setSelectedStages, toothFieldProgress]
+    [modals.selectedStages, modals.setSelectedStages, toothFieldProgress, selectedAddonsByTooth, setSelectedAddonsByTooth, autoPopulateDefaultAddons]
   );
 
   /** Whether a backfill step should copy from donor → target (addons use API defaults only). */
@@ -2255,62 +2535,174 @@ export function useCaseDesignState(props: CaseDesignProps) {
     backfillRemovableFromOppositeArch,
   ]);
 
+  const productAddOns = useCaseDesignStore((s) => s.productAddOns);
+  useEffect(() => {
+    if (props.caseSubmitted) return;
+    for (const ap of props.addedProducts ?? []) {
+      if (!ap.productId || (ap.arch !== "maxillary" && ap.arch !== "mandibular")) continue;
+      if (ap.product && hasRetentionOptions(ap.product)) continue;
+      const arch = ap.arch as Arch;
+      const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+      const repTooth = getRepToothForRemovableCard(
+        arch,
+        ap.id,
+        allTeeth,
+        toothFieldProgress.getToothProductCard,
+        toothFieldProgress.getToothProduct
+      );
+      if (repTooth == null) continue;
+      const product =
+        toothFieldProgress.getToothProduct(arch, repTooth) ??
+        toothFieldProgress.getToothProduct(arch, -ap.id);
+      if (product) autoPopulateDefaultAddons(arch, repTooth, product);
+    }
+
+    if (initialProductDetails && !hasRetentionOptions(initialProductDetails)) {
+      for (const arch of ["maxillary", "mandibular"] as const) {
+        const card0Teeth =
+          arch === "maxillary" ? getMaxillaryCard0Teeth() : getMandibularCard0Teeth();
+        if (card0Teeth.length === 0) continue;
+        const repTooth = Math.min(...card0Teeth);
+        const product = toothFieldProgress.getToothProduct(arch, repTooth) ?? initialProductDetails;
+        autoPopulateDefaultAddons(arch, repTooth, product);
+      }
+    }
+  }, [
+    props.addedProducts,
+    props.caseSubmitted,
+    productAddOns,
+    initialProductDetails,
+    autoPopulateDefaultAddons,
+    getMaxillaryCard0Teeth,
+    getMandibularCard0Teeth,
+    toothFieldProgress.getToothProduct,
+    toothFieldProgress.getToothProductCard,
+  ]);
+
   const assignToothToActiveProduct = useCallback(
     (arch: Arch, toothNumber: number) => {
-      const isRemovableActive = isActiveNonRetentionProduct(arch);
+      const target = resolveToothAssignTarget(arch);
+      if (!target) return;
 
-      if (activeProductCardId !== 0) {
-        const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
-        // Active card lives on the other arch — land the tooth on this arch's own
-        // card-0 product instead of dropping the assignment.
-        if (ap && !addedProductAppliesToArch(ap, arch)) {
-          const card0CoversArch =
-            props.initialArch === arch || props.initialArch === "both";
-          if (!card0CoversArch || !props.selectedProductId) return;
-          toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
-          void fetchAndAssignProduct(arch, toothNumber, props.selectedProductId).then(() => {
-            if (isRemovableActive) {
-              backfillRemovableFromOppositeArch(arch, toothNumber);
-            }
-          });
-          return;
-        }
-        if (!ap?.productId || !addedProductAppliesToArch(ap, arch)) return;
+      const isRemovableActive = isNonRetentionForCardOnArch(arch, target.cardId);
 
-        toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+      toothFieldProgress.setToothProductCard(arch, toothNumber, target.cardId);
 
+      if (target.cardId !== 0) {
         if (isRemovableActive) {
-          migrateRemovableVirtualProgressToTooth(arch, activeProductCardId, toothNumber);
-          void fetchAndAssignProduct(arch, toothNumber, ap.productId).then(() => {
-            backfillRemovableFromExistingCard(arch, activeProductCardId, toothNumber);
+          migrateRemovableVirtualProgressToTooth(arch, target.cardId, toothNumber);
+          void fetchAndAssignProduct(arch, toothNumber, target.productId).then(() => {
+            backfillRemovableFromExistingCard(arch, target.cardId, toothNumber);
             backfillRemovableFromOppositeArch(arch, toothNumber);
           });
         } else {
-          void fetchAndAssignProduct(arch, toothNumber, ap.productId);
+          void fetchAndAssignProduct(arch, toothNumber, target.productId);
         }
         return;
       }
 
-      if (!props.selectedProductId) return;
-
-      toothFieldProgress.setToothProductCard(arch, toothNumber, 0);
-      void fetchAndAssignProduct(arch, toothNumber, props.selectedProductId).then(() => {
+      // Card 0 assign path — unchanged behavior when target is card 0.
+      void fetchAndAssignProduct(arch, toothNumber, target.productId).then(() => {
         if (isRemovableActive) {
           backfillRemovableFromOppositeArch(arch, toothNumber);
         }
       });
     },
     [
-      activeProductCardId,
+      resolveToothAssignTarget,
       fetchAndAssignProduct,
       backfillRemovableFromExistingCard,
       backfillRemovableFromOppositeArch,
-      isActiveNonRetentionProduct,
       migrateRemovableVirtualProgressToTooth,
-      props.addedProducts,
-      props.initialArch,
-      props.selectedProductId,
       toothFieldProgress,
+    ]
+  );
+
+  // Select-only-implant: any tooth click toggles Implant retention
+  // directly (no popover); extraction statuses stay locked to the chart defaults.
+  // Card 0 branch is frozen — identical to prior behavior.
+  const implantOnlySelectionModeFor = useCallback(
+    (arch: Arch): boolean => {
+      if (activeProductCardId === 0) {
+        if (!initialProductDetails) return false;
+        return implantOnlySelectionModeForArch(
+          initialProductDetails as unknown as Record<string, unknown>,
+          arch,
+          props.initialArch,
+        );
+      }
+      // Added cards 1+: same gate using the active added product's resolved data.
+      const ap = resolveActiveAddedProductOnArch(
+        props.addedProducts,
+        activeProductCardId,
+        arch
+      );
+      if (ap) {
+        const allArchTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+        const product =
+          resolveAddedCardProduct(
+            arch,
+            ap,
+            allArchTeeth,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.getToothProductCard
+          ) ??
+          (ap.productId ? cachedProductRef.current.get(ap.productId) : null) ??
+          (ap.product as ProductApiData | null | undefined) ??
+          null;
+        if (!product) return false;
+        return implantOnlySelectionModeForArch(
+          product as unknown as Record<string, unknown>,
+          arch,
+          props.initialArch,
+        );
+      }
+      // Active added card is on the other arch — prefer this arch's sole product.
+      const soleCardId = resolveSoleProductCardIdOnArch({
+        arch,
+        addedProducts: props.addedProducts,
+        hasCard0OnArch: hasCard0OnArch(arch),
+      });
+      if (soleCardId !== null && soleCardId !== 0) {
+        const soleAp = (props.addedProducts ?? []).find((p) => p.id === soleCardId);
+        if (soleAp) {
+          const allArchTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
+          const product =
+            resolveAddedCardProduct(
+              arch,
+              soleAp,
+              allArchTeeth,
+              toothFieldProgress.getToothProduct,
+              toothFieldProgress.getToothProductCard
+            ) ??
+            (soleAp.productId ? cachedProductRef.current.get(soleAp.productId) : null) ??
+            (soleAp.product as ProductApiData | null | undefined) ??
+            null;
+          if (product) {
+            return implantOnlySelectionModeForArch(
+              product as unknown as Record<string, unknown>,
+              arch,
+              props.initialArch,
+            );
+          }
+        }
+      }
+      // Fall back to card 0 / initial product implant-only on this arch.
+      if (!initialProductDetails) return false;
+      return implantOnlySelectionModeForArch(
+        initialProductDetails as unknown as Record<string, unknown>,
+        arch,
+        props.initialArch,
+      );
+    },
+    [
+      activeProductCardId,
+      hasCard0OnArch,
+      initialProductDetails,
+      props.initialArch,
+      props.addedProducts,
+      toothFieldProgress.getToothProduct,
+      toothFieldProgress.getToothProductCard,
     ]
   );
 
@@ -2318,21 +2710,45 @@ export function useCaseDesignState(props: CaseDesignProps) {
     (arch: Arch, toothNumber: number, extractionCode: string, extractions?: ProductExtraction[]) => {
       if (!isGuidedArchInteractive(arch)) return;
       if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
+      // Select-only-implant: extraction statuses are display-only defaults.
+      if (implantOnlySelectionModeFor(arch)) return;
       teeth.handleToothExtractionToggle(arch, toothNumber, extractionCode, extractions);
     },
-    [canModifyToothForActiveProduct, teeth]
+    [canModifyToothForActiveProduct, implantOnlySelectionModeFor, teeth]
   );
 
-  /** True when the active card is card 0 or an added product covering this arch. */
+  /** True when the active card is card 0 or an added product covering this arch,
+   *  or when this arch has a sole product that can receive tooth clicks. */
   const activeCardAppliesToArch = (arch: Arch): boolean => {
     if (activeProductCardId === 0) return true;
     const ap = (props.addedProducts ?? []).find((p) => p.id === activeProductCardId);
-    return !ap || addedProductAppliesToArch(ap, arch);
+    if (!ap || addedProductAppliesToArch(ap, arch)) return true;
+    return (
+      resolveSoleProductCardIdOnArch({
+        arch,
+        addedProducts: props.addedProducts,
+        hasCard0OnArch: hasCard0OnArch(arch),
+      }) !== null
+    );
   };
 
   const handleMaxillaryToothClick = (toothNumber: number) => {
     if (!isGuidedArchInteractive("maxillary")) return;
     if (!canModifyToothForActiveProduct("maxillary", toothNumber)) return;
+    if (implantOnlySelectionModeFor("maxillary")) {
+      // Toggle by Implant retention — not maxillaryTeeth membership — so default-chart
+      // product teeth (TIM/extraction rows) stay selected without being treated as implants.
+      const hasImplant = !!teeth.maxillaryRetentionTypes[toothNumber]?.includes("Implant");
+      if (hasImplant) {
+        handleMaxillaryToothDeselect(toothNumber);
+      } else {
+        teeth.setMaxillaryTeeth((prev) =>
+          prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+        );
+        handleSelectRetentionType("maxillary", toothNumber, "Implant");
+      }
+      return;
+    }
     const isAdding = !teeth.maxillaryTeeth.includes(toothNumber);
     teeth.handleMaxillaryToothClick(toothNumber);
     if (isAdding) {
@@ -2348,6 +2764,20 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const handleMandibularToothClick = (toothNumber: number) => {
     if (!isGuidedArchInteractive("mandibular")) return;
     if (!canModifyToothForActiveProduct("mandibular", toothNumber)) return;
+    if (implantOnlySelectionModeFor("mandibular")) {
+      // Toggle by Implant retention — not mandibularTeeth membership — so default-chart
+      // product teeth (TIM/extraction rows) stay selected without being treated as implants.
+      const hasImplant = !!teeth.mandibularRetentionTypes[toothNumber]?.includes("Implant");
+      if (hasImplant) {
+        handleMandibularToothDeselect(toothNumber);
+      } else {
+        teeth.setMandibularTeeth((prev) =>
+          prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+        );
+        handleSelectRetentionType("mandibular", toothNumber, "Implant");
+      }
+      return;
+    }
     const isAdding = !teeth.mandibularTeeth.includes(toothNumber);
     teeth.handleMandibularToothClick(toothNumber);
     if (isAdding) {
@@ -2423,6 +2853,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const originalHandleSelectRetentionType = teeth.handleSelectRetentionType;
   const handleSelectRetentionType = (arch: Arch, toothNumber: number, type: RetentionType) => {
     if (!isGuidedArchInteractive(arch)) return;
+    // Select-only-implant: Implant is the only retention type a tooth may take.
+    if (implantOnlySelectionModeFor(arch) && type !== "Implant") return;
     const currentTypes = arch === "maxillary"
       ? teeth.maxillaryRetentionTypes[toothNumber]
       : teeth.mandibularRetentionTypes[toothNumber];
@@ -2431,6 +2863,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
     // Block before the retention-selection flow starts (before toggling popover choice).
     if (!isDeselecting && (type === "Prep" || type === "Pontic" || type === "Implant")) {
       if (!canModifyToothForActiveProduct(arch, toothNumber)) return;
+      // No assignable product on this arch (multi-product + active card elsewhere).
+      if (!resolveToothAssignTarget(arch)) return;
       // Both-arch guided flow: always upper selection first — do not switch active arch on first click.
     }
 
@@ -2439,11 +2873,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
     if (type === "Prep" || type === "Pontic" || type === "Implant") {
       if (!isDeselecting) {
         // Do not clear field progress when adding retention type — keep already-filled fields (Stage, shades, etc.) as done
-        // Assign ownership to the currently active product card
-        toothFieldProgress.setToothProductCard(arch, toothNumber, activeProductCardId);
+        // Assign ownership to the active card when it applies, else this arch's sole product.
+        const target = resolveToothAssignTarget(arch);
+        if (!target) return;
+        toothFieldProgress.setToothProductCard(arch, toothNumber, target.cardId);
 
-        // Determine which product ID to fetch: active card's product or the initial product
-        const targetProductId = getActiveProductId();
+        const targetProductId = target.productId;
 
         if (targetProductId) {
           fetchAndAssignProduct(arch, toothNumber, targetProductId);
@@ -2452,8 +2887,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         // Migrate Fixed Restoration stage key if the new tooth becomes the new min
         // (e.g. adding tooth #7 to an existing group [#8, #9] changes min from 8 to 7)
         const retTypes = arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes;
-        const targetProductId2 = getActiveProductId();
-        const targetProduct = targetProductId2 ? cachedProductRef.current.get(targetProductId2) : undefined;
+        const targetProduct = targetProductId ? cachedProductRef.current.get(targetProductId) : undefined;
         if (hasRetentionOptions(targetProduct) && targetProduct?.id) {
           const siblingTeeth = Object.keys(retTypes)
             .map(Number)
@@ -2491,7 +2925,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
   // more than one retention option is selectable; a single retention option is applied
   // immediately and the user can re-open the popover to pick an extraction instead.
   const autoSelectSingleRetention = (arch: Arch, toothNumber: number) => {
-    const productId = getActiveProductId();
+    const target = resolveToothAssignTarget(arch);
+    const productId = target?.productId ?? getActiveProductId();
     if (productId == null) return;
 
     const product =
@@ -2504,8 +2939,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
         ) {
           return initialProductDetails;
         }
-        if (activeProductCardId !== 0) {
-          const ap = products.addedProducts.find((p) => p.id === activeProductCardId);
+        const cardId = target?.cardId ?? activeProductCardId;
+        if (cardId !== 0) {
+          const ap = products.addedProducts.find((p) => p.id === cardId);
           const fromAdded = ap?.product as ProductApiData | undefined;
           if (
             fromAdded &&

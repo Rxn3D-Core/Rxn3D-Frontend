@@ -9,7 +9,6 @@ import {
   Search,
   Calendar as CalendarIcon,
   Download,
-  RefreshCw,
   Send,
   CheckCircle,
   Eye,
@@ -25,6 +24,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -91,7 +92,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
 import { EditBillingInvoiceDialog } from "@/components/billing/edit-billing-invoice-dialog"
 import { StatementEmailRichTextEditor } from "@/components/statement-email-rich-text-editor"
-import { format } from "date-fns"
+import { addDays, format } from "date-fns"
 import type { DateRange } from "react-day-picker"
 import {
   applyStatementEmailMessageToPreviewHtml,
@@ -129,11 +130,12 @@ type ChargeRow = {
   patient: string
   ul: string
   product: string
+  /** Selected product variation label, shown under the product name */
+  variation: string
   grade: string
   stage: string
   baseTotal: string
   addOn: string
-  qty: string
   subTotal: string
   rPercent: string
   gross: string
@@ -151,6 +153,23 @@ type StatementOfficeGroup = {
   invoiceCount: number
   invoiceLabel: string
   totalAmount: number
+}
+
+type StatementOfficeRefund = {
+  amount: number | null
+  notes: string
+}
+
+function parseRefundAmountInput(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = Number.parseFloat(trimmed.replace(/[^0-9.-]/g, ""))
+  if (Number.isNaN(parsed) || parsed <= 0) return null
+  return parsed
+}
+
+function getStatementGroupNetTotal(group: StatementOfficeGroup, refundAmount: number | null | undefined): number {
+  return group.totalAmount - (refundAmount ?? 0)
 }
 
 type StatementJobStatus = {
@@ -329,16 +348,18 @@ function computeDateRangeFromPreset(preset: string): { from: string; to: string 
   return null
 }
 
-// Backend only accepts these date_range values (see AdvancedBillingRequest::rules).
-// Presets like "this_week"/"this_month"/"this_year" have no backend equivalent —
-// they're sent as "custom" with concrete date_from/date_to instead.
+// Backend computes the date window server-side for every preset except "custom"
+// (see AdvancedBillingRequest::rules / BillingRepository::applyDateRangeFilter).
 function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBody["date_range"] {
   switch (preset) {
     case "today":
     case "yesterday":
     case "last_7_days":
+    case "this_week":
     case "last_week":
+    case "this_month":
     case "last_month":
+    case "this_year":
     case "last_year":
       return preset
     default:
@@ -370,11 +391,11 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
         patient,
         ul: "—",
         product: "—",
+        variation: "—",
         grade: "—",
         stage: "—",
         baseTotal: formatMoney(inv.total_amount),
         addOn: "—",
-        qty: "—",
         subTotal: "—",
         rPercent: "—",
         gross: formatMoney(inv.total_amount),
@@ -385,11 +406,20 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   }
 
   return products.map((p: BillingProduct, idx: number) => {
+    // Show each add-on as "Name xQty" (e.g. "Crown x2"); the per-add-on total
+    // is shown, aligned line-for-line, in the Sub Total column.
     const addons = p.addons?.length
-      ? p.addons.map((a) => a.addon_name ?? "").filter(Boolean).join("\n")
+      ? p.addons
+          .map((a) => {
+            const name = (a.addon_name ?? "").trim()
+            if (!name) return ""
+            const qtyNum = a.quantity != null && String(a.quantity) !== "" ? Number(a.quantity) : NaN
+            const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1
+            return `${name} x${qty}`
+          })
+          .filter(Boolean)
+          .join("\n") || "—"
       : "—"
-    const addonQty =
-      p.addons?.map((a) => (a.quantity != null ? String(a.quantity) : "—")).join("\n") || "—"
     const addonSub = p.addons?.map((a) => formatMoney(a.total)).join("\n") || "—"
     const rush =
       p.rush_percentage != null && p.rush_percentage !== ""
@@ -409,11 +439,11 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       patient,
       ul: mapProductType(p.product_type),
       product: p.product_name ?? "—",
+      variation: p.variation_name?.trim() || "—",
       grade: p.grade_name ?? "—",
       stage: p.stage_name ?? "—",
       baseTotal: formatMoney(p.base_price),
       addOn: addons || "—",
-      qty: p.teeth_count != null ? String(p.teeth_count) : addonQty,
       subTotal: addonSub,
       rPercent: rush,
       gross: formatMoney(p.total_price),
@@ -457,6 +487,12 @@ export default function ChargeManagementPage() {
   const [statementModalOpen, setStatementModalOpen] = useState(false)
   const [statementModalStep, setStatementModalStep] = useState<"confirm" | "generating" | "sending">("confirm")
   const [statementAutoMarkBilled, setStatementAutoMarkBilled] = useState(false)
+  /** Per-office YYYY-MM-DD due dates for statement generate (defaults to Net 30). */
+  const [statementGroupDueDates, setStatementGroupDueDates] = useState<Record<number, string>>({})
+  const [statementDueDateOpenOfficeId, setStatementDueDateOpenOfficeId] = useState<number | null>(null)
+  const [statementGroupRefunds, setStatementGroupRefunds] = useState<Record<number, StatementOfficeRefund>>({})
+  const [refundAmountEditingOfficeId, setRefundAmountEditingOfficeId] = useState<number | null>(null)
+  const [refundAmountDraft, setRefundAmountDraft] = useState("")
   const [statementAttachPdf, setStatementAttachPdf] = useState(true)
   const [statementPreviewOpen, setStatementPreviewOpen] = useState(false)
   const [statementPreviewLoading, setStatementPreviewLoading] = useState(false)
@@ -476,6 +512,7 @@ export default function ChargeManagementPage() {
   const [sendPreviewBaseHtml, setSendPreviewBaseHtml] = useState("")
   const [sendPreviewHtml, setSendPreviewHtml] = useState("")
   const [sendPreviewLoading, setSendPreviewLoading] = useState(false)
+  const [sendEmailPreviewOpen, setSendEmailPreviewOpen] = useState(false)
   const [statementActionLoading, setStatementActionLoading] = useState<"generate" | "send" | null>(null)
 
   const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
@@ -580,9 +617,11 @@ export default function ChargeManagementPage() {
     if (debouncedSearch) {
       params.patient_name = debouncedSearch
     } else {
-      if (dateFrom) params.date_from = dateFrom
-      if (dateTo) params.date_to = dateTo
-      params.client_date_preset = advDateRange
+      params.date_range = advDateRange as BillingListParams["date_range"]
+      if (advDateRange === "custom") {
+        if (dateFrom) params.date_from = dateFrom
+        if (dateTo) params.date_to = dateTo
+      }
     }
     if (isLabScope && officeFilter !== "all") {
       const oid = parseInt(officeFilter, 10)
@@ -790,6 +829,12 @@ export default function ChargeManagementPage() {
     return selectedChargeRows.length > 0 && selectedChargeRows.every((charge) => charge.status.toLowerCase() === "checked")
   }, [charges, selectedItems])
 
+  const selectedChargesAllRefunded = useMemo(() => {
+    if (selectedItems.length === 0) return false
+    const selectedChargeRows = charges.filter((charge) => selectedItems.includes(charge.id))
+    return selectedChargeRows.length > 0 && selectedChargeRows.every((charge) => isRefundLikeStatus(charge.status))
+  }, [charges, selectedItems])
+
   const selectedGrossTotal = useMemo(() => {
     return charges
       .filter((charge) => selectedItems.includes(charge.id))
@@ -838,6 +883,39 @@ export default function ChargeManagementPage() {
     setPage(1)
   }, [])
 
+  const handleBillingStatusChange = useCallback(
+    (value: string) => {
+      setAdvItemStatus(value)
+      setPage(1)
+      const needsAdvancedSearch =
+        value !== "all" ||
+        showOnlyChecked ||
+        advCategoryId != null ||
+        advSubcategoryId != null ||
+        advProductId != null ||
+        advStageId != null ||
+        advAttachment !== "all" ||
+        showCasesWithAddon ||
+        showAdvancedFilters
+      if (needsAdvancedSearch) {
+        setActiveSource("advanced")
+      } else {
+        resetToList()
+      }
+    },
+    [
+      showOnlyChecked,
+      advCategoryId,
+      advSubcategoryId,
+      advProductId,
+      advStageId,
+      advAttachment,
+      showCasesWithAddon,
+      showAdvancedFilters,
+      resetToList,
+    ],
+  )
+
   const advancedSearchRequestBody = useMemo((): AdvancedBillingSearchBody => {
     let officeName: string | undefined
     if (officeFilter !== "all" && officesAsLabsRef.current.length) {
@@ -848,12 +926,16 @@ export default function ChargeManagementPage() {
     // A search term means the user wants to find a specific charge regardless
     // of when it happened — a leftover date filter (e.g. "Yesterday") would
     // otherwise silently hide matches instead of searching across all dates.
+    const resolvedDateRange = patientName ? undefined : resolveAdvancedDateRangeValue(advDateRange)
+    // Backend computes the date window server-side for every preset except
+    // "custom" and ignores date_from/date_to otherwise, so only send them
+    // when the range is actually custom.
     const body: AdvancedBillingSearchBody = {
       page: 1,
       patient_name: patientName,
-      date_from: patientName ? undefined : dateFrom || undefined,
-      date_to: patientName ? undefined : dateTo || undefined,
-      date_range: patientName ? undefined : resolveAdvancedDateRangeValue(advDateRange),
+      date_from: resolvedDateRange === "custom" ? dateFrom || undefined : undefined,
+      date_to: resolvedDateRange === "custom" ? dateTo || undefined : undefined,
+      date_range: resolvedDateRange,
       office_name: officeName,
     }
     if (advCategoryId != null) body.category_id = advCategoryId
@@ -1105,6 +1187,116 @@ export default function ChargeManagementPage() {
     setStatementAutoMarkBilled((value) => !value)
   }, [])
 
+  const getStatementGroupDueDate = useCallback(
+    (officeId: number): string =>
+      statementGroupDueDates[officeId] ?? formatDateInput(addDays(new Date(), 30)),
+    [statementGroupDueDates],
+  )
+
+  const updateStatementGroupDueDate = useCallback((officeId: number, dueDate: string) => {
+    setStatementGroupDueDates((current) => ({ ...current, [officeId]: dueDate }))
+  }, [])
+
+  const getStatementGroupRefund = useCallback(
+    (officeId: number): StatementOfficeRefund => statementGroupRefunds[officeId] ?? { amount: null, notes: "" },
+    [statementGroupRefunds],
+  )
+
+  const startAddRefundForGroup = useCallback((officeId: number) => {
+    setStatementGroupRefunds((current) => ({
+      ...current,
+      [officeId]: { amount: null, notes: current[officeId]?.notes ?? "" },
+    }))
+    setRefundAmountEditingOfficeId(officeId)
+    setRefundAmountDraft("")
+  }, [])
+
+  const startEditRefundForGroup = useCallback((officeId: number, currentAmount: number) => {
+    setRefundAmountEditingOfficeId(officeId)
+    setRefundAmountDraft(currentAmount.toFixed(2))
+  }, [])
+
+  const commitRefundAmountForGroup = useCallback(
+    (officeId: number) => {
+      const amount = parseRefundAmountInput(refundAmountDraft)
+      setRefundAmountEditingOfficeId(null)
+      setRefundAmountDraft("")
+
+      if (amount == null) {
+        setStatementGroupRefunds((current) => {
+          const existing = current[officeId]
+          if (!existing?.notes?.trim()) {
+            const next = { ...current }
+            delete next[officeId]
+            return next
+          }
+          return { ...current, [officeId]: { amount: null, notes: existing.notes } }
+        })
+        return
+      }
+
+      setStatementGroupRefunds((current) => ({
+        ...current,
+        [officeId]: {
+          amount,
+          notes: current[officeId]?.notes ?? "",
+        },
+      }))
+    },
+    [refundAmountDraft],
+  )
+
+  const updateRefundNotesForGroup = useCallback((officeId: number, notes: string) => {
+    setStatementGroupRefunds((current) => ({
+      ...current,
+      [officeId]: {
+        amount: current[officeId]?.amount ?? null,
+        notes,
+      },
+    }))
+  }, [])
+
+  const openStatementGroupPreview = useCallback((group: StatementOfficeGroup) => {
+    setStatementPreviewOfficeId(group.officeId)
+    setStatementPreviewTitle(group.officeName)
+    setStatementPreviewRecipient(group.recipientEmail)
+    setStatementPreviewOpen(true)
+  }, [])
+
+  const statementPreviewGroup = useMemo(() => {
+    if (statementPreviewOfficeId == null) return null
+    return selectedStatementGroups.find((group) => group.officeId === statementPreviewOfficeId) ?? null
+  }, [selectedStatementGroups, statementPreviewOfficeId])
+
+  const statementPreviewCharges = useMemo(() => {
+    if (statementPreviewOfficeId == null) return []
+    const invoiceMap = new Map(selectedBillingInvoices.map((invoice) => [invoice.id, invoice] as const))
+    return charges.filter((charge) => {
+      if (!selectedItems.includes(charge.id)) return false
+      const invoice = invoiceMap.get(charge.billingInvoiceId)
+      return invoice?.office?.id === statementPreviewOfficeId
+    })
+  }, [charges, selectedBillingInvoices, selectedItems, statementPreviewOfficeId])
+
+  const statementPreviewRefund = useMemo(() => {
+    if (statementPreviewOfficeId == null) return { amount: 0, notes: "" }
+    const refund = statementGroupRefunds[statementPreviewOfficeId]
+    return {
+      amount: refund?.amount ?? 0,
+      notes: refund?.notes ?? "",
+    }
+  }, [statementGroupRefunds, statementPreviewOfficeId])
+
+  const statementPreviewSubtotal = useMemo(
+    () => statementPreviewCharges.reduce((sum, charge) => sum + statementSignedAmount(charge), 0),
+    [statementPreviewCharges],
+  )
+
+  const statementPreviewTotal = useMemo(
+    () => statementPreviewSubtotal - statementPreviewRefund.amount,
+    [statementPreviewRefund.amount, statementPreviewSubtotal],
+  )
+
   const handleBulk = async (action: BulkBillingActionBody["action"]) => {
     if (selectedBillingIds.length === 0) {
       toast({ title: "Select at least one row", variant: "destructive" })
@@ -1259,6 +1451,14 @@ export default function ChargeManagementPage() {
     }
 
     setStatementAutoMarkBilled(false)
+    const defaultDueDate = formatDateInput(addDays(new Date(), 30))
+    setStatementGroupDueDates(
+      Object.fromEntries(selectedStatementGroups.map((group) => [group.officeId, defaultDueDate])),
+    )
+    setStatementDueDateOpenOfficeId(null)
+    setStatementGroupRefunds({})
+    setRefundAmountEditingOfficeId(null)
+    setRefundAmountDraft("")
     setStatementAttachPdf(true)
     setStatementJobStatuses(
       selectedStatementGroups.map((group) => ({
@@ -1288,20 +1488,43 @@ export default function ChargeManagementPage() {
 
   const generateStatementForGroup = useCallback(
     async (group: StatementOfficeGroup): Promise<StatementRecord> => {
-      return generateStatement({
+      const refund = statementGroupRefunds[group.officeId]
+      const dueDate = statementGroupDueDates[group.officeId]
+      const body: {
+        billing_ids: number[]
+        office_id: number
+        direction: "outgoing"
+        template: string
+        auto_mark_billed: boolean
+        due_date?: string
+        refund_amount?: number
+        refund_reason?: string
+      } = {
         billing_ids: group.billingIds,
         office_id: group.officeId,
         direction: "outgoing",
         template: "default",
         auto_mark_billed: statementAutoMarkBilled,
-      })
+      }
+
+      if (dueDate) {
+        body.due_date = dueDate
+      }
+
+      if (refund?.amount != null && refund.amount > 0) {
+        body.refund_amount = refund.amount
+        const notes = refund.notes.trim()
+        if (notes) body.refund_reason = notes
+      }
+
+      return generateStatement(body)
         .unwrap()
         .then((result) => {
           if (!result?.data) throw new Error("Statement generation returned no data")
           return result.data
         })
     },
-    [generateStatement, statementAutoMarkBilled],
+    [generateStatement, statementAutoMarkBilled, statementGroupDueDates, statementGroupRefunds],
   )
 
   const downloadStatementPdfForStatement = useCallback(
@@ -1552,25 +1775,10 @@ export default function ChargeManagementPage() {
     updateStatementJobStatus,
   ])
 
-  const handlePreviewEmailInNewTab = useCallback(() => {
+  const handleOpenSendEmailPreview = useCallback(() => {
     if (!currentSendStatement) return
-    const html = sendPreviewHtml || "<p>No preview available.</p>"
-    const blob = new Blob([html], { type: "text/html" })
-    const url = URL.createObjectURL(blob)
-    const previewWindow = window.open(url, "_blank", "noopener,noreferrer")
-    try {
-      if (!previewWindow) throw new Error("Preview window was blocked")
-      window.setTimeout(() => URL.revokeObjectURL(url), 180_000)
-    } catch (error) {
-      URL.revokeObjectURL(url)
-      previewWindow?.close()
-      toast({
-        title: "Unable to preview email",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      })
-    }
-  }, [currentSendStatement, sendPreviewHtml, toast])
+    setSendEmailPreviewOpen(true)
+  }, [currentSendStatement])
 
   const handleSendCurrentEmail = useCallback(async () => {
     if (!currentSendStatement) return
@@ -1666,7 +1874,8 @@ export default function ChargeManagementPage() {
         )}
 
         {customerId && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {/* Total invoices card hidden for now — restore this card and set grid back to sm:grid-cols-3 to bring it back:
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalInvoices", { defaultValue: "Total invoices" })}
@@ -1674,7 +1883,7 @@ export default function ChargeManagementPage() {
               <p className="text-2xl font-bold text-gray-900 tabular-nums">
                 {statsFetching ? "—" : stats?.total_invoices ?? "—"}
               </p>
-            </div>
+            </div> */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalAmount", { defaultValue: "Total amount" })}
@@ -1694,6 +1903,8 @@ export default function ChargeManagementPage() {
           </div>
         )}
 
+        {/* Advanced-search banner + "Back to standard list" hidden for now.
+            (Exiting advanced search still works via "Clear all filters" in the Advance Filter panel.)
         {activeSource === "advanced" && (
           <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900">
             {t("chargeManagement.advancedBanner", {
@@ -1709,6 +1920,7 @@ export default function ChargeManagementPage() {
             </button>
           </div>
         )}
+        */}
 
         <div className="bg-white rounded-lg mb-3">
           <div className="px-4 py-2">
@@ -1824,6 +2036,27 @@ export default function ChargeManagementPage() {
                 />
               )}
 
+              <Select
+                value={advItemStatus}
+                onValueChange={handleBillingStatusChange}
+                disabled={filterBarDisabled || showOnlyChecked}
+              >
+                <SelectTrigger className="w-[160px] shrink-0 h-10 text-sm bg-white focus:ring-0 focus:ring-offset-0 focus:border-input">
+                  <SelectValue
+                    placeholder={t("chargeManagement.billingStatus", { defaultValue: "Billing status" })}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("chargeManagement.anyStatus", { defaultValue: "Any" })}</SelectItem>
+                  <SelectItem value="unbilled">Unbilled</SelectItem>
+                  <SelectItem value="checked">Checked</SelectItem>
+                  <SelectItem value="billed">Billed</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="refund">Refund</SelectItem>
+                  <SelectItem value="dispute">Dispute</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Button
                 type="button"
                 variant={showAdvancedFilters ? "secondary" : "outline"}
@@ -1859,8 +2092,6 @@ export default function ChargeManagementPage() {
             onAdvProductIdChange={setAdvProductId}
             advStageId={advStageId}
             onAdvStageIdChange={setAdvStageId}
-            advItemStatus={advItemStatus}
-            onAdvItemStatusChange={setAdvItemStatus}
             advAttachment={advAttachment}
             onAdvAttachmentChange={setAdvAttachment}
             showCasesWithAddon={showCasesWithAddon}
@@ -1930,11 +2161,17 @@ export default function ChargeManagementPage() {
                 className="h-10 text-sm gap-2"
                 type="button"
                 disabled={actionDisabled}
-                title="Mark selected line(s) as refunded. These amounts will be deducted from future statements."
-                onClick={() => void handleBulk("mark_refund")}
+                title={
+                  selectedChargesAllRefunded
+                    ? "Remove refund status from selected lines and move them back to “Pending”."
+                    : "Mark selected line(s) as refunded. These amounts will be deducted from future statements."
+                }
+                onClick={() => void handleBulk(selectedChargesAllRefunded ? "mark_pending" : "mark_refund")}
               >
-                <CheckCircle className="h-4 w-4" />
-                {t("chargeManagement.markRefund", { defaultValue: "Mark as Refund" })}
+                {bulkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                {selectedChargesAllRefunded
+                  ? t("chargeManagement.removeRefund", { defaultValue: "Remove Refund" })
+                  : t("chargeManagement.markRefund", { defaultValue: "Mark as Refund" })}
               </Button>
               <p className="w-full text-xs text-gray-500">
                 {selectedStatementOfficeSummary.officeCount <= 1
@@ -1958,72 +2195,48 @@ export default function ChargeManagementPage() {
         )}
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                {t("chargeManagement.tableTitle", { defaultValue: "Charges" })}
-              </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {t("chargeManagement.tableSubtitle", {
-                  defaultValue: "Line items from billing invoices for your connected offices.",
-                })}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="h-9 text-sm gap-2 shrink-0"
-              type="button"
-              onClick={() => void onRefresh()}
-              disabled={!customerId || isFetching}
-              title="Revert charges to default system settings. Manual edits will be undone. Due date will not be affected."
-            >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              {t("chargeManagement.refreshCharges", { defaultValue: "Refresh Charges" })}
-            </Button>
-          </div>
-          <Table>
+          <Table className="text-xs">
             <TableHeader>
               <TableRow className="border-b border-gray-200 bg-gray-50/80 hover:bg-gray-50/80">
-                <TableHead className="w-12 py-3">
+                <TableHead className="w-8 px-1.5 py-2">
                   <Checkbox
                     checked={charges.length > 0 && selectedItems.length === charges.length}
                     onCheckedChange={toggleSelectAll}
                     disabled={charges.length === 0}
                   />
                 </TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Office Code</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Patient</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">U/L</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Product</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Grade</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Stage</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Edit add on fees.">Add-on</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Quantity of selected add-on(s).">QTY</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Rush fee percentage.">R%</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700" title="Final calculated charge. Editing this does not auto-update other values.">
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Office Code</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Patient</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">U/L</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Product</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Grade</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Stage</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Add-on(s) with quantity (e.g. Crown x2).">Add-on</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Rush fee percentage.">R%</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Final calculated charge. Editing this does not auto-update other values.">
                   Gross
                   {selectedItems.length > 0 && (
-                    <div className="mt-0.5 text-sm font-bold text-black">{formatMoney(selectedGrossTotal)}</div>
+                    <div className="mt-0.5 text-[11px] font-bold text-black tabular-nums">{formatMoney(selectedGrossTotal)}</div>
                   )}
                 </TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Due Date</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Status</TableHead>
-                <TableHead className="py-3 text-center text-xs font-semibold text-gray-700">Actions</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Due Date</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Status</TableHead>
+                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={16} className="py-12 text-center text-sm text-gray-500">
+                  <TableCell colSpan={15} className="px-1.5 py-8 text-center text-xs text-gray-500">
                     Loading charges…
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && charges.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={16} className="py-12 text-center text-sm text-gray-500">
+                  <TableCell colSpan={15} className="px-1.5 py-8 text-center text-xs text-gray-500">
                     No charges match your filters.
                   </TableCell>
                 </TableRow>
@@ -2040,56 +2253,56 @@ export default function ChargeManagementPage() {
                         : index % 2 === 0 ? "bg-white" : "bg-gray-50/30"
                     }`}
                   >
-                    <TableCell className="py-3">
+                    <TableCell className="px-1.5 py-1.5">
                       <Checkbox
                         checked={selectedItems.includes(charge.id)}
                         onCheckedChange={() => toggleSelectItem(charge.id)}
                       />
                     </TableCell>
-                    <TableCell className="py-3 text-sm font-medium text-gray-900">{charge.officeCode}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.patient}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.ul}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.product}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.grade}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.stage}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.baseTotal}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
+                    <TableCell className="px-1.5 py-1.5 text-xs font-medium text-gray-900 whitespace-nowrap">{charge.officeCode}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.patient}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 text-center whitespace-nowrap">{charge.ul}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 max-w-[9rem]">
+                      <div className="leading-snug">{charge.product}</div>
+                      {charge.variation && charge.variation !== "—" && (
+                        <div className="text-[10px] leading-snug text-gray-500">{charge.variation}</div>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.grade}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.stage}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 tabular-nums whitespace-nowrap">{charge.baseTotal}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 max-w-[7rem]">
                       {charge.addOn.split("\n").map((line, i) => (
-                        <div key={i}>{line}</div>
+                        <div key={i} className="leading-snug">{line}</div>
                       ))}
                     </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
-                      {charge.qty.split("\n").map((line, i) => (
-                        <div key={i}>{line}</div>
-                      ))}
-                    </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 tabular-nums whitespace-nowrap">
                       {charge.subTotal.split("\n").map((line, i) => (
                         <div key={i}>{line}</div>
                       ))}
                     </TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.rPercent}</TableCell>
-                    <TableCell className="py-3 text-sm font-medium text-gray-900">{charge.gross}</TableCell>
-                    <TableCell className="py-3 text-sm text-gray-900">{charge.dueDate}</TableCell>
-                    <TableCell className="py-3">
-                      <Badge className={getStatusColor(charge.status)}>{charge.status}</Badge>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 text-center whitespace-nowrap">{charge.rPercent}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs font-medium text-gray-900 tabular-nums whitespace-nowrap">{charge.gross}</TableCell>
+                    <TableCell className="px-1.5 py-1.5 text-xs text-gray-900 whitespace-nowrap">{charge.dueDate}</TableCell>
+                    <TableCell className="px-1.5 py-1.5">
+                      <Badge className={`text-[10px] px-1.5 py-0 ${getStatusColor(charge.status)}`}>{charge.status}</Badge>
                     </TableCell>
-                    <TableCell className="py-3">
-                      <div className="flex items-center gap-0.5">
+                    <TableCell className="px-1 py-1.5">
+                      <div className="flex items-center gap-0">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-gray-700 hover:text-gray-900"
+                          className="h-7 w-7 text-gray-700 hover:text-gray-900"
                           type="button"
                           title={t("chargeManagement.editInvoice", { defaultValue: "Edit invoice pricing" })}
                           onClick={() => setEditInvoiceId(charge.billingInvoiceId)}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className={`h-8 w-8 disabled:opacity-50 ${
+                          className={`h-7 w-7 disabled:opacity-50 ${
                             charge.status.toLowerCase() === "checked"
                               ? "text-green-600 hover:text-green-700"
                               : "text-gray-400 hover:text-gray-500"
@@ -2107,15 +2320,15 @@ export default function ChargeManagementPage() {
                           onClick={() => void handleMarkCheckedForRow(charge)}
                         >
                           {markingCheckedChargeId === charge.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <Check className="h-4 w-4" />
+                            <Check className="h-3.5 w-3.5" />
                           )}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-amber-700 hover:text-amber-900 disabled:opacity-50"
+                          className="h-7 w-7 text-amber-700 hover:text-amber-900 disabled:opacity-50"
                           type="button"
                           disabled={
                             !charge.slipId ||
@@ -2127,41 +2340,41 @@ export default function ChargeManagementPage() {
                           onClick={() => void handleRegenerateInvoice(charge)}
                         >
                           {regenerateInvoiceLoading && regeneratingSlipId === charge.slipId ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <RotateCcw className="h-4 w-4" />
+                            <RotateCcw className="h-3.5 w-3.5" />
                           )}
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-blue-600 hover:text-blue-800"
+                          className="h-7 w-7 text-blue-600 hover:text-blue-800"
                           type="button"
                           disabled={!charge.slipId}
                           title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
                           onClick={() => router.push(buildVirtualSlipV2Path(charge.slipId))}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-amber-600 hover:text-amber-800"
+                          className="h-7 w-7 text-amber-600 hover:text-amber-800"
                           type="button"
                           title={t("chargeManagement.viewInvoice", { defaultValue: "View invoice" })}
                           onClick={() => void handleViewInvoicePdf(charge)}
                         >
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-blue-600 hover:text-blue-800"
+                          className="h-7 w-7 text-blue-600 hover:text-blue-800"
                           type="button"
                           title={t("chargeManagement.downloadInvoicePdf", { defaultValue: "Download invoice PDF" })}
                           onClick={() => void handleDownloadPdf(charge.billingInvoiceId, charge)}
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </TableCell>
@@ -2171,10 +2384,10 @@ export default function ChargeManagementPage() {
             {allChargesSelected && (
               <TableFooter>
                 <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                  <TableCell colSpan={12} className="py-3 text-right text-base font-bold text-black">
+                  <TableCell colSpan={12} className="px-1.5 py-2 text-right text-xs font-bold text-black">
                     Total:
                   </TableCell>
-                  <TableCell className="py-3 text-base font-bold text-black">
+                  <TableCell className="px-1.5 py-2 text-xs font-bold text-black tabular-nums">
                     {formatMoney(selectedGrossTotal)}
                   </TableCell>
                   <TableCell colSpan={3} />
@@ -2244,6 +2457,8 @@ export default function ChargeManagementPage() {
             if (!open) {
               setStatementModalOpen(false)
               setStatementActionLoading(null)
+              setSendEmailPreviewOpen(false)
+              setStatementDueDateOpenOfficeId(null)
             }
           }}
         >
@@ -2278,26 +2493,150 @@ export default function ChargeManagementPage() {
 
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-                    {selectedStatementGroups.map((group) => (
+                    {selectedStatementGroups.map((group) => {
+                      const refund = getStatementGroupRefund(group.officeId)
+                      const dueDate = getStatementGroupDueDate(group.officeId)
+                      const isEditingRefund = refundAmountEditingOfficeId === group.officeId
+                      const hasRefund = refund.amount != null && refund.amount > 0
+                      const showRefundNotes = hasRefund || isEditingRefund
+                      const netTotal = getStatementGroupNetTotal(group, refund.amount)
+                      const dueDateOpen = statementDueDateOpenOfficeId === group.officeId
+
+                      return (
                       <div
                         key={group.officeId}
-                        className="flex flex-col gap-4 rounded-[18px] border border-gray-100 bg-gray-50/70 px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"
+                        className="flex flex-col gap-4 rounded-[18px] border border-gray-100 bg-gray-50/70 px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] sm:px-6 lg:px-8"
                       >
-                        <div className="min-w-0">
-                          <h3 className="text-[22px] font-bold text-black sm:text-[24px]">{group.officeName}</h3>
-                          <p className="mt-2 text-[14px] leading-6 text-gray-400">
-                            {group.invoiceLabel} • {group.officeCode} • {group.chargeCount} charge{group.chargeCount === 1 ? "" : "s"}
-                          </p>
-                        </div>
-                        <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
-                          <div className="text-[15px] text-black sm:text-right">
-                            <span className="mr-2.5">Total:</span>
-                            <span className="text-[17px]">{formatMoney(group.totalAmount)}</span>
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <h3 className="text-[22px] font-bold text-black sm:text-[24px]">{group.officeName}</h3>
+                            <p className="mt-2 text-[14px] leading-6 text-gray-400">
+                              {group.invoiceLabel} • {group.officeCode} • {group.chargeCount} charge{group.chargeCount === 1 ? "" : "s"}
+                            </p>
                           </div>
-                          <Eye className="h-4.5 w-4.5 shrink-0 text-black/80" />
+                          <div className="flex flex-col items-start gap-2 sm:items-end">
+                            <div className="flex items-center justify-between gap-4 sm:justify-end sm:gap-6">
+                              <div className="text-[15px] text-black sm:text-right">
+                                <span className="mr-2.5">Total:</span>
+                                <span className="text-[17px] font-medium">{formatMoney(netTotal)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="shrink-0 rounded-sm p-1 text-black/80 transition-colors hover:bg-white hover:text-[#1565b3]"
+                                title="Preview statement totals"
+                                onClick={() => openStatementGroupPreview(group)}
+                              >
+                                <Eye className="h-4.5 w-4.5" />
+                              </button>
+                            </div>
+                            {isEditingRefund ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-500">$</span>
+                                <Input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min="0"
+                                  step="0.01"
+                                  autoFocus
+                                  value={refundAmountDraft}
+                                  onChange={(event) => setRefundAmountDraft(event.target.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Enter") {
+                                      event.preventDefault()
+                                      commitRefundAmountForGroup(group.officeId)
+                                    }
+                                    if (event.key === "Escape") {
+                                      event.preventDefault()
+                                      setRefundAmountEditingOfficeId(null)
+                                      setRefundAmountDraft("")
+                                    }
+                                  }}
+                                  onBlur={() => commitRefundAmountForGroup(group.officeId)}
+                                  className="h-9 w-28 text-right"
+                                  placeholder="0.00"
+                                  aria-label={`Refund amount for ${group.officeName}`}
+                                />
+                              </div>
+                            ) : hasRefund ? (
+                              <div className="flex items-center gap-2 text-[15px] font-medium text-[#CF0202]">
+                                <span>Refund: {formatMoney(refund.amount)}</span>
+                                <button
+                                  type="button"
+                                  className="rounded-sm p-1 text-[#CF0202] transition-colors hover:bg-white"
+                                  title="Edit refund amount"
+                                  onClick={() => startEditRefundForGroup(group.officeId, refund.amount ?? 0)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="text-[15px] font-medium text-[#1565b3] hover:underline"
+                                onClick={() => startAddRefundForGroup(group.officeId)}
+                              >
+                                Add refund
+                              </button>
+                            )}
+                          </div>
                         </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`statement-due-date-${group.officeId}`} className="text-sm font-medium text-black">
+                            Due date
+                          </Label>
+                          <Popover
+                            open={dueDateOpen}
+                            onOpenChange={(open) =>
+                              setStatementDueDateOpenOfficeId(open ? group.officeId : null)
+                            }
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                id={`statement-due-date-${group.officeId}`}
+                                type="button"
+                                variant="outline"
+                                className="h-10 w-full max-w-xs justify-start border-gray-200 bg-white text-[14px] font-normal text-black sm:w-[240px]"
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4 shrink-0 text-gray-400" />
+                                {dueDate
+                                  ? format(parseDateInput(dueDate) ?? new Date(), "MMM d, yyyy")
+                                  : "Select due date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={parseDateInput(dueDate)}
+                                defaultMonth={parseDateInput(dueDate)}
+                                onSelect={(date) => {
+                                  if (!date) return
+                                  updateStatementGroupDueDate(group.officeId, formatDateInput(date))
+                                  setStatementDueDateOpenOfficeId(null)
+                                }}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+
+                        {showRefundNotes ? (
+                          <div className="space-y-2">
+                            <Label htmlFor={`refund-notes-${group.officeId}`} className="text-sm font-medium text-black">
+                              Refund Notes
+                            </Label>
+                            <Textarea
+                              id={`refund-notes-${group.officeId}`}
+                              value={refund.notes}
+                              onChange={(event) => updateRefundNotesForGroup(group.officeId, event.target.value)}
+                              placeholder="4 teeth flipper refund for Sylvia Gutierezz"
+                              className="min-h-[88px] resize-y border-gray-200 bg-white text-[14px]"
+                            />
+                          </div>
+                        ) : null}
                       </div>
-                    ))}
+                      )
+                    })}
 
                     <div className="flex items-center gap-4 px-2 pt-1">
                       <button
@@ -2573,7 +2912,14 @@ export default function ChargeManagementPage() {
                   <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => void handleSkipCurrentEmail()}>
                     Skip this email
                   </Button>
-                  <Button type="button" variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => void handlePreviewEmailInNewTab()}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 sm:w-auto"
+                    disabled={sendPreviewLoading}
+                    onClick={handleOpenSendEmailPreview}
+                  >
                     <Eye className="h-4 w-4" />
                     Preview Email
                   </Button>
@@ -2584,6 +2930,80 @@ export default function ChargeManagementPage() {
                 </DialogFooter>
               </>
             ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={statementPreviewOpen}
+          onOpenChange={(open) => {
+            setStatementPreviewOpen(open)
+            if (!open) {
+              setStatementPreviewOfficeId(null)
+              setStatementPreviewTitle("")
+              setStatementPreviewRecipient("")
+            }
+          }}
+        >
+          <DialogContent className="flex max-h-[90vh] w-[min(96vw,40rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+            <DialogHeader className="border-b px-6 py-5 text-left">
+              <DialogTitle>{statementPreviewTitle || "Statement preview"}</DialogTitle>
+              <DialogDescription className="pt-1">
+                {statementPreviewRecipient
+                  ? `Recipient: ${statementPreviewRecipient}`
+                  : "Preview totals before generating the statement."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              {statementPreviewGroup ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-500">
+                    {statementPreviewGroup.invoiceLabel} • {statementPreviewGroup.officeCode} •{" "}
+                    {statementPreviewGroup.chargeCount} charge{statementPreviewGroup.chargeCount === 1 ? "" : "s"}
+                  </p>
+                  <div className="space-y-2">
+                    {statementPreviewCharges.map((charge) => (
+                      <div key={charge.id} className="flex items-center justify-between gap-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-black">{charge.patient}</p>
+                          <p className="truncate text-gray-500">{charge.product}</p>
+                        </div>
+                        <span className={`shrink-0 font-medium ${statementSignedAmount(charge) < 0 ? "text-[#CF0202]" : "text-black"}`}>
+                          {formatMoney(statementSignedAmount(charge))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-xl bg-gray-50 p-4">
+                    <div className="flex items-center justify-between text-sm font-semibold text-black">
+                      <span>Sub Total</span>
+                      <span>{formatMoney(statementPreviewSubtotal)}</span>
+                    </div>
+                    {statementPreviewRefund.amount > 0 ? (
+                      <div className="mt-2 flex items-center justify-between text-sm font-semibold text-[#CF0202]">
+                        <span>Refund</span>
+                        <span>-{formatMoney(statementPreviewRefund.amount)}</span>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3 text-base font-bold text-black">
+                      <span>Total</span>
+                      <span>{formatMoney(statementPreviewTotal)}</span>
+                    </div>
+                    {statementPreviewRefund.notes.trim() ? (
+                      <p className="mt-3 text-sm text-gray-600">
+                        <span className="font-medium text-black">Refund notes:</span> {statementPreviewRefund.notes.trim()}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No preview available.</p>
+              )}
+            </div>
+            <DialogFooter className="border-t px-6 py-4">
+              <Button type="button" variant="outline" onClick={() => setStatementPreviewOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -2634,6 +3054,47 @@ export default function ChargeManagementPage() {
                 {sendEmailLoading
                   ? t("chargeManagement.sending", { defaultValue: "Sending..." })
                   : t("chargeManagement.send", { defaultValue: "Send" })}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={sendEmailPreviewOpen} onOpenChange={setSendEmailPreviewOpen}>
+          <DialogContent className="flex max-h-[90vh] w-[min(96vw,56rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+            <DialogHeader className="border-b px-6 py-4 pr-14 text-left">
+              <DialogTitle>Email preview</DialogTitle>
+              {sendSubjectValue ? (
+                <p className="text-sm font-normal text-muted-foreground">
+                  Subject: {sendSubjectValue}
+                </p>
+              ) : null}
+              {sendToValue ? (
+                <p className="text-sm font-normal text-muted-foreground">
+                  To: {sendToValue}
+                </p>
+              ) : null}
+            </DialogHeader>
+            <div className="relative min-h-[50vh] w-full flex-1 bg-muted/20">
+              {sendPreviewLoading ? (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/85">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : null}
+              {sendPreviewHtml ? (
+                <iframe
+                  title="Statement email preview"
+                  srcDoc={sendPreviewHtml}
+                  className="h-[min(70vh,720px)] w-full border-0"
+                />
+              ) : (
+                <div className="flex h-[min(70vh,720px)] items-center justify-center text-sm text-muted-foreground">
+                  No preview available.
+                </div>
+              )}
+            </div>
+            <DialogFooter className="border-t px-6 py-3">
+              <Button type="button" variant="outline" onClick={() => setSendEmailPreviewOpen(false)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>

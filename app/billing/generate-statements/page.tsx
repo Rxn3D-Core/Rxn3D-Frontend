@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Calendar, Check, Download, Eye, Loader2, Mail, Pencil, Printer, Search, Send } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Calendar, Check, Download, Eye, Loader2, Mail, Pencil, Printer, Search, Send } from "lucide-react"
 import {
   DialogClose,
   Dialog,
@@ -17,9 +19,12 @@ import {
   useListBillingInvoicesQuery,
   useListStatementsQuery,
   useSendStatementMutation,
+  useUpdateStatementDueDateMutation,
+  useUpdateStatementStatusMutation,
   type BillingProduct,
   type StatementListParams,
   type StatementBillingItem,
+  type StatementPaymentStatus,
   type StatementRecord,
 } from "@/lib/redux/api/billingApi"
 import { useToast } from "@/hooks/use-toast"
@@ -28,8 +33,14 @@ import {
   computeBasePriceFromTargetGross,
   findMatchingBillingTarget,
   findMatchingBillingInvoiceId,
+  formatStatementPartyAddress,
+  resolveStatementTotals,
+  summarizeStatementPreviewTotals,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
+import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
+import { useConnectedOffices } from "@/hooks/use-connected-offices"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { buildStatementPreviewRoute } from "./preview-route.mjs"
 
 function formatMoney(value: number | string | null | undefined): string {
@@ -54,10 +65,50 @@ function formatShortDate(value: string | null | undefined): string {
   })
 }
 
+/**
+ * Mirrors lab case-listing overdue styling (`V3CaseTable.dueDateTextColor`):
+ * due date before local today, excluding settled/paid rows (analogue of delivered).
+ * Uses the same local-day parser as slip listing (`parseSlipListingDueDate`).
+ */
+function isStatementDueDateOverdue(
+  dueDate: string | null | undefined,
+  paymentStatus: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if ((paymentStatus ?? "").toLowerCase() === "paid") return false
+  const due = dueDate ? parseSlipListingDueDate(dueDate) : null
+  if (!due) return false
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return due.getTime() < today.getTime()
+}
+
 function toTitleCase(value: string | null | undefined): string {
   if (!value) return "—"
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
+
+/** Normalize a stored due date (ISO or YYYY-MM-DD) to the YYYY-MM-DD value a <input type="date"> expects. */
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return ""
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value)
+  if (match) return match[1]
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const dd = String(date.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
+/** Payment statuses selectable in the PAYMENT column (matches `PUT /statements/{id}/status`). */
+const STATEMENT_PAYMENT_STATUS_OPTIONS: StatementPaymentStatus[] = [
+  "sent",
+  "billed",
+  "paid",
+  "overdue",
+  "disputed",
+  "refunded",
+]
 
 function getStatusColor(status: string | null | undefined): string {
   switch ((status ?? "").toLowerCase()) {
@@ -76,6 +127,22 @@ function getStatusColor(status: string | null | undefined): string {
     default:
       return "bg-gray-100 text-gray-800"
   }
+}
+
+function normalizePaymentStatus(status: string | null | undefined): StatementPaymentStatus | "" {
+  const normalized = (status ?? "").toLowerCase()
+  return STATEMENT_PAYMENT_STATUS_OPTIONS.includes(normalized as StatementPaymentStatus)
+    ? (normalized as StatementPaymentStatus)
+    : ""
+}
+
+function getMutationErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  if (error && typeof error === "object" && "data" in error) {
+    const data = (error as { data?: { message?: string } }).data
+    if (data?.message) return data.message
+  }
+  return fallback
 }
 
 function getDirectionLabel(direction: string | null | undefined): string {
@@ -208,6 +275,45 @@ function buildApiUrl(pathOrUrl: string): string {
 
 const EMPTY_STATEMENTS: StatementRecord[] = []
 
+type SortKey = NonNullable<StatementListParams["sort_by"]>
+type SortDirection = NonNullable<StatementListParams["sort_direction"]>
+
+function SortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+}: {
+  label: string
+  sortKey: SortKey
+  activeKey: SortKey
+  direction: SortDirection
+  onSort: (key: SortKey) => void
+}) {
+  const isActive = activeKey === sortKey
+  return (
+    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700"
+      >
+        {label}
+        {isActive ? (
+          direction === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </th>
+  )
+}
+
 async function fetchAuthorizedBlob(pathOrUrl: string): Promise<Blob> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
   const response = await fetch(buildApiUrl(pathOrUrl), {
@@ -222,20 +328,30 @@ async function fetchAuthorizedBlob(pathOrUrl: string): Promise<Blob> {
 }
 
 export default function GenerateStatementsPage() {
+  const router = useRouter()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const [searchInput, setSearchInput] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [dateRangeInput, setDateRangeInput] = useState("")
   const [directionFilter, setDirectionFilter] = useState("")
+  const [officeFilter, setOfficeFilter] = useState("")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState("")
+  const [page, setPage] = useState(1)
+  const [sortBy, setSortBy] = useState<SortKey>("created_at")
+  const [sortDir, setSortDir] = useState<SortDirection>("desc")
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<number | null>(null)
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
   const [previewStatement, setPreviewStatement] = useState<StatementRecord | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [headerDraft, setHeaderDraft] = useState<StatementHeaderDraft | null>(null)
   const [inlineAmountDrafts, setInlineAmountDrafts] = useState<Record<string, InlineAmountDraft>>({})
+  const [dueDateStatement, setDueDateStatement] = useState<StatementRecord | null>(null)
+  const [dueDateValue, setDueDateValue] = useState("")
+  const [dueDateNotes, setDueDateNotes] = useState("")
   const previewContentRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -243,12 +359,30 @@ export default function GenerateStatementsPage() {
     return () => window.clearTimeout(timer)
   }, [searchInput])
 
+  const { officesAsLabs, isLoading: officesLoading } = useConnectedOffices({
+    enabled: typeof window !== "undefined" && !!localStorage.getItem("token"),
+  })
+
+  // Reset to the first page whenever the active filters or sort change.
+  useEffect(() => {
+    setPage(1)
+  }, [dateRangeInput, debouncedSearch, directionFilter, officeFilter, paymentStatusFilter, sortBy, sortDir])
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"))
+    } else {
+      setSortBy(key)
+      setSortDir("asc")
+    }
+  }
+
   const listParams = useMemo((): StatementListParams => {
     const params: StatementListParams = {
       per_page: 15,
-      page: 1,
-      sort_by: "created_at",
-      sort_direction: "desc",
+      page,
+      sort_by: sortBy,
+      sort_direction: sortDir,
     }
 
     if (debouncedSearch) {
@@ -259,6 +393,11 @@ export default function GenerateStatementsPage() {
       params.direction = directionFilter as StatementListParams["direction"]
     }
 
+    if (officeFilter) {
+      const officeId = Number.parseInt(officeFilter, 10)
+      if (!Number.isNaN(officeId)) params.office_id = officeId
+    }
+
     if (paymentStatusFilter) {
       params.payment_status = paymentStatusFilter as StatementListParams["payment_status"]
     }
@@ -267,7 +406,7 @@ export default function GenerateStatementsPage() {
       ...params,
       ...parseDateRangeInput(dateRangeInput),
     }
-  }, [dateRangeInput, debouncedSearch, directionFilter, paymentStatusFilter])
+  }, [dateRangeInput, debouncedSearch, directionFilter, officeFilter, paymentStatusFilter, page, sortBy, sortDir])
 
   const {
     data: listResult,
@@ -285,10 +424,17 @@ export default function GenerateStatementsPage() {
     skip: !previewDialogOpen || previewStatement == null,
   })
 
+  const activePreviewStatementBase = previewStatementDetail ?? previewStatement
+  const { office: enrichedOffice, lab: enrichedLab } = useEnrichedStatementParties(
+    previewDialogOpen ? activePreviewStatementBase : null,
+  )
+
   const { data: summary, isFetching: summaryFetching } = useGetStatementSummaryQuery()
   const [sendStatement] = useSendStatementMutation()
   const [generateStatementPdf] = useGenerateStatementPdfMutation()
   const [updateBillingInvoicePricing] = useUpdateBillingInvoicePricingMutation()
+  const [updateStatementDueDate, { isLoading: savingDueDate }] = useUpdateStatementDueDateMutation()
+  const [updateStatementStatus] = useUpdateStatementStatusMutation()
 
   const officeInvoiceParams = useMemo(
     () => ({
@@ -313,7 +459,14 @@ export default function GenerateStatementsPage() {
   })
 
   const statements = listResult?.data ?? EMPTY_STATEMENTS
-  const activePreviewStatement = previewStatementDetail ?? previewStatement
+  const activePreviewStatement = useMemo(() => {
+    if (!activePreviewStatementBase) return null
+    return {
+      ...activePreviewStatementBase,
+      office: enrichedOffice,
+      lab: enrichedLab,
+    } satisfies StatementRecord
+  }, [activePreviewStatementBase, enrichedOffice, enrichedLab])
 
   const statementIds = useMemo(
     () => statements.map((statement) => String(statement.id)),
@@ -355,13 +508,7 @@ export default function GenerateStatementsPage() {
       return
     }
 
-    const anchor = document.createElement("a")
-    anchor.href = previewRoute
-    anchor.target = "_blank"
-    anchor.rel = "noopener noreferrer"
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
+    router.push(previewRoute)
   }
 
   useEffect(() => {
@@ -428,12 +575,24 @@ export default function GenerateStatementsPage() {
     [previewItems],
   )
 
-  const previewRefundTotal = useMemo(
-    () => previewItems.filter((item) => getBillingItemGross(item) < 0).reduce((sum, item) => sum + getBillingItemGross(item), 0),
-    [previewItems],
-  )
+  const previewRefundSummary = useMemo(() => {
+    const lineItemRefund = Math.abs(
+      previewItems
+        .filter((item) => getBillingItemGross(item) < 0)
+        .reduce((sum, item) => sum + getBillingItemGross(item), 0),
+    )
+    return summarizeStatementPreviewTotals(previewSubtotal, lineItemRefund, {
+      statementRefundAmount: activePreviewStatement?.refund_amount,
+      refundReason: activePreviewStatement?.refund_reason,
+    })
+  }, [
+    activePreviewStatement?.refund_amount,
+    activePreviewStatement?.refund_reason,
+    previewItems,
+    previewSubtotal,
+  ])
 
-  const previewTotal = useMemo(() => previewSubtotal + previewRefundTotal, [previewRefundTotal, previewSubtotal])
+  const previewTotal = previewRefundSummary.grandTotal
 
   const previewCode = effectivePreviewStatement ? getStatementCode(effectivePreviewStatement) : "—"
   const previewRecipient = effectivePreviewStatement ? getRecipient(effectivePreviewStatement) : "—"
@@ -672,13 +831,77 @@ export default function GenerateStatementsPage() {
     }
   }
 
+  const openDueDateDialog = (statement: StatementRecord) => {
+    setDueDateStatement(statement)
+    setDueDateValue(toDateInputValue(statement.due_date))
+    setDueDateNotes("")
+  }
+
+  const closeDueDateDialog = () => {
+    setDueDateStatement(null)
+    setDueDateValue("")
+    setDueDateNotes("")
+  }
+
+  const handleSaveDueDate = async () => {
+    if (!dueDateStatement || !dueDateValue) return
+    try {
+      const body: { due_date: string; notes?: string } = { due_date: dueDateValue }
+      const trimmedNotes = dueDateNotes.trim()
+      if (trimmedNotes) body.notes = trimmedNotes
+      await updateStatementDueDate({ id: dueDateStatement.id, body }).unwrap()
+      toast({ title: "Due date updated" })
+      closeDueDateDialog()
+    } catch (dueDateError) {
+      toast({
+        title: "Unable to update due date",
+        description:
+          dueDateError instanceof Error ? dueDateError.message : "Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handlePaymentStatusChange = async (
+    statement: StatementRecord,
+    nextStatus: string,
+  ) => {
+    const status = nextStatus as StatementPaymentStatus
+    if (!STATEMENT_PAYMENT_STATUS_OPTIONS.includes(status)) return
+
+    const current = normalizePaymentStatus(statement.payment_status ?? statement.status)
+    if (current === status) return
+
+    setUpdatingPaymentId(statement.id)
+    try {
+      await updateStatementStatus({
+        id: statement.id,
+        body: { status },
+      }).unwrap()
+      // Dashboard outstanding balance uses React Query (`dashboard-stats`), not RTK tags.
+      void queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+      toast({
+        title: "Payment status updated",
+        description: `Marked as ${toTitleCase(status)}.`,
+      })
+    } catch (statusError) {
+      toast({
+        title: "Unable to update payment status",
+        description: getMutationErrorMessage(statusError, "Please try again."),
+        variant: "destructive",
+      })
+    } finally {
+      setUpdatingPaymentId(null)
+    }
+  }
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Generate Statements</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 rounded-lg mr-4">
@@ -696,21 +919,6 @@ export default function GenerateStatementsPage() {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg mr-4">
-              <div className="text-blue-600 text-xl">↙</div>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Incoming</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {summaryFetching ? "..." : summary?.incoming ?? 0}
-              </p>
-              <p className="text-xs text-gray-500">From vendors</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center">
             <div className="p-2 bg-red-100 rounded-lg mr-4">
               <div className="text-red-600 text-xl">⚠</div>
             </div>
@@ -720,21 +928,6 @@ export default function GenerateStatementsPage() {
                 {summaryFetching ? "..." : summary?.overdue ?? 0}
               </p>
               <p className="text-xs text-gray-500">Pending payment</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg mr-4">
-              <div className="text-yellow-600 text-xl">⚡</div>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Disputed</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {summaryFetching ? "..." : summary?.disputed ?? 0}
-              </p>
-              <p className="text-xs text-gray-500">Needs attention</p>
             </div>
           </div>
         </div>
@@ -777,6 +970,22 @@ export default function GenerateStatementsPage() {
               </select>
 
               <select
+                value={officeFilter}
+                onChange={(event) => setOfficeFilter(event.target.value)}
+                disabled={officesLoading}
+                className="px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60"
+              >
+                <option value="">
+                  {officesLoading ? "Loading offices…" : "Select Office"}
+                </option>
+                {officesAsLabs.map((office) => (
+                  <option key={office.id} value={String(office.id)}>
+                    {office.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
                 value={paymentStatusFilter}
                 onChange={(event) => setPaymentStatusFilter(event.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -786,8 +995,6 @@ export default function GenerateStatementsPage() {
                 <option value="billed">Billed</option>
                 <option value="paid">Paid</option>
                 <option value="overdue">Overdue</option>
-                <option value="disputed">Disputed</option>
-                <option value="refunded">Refunded</option>
               </select>
             </div>
           </div>
@@ -827,7 +1034,7 @@ export default function GenerateStatementsPage() {
                 <div>
                   <img src="/images/hmc.svg" alt="RXN3D logo" className="h-20 w-auto object-contain" />
                   <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
-                    <p>{activePreviewStatement?.lab?.address || "—"}</p>
+                    <p className="whitespace-pre-line">{formatStatementPartyAddress(activePreviewStatement?.lab)}</p>
                     <p>
                       Phone: {activePreviewStatement?.lab?.phone || "—"} | Email {activePreviewStatement?.lab?.email || "—"}
                     </p>
@@ -880,7 +1087,9 @@ export default function GenerateStatementsPage() {
                 <h3 className="mt-3 text-3xl font-bold text-black sm:text-4xl">
                   {activePreviewStatement?.office?.name || previewRecipient}
                 </h3>
-                <p className="mt-2 text-[16px] text-slate-700 sm:text-[18px]">{activePreviewStatement?.office?.address || "—"}</p>
+                <p className="mt-2 whitespace-pre-line text-[16px] text-slate-700 sm:text-[18px]">
+                  {formatStatementPartyAddress(activePreviewStatement?.office)}
+                </p>
                 {isEditMode && headerDraft ? (
                   <div className="mt-3 max-w-xl">
                     <label className="block text-[15px] text-slate-500 sm:text-[17px]">
@@ -912,7 +1121,6 @@ export default function GenerateStatementsPage() {
                       <th className="px-4 py-3">Stage</th>
                       <th className="px-4 py-3">Base total</th>
                       <th className="px-4 py-3">Add-on</th>
-                      <th className="px-4 py-3">QTY</th>
                       <th className="px-4 py-3">Sub Total</th>
                       <th className="px-4 py-3">R%</th>
                       <th className="px-4 py-3">Gross</th>
@@ -922,7 +1130,7 @@ export default function GenerateStatementsPage() {
                   <tbody>
                     {previewItems.length === 0 ? (
                       <tr>
-                        <td colSpan={isEditMode ? 12 : 11} className="px-4 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={isEditMode ? 11 : 10} className="px-4 py-10 text-center text-sm text-slate-500">
                           No billing items available for this statement.
                         </td>
                       </tr>
@@ -943,7 +1151,6 @@ export default function GenerateStatementsPage() {
                             <td className="px-4 py-4 text-[15px] text-slate-900">{item.stage_name || "—"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{formatMoney(item.base_total)}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</td>
-                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.quantity ?? "-"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{toNumber(item.rush_percentage) === 0 ? "-" : `${toNumber(item.rush_percentage)}%`}</td>
                             <td className={`px-4 py-4 text-[15px] font-semibold ${getBillingItemGross(item) < 0 ? "text-red-600" : "text-slate-900"}`}>
@@ -1023,13 +1230,20 @@ export default function GenerateStatementsPage() {
                     <span>Sub Total</span>
                     <span>{formatMoney(previewSubtotal)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[18px] font-semibold text-red-600">
-                    <span>Refund</span>
-                    <span>{formatMoney(previewRefundTotal)}</span>
-                  </div>
+                  {previewRefundSummary.showRefundLine ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[18px] font-semibold text-red-600">
+                        <span>Refund</span>
+                        <span>{formatMoney(previewRefundSummary.totalRefund)}</span>
+                      </div>
+                      {previewRefundSummary.refundReason ? (
+                        <p className="text-left text-sm text-slate-600">{previewRefundSummary.refundReason}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="flex items-center justify-between border-t border-slate-200 pt-4 text-[22px] font-bold text-black">
                     <span>Total</span>
-                    <span>{formatMoney(activePreviewStatement?.amount_due ?? previewTotal)}</span>
+                    <span>{formatMoney(previewTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -1085,6 +1299,73 @@ export default function GenerateStatementsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={dueDateStatement !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDueDateDialog()
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change due date</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              {dueDateStatement
+                ? `${dueDateStatement.statement_id || `ST-${dueDateStatement.id}`} · currently ${formatShortDate(dueDateStatement.due_date)}`
+                : ""}
+            </p>
+            <div className="space-y-1.5">
+              <label htmlFor="statement-due-date" className="text-sm font-medium text-gray-700">
+                Due date
+              </label>
+              <input
+                id="statement-due-date"
+                type="date"
+                value={dueDateValue}
+                onChange={(event) => setDueDateValue(event.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#1565b3] focus:outline-none focus:ring-1 focus:ring-[#1565b3]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="statement-due-date-notes" className="text-sm font-medium text-gray-700">
+                Notes <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              <textarea
+                id="statement-due-date-notes"
+                value={dueDateNotes}
+                onChange={(event) => setDueDateNotes(event.target.value)}
+                rows={3}
+                placeholder="e.g. Extended payment terms"
+                className="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#1565b3] focus:outline-none focus:ring-1 focus:ring-[#1565b3]"
+              />
+            </div>
+            <p className="text-xs text-gray-400">
+              This also updates the line-item due dates and records the change in history.
+            </p>
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeDueDateDialog}
+              disabled={savingDueDate}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveDueDate}
+              disabled={savingDueDate || !dueDateValue}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1565b3] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0f4d8b] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {savingDueDate ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Save
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -1098,30 +1379,17 @@ export default function GenerateStatementsPage() {
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
+                <SortableHeader label="Statement ID" sortKey="statement_id" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Code" sortKey="office_name" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Receipient" sortKey="recipient_email" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Date Sent" sortKey="date_sent" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Due Date" sortKey="due_date" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statement ID
+                  Refund
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Code
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Receipient
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date Sent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Due Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount due
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Direction
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment
-                </th>
+                <SortableHeader label="Amount due" sortKey="amount_due" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Direction" sortKey="direction" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
+                <SortableHeader label="Payment" sortKey="payment_status" activeKey={sortBy} direction={sortDir} onSort={handleSort} />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -1130,7 +1398,7 @@ export default function GenerateStatementsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-6 py-10 text-center text-sm text-gray-500">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading statements...
@@ -1141,7 +1409,7 @@ export default function GenerateStatementsPage() {
 
               {!isLoading && statements.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-6 py-10 text-center text-sm text-gray-500">
                     {isError
                       ? `Unable to load statements${error ? "." : "."}`
                       : "No statements found for the current filters."}
@@ -1153,6 +1421,11 @@ export default function GenerateStatementsPage() {
                 statements.map((statement) => {
                   const statementId = String(statement.id)
                   const paymentStatus = statement.payment_status ?? statement.status
+                  const totals = resolveStatementTotals(statement)
+                  const dueDateOverdue = isStatementDueDateOverdue(
+                    statement.due_date,
+                    paymentStatus,
+                  )
                   return (
                     <tr key={statement.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1178,16 +1451,19 @@ export default function GenerateStatementsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <span
                           className={
-                            (paymentStatus ?? "").toLowerCase() === "overdue"
-                              ? "text-red-600 font-medium"
-                              : ""
+                            dueDateOverdue ? "text-red-600 font-medium" : undefined
                           }
                         >
                           {formatShortDate(statement.due_date)}
                         </span>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <span className={totals.refund > 0 ? "text-red-600" : "text-gray-400"}>
+                          {totals.refund > 0 ? formatMoney(totals.refund) : "-"}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {formatMoney(statement.amount_due)}
+                        {formatMoney(totals.netTotal)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
@@ -1196,11 +1472,29 @@ export default function GenerateStatementsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(paymentStatus)}`}
-                        >
-                          {toTitleCase(paymentStatus)}
-                        </span>
+                        <div className="relative inline-flex items-center gap-1.5">
+                          <select
+                            value={normalizePaymentStatus(paymentStatus)}
+                            onChange={(event) =>
+                              void handlePaymentStatusChange(statement, event.target.value)
+                            }
+                            disabled={updatingPaymentId === statement.id}
+                            aria-label={`Payment status for ${statement.statement_id || statement.id}`}
+                            className={`px-2 py-1 text-xs font-medium rounded-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:cursor-wait ${getStatusColor(paymentStatus)}`}
+                          >
+                            {!normalizePaymentStatus(paymentStatus) ? (
+                              <option value="">—</option>
+                            ) : null}
+                            {STATEMENT_PAYMENT_STATUS_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {toTitleCase(option)}
+                              </option>
+                            ))}
+                          </select>
+                          {updatingPaymentId === statement.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" />
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
@@ -1235,6 +1529,13 @@ export default function GenerateStatementsPage() {
                               <Download className="h-4 w-4" />
                             )}
                           </button>
+                          <button
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Change due date"
+                            onClick={() => openDueDateDialog(statement)}
+                          >
+                            <Calendar className="h-4 w-4" />
+                          </button>
                           {(statement.is_overdue ||
                             (paymentStatus ?? "").toLowerCase() === "overdue") && (
                             <button className="text-yellow-600 hover:text-yellow-800" title="Alert">
@@ -1250,15 +1551,45 @@ export default function GenerateStatementsPage() {
           </table>
         </div>
 
-        <div className="px-6 py-3 border-t bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
-          <span>
-            Showing {statements.length} of {listResult?.pagination.total ?? statements.length} statements
-          </span>
-          {isFetching && !isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Refreshing...
+        <div className="px-6 py-3 border-t bg-gray-50 text-xs text-gray-500 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span>
+              Showing {statements.length === 0 ? 0 : (listResult ? (listResult.pagination.current_page - 1) * listResult.pagination.per_page + 1 : 1)}
+              –{listResult ? (listResult.pagination.current_page - 1) * listResult.pagination.per_page + statements.length : statements.length} of{" "}
+              {listResult?.pagination.total ?? statements.length} statements
             </span>
+            {isFetching && !isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Refreshing...
+              </span>
+            ) : null}
+          </div>
+
+          {listResult && listResult.pagination.last_page > 1 ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1 || isFetching}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                className="rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="px-2">
+                Page {listResult.pagination.current_page} of {listResult.pagination.last_page}
+              </span>
+              <button
+                type="button"
+                disabled={page >= listResult.pagination.last_page || isFetching}
+                onClick={() =>
+                  setPage((current) => Math.min(listResult.pagination.last_page, current + 1))
+                }
+                className="rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 transition hover:border-[#1565b3] hover:text-[#1565b3] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

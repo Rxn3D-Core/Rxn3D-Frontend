@@ -21,8 +21,11 @@ import {
   buildStatementHeaderDraft,
   computeBasePriceFromTargetGross,
   findMatchingBillingTarget,
+  formatStatementPartyAddress,
+  summarizeStatementPreviewTotals,
   type StatementHeaderDraft,
 } from "@/lib/statement-edit-utils"
+import { useEnrichedStatementParties } from "@/hooks/use-enriched-statement-parties"
 
 type StatementPreviewBillingItem = StatementBillingItem & {
   product_type?: string | null
@@ -230,20 +233,19 @@ function StatementPreviewContent({
       }, 0),
     [previewItems, amountDrafts],
   )
-  const previewRefundTotal = useMemo(
-    () =>
-      Math.abs(
-        previewItems.reduce((sum, item, index) => {
-          const gross = effectiveGross(item, index)
-          return gross < 0 ? sum + gross : sum
-        }, 0),
-      ),
-    [previewItems, amountDrafts],
-  )
-  const previewTotal = useMemo(
-    () => previewItems.reduce((sum, item, index) => sum + effectiveGross(item, index), 0),
-    [previewItems, amountDrafts],
-  )
+  const previewRefundSummary = useMemo(() => {
+    const lineItemRefund = Math.abs(
+      previewItems.reduce((sum, item, index) => {
+        const gross = effectiveGross(item, index)
+        return gross < 0 ? sum + gross : sum
+      }, 0),
+    )
+    return summarizeStatementPreviewTotals(previewSubtotal, lineItemRefund, {
+      statementRefundAmount: statement.refund_amount,
+      refundReason: statement.refund_reason,
+    })
+  }, [previewItems, amountDrafts, previewSubtotal, statement.refund_amount, statement.refund_reason])
+  const previewTotal = previewRefundSummary.grandTotal
 
   return (
     <div
@@ -254,7 +256,7 @@ function StatementPreviewContent({
         <div className="min-w-0">
           <img src="/images/hmc.svg" alt="RXN3D logo" className="mb-3 h-auto w-[120px] object-contain" />
           <div className="space-y-0.5 text-[13px] leading-5 text-slate-800">
-            <p>{statement.lab?.address || "—"}</p>
+            <p className="whitespace-pre-line">{formatStatementPartyAddress(statement.lab)}</p>
             <p>
               Phone: {statement.lab?.phone || "—"} | Email {statement.lab?.email || "—"}
             </p>
@@ -322,7 +324,9 @@ function StatementPreviewContent({
         <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-3xl font-bold leading-tight text-black">
           {statement.office?.name || previewRecipient}
         </h3>
-        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-6 text-slate-700">{statement.office?.address || "—"}</p>
+        <p className="whitespace-pre-line text-[15px] leading-6 text-slate-700">
+          {formatStatementPartyAddress(statement.office)}
+        </p>
         {isEditMode && headerDraft ? (
           <label className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-6 text-slate-500">
             <span>Code: {previewCode} | Recipient: </span>
@@ -372,7 +376,6 @@ function StatementPreviewContent({
                 <th className="whitespace-nowrap px-1.5 py-2.5">Stage</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Base total</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Add-on</th>
-                <th className="whitespace-nowrap px-1.5 py-2.5 text-right">QTY</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Sub Total</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">R%</th>
                 <th className="whitespace-nowrap px-1.5 py-2.5 text-right">Gross</th>
@@ -382,7 +385,7 @@ function StatementPreviewContent({
             <tbody>
               {previewItems.length === 0 ? (
                 <tr>
-                  <td colSpan={isEditMode ? 12 : 11} className="px-4 py-10 text-center text-[13px] text-slate-500">
+                  <td colSpan={isEditMode ? 11 : 10} className="px-4 py-10 text-center text-[13px] text-slate-500">
                     No billing items available for this statement.
                   </td>
                 </tr>
@@ -402,7 +405,6 @@ function StatementPreviewContent({
                     <td className="break-words px-1.5 py-2.5 align-middle text-[12px] leading-4 text-black">{item.stage_name || "—"}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{formatMoney(item.base_total)}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</td>
-                    <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{item.quantity ?? "-"}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</td>
                     <td className="px-1.5 py-2.5 text-right align-middle text-[12px] leading-4 text-black">{toNumber(item.rush_percentage) === 0 ? "-" : `${toNumber(item.rush_percentage)}%`}</td>
                     {isEditMode ? (
@@ -482,7 +484,6 @@ function StatementPreviewContent({
                   <div className="flex justify-between"><dt className="text-slate-500">U/L</dt><dd>{item.product_type || "—"}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Grade</dt><dd className="truncate">{item.grade_name || "—"}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Stage</dt><dd className="truncate">{item.stage_name || "—"}</dd></div>
-                  <div className="flex justify-between"><dt className="text-slate-500">QTY</dt><dd>{item.quantity ?? "-"}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Base</dt><dd>{formatMoney(item.base_total)}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Add-on</dt><dd>{toNumber(item.addon_total) === 0 ? "-" : formatMoney(item.addon_total)}</dd></div>
                   <div className="flex justify-between"><dt className="text-slate-500">Sub Total</dt><dd>{toNumber(item.sub_total) === 0 ? "-" : formatMoney(item.sub_total)}</dd></div>
@@ -500,10 +501,17 @@ function StatementPreviewContent({
             <span>Sub Total</span>
             <span className="tabular-nums">{formatMoney(previewSubtotal)}</span>
           </div>
-          <div className="mb-2.5 flex items-center justify-between text-[15px] font-bold tracking-[-0.02em] text-[#CF0202]">
-            <span>Refund</span>
-            <span className="tabular-nums">{formatMoney(previewRefundTotal)}</span>
-          </div>
+          {previewRefundSummary.showRefundLine ? (
+            <div className="mb-2.5">
+              <div className="flex items-center justify-between text-[15px] font-bold tracking-[-0.02em] text-[#CF0202]">
+                <span>Refund</span>
+                <span className="tabular-nums">{formatMoney(previewRefundSummary.totalRefund)}</span>
+              </div>
+              {previewRefundSummary.refundReason ? (
+                <p className="mt-1 text-[13px] leading-5 text-slate-600">{previewRefundSummary.refundReason}</p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="border-t-2 border-slate-300 pt-2.5">
             <div className="flex items-center justify-between text-xl font-bold tracking-[-0.02em] text-black">
               <span>Total</span>
@@ -531,6 +539,7 @@ export default function StatementPreviewPage() {
   const { data: statement, isLoading, isError, error } = useGetStatementByIdQuery(statementId, {
     skip: !Number.isInteger(statementId) || statementId <= 0,
   })
+  const { office: enrichedOffice, lab: enrichedLab } = useEnrichedStatementParties(statement)
   // Invoices are only needed in edit mode, to match statement items back to a
   // billing product so an edited Gross can be persisted.
   const { data: invoiceList } = useListBillingInvoicesQuery(
@@ -556,15 +565,20 @@ export default function StatementPreviewPage() {
 
   const effectiveStatement = useMemo(() => {
     if (!statement) return null
-    if (!headerDraft) return statement
-    return {
+    const withParties: StatementRecord = {
       ...statement,
+      office: enrichedOffice,
+      lab: enrichedLab,
+    }
+    if (!headerDraft) return withParties
+    return {
+      ...withParties,
       statement_id: headerDraft.statementId || statement.statement_id,
       recipient_email: headerDraft.recipientEmail || statement.recipient_email,
       created_at: headerDraft.statementDate || statement.created_at,
       due_date: headerDraft.dueDate || statement.due_date,
     } satisfies StatementRecord
-  }, [statement, headerDraft])
+  }, [statement, headerDraft, enrichedOffice, enrichedLab])
 
   const pageTitle = effectiveStatement?.statement_id || (Number.isInteger(statementId) && statementId > 0 ? `Statement #${statementId}` : "Statement Preview")
 
@@ -959,7 +973,8 @@ export default function StatementPreviewPage() {
               </div>
               <div className="bg-white px-8 pb-8 print:hidden sm:px-12">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {/* Edit Statement button hidden for now — grid reduced to 2 cols. Restore the button below and set this back to sm:grid-cols-3 to bring it back. */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -982,6 +997,7 @@ export default function StatementPreviewPage() {
                       {isPrinting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />}
                       Print
                     </Button>
+                    {/* Edit Statement button hidden for now:
                     <Button
                       type="button"
                       variant="outline"
@@ -993,6 +1009,7 @@ export default function StatementPreviewPage() {
                       <Pencil className="h-5 w-5" />
                       {isEditMode ? "Editing Statement" : "Edit Statement"}
                     </Button>
+                    */}
                   </div>
                   <Button
                     type="button"

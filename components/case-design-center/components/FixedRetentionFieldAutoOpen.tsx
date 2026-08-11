@@ -26,6 +26,7 @@ export function AutoOpenFirstFixedFieldAfterRetentionDone({
   legacyStumpShadeEmpty,
   legacyToothShadeEmpty,
   fixedShadesComplete,
+  gradeIncomplete = false,
 }: {
   retentionFieldsVisible: boolean;
   isExpanded: boolean;
@@ -47,6 +48,8 @@ export function AutoOpenFirstFixedFieldAfterRetentionDone({
   legacyStumpShadeEmpty: boolean;
   legacyToothShadeEmpty: boolean;
   fixedShadesComplete: boolean;
+  /** Product has selectable grades not yet chosen — hold shade auto-open so Grade comes first. */
+  gradeIncomplete?: boolean;
 }) {
   const hasAutoOpenedRef = useRef(false);
 
@@ -63,7 +66,9 @@ export function AutoOpenFirstFixedFieldAfterRetentionDone({
       return;
     }
 
-    if (usesAccordionShadePicker && !fixedShadesComplete && firstMissingShadeField) {
+    // Grade renders alongside stage but is not in the fixed chain, so hold every shade
+    // auto-open until it is chosen — order stays Stage → Grade → Teeth Shade.
+    if (!gradeIncomplete && usesAccordionShadePicker && !fixedShadesComplete && firstMissingShadeField) {
       hasAutoOpenedRef.current = true;
       setShadeSelectionState({
         arch,
@@ -77,8 +82,12 @@ export function AutoOpenFirstFixedFieldAfterRetentionDone({
       return;
     }
 
-    if (!usesAccordionShadePicker && isLegacyShadeSectionVisible && !fixedShadesComplete) {
-      const hasNamedShadeFields = firstMissingShadeField !== undefined;
+    if (!gradeIncomplete && !usesAccordionShadePicker && isLegacyShadeSectionVisible && !fixedShadesComplete) {
+      // Classic Teeth/Gum-shade products carry no named shade_guide field, so
+      // firstMissingShadeField is null (not undefined). Treat null as "no named field"
+      // and fall back to the classic empties — otherwise teeth shade never auto-opens
+      // for single-stage classic fixed products (regressed when named shades were added).
+      const hasNamedShadeFields = firstMissingShadeField != null;
       const shouldOpen = hasNamedShadeFields
         ? firstMissingShadeField != null
         : legacyStumpShadeEmpty || legacyToothShadeEmpty;
@@ -115,6 +124,7 @@ export function AutoOpenFirstFixedFieldAfterRetentionDone({
     legacyStumpShadeEmpty,
     legacyToothShadeEmpty,
     fixedShadesComplete,
+    gradeIncomplete,
   ]);
 
   return null;

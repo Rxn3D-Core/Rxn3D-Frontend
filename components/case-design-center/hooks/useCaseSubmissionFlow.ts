@@ -14,6 +14,12 @@ import {
   type CaseSubmissionResult,
   type CaseSubmissionState,
 } from "../utils/caseCompletionDestination";
+import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
+import {
+  isSlipLimitExceededError,
+  LAB_SLIP_LIMIT_MESSAGE,
+  OFFICE_LAB_UNAVAILABLE_MESSAGE,
+} from "@/lib/slip-creation-guardrails";
 
 interface ToastApi {
   (options: { title: string; description: string; variant?: "destructive" }): void;
@@ -22,6 +28,7 @@ interface ToastApi {
 interface CachedAttachment {
   file?: unknown;
   url?: string;
+  notes?: string;
   description?: string;
   remoteId?: unknown;
   generatedPath?: string;
@@ -35,7 +42,7 @@ interface CachedAttachment {
  */
 async function uploadCachedAttachmentsToSlip(
   slipId: number,
-  upload: (slipId: number, file: File, notes?: string) => Promise<any>,
+  upload: (slipId: number, file: File, options?: { notes?: string }) => Promise<any>,
 ): Promise<{ uploaded: number; failed: number }> {
   if (typeof window === "undefined") return { uploaded: 0, failed: 0 };
 
@@ -52,7 +59,8 @@ async function uploadCachedAttachmentsToSlip(
   let failed = 0;
   for (const item of pending) {
     try {
-      await upload(slipId, item.file as File, item.description);
+      const notes = item.notes ?? item.description;
+      await upload(slipId, item.file as File, notes ? { notes } : undefined);
       uploaded += 1;
     } catch (error) {
       failed += 1;
@@ -81,7 +89,7 @@ interface UseCaseSubmissionFlowParams {
   uploadSlipAttachment?: (
     slipId: number,
     file: File,
-    notes?: string
+    options?: { notes?: string; attachment_type?: string }
   ) => Promise<any>;
   router: AppRouterInstance;
   toast: ToastApi;
@@ -169,36 +177,46 @@ export function useCaseSubmissionFlow({
 
       toast({ title: "Case submitted", description: "Slip created successfully." });
 
-      // Upload attachments cached during slip creation now that we have a slip id.
-      // Never block the redirect — surface a non-fatal warning if any fail.
-      if (uploadSlipAttachment) {
-        try {
-          const { failed } = await uploadCachedAttachmentsToSlip(
-            result.slipId,
-            uploadSlipAttachment,
-          );
-          if (failed > 0) {
-            toast({
-              title: "Some attachments failed",
-              description: `${failed} file(s) could not be uploaded. You can re-attach them on the slip.`,
-              variant: "destructive",
-            });
-          }
-        } catch (attachmentError) {
-          console.error("Attachment upload step failed:", attachmentError);
-        }
-      }
+      // The virtual slip page consumes this flag on mount to auto-open the
+      // paper slip print window exactly once for the new slip.
+      markSlipForAutoPrint(result.slipId);
 
+      // Start redirect timer immediately — attachment uploads happen in the background
+      // so they never delay or block the success redirect.
       redirectTimerRef.current = setTimeout(() => {
         router.push(redirectPath);
       }, successRedirectDelayMs);
+
+      // Fire attachment uploads in background after slip creation.
+      // The slip ID is now known so each file is posted to /slip/attachments/{slipId}/upload.
+      if (uploadSlipAttachment) {
+        uploadCachedAttachmentsToSlip(result.slipId, uploadSlipAttachment)
+          .then(({ failed }) => {
+            if (failed > 0) {
+              toast({
+                title: "Some attachments failed",
+                description: `${failed} file(s) could not be uploaded. You can re-attach them on the slip.`,
+                variant: "destructive",
+              });
+            }
+          })
+          .catch((attachmentError) => {
+            console.error("Attachment upload step failed:", attachmentError);
+          });
+      }
     } catch (error: any) {
       if (redirectTimerRef.current) {
         clearTimeout(redirectTimerRef.current);
         redirectTimerRef.current = null;
       }
 
-      const message = error?.message ?? "Something went wrong.";
+      const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+      const limitHit = isSlipLimitExceededError(error);
+      const message = limitHit
+        ? role === "office_admin"
+          ? OFFICE_LAB_UNAVAILABLE_MESSAGE
+          : LAB_SLIP_LIMIT_MESSAGE
+        : (error?.message ?? "Something went wrong.");
       setSubmissionError(message);
       setSlipHeaderLoading(false);
       setCaseSubmitted(false);

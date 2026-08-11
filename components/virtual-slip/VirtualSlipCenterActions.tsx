@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CenterActionIcons } from "@/components/case-design-center/components/CenterActionIcons";
 import AddOnsModal, { type AddOnsProduct } from "@/components/add-ons-modal";
 import RushRequestModal from "@/components/rush-request-modal";
 import type { RushArchSlot } from "@/components/case-design-center/utils/rushModalContext";
-import type { VirtualSlipRushArchSlot } from "@/lib/virtual-slip-rush-slots";
+import {
+  type VirtualSlipRushArchSlot,
+  virtualSlipRushSlotsShareProduct,
+} from "@/lib/virtual-slip-rush-slots";
 import { SlipNotesModal } from "@/components/virtual-slip/SlipNotesModal";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { useToast } from "@/components/ui/use-toast";
 import type { CaseNoteStageSeed } from "@/lib/api/slip-notes";
 import type { SlipProductArchKey } from "@/lib/virtual-slip-view-model";
+import type { CaseSchedule, BusinessHour } from "@/lib/api-business-settings";
 
 export interface VirtualSlipCenterActionsProps {
   slipId: number;
@@ -51,8 +55,13 @@ export interface VirtualSlipCenterActionsProps {
   canPutOnHold?: boolean;
   /** When true, edit slip, add-ons, and rush icons are hidden. */
   caseOnHold?: boolean;
-  /** Lab-only: rush changes delivery date on an existing slip. */
+  /**
+   * Submit/change rush on an existing slip. Office profiles view rush status
+   * only; they submit rush during slip creation. Defaults true (lab).
+   */
   allowRush?: boolean;
+  rushCaseSchedule?: CaseSchedule | null;
+  labBusinessHours?: BusinessHour[] | null;
 }
 
 /** Center-column action icons + modals for virtual slip v2 (CASE DESIGN CENTER). */
@@ -94,6 +103,8 @@ export function VirtualSlipCenterActions({
   canPutOnHold = true,
   caseOnHold = false,
   allowRush = true,
+  rushCaseSchedule = null,
+  labBusinessHours = null,
 }: VirtualSlipCenterActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -102,6 +113,8 @@ export function VirtualSlipCenterActions({
   const [addonsModalOpen, setAddonsModalOpen] = useState(false);
   const [rushModalOpen, setRushModalOpen] = useState(false);
   const [rushSubmitting, setRushSubmitting] = useState(false);
+  const rushConfirmedRef = useRef(false);
+  const mirrorRushAcrossArches = virtualSlipRushSlotsShareProduct(rushArchSlots);
 
   const productArches =
     visibleArches ??
@@ -115,7 +128,10 @@ export function VirtualSlipCenterActions({
   }, [openNotesModal]);
 
   useEffect(() => {
-    if (allowRush && openRushModal) setRushModalOpen(true);
+    if (allowRush && openRushModal) {
+      rushConfirmedRef.current = false;
+      setRushModalOpen(true);
+    }
   }, [allowRush, openRushModal]);
 
   const handleRemoveRush = async () => {
@@ -143,12 +159,16 @@ export function VirtualSlipCenterActions({
 
   const handleConfirmRush = async (rushData: { targetDate?: string | null }) => {
     if (!slipId || slipId <= 0) return;
+    // When mirroring, the modal calls onConfirm twice (once per arch). Only act on the first.
+    if (rushConfirmedRef.current) return;
+    rushConfirmedRef.current = true;
     if (!rushData?.targetDate) {
       toast({
         title: "Rush date required",
         description: "Please select a target delivery date first.",
         variant: "destructive",
       });
+      rushConfirmedRef.current = false;
       return;
     }
 
@@ -199,7 +219,10 @@ export function VirtualSlipCenterActions({
             rushArchSlots.length > 0 &&
             !rushSubmitting &&
             !caseOnHold
-              ? () => setRushModalOpen(true)
+              ? () => {
+                  rushConfirmedRef.current = false;
+                  setRushModalOpen(true);
+                }
               : undefined
           }
           onAttach={onAttachments}
@@ -266,6 +289,7 @@ export function VirtualSlipCenterActions({
               : undefined
           }
           archSlots={rushArchSlots}
+          mirrorRushAcrossArches={mirrorRushAcrossArches}
           hasMaxillary={
             rushArchSlots.length > 0
               ? rushArchSlots.some((s) => s.arch === "maxillary")
@@ -280,8 +304,10 @@ export function VirtualSlipCenterActions({
             name: rushArchSlots[0]?.productName ?? productName,
             stage: rushArchSlots[0]?.stageName ?? productStage,
             deliveryDate: deliveryDateIso,
-            price: 0,
+            price: rushArchSlots.reduce((sum, s) => sum + (s.price ?? 0), 0),
           }}
+          rushCaseSchedule={rushCaseSchedule}
+          labBusinessHours={labBusinessHours}
         />
       )}
 

@@ -60,6 +60,7 @@ export interface OfficeSlip {
   products: OfficeSlipProduct[];
   products_count: number;
   rush_products_count: number;
+  new_stage_eligible?: string | boolean;
 }
 
 export interface OfficeCaseLab {
@@ -134,6 +135,7 @@ export interface UISlip {
   rush: boolean;
   location: string;
   locationId?: number;
+  newStageEligible?: boolean;
   attachment: boolean;
   dueDate: string;
   overdue: boolean;
@@ -220,6 +222,10 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       rush: slip.is_rush || false,
       location: slip.location?.name || "",
       locationId: typeof slip.location?.id === "number" ? slip.location.id : undefined,
+      newStageEligible:
+        typeof slip.new_stage_eligible === "string"
+          ? slip.new_stage_eligible.trim().toLowerCase() === "yes"
+          : Boolean(slip.new_stage_eligible),
       attachment: slip.attachments?.has_attachments || false,
       dueDate: slip.delivery?.delivery_date ? new Date(slip.delivery.delivery_date).toLocaleDateString() : "",
       overdue: false, // You can implement overdue logic based on delivery date

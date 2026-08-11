@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { useQueries } from "@tanstack/react-query"
+import { Loader2 } from "lucide-react"
 import type { ToothStatusOption } from "@/components/tooth-status-popover"
 import { ProductMaxillaryTeethSVG } from "@/components/product-management/product-tooth-chart/product-maxillary-teeth-svg"
 import { ProductMandibularTeethSVG } from "@/components/product-management/product-tooth-chart/product-mandibular-teeth-svg"
@@ -93,12 +94,21 @@ export interface ProductToothChartPreviewProps {
   retentionCatalog: RetentionOption[]
   productExtractions: ProductExtractionRow[]
   allExtractions: Extraction[]
+  /** Whether the shared extraction catalog is still being fetched. */
+  isExtractionsLoading?: boolean
   fillAvailable?: boolean
   /** When false the preview is hidden — used with the Default tooth chart switch. */
   defaultToothChartEnabled?: boolean
   /** All 32 teeth with retention_option_id and/or extraction_id for API payload. */
   defaultToothChart?: ProductDefaultToothChartEntry[]
   onDefaultToothChartChange?: (entries: ProductDefaultToothChartEntry[]) => void
+  /**
+   * Show "Allow user to select only implant" when a linked retention option
+   * resolves to Implant chart type.
+   */
+  showAllowSelectOnlyImplant?: boolean
+  allowSelectOnlyImplant?: boolean
+  onAllowSelectOnlyImplantChange?: (checked: boolean) => void
 }
 
 function getMaxTeethForCode(
@@ -140,9 +150,13 @@ function ProductToothChartPreviewInner({
   retentionCatalog,
   productExtractions,
   allExtractions,
+  isExtractionsLoading = false,
   fillAvailable = false,
   defaultToothChart = [],
   onDefaultToothChartChange,
+  showAllowSelectOnlyImplant = false,
+  allowSelectOnlyImplant = false,
+  onAllowSelectOnlyImplantChange,
 }: ProductToothChartPreviewProps) {
   const [maxillarySelectedTeeth, setMaxillarySelectedTeeth] = useState<number[]>([])
   const [mandibularSelectedTeeth, setMandibularSelectedTeeth] = useState<number[]>([])
@@ -343,7 +357,47 @@ function ProductToothChartPreviewInner({
     [defaultToothChart],
   )
 
+  // --- Load-sequence guard ---------------------------------------------------
+  // Reopening a saved product hydrates the chart from `defaultToothChart`, but
+  // that parse needs the extraction catalog to resolve each saved extraction_id
+  // back to its code (e.g. Missing teeth). If the catalog is still loading, the
+  // parse silently drops those teeth and they render as "teeth in mouth" — and
+  // the emit effect can then persist that wrong state. So we gate hydration/emit
+  // behind a loader until the catalog has loaded, then settle for 2s to make
+  // sure every dependency is in place before applying the saved selection.
+  const [isChartReady, setIsChartReady] = useState(false)
+  const [extractionsLoadCompleted, setExtractionsLoadCompleted] = useState(false)
+  const hasEverBeenNotReady = useRef(false)
+  const prevExtractionsLoading = useRef(isExtractionsLoading)
+
   useEffect(() => {
+    if (prevExtractionsLoading.current && !isExtractionsLoading) {
+      setExtractionsLoadCompleted(true)
+    }
+    prevExtractionsLoading.current = isExtractionsLoading
+  }, [isExtractionsLoading])
+
+  const extractionsCatalogReady =
+    !extractionsEnabled ||
+    (!isExtractionsLoading && (allExtractions.length > 0 || extractionsLoadCompleted))
+
+  useEffect(() => {
+    if (!extractionsCatalogReady) {
+      hasEverBeenNotReady.current = true
+      setIsChartReady(false)
+      return
+    }
+    // Catalog was ready immediately (cached / new product) — no race to guard.
+    if (!hasEverBeenNotReady.current) {
+      setIsChartReady(true)
+      return
+    }
+    const timer = setTimeout(() => setIsChartReady(true), 2000)
+    return () => clearTimeout(timer)
+  }, [extractionsCatalogReady])
+
+  useEffect(() => {
+    if (!isChartReady) return
     isHydratingDefaultChart.current = true
     lastEmittedDefaultChartSig.current = defaultChartSignature
     const parsed = parseDefaultToothChartToPreviewState(
@@ -365,10 +419,10 @@ function ProductToothChartPreviewInner({
     queueMicrotask(() => {
       isHydratingDefaultChart.current = false
     })
-  }, [defaultChartSignature, resolvedExtractions, defaultToothChart])
+  }, [isChartReady, defaultChartSignature, resolvedExtractions, defaultToothChart])
 
   useEffect(() => {
-    if (!onDefaultToothChartChange || isHydratingDefaultChart.current) return
+    if (!isChartReady || !onDefaultToothChartChange || isHydratingDefaultChart.current) return
     const entries = buildDefaultToothChartFromPreviewState(
       {
         maxillaryRetention,
@@ -399,6 +453,7 @@ function ProductToothChartPreviewInner({
     mandibularTimOverrideTeeth,
     resolvedExtractions,
     catalogDefaultExtractionId,
+    isChartReady,
   ])
 
   const useExtractionOnlyPopover = extractionsEnabled && !retentionEnabled
@@ -728,12 +783,34 @@ function ProductToothChartPreviewInner({
         fillAvailable && "xl:min-h-[420px]",
       )}
     >
-      <div className="mb-3">
-        <h4 className="text-sm font-medium text-gray-900">Default tooth chart</h4>
-        <p className="text-xs text-muted-foreground mt-1">{helperText}</p>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-sm font-medium text-gray-900">Default tooth chart</h4>
+          <p className="text-xs text-muted-foreground mt-1">{helperText}</p>
+        </div>
+        {showAllowSelectOnlyImplant ? (
+          <label className="flex items-start gap-1.5 shrink-0 cursor-pointer max-w-[11rem]">
+            <input
+              type="checkbox"
+              checked={allowSelectOnlyImplant}
+              onChange={(e) => onAllowSelectOnlyImplantChange?.(e.target.checked)}
+              className="accent-[#1162a8] mt-0.5 shrink-0 w-4 h-4"
+            />
+            <span className="text-xs leading-snug text-gray-900">
+              Allow user to select only implant
+            </span>
+          </label>
+        ) : null}
       </div>
 
       <div className="space-y-3 overflow-y-auto overflow-x-hidden flex-1 min-h-0 pr-1">
+        {!isChartReady ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16 text-muted-foreground min-h-[240px]">
+            <Loader2 className="h-8 w-8 animate-spin text-[#1162a8]" />
+            <p className="text-xs">Loading saved tooth chart…</p>
+          </div>
+        ) : (
+          <>
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-1">
             Upper (1–16)
@@ -870,6 +947,8 @@ function ProductToothChartPreviewInner({
             hideSelectionIndicators={useExtractionOnlyPopover || isSingleDefaultOnly}
           />
         </div>
+          </>
+        )}
       </div>
     </div>
   )

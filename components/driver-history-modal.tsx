@@ -37,6 +37,14 @@ import {
   type DeliveryInfoField,
 } from "@/components/driver-delivery/delivery-parts"
 
+/** First non-empty, trimmed string among the given values (or "" if none). */
+function firstNonEmpty(...values: unknown[]): string {
+  for (const v of values) {
+    if (v != null && String(v).trim() !== "") return String(v).trim()
+  }
+  return ""
+}
+
 function pickupDropoffModalCopy(action: SlipPickupDropoffAction | null) {
   if (action === "dropoff") {
     return { title: "Drop off", confirmLabel: "Drop off" }
@@ -99,7 +107,10 @@ export default function DriverHistoryModal({
   const convertQRDataToDeliveryEntries = (qrData: QRScanResponseData[]): DeliveryEntry[] => {
     return qrData.map((item, index) => ({
       id: `qr-${item.slip_id}-${index}`,
-      office: item.customer_code || "Unknown Office",
+      // Show the code when the backend provides one, otherwise the full name.
+      // Note: customer_code is the lab's code here, so it must not feed office.
+      office: firstNonEmpty(item.office_code, item.office_name),
+      labName: firstNonEmpty(item.lab_code, item.lab_name),
       patientName: item.patient_name,
       location: item.location || item.current_driver_location,
       isChecked: true, // Auto-select QR scanned items
@@ -255,6 +266,7 @@ export default function DriverHistoryModal({
     const newEntry: DeliveryEntry = {
       id: newId,
       office: "",
+      labName: "",
       patientName: "",
       location: "",
       isChecked: false,
@@ -484,7 +496,7 @@ export default function DriverHistoryModal({
                   tableScrollable && "max-h-[min(42dvh,320px)] overflow-y-auto",
                 )}
               >
-                <table className="w-full min-w-[640px] border-collapse text-left">
+                <table className="w-full min-w-[720px] border-collapse text-left">
                   <thead>
                     <tr className="border-b border-[#E5E7EB]">
                       <th className="px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Location</th>
@@ -497,6 +509,7 @@ export default function DriverHistoryModal({
                           aria-label="Select all"
                         />
                       </th>
+                      <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Lab</th>
                       <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Office</th>
                       <th className="min-w-[140px] px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Patient Name</th>
                       <th className="w-[52px] px-2 py-3" />
@@ -506,20 +519,24 @@ export default function DriverHistoryModal({
                     {loadingPickup ? (
                       Array.from({ length: 3 }).map((_, i) => (
                         <tr key={`skeleton-${i}`} className="border-b border-dashed border-[#E5E7EB]">
-                          <td colSpan={6} className="px-5 py-4">
+                          <td colSpan={7} className="px-5 py-4">
                             <div className="h-4 w-full max-w-md animate-pulse rounded bg-gray-200" />
                           </td>
                         </tr>
                       ))
                     ) : deliveryEntries.length === 0 ? (
                       <tr className="border-b border-dashed border-[#E5E7EB]">
-                        <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-600">
+                        <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-600">
                           No entries available. Click &quot;Add Slip&quot; to add one manually or scan a QR code.
                         </td>
                       </tr>
                     ) : (
                       deliveryEntries.map((entry) => {
                         const isManual = !entry.slip_id
+                        const rowAction = slipPickupDropoffAction({
+                          locationId: entry.location_id,
+                          location: entry.location,
+                        })
                         return (
                           <tr key={entry.id} className="border-b border-dashed border-[#E5E7EB] text-[14px] text-[#374151] last:border-b-0">
                             <td className="px-4 py-4 align-middle sm:px-5">
@@ -531,7 +548,23 @@ export default function DriverHistoryModal({
                                   className="h-9 border-[#D9D9D9] bg-white text-sm"
                                 />
                               ) : (
-                                <span className="block max-w-[280px] leading-snug">{entry.location}</span>
+                                <span className="flex items-center gap-2 max-w-[280px] leading-snug">
+                                  {rowAction ? (
+                                    <Image
+                                      src={
+                                        rowAction === "dropoff"
+                                          ? "/icons/virtual-slip-center/drop-off.svg"
+                                          : "/icons/virtual-slip-center/pick-up.svg"
+                                      }
+                                      alt={rowAction === "dropoff" ? "Drop off" : "Pick up"}
+                                      title={rowAction === "dropoff" ? "Drop off" : "Pick up"}
+                                      width={20}
+                                      height={20}
+                                      className="h-5 w-5 shrink-0"
+                                    />
+                                  ) : null}
+                                  <span>{entry.location}</span>
+                                </span>
                               )}
                             </td>
                             <td className="px-2 py-4 text-center align-middle">
@@ -545,6 +578,18 @@ export default function DriverHistoryModal({
                                 className="mx-auto border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
                                 aria-label={`Select ${entry.patientName || "entry"}`}
                               />
+                            </td>
+                            <td className="px-3 py-4 align-middle sm:px-4">
+                              {isManual ? (
+                                <Input
+                                  value={entry.labName}
+                                  onChange={(e) => handleUpdateManualEntry(entry.id, "labName", e.target.value)}
+                                  placeholder="Lab"
+                                  className="h-9 w-full min-w-[72px] border-[#D9D9D9] bg-white text-sm"
+                                />
+                              ) : (
+                                <span className="font-medium">{entry.labName || "—"}</span>
+                              )}
                             </td>
                             <td className="px-3 py-4 align-middle sm:px-4">
                               {isManual ? (

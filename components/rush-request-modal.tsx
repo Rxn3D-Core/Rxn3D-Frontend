@@ -26,6 +26,7 @@ import { format, isValid, parse, startOfDay } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import { useHolidays } from "@/contexts/holidays-context"
 import type { Matcher } from "react-day-picker"
+import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
 
 /** Parse API (`yyyy-MM-dd`) or display (`MM/dd/yyyy`, `MM/dd/yy`) delivery strings. */
 function parseDeliveryDateValue(value: string | undefined | null): Date | undefined {
@@ -144,6 +145,10 @@ export interface RushArchSlotView {
   toothNumbersLabel?: string
   isRushed?: boolean
   existingRushDate?: string
+  normalDeliveryDate?: string
+  existingDaysSaved?: number
+  existingRushFeePercentage?: number
+  existingRushFee?: number
 }
 
 export interface RushConfirmPayload {
@@ -235,10 +240,12 @@ export default function RushRequestModal({
   const [mandTargetDateStr, setMandTargetDateStr] = useState("")
   const [targetDatesByKey, setTargetDatesByKey] = useState<Record<string, string>>({})
 
-  const configuredRushPercent = Number.parseFloat(
-    String(rushCaseSchedule?.fixed_rush_fee_percentage ?? "25")
-  )
-  const configuredTurnaroundDays = rushCaseSchedule?.fixed_turnaround_days
+  const isFlexibleRush = rushCaseSchedule?.rush_type === "flexible"
+
+  const configuredRushPercent = isFlexibleRush
+    ? 0
+    : Number.parseFloat(String(rushCaseSchedule?.fixed_rush_fee_percentage ?? "25"))
+  const configuredTurnaroundDays = isFlexibleRush ? undefined : rushCaseSchedule?.fixed_turnaround_days
 
   const earliestRushDelivery = useMemo(
     () =>
@@ -252,14 +259,25 @@ export default function RushRequestModal({
 
   const computeRushMetrics = (targetDateStr: string, standardDelivery?: Date) => {
     if (!targetDateStr || !standardDelivery) {
-      return { daysSaved: 0, rushPercentage: configuredRushPercent, rushFee: 0 }
+      return { daysSaved: 0, rushPercentage: 0, rushFee: 0 }
     }
     const rushDate = parseLocalDateString(targetDateStr)
-    const daysSaved = countLabWorkingDaysBetween(
-      rushDate,
-      standardDelivery,
-      labCalendarCtx
-    )
+    const daysSaved = countLabWorkingDaysBetween(rushDate, standardDelivery, labCalendarCtx)
+
+    if (isFlexibleRush) {
+      const standardWorkingDays = countLabWorkingDaysBetween(
+        startOfDay(new Date()),
+        standardDelivery,
+        labCalendarCtx
+      )
+      const rushPercentage =
+        standardWorkingDays > 0
+          ? Math.round((daysSaved / standardWorkingDays) * 100 * 100) / 100
+          : 0
+      const rushFee = Math.round(product.price * (rushPercentage / 100) * 100) / 100
+      return { daysSaved, rushPercentage, rushFee }
+    }
+
     const rushPercentage = Number.isFinite(configuredRushPercent) ? configuredRushPercent : 25
     const rushFee = Math.round(product.price * (rushPercentage / 100) * 100) / 100
     return { daysSaved, rushPercentage, rushFee }
@@ -331,11 +349,14 @@ export default function RushRequestModal({
   const handleConfirm = (arch: "maxillary" | "mandibular") => {
     const targetDateStr = arch === "maxillary" ? maxTargetDateStr : mandTargetDateStr
     const actualDelivery = resolveActualDeliveryDate(arch)
-    if (!isRushDateValidStr(targetDateStr, actualDelivery)) return
-
     const slot = arch === "maxillary" ? maxSlot : mandSlot
+    const archEffectiveStandard = slot?.normalDeliveryDate
+      ? parseDeliveryDateValue(slot.normalDeliveryDate)
+      : actualDelivery
+    if (!isRushDateValidStr(targetDateStr, archEffectiveStandard)) return
+
     const rushKey = slot?.rushKey ?? `${arch}_legacy`
-    onConfirm(buildPayload(arch, targetDateStr, rushKey, actualDelivery))
+    onConfirm(buildPayload(arch, targetDateStr, rushKey, archEffectiveStandard))
 
     const shouldMirror =
       mirrorRushAcrossArches &&
@@ -349,13 +370,16 @@ export default function RushRequestModal({
       if (!otherRushed) {
         const otherSlot = otherArch === "maxillary" ? maxSlot : mandSlot
         const otherKey = otherSlot?.rushKey ?? `${otherArch}_legacy`
-        const otherStandard = resolveActualDeliveryDate(otherArch)
+        const otherActual = resolveActualDeliveryDate(otherArch)
+        const otherEffectiveStandard = otherSlot?.normalDeliveryDate
+          ? parseDeliveryDateValue(otherSlot.normalDeliveryDate)
+          : otherActual
         if (otherArch === "maxillary") {
           setMaxTargetDateStr(targetDateStr)
         } else {
           setMandTargetDateStr(targetDateStr)
         }
-        onConfirm(buildPayload(otherArch, targetDateStr, otherKey, otherStandard))
+        onConfirm(buildPayload(otherArch, targetDateStr, otherKey, otherEffectiveStandard))
       }
     }
 
@@ -367,10 +391,13 @@ export default function RushRequestModal({
     const actualDelivery = slot.actualDeliveryDate
       ? parseDeliveryDateValue(slot.actualDeliveryDate)
       : undefined
-    if (!isRushDateValidStr(targetDateStr, actualDelivery)) return
+    const slotEffectiveStandard = slot.normalDeliveryDate
+      ? parseDeliveryDateValue(slot.normalDeliveryDate)
+      : actualDelivery
+    if (!isRushDateValidStr(targetDateStr, slotEffectiveStandard)) return
 
     onConfirm(
-      buildPayload(slot.arch, targetDateStr, slot.rushKey, actualDelivery, {
+      buildPayload(slot.arch, targetDateStr, slot.rushKey, slotEffectiveStandard, {
         cardId: slot.cardId,
         repTooth: slot.repTooth,
       })
@@ -380,10 +407,12 @@ export default function RushRequestModal({
       const other = archSlots.find((s) => s.arch !== slot.arch)
       if (other && !other.isRushed) {
         setTargetDatesByKey((prev) => ({ ...prev, [other.rushKey]: targetDateStr }))
-        const otherStandard = other.actualDeliveryDate
+        const otherEffectiveStandard = other.normalDeliveryDate
+          ? parseDeliveryDateValue(other.normalDeliveryDate)
+          : other.actualDeliveryDate
           ? parseLocalDateString(other.actualDeliveryDate)
           : undefined
-        onConfirm(buildPayload(other.arch, targetDateStr, other.rushKey, otherStandard))
+        onConfirm(buildPayload(other.arch, targetDateStr, other.rushKey, otherEffectiveStandard))
       }
     }
 
@@ -470,10 +499,19 @@ export default function RushRequestModal({
     const archExistingDateStr = slot.existingRushDate ?? null
     const dateChanged = archRushed && targetDateStr !== (archExistingDateStr ?? "")
     const showRemoveRush = archRushed && !dateChanged
-    const canRequestRush = isRushDateValidStr(targetDateStr, actualDelivery)
-    const rushMetrics = computeRushMetrics(targetDateStr, actualDelivery)
+    const standardDelivery =
+      slot.normalDeliveryDate
+        ? parseDeliveryDateValue(slot.normalDeliveryDate)
+        : actualDelivery
+    const effectiveStandard = standardDelivery ?? actualDelivery
+    const canRequestRush = isRushDateValidStr(targetDateStr, effectiveStandard)
+    const rushMetrics = computeRushMetrics(targetDateStr, effectiveStandard)
     const rushWindowImpossible =
-      !!actualDelivery && earliestRushDelivery > startOfDay(actualDelivery)
+      !!effectiveStandard && earliestRushDelivery > startOfDay(effectiveStandard)
+
+    const hasExistingRushDetails =
+      archRushed &&
+      (slot.normalDeliveryDate || slot.existingRushDate || slot.existingDaysSaved != null)
 
     return (
       <div className="flex-1 flex flex-col min-w-[260px] max-w-full">
@@ -494,7 +532,7 @@ export default function RushRequestModal({
             style={{ background: "#F5F5F5", border: "1px solid #E5E5E5" }}
           >
             <span className="text-[13px]" style={valueStyle}>
-              {formatDisplayDate(actualDelivery)}
+              {formatDisplayDate(standardDelivery)}
             </span>
           </div>
           {slot.workDaysToDeliver != null && (
@@ -511,7 +549,7 @@ export default function RushRequestModal({
           </p>
           <RushDateField
             ariaLabel={`Rush delivery date for ${slot.productName}`}
-            disabledMatchers={rushDateDisabledMatchers(actualDelivery)}
+            disabledMatchers={rushDateDisabledMatchers(standardDelivery)}
             value={targetDateStr}
             onChange={(value) =>
               setTargetDatesByKey((prev) => ({ ...prev, [slot.rushKey]: value }))
@@ -520,8 +558,8 @@ export default function RushRequestModal({
           <p className="text-[10px] mt-1.5 ml-2.5" style={{ color: "#B4B0B0" }}>
             Select a lab working day (weekoffs and holidays are disabled). Earliest rush date:{" "}
             {format(earliestRushDelivery, "MM/dd/yyyy")}
-            {actualDelivery ? (
-              <>; must be on or before standard delivery ({formatDisplayDate(actualDelivery)}).</>
+            {standardDelivery ? (
+              <>; must be on or before standard delivery ({formatDisplayDate(standardDelivery)}).</>
             ) : (
               "."
             )}
@@ -537,7 +575,37 @@ export default function RushRequestModal({
           </p>
         </div>
 
-        {targetDateStr ? (
+        {hasExistingRushDetails && !dateChanged ? (
+          <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
+            <p className="text-[11px] font-bold mb-3 tracking-[-0.02em]" style={{ color: "#CF0202" }}>
+              Current rush details
+            </p>
+            <div className="flex flex-col gap-3">
+              {(slot.existingDaysSaved != null || slot.existingRushDate) && (() => {
+                const computedDays = slot.existingRushDate && effectiveStandard
+                  ? countLabWorkingDaysBetween(parseLocalDateString(slot.existingRushDate), effectiveStandard, labCalendarCtx)
+                  : slot.existingDaysSaved
+                return computedDays != null ? (
+                  <div className="flex justify-between">
+                    <span className="text-[13px]" style={labelStyle}>Days saved</span>
+                    <span className="text-[13px]" style={valueStyle}>
+                      {computedDays} days
+                    </span>
+                  </div>
+                ) : null
+              })()}
+              {slot.existingRushDate && effectiveStandard && (() => {
+                const pct = computeRushMetrics(slot.existingRushDate, effectiveStandard).rushPercentage
+                return (
+                  <div className="flex justify-between">
+                    <span className="text-[13px]" style={labelStyle}>Rush percent</span>
+                    <span className="text-[13px]" style={valueStyle}>{pct}%</span>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        ) : targetDateStr ? (
           <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
             <div className="flex flex-col gap-3">
               <div className="flex justify-between">
@@ -556,14 +624,6 @@ export default function RushRequestModal({
                   {rushMetrics.rushPercentage} %
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-[13px]" style={labelStyle}>
-                  Rush fee
-                </span>
-                <span className="text-[13px]" style={valueStyle}>
-                  $ {rushMetrics.rushFee}
-                </span>
-              </div>
             </div>
           </div>
         ) : null}
@@ -580,29 +640,35 @@ export default function RushRequestModal({
           ) : null}
 
           {showRemoveRush ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (onRemoveRushByKey) {
-                  onRemoveRushByKey(slot.rushKey, slot.arch)
-                } else if (slot.arch === "maxillary") {
-                  onRemoveMaxRush?.()
-                } else {
-                  onRemoveMandRush?.()
-                }
-                if (mirrorRushAcrossArches && archSlots.length === 2) {
-                  const other = archSlots.find((s) => s.arch !== slot.arch)
-                  if (other) {
-                    onRemoveRushByKey?.(other.rushKey, other.arch)
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onRemoveRushByKey) {
+                    onRemoveRushByKey(slot.rushKey, slot.arch)
+                  } else if (slot.arch === "maxillary") {
+                    onRemoveMaxRush?.()
+                  } else {
+                    onRemoveMandRush?.()
                   }
-                }
-                if (!showBatchRushFooter) onClose()
-              }}
-              className="h-[36px] px-4 rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <X className="w-[14px] h-[14px]" style={{ color: "#CF0202" }} />
-              <span className="text-[12px] font-bold text-[#CF0202] tracking-[-0.02em]">Remove Rush</span>
-            </button>
+                  if (mirrorRushAcrossArches && archSlots.length === 2) {
+                    const other = archSlots.find((s) => s.arch !== slot.arch)
+                    if (other) {
+                      onRemoveRushByKey?.(other.rushKey, other.arch)
+                    }
+                  }
+                  if (!showBatchRushFooter) onClose()
+                }}
+                className="h-[36px] px-4 rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <X className="w-[14px] h-[14px]" style={{ color: "#CF0202" }} />
+                <span className="text-[12px] font-bold text-[#CF0202] tracking-[-0.02em]">Remove Rush</span>
+              </button>
+              <DoneTransitionButton
+                onComplete={onClose}
+                className="transition-transform duration-200 ease-out hover:scale-[1.15] active:scale-95"
+              />
+            </>
           ) : (
             <button
               type="button"
@@ -634,8 +700,16 @@ export default function RushRequestModal({
     const archExistingDateStr = archExistingDate ?? null
     const dateChanged = archRushed && targetDateStr !== (archExistingDateStr ?? "")
     const showRemoveRush = archRushed && !dateChanged
-    const canRequestRush = isRushDateValidStr(targetDateStr, actualDelivery)
-    const rushMetrics = computeRushMetrics(targetDateStr, actualDelivery)
+    const standardDelivery = slot?.normalDeliveryDate
+      ? parseDeliveryDateValue(slot.normalDeliveryDate)
+      : actualDelivery
+    const effectiveStandard = standardDelivery ?? actualDelivery
+    const canRequestRush = isRushDateValidStr(targetDateStr, effectiveStandard)
+    const rushMetrics = computeRushMetrics(targetDateStr, effectiveStandard)
+
+    const hasExistingRushDetails =
+      archRushed &&
+      (slot?.normalDeliveryDate || slot?.existingRushDate || slot?.existingDaysSaved != null)
 
     return (
       <div className="flex-1 flex flex-col min-w-0">
@@ -650,7 +724,7 @@ export default function RushRequestModal({
             style={{ background: "#F5F5F5", border: "1px solid #E5E5E5" }}
           >
             <span className="text-[13px]" style={valueStyle}>
-              {formatDisplayDate(actualDelivery)}
+              {formatDisplayDate(standardDelivery)}
             </span>
           </div>
           {slot?.workDaysToDeliver != null && (
@@ -667,15 +741,15 @@ export default function RushRequestModal({
           </p>
           <RushDateField
             ariaLabel="Rush delivery date"
-            disabledMatchers={rushDateDisabledMatchers(actualDelivery)}
+            disabledMatchers={rushDateDisabledMatchers(standardDelivery)}
             value={targetDateStr}
             onChange={setTargetDateStr}
           />
           <p className="text-[10px] mt-1.5 ml-2.5" style={{ color: "#B4B0B0" }}>
             Select a lab working day (weekoffs and holidays are disabled). Earliest rush date:{" "}
             {format(earliestRushDelivery, "MM/dd/yyyy")}
-            {actualDelivery ? (
-              <>; must be on or before standard delivery ({formatDisplayDate(actualDelivery)}).</>
+            {standardDelivery ? (
+              <>; must be on or before standard delivery ({formatDisplayDate(standardDelivery)}).</>
             ) : (
               "."
             )}
@@ -685,7 +759,37 @@ export default function RushRequestModal({
           </p>
         </div>
 
-        {targetDateStr ? (
+        {hasExistingRushDetails && !dateChanged ? (
+          <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
+            <p className="text-[11px] font-bold mb-3 tracking-[-0.02em]" style={{ color: "#CF0202" }}>
+              Current rush details
+            </p>
+            <div className="flex flex-col gap-3">
+              {(slot?.existingDaysSaved != null || slot?.existingRushDate) && (() => {
+                const computedDays = slot?.existingRushDate && effectiveStandard
+                  ? countLabWorkingDaysBetween(parseLocalDateString(slot.existingRushDate), effectiveStandard, labCalendarCtx)
+                  : slot?.existingDaysSaved
+                return computedDays != null ? (
+                  <div className="flex justify-between">
+                    <span className="text-[13px]" style={labelStyle}>Days saved</span>
+                    <span className="text-[13px]" style={valueStyle}>
+                      {computedDays} days
+                    </span>
+                  </div>
+                ) : null
+              })()}
+              {slot?.existingRushDate && effectiveStandard && (() => {
+                const pct = computeRushMetrics(slot.existingRushDate, effectiveStandard).rushPercentage
+                return (
+                  <div className="flex justify-between">
+                    <span className="text-[13px]" style={labelStyle}>Rush percent</span>
+                    <span className="text-[13px]" style={valueStyle}>{pct}%</span>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        ) : targetDateStr ? (
           <div className="px-5 py-4 rounded-md mb-4" style={{ border: "1px solid #FFE2E2" }}>
             <div className="flex flex-col gap-3">
               <div className="flex justify-between">
@@ -704,14 +808,6 @@ export default function RushRequestModal({
                   {rushMetrics.rushPercentage} %
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-[13px]" style={labelStyle}>
-                  Rush fee
-                </span>
-                <span className="text-[13px]" style={valueStyle}>
-                  $ {rushMetrics.rushFee}
-                </span>
-              </div>
             </div>
           </div>
         ) : null}
@@ -726,26 +822,32 @@ export default function RushRequestModal({
           </button>
 
           {showRemoveRush ? (
-            <button
-              type="button"
-              onClick={() => {
-                const removeHandler = arch === "maxillary" ? onRemoveMaxRush : onRemoveMandRush
-                if (removeHandler) {
-                  removeHandler()
-                } else {
-                  onRemoveRush?.()
-                }
-                if (mirrorRushAcrossArches && hasMaxillary && hasMandibular) {
-                  const otherRemoveHandler = arch === "maxillary" ? onRemoveMandRush : onRemoveMaxRush
-                  otherRemoveHandler?.()
-                }
-                onClose()
-              }}
-              className="h-[36px] px-4 rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <X className="w-[14px] h-[14px]" style={{ color: "#CF0202" }} />
-              <span className="text-[12px] font-bold text-[#CF0202] tracking-[-0.02em]">Remove Rush</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const removeHandler = arch === "maxillary" ? onRemoveMaxRush : onRemoveMandRush
+                  if (removeHandler) {
+                    removeHandler()
+                  } else {
+                    onRemoveRush?.()
+                  }
+                  if (mirrorRushAcrossArches && hasMaxillary && hasMandibular) {
+                    const otherRemoveHandler = arch === "maxillary" ? onRemoveMandRush : onRemoveMaxRush
+                    otherRemoveHandler?.()
+                  }
+                  onClose()
+                }}
+                className="h-[36px] px-4 rounded-md border-2 border-[#CF0202] bg-transparent flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <X className="w-[14px] h-[14px]" style={{ color: "#CF0202" }} />
+                <span className="text-[12px] font-bold text-[#CF0202] tracking-[-0.02em]">Remove Rush</span>
+              </button>
+              <DoneTransitionButton
+                onComplete={onClose}
+                className="transition-transform duration-200 ease-out hover:scale-[1.15] active:scale-95"
+              />
+            </>
           ) : (
             <button
               type="button"
@@ -813,8 +915,7 @@ export default function RushRequestModal({
               Rush Request
             </DialogTitle>
 
-            {rushCaseSchedule?.enable_rush_cases !== false &&
-            rushCaseSchedule?.rush_type === "fixed" ? (
+            {rushCaseSchedule?.enable_rush_cases !== false && rushCaseSchedule?.rush_type === "fixed" ? (
               <p
                 className="text-[12px] text-[#545F71] mb-4 leading-[18px] tracking-[-0.02em] rounded-md px-3 py-2"
                 style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}
@@ -830,6 +931,14 @@ export default function RushRequestModal({
                   {Number.isFinite(configuredRushPercent) ? configuredRushPercent : "—"}%
                 </span>{" "}
                 rush fee
+              </p>
+            ) : rushCaseSchedule?.enable_rush_cases !== false && isFlexibleRush ? (
+              <p
+                className="text-[12px] text-[#545F71] mb-4 leading-[18px] tracking-[-0.02em] rounded-md px-3 py-2"
+                style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}
+              >
+                Lab rush settings: <span className="font-bold">Flexible</span> — select any available lab
+                working day. Rush fee is determined by the lab after submission.
               </p>
             ) : null}
 

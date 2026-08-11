@@ -15,8 +15,14 @@ export interface QRScanResponseData {
   location_id: number;
   location: string;
   current_driver_location: string;
-  customer_code: string;
+  customer_code: string; // the lab's code — do not use for the office column
   customer_id: number;
+  // Richer display fields returned by the backend. Optional so callers can
+  // prefer a code and fall back to the full name for both lab and office.
+  office_code?: string;
+  office_name?: string;
+  lab_code?: string;
+  lab_name?: string;
 }
 
 export interface QRScanResponse {

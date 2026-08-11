@@ -86,10 +86,9 @@ export function getDefaultDoctorWidgets(): DashboardWidget[] {
   return [
     { id: WIDGET_IDS.KPI_CARDS, title: "KPI Cards", enabled: true, order: 0 },
     { id: WIDGET_IDS.STATUS_CARDS, title: "Status Cards", enabled: true, order: 1 },
-    { id: WIDGET_IDS.MY_CASES, title: "My Cases", enabled: true, order: 2 },
-    { id: WIDGET_IDS.APPOINTMENTS, title: "Appointments", enabled: true, order: 3 },
-    { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 4 },
-    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 5 },
+    // My Cases / Appointments are not shown on the doctor dashboard yet.
+    { id: WIDGET_IDS.COMING_SOON, title: "More Features Coming Soon", enabled: true, order: 2 },
+    { id: WIDGET_IDS.CHAT_SUPPORT, title: "Chat Support", enabled: true, order: 3 },
   ]
 }
 
@@ -121,9 +120,10 @@ export function getDefaultWidgetsForRole(role: string): DashboardWidget[] {
     case "lab_admin":
       return getDefaultLabAdminWidgets()
     case "office_admin":
+    // doctor_admin renders OfficeAdminDashboard (My Labs / My Users with invite CTAs)
+    case "doctor_admin":
       return getDefaultOfficeAdminWidgets()
     case "doctor":
-    case "doctor_admin":
       return getDefaultDoctorWidgets()
     case "lab_user":
       return getDefaultLabUserWidgets()

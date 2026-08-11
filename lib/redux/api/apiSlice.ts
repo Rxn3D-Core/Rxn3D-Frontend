@@ -36,6 +36,7 @@ export const apiSlice = createApi({
     "Transactions",
     "Notifications",
     "Statements",
+    "Customer",
     "AdvanceCategories",
     "AdvanceSubcategories",
     "AdvanceFields",

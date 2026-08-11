@@ -613,6 +613,18 @@ export const ProductCreateFormSchema = z
     apply_same_status_to_opposing: z.boolean().default(true),
     request_opposing_extraction: z.boolean().default(false).optional(),
     enable_default_tooth_chart: z.enum(["Yes", "No"]).default("No").optional(),
+    /**
+     * When Yes, slip users may only pick Implant on the tooth chart.
+     * Only meaningful when a linked retention option resolves to Implant.
+     */
+    allow_select_only_implant: z.enum(["Yes", "No"]).default("No").optional(),
+    /**
+     * When Yes, a custom label is shown for this product's tooth chart configuration.
+     * Defaults to No for all products.
+     */
+    enable_custom_label: z.enum(["Yes", "No"]).default("No").optional(),
+    /** Free-text custom label; only meaningful when enable_custom_label is Yes. */
+    custom_label: z.string().optional(),
     default_tooth_chart: z
       .array(
         z.object({

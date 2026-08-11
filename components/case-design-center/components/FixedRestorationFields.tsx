@@ -27,6 +27,7 @@ import type {
 } from "../types";
 import { FixedAccordionShadePicker } from "./FixedAccordionShadePicker";
 import { ShadeDetailSection } from "./ShadeDetailSection";
+import { GumShadePicker } from "./GumShadePicker";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import {
   FIXED_RETENTION_MECHANISM_FIELD_STEP,
@@ -64,12 +65,49 @@ import {
   isStumpLikeShadeField,
   getShadeGuideOptionsFromProduct,
   resolveFixedShadeProductId,
+  buildShadeSelectionKey,
 } from "../utils/shadeGuideAdvanceFields";
 import type { SlipImpressionSelections } from "../utils/impressionStorage";
 import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
 } from "../utils/impressionFieldSync";
+import { useAutoOpenSuppressed } from "./auto-open-suppression";
+
+/** Removaables-style display name from a field value (plain string or JSON `{ name }`). */
+function parseShadeFieldDisplayName(raw: string | undefined | null): string {
+  if (!raw?.trim()) return "";
+  try {
+    if (raw.startsWith("{")) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.name === "string" && parsed.name) return parsed.name;
+      const nested = Object.values(parsed ?? {}).find(
+        (entry) =>
+          typeof entry === "object" &&
+          entry !== null &&
+          typeof (entry as { name?: unknown }).name === "string" &&
+          !!(entry as { name: string }).name
+      ) as { name: string } | undefined;
+      if (nested?.name) return nested.name;
+    }
+  } catch {
+    /* plain string */
+  }
+  return raw.trim();
+}
+
+/** Placeholder values written by sync effects — not real shade selections. */
+const SHADE_PLACEHOLDER_VALUES = new Set([
+  "shade-sync",
+  "shade-sync-skip-stump",
+  "selected",
+]);
+
+function isRealShadeDisplayValue(raw: string | undefined | null): boolean {
+  const name = parseShadeFieldDisplayName(raw);
+  if (!name) return false;
+  return !SHADE_PLACEHOLDER_VALUES.has(name.trim().toLowerCase());
+}
 
 /* ------------------------------------------------------------------ */
 /*  Articulator icon (Stage field)                                     */
@@ -379,6 +417,8 @@ interface FixedRestorationFieldsProps {
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   getImpressionDisplayText: (productId: string, arch: string) => string;
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
+  /** Direct write into the shade-selection map (classic gum must also land as stump_shade). */
+  setSelectedShades?: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   migrateFixedShadeProductId?: (fromProductId: string, toProductId: string, arch: Arch) => void;
   /** Implant details from the opposite arch (same product) for cross-arch mirroring. */
   peerImplantDetailByTooth?: Record<number, ImplantDetailData>;
@@ -389,6 +429,8 @@ interface FixedRestorationFieldsProps {
   onExpandedImplantToothChange?: (toothNumber: number | undefined) => void;
   /** Arch-wide impression qty grid (shared by all fixed/removable products on this jaw). */
   selectedImpressions?: SlipImpressionSelections;
+  /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
+  labCustomerId?: number | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -434,12 +476,14 @@ export function RetentionProductFields({
   handleOpenAddOnsModal,
   getImpressionDisplayText,
   setPanelGumShadePicker,
+  setSelectedShades,
   migrateFixedShadeProductId,
   peerImplantDetailByTooth,
   peerImplantCompleteByTooth,
   expandedImplantTooth,
   onExpandedImplantToothChange,
   selectedImpressions = { maxillary: [], mandibular: [] },
+  labCustomerId,
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
@@ -538,10 +582,14 @@ export function RetentionProductFields({
   const namedStumpShadeFields = namedShadeGuideFields.filter((field) => isStumpLikeShadeField(field));
   const namedToothShadeFields = namedShadeGuideFields.filter((field) => !isStumpLikeShadeField(field));
   const isAccordionShadePickerActive =
-    usesAccordionShadePicker &&
     shadeSelectionState?.arch === arch &&
     shadeSelectionState?.productId === fixedShadeProductId &&
-    shadeSelectionState?.fieldType != null;
+    shadeSelectionState?.fieldType != null &&
+    // Named advance shade_guide fields use the in-accordion picker.
+    // Classic/general Teeth Shade (has_teeth_shade, no named guides) uses the
+    // panel ShadeSelectionGuide above the chart — not this bottom block.
+    usesAccordionShadePicker;
+  const [inlineGumPickerOpen, setInlineGumPickerOpen] = useState(false);
   const shadeEditActiveFieldId =
     isAccordionShadePickerActive && shadeSelectionState?.fillMode === "edit"
       ? shadeSelectionState.advanceFieldId ?? null
@@ -571,10 +619,15 @@ export function RetentionProductFields({
       {
         needsStumpShade: namedStumpShadeFields.length > 0,
         needsToothShade: namedToothShadeFields.length > 0,
+        classicShadeFlags: false,
       }
     );
   const isSingleShadeEdit = shadeEditActiveFieldId != null;
   const usesNamedShadeGuideFields = namedShadeGuideFields.length > 0;
+  const hasClassicTeethShadeFlag = selectedProduct?.has_teeth_shade === "Yes";
+  const hasClassicGumShadeFlag = selectedProduct?.has_gum_shade === "Yes";
+  const hasClassicShadeFlags = hasClassicTeethShadeFlag || hasClassicGumShadeFlag;
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const gradeComplete = !productHasGrades(selectedProduct) || isGradeStepCompleteForDisplay(
     getFieldValue(arch, firstToothNumber, "grade"),
     isFieldCompleted(arch, firstToothNumber, "grade"),
@@ -595,12 +648,14 @@ export function RetentionProductFields({
   const shadeAutoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * Shade UI can be complete (named shade guide / selectedShades) while the progressive
-   * fixedChain still has fixed_shade_trio or fixed_stump_shade unmarked — that blocks
-   * post-implant fields (impression) even after implant details are filled.
+   * Named shade-guide UI can be complete while fixed_shade_trio / fixed_stump_shade stay
+   * unmarked — that blocks post-implant fields. Only sync placeholders when classic
+   * Teeth/Gum are NOT required (named-only products). Classic has_* shades must keep a
+   * real value, never "shade-sync".
    */
   useEffect(() => {
     if (caseSubmitted || fixedShadeIncomplete) return;
+    if (hasClassicShadeFlags) return;
 
     if (
       fixedChain.includes("fixed_shade_trio") &&
@@ -624,9 +679,55 @@ export function RetentionProductFields({
     firstToothNumber,
     fixedChain,
     fixedShadeIncomplete,
+    hasClassicShadeFlags,
     isFieldCompleted,
     namedStumpShadeFields.length,
   ]);
+
+  /** Edit preload marks the whole fixed chain complete — clear empty shade steps so the
+   *  UI shows red (incomplete) instead of a green empty box, and the picker can open. */
+  useEffect(() => {
+    if (caseSubmitted || !hasClassicShadeFlags) return;
+
+    if (hasClassicTeethShadeFlag) {
+      const raw = getFieldValue(arch, firstToothNumber, "fixed_shade_trio");
+      const hasReal =
+        isRealShadeDisplayValue(raw) ||
+        !!getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+      if (!hasReal && isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")) {
+        uncompleteFieldStep(arch, firstToothNumber, "fixed_shade_trio");
+      }
+    }
+
+    if (hasClassicGumShadeFlag) {
+      const raw = getFieldValue(arch, firstToothNumber, "fixed_stump_shade");
+      const hasReal =
+        isRealShadeDisplayValue(raw) ||
+        !!getSelectedShade(fixedShadeProductId, arch, "stump_shade");
+      if (!hasReal && isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")) {
+        uncompleteFieldStep(arch, firstToothNumber, "fixed_stump_shade");
+      }
+    }
+  }, [
+    arch,
+    caseSubmitted,
+    firstToothNumber,
+    fixedShadeProductId,
+    getFieldValue,
+    getSelectedShade,
+    hasClassicGumShadeFlag,
+    hasClassicShadeFlags,
+    hasClassicTeethShadeFlag,
+    isFieldCompleted,
+    uncompleteFieldStep,
+  ]);
+
+  // Close inline gum picker when the teeth shade accordion picker opens.
+  useEffect(() => {
+    if (shadeSelectionState?.arch === arch && shadeSelectionState?.fieldType != null) {
+      setInlineGumPickerOpen(false);
+    }
+  }, [arch, shadeSelectionState?.arch, shadeSelectionState?.fieldType]);
 
   useEffect(() => {
     if (caseSubmitted || !setShadeSelectionState) return;
@@ -704,7 +805,8 @@ export function RetentionProductFields({
         shadeAutoOpenTimerRef.current = null;
       }
     };
-    if (caseSubmitted) return;
+    // Edit-slip preload already has values — do not reopen the picker in a loop.
+    if (caseSubmitted || autoOpenSuppressed) return;
     if (!isExpanded) {
       autoOpenedShadeKeyRef.current = null;
       clearShadeTimer();
@@ -734,37 +836,54 @@ export function RetentionProductFields({
       return;
     }
 
-    const firstMissingNamed = usesNamedShadeGuideFields
-      ? getFirstMissingShadeGuideField(
-          selectedProduct?.advance_fields,
-          fixedShadeProductId,
-          arch,
-          getSelectedShadeForDisplay
-        )
-      : null;
+    const classicTeethRaw = getFieldValue(arch, firstToothNumber, "fixed_shade_trio");
+    const classicTeethMissing =
+      hasClassicTeethShadeFlag &&
+      isFixed("fixed_shade_trio") &&
+      !parseShadeFieldDisplayName(classicTeethRaw) &&
+      !getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+
+    // Named shade_guide fields are separate from classic Teeth/Gum. Prefer classic
+    // teeth shade (removaables-style) when the product has has_teeth_shade.
+    const firstMissingNamed =
+      !hasClassicShadeFlags && usesNamedShadeGuideFields
+        ? getFirstMissingShadeGuideField(
+            selectedProduct?.advance_fields,
+            fixedShadeProductId,
+            arch,
+            getSelectedShadeForDisplay
+          )
+        : null;
     const legacyTeethShadeMissing =
+      !hasClassicTeethShadeFlag &&
       !usesNamedShadeGuideFields &&
       isFixed("fixed_shade_trio") &&
       hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) &&
       !getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
 
-    const target = firstMissingNamed
+    const target = classicTeethMissing
       ? {
-          key: `${fixedShadeProductId}|${arch}|${firstMissingNamed.id}`,
-          fieldType: firstMissingNamed.fieldType,
-          options: {
-            advanceFieldId: firstMissingNamed.id,
-            advanceFieldLabel: firstMissingNamed.name,
-            storageToothNumber: firstToothNumber,
-          },
+          key: `${fixedShadeProductId}|${arch}|tooth_shade`,
+          fieldType: "tooth_shade" as ShadeFieldType,
+          options: { storageToothNumber: firstToothNumber },
         }
-      : legacyTeethShadeMissing
+      : firstMissingNamed
         ? {
-            key: `${fixedShadeProductId}|${arch}|tooth_shade`,
-            fieldType: "tooth_shade" as ShadeFieldType,
-            options: { storageToothNumber: firstToothNumber },
+            key: `${fixedShadeProductId}|${arch}|${firstMissingNamed.id}`,
+            fieldType: firstMissingNamed.fieldType,
+            options: {
+              advanceFieldId: firstMissingNamed.id,
+              advanceFieldLabel: firstMissingNamed.name,
+              storageToothNumber: firstToothNumber,
+            },
           }
-        : null;
+        : legacyTeethShadeMissing
+          ? {
+              key: `${fixedShadeProductId}|${arch}|tooth_shade`,
+              fieldType: "tooth_shade" as ShadeFieldType,
+              options: { storageToothNumber: firstToothNumber },
+            }
+          : null;
     if (!target) {
       autoOpenedShadeKeyRef.current = null;
       clearShadeTimer();
@@ -780,6 +899,7 @@ export function RetentionProductFields({
     }, 150);
   }, [
     arch,
+    autoOpenSuppressed,
     caseSubmitted,
     firstToothNumber,
     fixedShadeProductId,
@@ -790,6 +910,8 @@ export function RetentionProductFields({
     groupStageProductIdFixed,
     groupStageToothNumber,
     handleShadeFieldClick,
+    hasClassicShadeFlags,
+    hasClassicTeethShadeFlag,
     isExpanded,
     isFieldCompleted,
     isFixed,
@@ -1058,47 +1180,60 @@ export function RetentionProductFields({
         />
       )}
 
-      {/* Legacy stage + stump/teeth shade fields (no shade_guide advance fields) */}
+      {/* Classic stage + Teeth Shade / Gum Shade — removaables-style.
+          Named shade_guide fields (Body / Cervical / …) render separately above;
+          do not hide classic teeth/gum when those exist. */}
       {(() => {
-        if (usesNamedShadeGuideFields) return null;
-
-        const showStage = showFixedStage;
+        // Stage already renders standalone when named shade guides are present.
+        const showStage = showFixedStage && !usesNamedShadeGuideFields;
         const af = selectedProduct?.advance_fields || [];
-        const hasTeethFlag = selectedProduct?.has_teeth_shade === "Yes";
-        const hasGumFlag = selectedProduct?.has_gum_shade === "Yes";
+        const hasTeethFlag = hasClassicTeethShadeFlag;
+        const hasGumFlag = hasClassicGumShadeFlag;
 
         let stumpShadeFields: { label: string; shadeType: "stump_shade" | "tooth_shade"; isGumShade: boolean }[] = [];
         // Teeth shade is gated on fixed_shade_trio, gum/stump shade on fixed_stump_shade —
         // decoupled so a teeth-shade-only product still renders its Teeth Shade field
         // (it used to be built only under the fixed_stump_shade gate).
-        const wantsTeethShade = isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", af, selectedProduct);
-        const wantsGumShade = isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", af, selectedProduct);
+        const wantsTeethShade =
+          (isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", af, selectedProduct)) ||
+          hasTeethFlag;
+        const wantsGumShade =
+          (isFixed("fixed_stump_shade") && hasAdvanceField("fixed_stump_shade", af, selectedProduct)) ||
+          hasGumFlag;
         if (wantsTeethShade || wantsGumShade) {
-          // First try to find matching entries in advance_fields (filtered to the shade
-          // types actually wanted), then fall back to has_* flags.
-          const fromAf = af
-            .filter((f) => {
-              const n = (f.name || "").toLowerCase();
-              return (n.includes("stump") && n.includes("shade")) ||
-                     (n.includes("teeth") && n.includes("shade")) ||
-                     (n.includes("tooth") && n.includes("shade")) ||
-                     (n.includes("gum") && n.includes("shade"));
-            })
-            .map((f) => {
-              const n = (f.name || "").toLowerCase();
-              const isGumShade = n.includes("gum") || n.includes("stump");
-              const shadeType: "stump_shade" | "tooth_shade" = isGumShade ? "stump_shade" : "tooth_shade";
-              return { label: f.name, shadeType, isGumShade };
-            })
-            .filter((f) => (f.isGumShade ? wantsGumShade : wantsTeethShade));
-
-          if (fromAf.length > 0) {
-            // Teeth shade first, gum shade second
-            stumpShadeFields = [...fromAf].sort((a, b) => (a.isGumShade ? 1 : 0) - (b.isGumShade ? 1 : 0));
+          // Prefer removaables-style labels from has_* flags. Exclude shade_guide-typed
+          // advance fields — those belong in ShadeDetailSection, not this row.
+          if (hasTeethFlag || hasGumFlag) {
+            if (wantsTeethShade && hasTeethFlag) {
+              stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
+            }
+            if (wantsGumShade && hasGumFlag) {
+              stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
+            }
           } else {
-            // No advance_fields match — fall back to has_* flags (teeth first)
-            if (wantsTeethShade && hasTeethFlag) stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
-            if (wantsGumShade && hasGumFlag) stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
+            const fromAf = af
+              .filter((f) => {
+                if (f.field_type === "shade_guide") return false;
+                const n = (f.name || "").toLowerCase();
+                return (n.includes("stump") && n.includes("shade")) ||
+                       (n.includes("teeth") && n.includes("shade")) ||
+                       (n.includes("tooth") && n.includes("shade")) ||
+                       (n.includes("gum") && n.includes("shade"));
+              })
+              .map((f) => {
+                const n = (f.name || "").toLowerCase();
+                const isGumShade = n.includes("gum") || n.includes("stump");
+                const shadeType: "stump_shade" | "tooth_shade" = isGumShade ? "stump_shade" : "tooth_shade";
+                return { label: f.name, shadeType, isGumShade };
+              })
+              .filter((f) => (f.isGumShade ? wantsGumShade : wantsTeethShade));
+
+            if (fromAf.length > 0) {
+              stumpShadeFields = [...fromAf].sort((a, b) => (a.isGumShade ? 1 : 0) - (b.isGumShade ? 1 : 0));
+            } else {
+              if (wantsTeethShade) stumpShadeFields.push({ label: "Teeth Shade", shadeType: "tooth_shade", isGumShade: false });
+              if (wantsGumShade) stumpShadeFields.push({ label: "Gum Shade", shadeType: "stump_shade", isGumShade: true });
+            }
           }
         }
 
@@ -1107,7 +1242,7 @@ export function RetentionProductFields({
         const colCount = (showStage ? 1 : 0) + stumpShadeFields.length;
         const gridCols = colCount >= 3 ? "sm:grid-cols-3" : colCount === 2 ? "sm:grid-cols-2" : "";
         return (
-        <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
+        <div className={`grid grid-cols-1 ${gridCols} gap-3${usesNamedShadeGuideFields ? " mt-3" : ""}`}>
           {showStage && (() => {
             const fixedStageValue = selectedStages[groupStageProductIdFixed] || getFieldValue(arch, groupStageToothNumber, "fixed_stage");
             const isStageComplete = isFieldCompleted(arch, groupStageToothNumber, "fixed_stage") || !!(fixedStageValue && fixedStageValue.trim());
@@ -1141,11 +1276,16 @@ export function RetentionProductFields({
           {stumpShadeFields.map(({ label, shadeType, isGumShade }) => {
             if (isGumShade) {
               const gumShadeValue = getFieldValue(arch, firstToothNumber, "fixed_stump_shade");
-              let gumShadeName: string | null = null;
-              try { if (gumShadeValue) gumShadeName = JSON.parse(gumShadeValue).name ?? null; } catch {}
+              let gumShadeName: string | null = isRealShadeDisplayValue(gumShadeValue)
+                ? parseShadeFieldDisplayName(gumShadeValue)
+                : null;
+              if (!gumShadeName) {
+                gumShadeName =
+                  getSelectedShade(fixedShadeProductId, arch, "stump_shade") || null;
+              }
               const matchedGumShade = selectedProduct?.gum_shades?.find((s) => s.name === gumShadeName);
               const gumShadeColor = matchedGumShade?.color_code_middle ?? null;
-              const isGumComplete = isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade");
+              const isGumComplete = !!gumShadeName;
               const borderColor = isGumComplete && !caseSubmitted ? "border-[#34a853]" : isGumComplete ? "border-[#b4b0b0]" : "border-[#CF0202]";
               const legendColor = isGumComplete && !caseSubmitted ? "text-[#34a853]" : isGumComplete ? "text-[#7f7f7f]" : "text-[#CF0202]";
               return (
@@ -1153,7 +1293,16 @@ export function RetentionProductFields({
                   key={label}
                   className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
                   onClick={() => {
-                    if (!caseSubmitted) setPanelGumShadePicker({ toothNumber: firstToothNumber, gumShades: selectedProduct?.gum_shades || [], selectedName: gumShadeName });
+                    if (caseSubmitted) return;
+                    setShadeSelectionState?.({
+                      arch: null,
+                      fieldType: null,
+                      productId: null,
+                      advanceFieldId: null,
+                      advanceFieldLabel: null,
+                      fillMode: null,
+                    });
+                    setInlineGumPickerOpen(true);
                   }}
                 >
                   <legend className={`text-sm px-1 leading-none ${legendColor}`}>{label}</legend>
@@ -1169,25 +1318,85 @@ export function RetentionProductFields({
                 </fieldset>
               );
             }
-            const shadeCode = getSelectedShade(fixedShadeProductId, arch, shadeType);
+            // Removaables-style Teeth Shade: prefer field value JSON/name, then selectedShades.
+            const teethRaw = getFieldValue(arch, firstToothNumber, "fixed_shade_trio");
+            const teethFromField = isRealShadeDisplayValue(teethRaw)
+              ? parseShadeFieldDisplayName(teethRaw)
+              : "";
+            const shadeCode =
+              teethFromField ||
+              getSelectedShade(fixedShadeProductId, arch, shadeType) ||
+              "";
+            const isTeethComplete = !!shadeCode;
+            const teethBorder =
+              isTeethComplete && !caseSubmitted
+                ? "border-[#34a853]"
+                : isTeethComplete
+                  ? "border-[#b4b0b0]"
+                  : "border-[#CF0202]";
+            const teethLegend =
+              isTeethComplete && !caseSubmitted
+                ? "text-[#34a853]"
+                : isTeethComplete
+                  ? "text-[#7f7f7f]"
+                  : "text-[#CF0202]";
             return (
-              <ShadeField
+              <fieldset
                 key={label}
-                label={label}
-                value={shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
-                shade={shadeCode}
-                // Pass storageToothNumber so the shade selection completes the field step
-                // (fixed_shade_trio) — without it the handler bails and the next field
-                // never reveals for fixed_p_{id} products.
-                onClick={() => handleShadeFieldClick(arch, shadeType, fixedShadeProductId, { storageToothNumber: firstToothNumber })}
-                submitted={caseSubmitted}
-                required
-              />
+                className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${teethBorder}`}
+                onClick={() => {
+                  if (caseSubmitted) return;
+                  setInlineGumPickerOpen(false);
+                  handleShadeFieldClick(arch, shadeType, fixedShadeProductId, {
+                    storageToothNumber: firstToothNumber,
+                  });
+                }}
+              >
+                <legend className={`text-sm px-1 leading-none ${teethLegend}`}>{label}</legend>
+                <div className="flex items-center gap-2 w-full">
+                  <span className="text-[14px] sm:text-lg text-[#000000]">
+                    {shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
+                  </span>
+                  {isTeethComplete && !caseSubmitted && (
+                    <Check size={16} className="text-[#34a853] ml-auto" />
+                  )}
+                </div>
+              </fieldset>
             );
           })}
         </div>
         );
       })()}
+
+      {inlineGumPickerOpen && !caseSubmitted && (
+        <div className="mt-3">
+          <GumShadePicker
+            selected={
+              parseShadeFieldDisplayName(getFieldValue(arch, firstToothNumber, "fixed_stump_shade")) ||
+              getSelectedShade(fixedShadeProductId, arch, "stump_shade") ||
+              null
+            }
+            onSelect={(shade) => {
+              completeFieldStep(
+                arch,
+                firstToothNumber,
+                "fixed_stump_shade",
+                JSON.stringify({
+                  gum_shade_id: shade.gum_shade_id,
+                  brand_id: shade.brand.id,
+                  name: shade.name,
+                })
+              );
+              setSelectedShades?.((prev) => ({
+                ...prev,
+                [buildShadeSelectionKey(fixedShadeProductId, arch, "stump_shade")]: shade.name,
+              }));
+              setInlineGumPickerOpen(false);
+            }}
+            gumShades={selectedProduct?.gum_shades || []}
+          />
+        </div>
+      )}
 
       {/* Step 3: Shade trio fields driven entirely by advance_fields — no static fallback */}
       {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) && (() => {
@@ -1264,6 +1473,7 @@ export function RetentionProductFields({
         advanceFields={selectedProduct?.advance_fields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
       />

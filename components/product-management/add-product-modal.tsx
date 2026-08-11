@@ -460,6 +460,9 @@ export function AddProductModal({
     tooth_count_variations: [],
     show_jaw_photo: "No",
     enable_default_tooth_chart: "No",
+    allow_select_only_implant: "No",
+    enable_custom_label: "No",
+    custom_label: "",
     default_tooth_chart: [],
   }), [])
 
@@ -1027,6 +1030,12 @@ export function AddProductModal({
         editingProduct.enable_default_tooth_chart === "Yes"
           ? "Yes"
           : "No",
+      allow_select_only_implant:
+        editingProduct.allow_select_only_implant === "Yes" ? "Yes" : "No",
+      enable_custom_label:
+        editingProduct.enable_custom_label === "Yes" ? "Yes" : "No",
+      custom_label:
+        typeof editingProduct.custom_label === "string" ? editingProduct.custom_label : "",
       default_tooth_chart: hydrateDefaultToothChartFromProduct(
         editingProduct as Record<string, unknown>,
         (() => {

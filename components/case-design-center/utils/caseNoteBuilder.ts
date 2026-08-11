@@ -10,6 +10,7 @@ import type {
   SlipProductSnapshot,
 } from "../types";
 import { getCategoryName, hasRetentionOptions, isNonRetentionCategory } from "./categoryHelpers";
+import { resolveProductTeethForSlipSubmit } from "./removableToothDisplay";
 import {
   buildShadeSelectionKey,
   getShadeFieldType,
@@ -84,23 +85,38 @@ const ADVANCE_FIELD_STEP_MATCHERS: Record<string, (name: string) => boolean> = {
   fixed_metal: (n) => n.includes("metal"),
 };
 
+/** A consecutive run longer than this collapses to `#first–#last`. */
+const TEETH_RANGE_COLLAPSE_THRESHOLD = 8;
+
 export function formatTeethNumbers(teeth: number[]): string {
   if (teeth.length === 0) return "";
-  const sorted = [...teeth].sort((a, b) => a - b);
-  const ranges: string[] = [];
+  const sorted = [...new Set(teeth)].sort((a, b) => a - b);
+
+  const parts: string[] = [];
   let start = sorted[0];
   let end = sorted[0];
+
+  const flush = () => {
+    const runLength = end - start + 1;
+    if (runLength > TEETH_RANGE_COLLAPSE_THRESHOLD) {
+      parts.push(`#${start}–#${end}`);
+      return;
+    }
+    for (let tn = start; tn <= end; tn++) parts.push(`#${tn}`);
+  };
+
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i] === end + 1) {
       end = sorted[i];
     } else {
-      ranges.push(start === end ? `#${start}` : `#${start}–#${end}`);
+      flush();
       start = sorted[i];
       end = sorted[i];
     }
   }
-  ranges.push(start === end ? `#${start}` : `#${start}–#${end}`);
-  return ranges.join(", ");
+  flush();
+
+  return parts.join(", ");
 }
 
 /** `#11 and #12` style list for removable fabrication lines. */
@@ -150,7 +166,7 @@ function resolveTeethShadeForNote(
   const name = parsed.name || parseFieldDisplayValue(raw);
   if (!name) return null;
 
-  let systemName = shadeGuide?.trim() ?? "";
+  let systemName = shadeGuide?.trim().replace(/_/g, " ") ?? "";
   const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
   if (!systemName && shades.length > 0) {
     const match =
@@ -161,7 +177,7 @@ function resolveTeethShadeForNote(
         if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
         return row.name === name;
       }) ?? null;
-    systemName = match?.brand?.system_name?.trim() ?? "";
+    systemName = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
   }
 
   return { name, systemName };
@@ -186,7 +202,7 @@ function resolveGumShadeForNote(
         if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
         return row.name === name;
       }) ?? null;
-    systemName = match?.brand?.system_name?.trim() ?? "";
+    systemName = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
   }
 
   return { name, systemName };
@@ -528,11 +544,11 @@ function resolveFixedShadeForNote(
   shadeGuide?: string,
 ): ShadeNoteInfo | null {
   if (!shadeName) return null;
-  let systemName = shadeGuide?.trim() ?? "";
+  let systemName = shadeGuide?.trim().replace(/_/g, " ") ?? "";
   const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
   if (!systemName && shades.length > 0) {
     const match = shades.find((row) => row.name === shadeName) ?? null;
-    systemName = match?.brand?.system_name?.trim() ?? "";
+    systemName = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
   }
   return { name: shadeName, systemName };
 }
@@ -604,6 +620,7 @@ export function buildRemovableProductNote(ctx: ProductNoteContext): string {
 
   const gradeBit = grade ? `${grade} ` : "";
   let line = `Please fabricate ${gradeBit}${productName}`;
+  // `teeth` must be orange-header / teeth_selection only (not missing, extract, clasps).
   if (teeth.length > 0) line += ` for ${formatTeethNumbers(teeth)}`;
   if (stageName) line += ` for ${stageName}`;
   if (teethShade) {
@@ -727,40 +744,19 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       arch === "maxillary" ? props.maxillaryRetentionTypes : props.mandibularRetentionTypes;
     const selectedTeeth = arch === "maxillary" ? props.maxillaryTeeth : props.mandibularTeeth;
     const allArchTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
-
-    const fixedTeethByProductKey = new Map<string, number[]>();
-    for (const toothStr of Object.keys(retTypes)) {
-      const tn = Number(toothStr);
-      const product = props.getToothProduct(arch, tn);
-      if (!hasRetentionOptions(product)) continue;
-      const key = product?.id != null ? String(product.id) : `solo_${tn}`;
-      if (!fixedTeethByProductKey.has(key)) fixedTeethByProductKey.set(key, []);
-      fixedTeethByProductKey.get(key)!.push(tn);
-    }
-
-    for (const [, teeth] of fixedTeethByProductKey) {
-      const minTooth = Math.min(...teeth);
-      const product = props.getToothProduct(arch, minTooth);
-      if (!hasRetentionOptions(product)) continue;
-      const cardId = props.getToothProductCard(arch, minTooth);
-      const note = buildProductNoteFromContext(
-        contextFromProps(arch, teeth, teeth, product, minTooth, props),
-      );
-      groups.push({
-        arch,
-        category: "Fixed Restoration",
-        cardId,
-        productName: product?.name || "Restoration",
-        teeth,
-        note,
-      });
-    }
+    const claspTeeth =
+      arch === "maxillary"
+        ? props.maxillaryClaspTeeth ?? []
+        : props.mandibularClaspTeeth ?? [];
+    const noActiveBoxTeeth =
+      arch === "maxillary"
+        ? props.maxillaryNoActiveBoxTeeth ?? []
+        : props.mandibularNoActiveBoxTeeth ?? [];
 
     const extractionMap =
       arch === "maxillary"
         ? props.maxillaryToothExtractionMap ?? {}
         : props.mandibularToothExtractionMap ?? {};
-    const inMouthTeeth = selectedTeeth.filter((tn) => !extractionMap[tn]);
 
     const cardToRepTooth = new Map<number, number>();
     for (const tn of allArchTeeth) {
@@ -772,14 +768,6 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       }
     }
 
-    const cardToTeeth = new Map<number, number[]>();
-    for (const tn of inMouthTeeth) {
-      const card = props.getToothProductCard(arch, tn);
-      if (card == null) continue;
-      if (!cardToTeeth.has(card)) cardToTeeth.set(card, []);
-      cardToTeeth.get(card)!.push(tn);
-    }
-
     const allCardToTeeth = new Map<number, number[]>();
     for (const tn of selectedTeeth) {
       const card = props.getToothProductCard(arch, tn);
@@ -788,21 +776,76 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
       allCardToTeeth.get(card)!.push(tn);
     }
 
+    const fixedTeethByProductKey = new Map<string, number[]>();
+    for (const toothStr of Object.keys(retTypes)) {
+      const tn = Number(toothStr);
+      const product = props.getToothProduct(arch, tn);
+      if (!hasRetentionOptions(product)) continue;
+      const key = product?.id != null ? String(product.id) : `solo_${tn}`;
+      if (!fixedTeethByProductKey.has(key)) fixedTeethByProductKey.set(key, []);
+      fixedTeethByProductKey.get(key)!.push(tn);
+    }
+
+    for (const [, retentionTeeth] of fixedTeethByProductKey) {
+      const minTooth = Math.min(...retentionTeeth);
+      const product = props.getToothProduct(arch, minTooth);
+      if (!hasRetentionOptions(product)) continue;
+      const cardId = props.getToothProductCard(arch, minTooth);
+      // Same teeth as the product header: retention teeth plus any arch tooth
+      // carrying a status code that belongs to this card and this product.
+      const statusTeeth = allArchTeeth.filter(
+        (tn) =>
+          !retentionTeeth.includes(tn) &&
+          Boolean(extractionMap[tn]) &&
+          props.getToothProductCard(arch, tn) === cardId &&
+          product?.id != null &&
+          props.getToothProduct(arch, tn)?.id === product.id,
+      );
+      const headerTeeth = [...retentionTeeth, ...statusTeeth].sort((a, b) => a - b);
+      const note = buildProductNoteFromContext(
+        contextFromProps(arch, headerTeeth, headerTeeth, product, minTooth, props),
+      );
+      groups.push({
+        arch,
+        category: "Fixed Restoration",
+        cardId,
+        productName: product?.name || "Restoration",
+        teeth: headerTeeth,
+        note,
+      });
+    }
+
     for (const [card, repTooth] of cardToRepTooth) {
       const product = props.getToothProduct(arch, repTooth);
-      const cardTeeth = cardToTeeth.get(card) || [repTooth];
       const allCardTeeth = allCardToTeeth.get(card) || [repTooth];
-
       const workflow = getProductNoteWorkflow(product);
       if (workflow === "removable" && isNonRetentionCategory(product)) {
+        // Same teeth as orange product header / teeth_selection — exclude
+        // missing, will-extract, clasps, and other status-only teeth.
+        const removableNoteTeeth = resolveProductTeethForSlipSubmit({
+          isRemovable: true,
+          cardTeeth: allCardTeeth,
+          toothExtractionMap: extractionMap,
+          claspTeeth,
+          noActiveBoxTeeth,
+          extractions: product?.extractions,
+        });
+
         groups.push({
           arch,
           category: "Removable",
           cardId: card,
           productName: product?.name || "Removable",
-          teeth: cardTeeth,
+          teeth: removableNoteTeeth,
           note: buildRemovableProductNote(
-            contextFromProps(arch, cardTeeth, allCardTeeth, product, repTooth, props),
+            contextFromProps(
+              arch,
+              removableNoteTeeth,
+              allCardTeeth,
+              product,
+              repTooth,
+              props,
+            ),
           ),
         });
       }

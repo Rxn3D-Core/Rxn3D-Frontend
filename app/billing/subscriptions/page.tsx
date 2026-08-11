@@ -57,7 +57,6 @@ import {
 import { getBillingFrequencyLabel, getDefaultBillingPrice } from "./pricing"
 import { BillingPeriodDialog } from "./components/billing-period-dialog"
 import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog"
-import { ReactivateSubscriptionDialog } from "./components/reactivate-subscription-dialog"
 import { UpdateBillingInfoDialog } from "./components/update-billing-info-dialog"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -86,7 +85,6 @@ export default function SubscriptionsPage() {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [isBillingPeriodDialogOpen, setIsBillingPeriodDialogOpen] = useState(false)
   const [isCancelSubscriptionDialogOpen, setIsCancelSubscriptionDialogOpen] = useState(false)
-  const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false)
   const [isUpdateBillingInfoDialogOpen, setIsUpdateBillingInfoDialogOpen] = useState(false)
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false)
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false)
@@ -224,11 +222,17 @@ export default function SubscriptionsPage() {
     }
   }
 
-  const handleReactivateSubscription = async () => {
-    setIsReactivateDialogOpen(false)
-    await fetchCatalogPlans()
-    setView("plans")
-  }
+  /** Cancelled subscriptions cannot be resumed — open catalog for a new purchase. */
+  const handleChooseNewPlan = useCallback(async () => {
+    setError(null)
+    setIsProcessing(true)
+    try {
+      await fetchCatalogPlans()
+      setView("plans")
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [fetchCatalogPlans])
 
   const openPlanDialog = useCallback(() => {
     void fetchCatalogPlans()
@@ -456,6 +460,7 @@ export default function SubscriptionsPage() {
     isCurrent = false,
     isPopular = false,
     badgeText = "",
+    currentStatusLabel = "Active Subscription",
     onClick,
     loading = false
   }: {
@@ -469,6 +474,7 @@ export default function SubscriptionsPage() {
     isCurrent?: boolean
     isPopular?: boolean
     badgeText?: string
+    currentStatusLabel?: string
     onClick?: () => void
     loading?: boolean
   }) => (
@@ -511,7 +517,7 @@ export default function SubscriptionsPage() {
       {isCurrent ? (
         <div className="flex items-center justify-center gap-2 bg-green-50 text-green-700 font-bold text-sm py-3 rounded-xl border border-green-200">
           <Check className="h-4 w-4 stroke-[3px]" />
-          Active Subscription
+          {currentStatusLabel}
         </div>
       ) : (
         <button 
@@ -712,7 +718,9 @@ export default function SubscriptionsPage() {
       <div className="mb-10">
         <h1 className="mb-2 text-2xl font-bold text-gray-900">Choose Your Plan</h1>
         <p className="text-sm text-gray-500">
-          Upgrade, downgrade, or switch plans. Changes take effect based on your billing cycle.
+          {subscriptionState === "cancelled"
+            ? "Your previous subscription was cancelled and cannot be resumed. Purchase a new plan to restore full access."
+            : "Upgrade, downgrade, or switch plans. Changes take effect based on your billing cycle."}
         </p>
       </div>
 
@@ -728,14 +736,16 @@ export default function SubscriptionsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           {catalogPlans.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map((plan) => {
-            const isCurrent = plan.id === billingProfile?.billing_plan_id
+            const hasActivePlan =
+              !!billingProfile?.billing_plan_id &&
+              (billingProfile?.status === "active" || billingProfile?.status === "trialing")
+            const isLinkedPlan = plan.id === billingProfile?.billing_plan_id
+            // Only treat a plan as "current" when the subscription is actually active
+            const isCurrent = hasActivePlan && isLinkedPlan
             const isPopular = plan.badge_label?.toLowerCase().includes("popular")
             const monthlyPrice = formatPlanPriceLabel(plan)
             const limitsText = buildPlanLimitsText(plan)
             const features = buildPlanFeatures(plan)
-            const hasActivePlan =
-              !!billingProfile?.billing_plan_id &&
-              (billingProfile?.status === "active" || billingProfile?.status === "trialing")
 
             let buttonText = "Choose Plan"
             if (plan.name.toLowerCase().includes("enterprise")) {
@@ -743,7 +753,13 @@ export default function SubscriptionsPage() {
             } else if (isCurrent) {
               buttonText = "Your current plan"
             } else if (!hasActivePlan) {
-              buttonText = isFreePlan(plan) ? `Start ${plan.name}` : `Buy ${plan.name}`
+              if (isFreePlan(plan) && isLinkedPlan && subscriptionState === "cancelled") {
+                buttonText = `Continue with ${plan.name}`
+              } else if (isFreePlan(plan)) {
+                buttonText = `Start ${plan.name}`
+              } else {
+                buttonText = `Subscribe to ${plan.name}`
+              }
             } else {
               const currentFee = getPlanMonthlyFee(currentPlanDetails)
               const planFee = getPlanMonthlyFee(plan)
@@ -868,12 +884,17 @@ export default function SubscriptionsPage() {
               Your data will be permanently deleted after {retainedUntilDate}
             </div>
 
+            <p className="mt-5 max-w-md text-sm text-[#6B7280]">
+              Cancelled subscriptions cannot be resumed. Choose a plan to start a new subscription.
+            </p>
+
             <div className="mt-7 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
               <button
-                onClick={() => setIsReactivateDialogOpen(true)}
-                className="min-w-[246px] rounded-lg bg-[#1567B8] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#11569A]"
+                onClick={() => void handleChooseNewPlan()}
+                disabled={isProcessing}
+                className="min-w-[246px] rounded-lg bg-[#1567B8] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#11569A] disabled:opacity-60"
               >
-                Reactivate Subscription
+                {isProcessing ? "Loading plans..." : "Choose a Plan"}
               </button>
               <button className="min-w-[156px] rounded-lg border border-[#767676] bg-white px-6 py-3 text-sm font-medium text-[#333333] transition-colors hover:bg-gray-50">
                 Export Data
@@ -881,18 +902,14 @@ export default function SubscriptionsPage() {
             </div>
           </div>
         </div>
-
-        <ReactivateSubscriptionDialog
-          open={isReactivateDialogOpen}
-          onOpenChange={setIsReactivateDialogOpen}
-          onConfirm={() => void handleReactivateSubscription()}
-        />
       </div>
     )
   }
 
   // No active subscription state → "No active subscription" UI
   if (subscriptionState === "no-subscription") {
+    const highlights = collectCatalogHighlights(catalogPlans)
+
     return (
       <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
 
@@ -906,12 +923,10 @@ export default function SubscriptionsPage() {
 
             {/* Title & subtitle */}
             <h2 className="text-xl font-bold text-gray-900 mb-1">
-              {subscriptionState === "cancelled" ? "Subscription cancelled" : "No active subscription"}
+              No active subscription
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              {subscriptionState === "cancelled"
-                ? "Your plan ended. Choose a plan to restore full access."
-                : "Choose a plan to unlock your lab's full potential"}
+              Choose a plan to unlock your lab's full potential
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-2 mb-8">
@@ -964,6 +979,7 @@ export default function SubscriptionsPage() {
     priceText = `$${Number(fee).toLocaleString()} / month`
   }
 
+  // Plan allotment (shown on Current plan card) — does not include add-ons/credits.
   const slipCapacity =
     billingUsage?.slip_capacity ||
     getSlipCapacity(currentPlanDetails ?? billingProfile?.plan) ||
@@ -977,8 +993,23 @@ export default function SubscriptionsPage() {
     billingProfile?.plan?.feature_limits?.max_user_seats
 
   const usageCount = billingUsage?.slip_count ?? billingProfile?.usage_count ?? 0
+  const remainingSlips =
+    billingUsage?.remaining_slips ??
+    (slipCapacity > 0 ? Math.max(slipCapacity - usageCount, 0) : null)
+  // Usage counter denominator: total available this period (used + remaining),
+  // so add-ons/extra capacity stay consistent with the "remaining" line.
+  const usageLimit =
+    remainingSlips != null ? usageCount + remainingSlips : slipCapacity
   const usagePercent =
-    slipCapacity > 0 ? Math.min((usageCount / slipCapacity) * 100, 100) : 0
+    usageLimit > 0 ? Math.min((usageCount / usageLimit) * 100, 100) : 0
+  const creditUsed = billingUsage?.credit_used ?? 0
+  const overageCount = billingUsage?.overage_count ?? 0
+  const usagePeriodLabel =
+    billingUsage?.period_start || billingUsage?.period_end
+      ? `${billingUsage?.period_start ? formatBillingDate(billingUsage.period_start) : "—"}${
+          billingUsage?.period_end ? ` – ${formatBillingDate(billingUsage.period_end)}` : ""
+        }`
+      : null
 
   const nextBillingPeriodEnd = resolveNextBillingPeriodEnd(
     billingProfile?.current_period_end,
@@ -1064,7 +1095,7 @@ export default function SubscriptionsPage() {
 
           <OverviewCard
             title="Usage"
-            hint={`Slips created in the current billing period${billingUsage?.period_start ? ` (${formatBillingDate(billingUsage.period_start)}${billingUsage?.period_end ? ` – ${formatBillingDate(billingUsage.period_end)}` : ""})` : ""}. ${slipCapacity > 0 ? `${usageCount.toLocaleString()} of ${slipCapacity.toLocaleString()} used.` : "Unlimited plan — no monthly slip cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
+            hint={`Slips created in the current billing period${usagePeriodLabel ? ` (${usagePeriodLabel})` : ""}. ${usageLimit > 0 ? `${usageCount.toLocaleString()} of ${usageLimit.toLocaleString()} available used.` : "Unlimited plan — no monthly slip cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
             action={
               <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="w-full sm:w-[210px]">
                 Explore Add-ons
@@ -1072,15 +1103,35 @@ export default function SubscriptionsPage() {
             }
           >
             <div className="space-y-3">
-              <div className="space-y-1">
-                <h2 className="text-[26px] font-bold leading-none tracking-[-0.02em] text-black">{usageCount.toLocaleString()}</h2>
-                <p className="text-[13px] leading-6 tracking-[-0.02em] text-black">
-                  {slipCapacity > 0 ? `${usagePercent.toFixed(1)}% used` : "Unlimited plan"}
-                  {creditBalance != null ? ` · ${creditBalance.toLocaleString()} credits available` : ""}
-                </p>
+              <div className="space-y-0.5">
+                <h2 className="text-[26px] font-bold leading-none tracking-[-0.02em] text-black">
+                  {usageLimit > 0
+                    ? `${usageCount.toLocaleString()} / ${usageLimit.toLocaleString()}`
+                    : usageCount.toLocaleString()}
+                </h2>
+                <div className="space-y-0.5 text-[13px] leading-6 tracking-[-0.02em] text-black">
+                  <p>
+                    {usageLimit > 0
+                      ? `${usagePercent.toFixed(1)}% used`
+                      : "Unlimited plan"}
+                    {remainingSlips != null ? ` · ${remainingSlips.toLocaleString()} remaining` : ""}
+                  </p>
+                  {usagePeriodLabel ? (
+                    <p className="text-black/70">{usagePeriodLabel}</p>
+                  ) : null}
+                  {creditUsed > 0 ? (
+                    <p className="text-black/70">{creditUsed.toLocaleString()} credits used</p>
+                  ) : null}
+                  {overageCount > 0 ? (
+                    <p className="text-[#B45309]">{overageCount.toLocaleString()} overage slip{overageCount === 1 ? "" : "s"}</p>
+                  ) : null}
+                  {creditBalance != null ? (
+                    <p className="text-black/70">{creditBalance.toLocaleString()} credits available</p>
+                  ) : null}
+                </div>
               </div>
               <div className="h-[5px] w-full rounded-full bg-[#EAEAEB]">
-                {slipCapacity > 0 && (
+                {usageLimit > 0 && (
                   <div
                     className="h-[5px] rounded-full transition-all duration-500"
                     style={{

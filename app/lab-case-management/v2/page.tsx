@@ -15,6 +15,10 @@ import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
+import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
+import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings"
+import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
+import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import CallLogModal from "@/components/call-log-modal"
 import PrintPreviewModal from "@/components/print-preview-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
@@ -37,7 +41,7 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrint } from "@/hooks/use-paper-slip-in-page-print"
+import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
@@ -61,7 +65,7 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 export default function LabSlipPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrint();
+  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
   if (typeof window !== 'undefined') {
@@ -130,6 +134,8 @@ export default function LabSlipPage() {
   const [readyToSendSlip, setReadyToSendSlip] = useState<any>(null)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
   const [showRushModal, setShowRushModal] = useState(false)
+  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null)
+  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null)
   const [selectedSlipForRush, setSelectedSlipForRush] = useState<any>(null)
   const [showSendBackToOfficeModal, setShowSendBackToOfficeModal] = useState(false)
   const [selectedSlipForSendBackToOffice, setSelectedSlipForSendBackToOffice] = useState<any>(null)
@@ -364,6 +370,8 @@ export default function LabSlipPage() {
 
   const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
     setAddonInputs(null)
+    setRushCaseSchedule(null)
+    setLabBusinessHours(null)
     if (!slipId) return
     try {
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
@@ -376,7 +384,22 @@ export default function LabSlipPage() {
         return
       }
       const json = await res.json()
-      setAddonInputs(buildVirtualSlipAddonInputs(json?.data ?? null))
+      const details = json?.data ?? null
+      setAddonInputs(buildVirtualSlipAddonInputs(details))
+      // Load the lab's rush settings (fee %, turnaround, weekoffs/holidays) from the
+      // same slip details payload, exactly as the virtual slip does.
+      const customerId = resolveLibraryCustomerId(resolveLabIdFromSlipDetails(details))
+      if (customerId) {
+        getBusinessSettings(customerId)
+          .then((settings) => {
+            setRushCaseSchedule(settings?.case_schedule ?? null)
+            setLabBusinessHours(settings?.business_hours ?? null)
+          })
+          .catch(() => {
+            setRushCaseSchedule(null)
+            setLabBusinessHours(null)
+          })
+      }
     } catch {
       setAddonInputs(null)
     }
@@ -1050,6 +1073,7 @@ export default function LabSlipPage() {
             onChangeDueDate: handleDateIconClick,
             onDriverHistory: handleLocationIconClick,
             onReadyToSend: handleOpenReadyToSend,
+            onAddStage: (slip) => router.push(`/add-new-stage?sourceSlipId=${slip.id}`),
             onSendBack: handleOpenSendBackToOffice,
             onRush: handleOpenRushCase,
             onCancel: handleOpenCancelCase,
@@ -1151,11 +1175,13 @@ export default function LabSlipPage() {
           const hasMand = rushSlots.some((s) => s.arch === "mandibular" && s.isRushed)
           return (
             <RushRequestModal
-              isOpen={showRushModal}
+              isOpen={showRushModal && rushSlots.length > 0}
               onClose={() => {
                 setShowRushModal(false)
                 setSelectedSlipForRush(null)
                 setAddonInputs(null)
+                setRushCaseSchedule(null)
+                setLabBusinessHours(null)
               }}
               onConfirm={handleConfirmRushCase}
               isRushed={(addonInputs?.slipIsRush ?? false) || rushSlots.some((s) => s.isRushed)}
@@ -1171,14 +1197,17 @@ export default function LabSlipPage() {
               onRemoveMaxRush={hasMax ? handleRemoveRushCase : undefined}
               onRemoveMandRush={hasMand ? handleRemoveRushCase : undefined}
               archSlots={rushSlots}
+              mirrorRushAcrossArches={virtualSlipRushSlotsShareProduct(rushSlots)}
               hasMaxillary={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "maxillary") : undefined}
               hasMandibular={rushSlots.length > 0 ? rushSlots.some((s) => s.arch === "mandibular") : undefined}
               product={{
                 name: rushSlots[0]?.productName ?? selectedSlipForRush?.product ?? "Case",
                 stage: rushSlots[0]?.stageName ?? selectedSlipForRush?.product ?? "Unknown Stage",
                 deliveryDate: addonInputs?.deliveryDateIso || selectedSlipForRush?.dueDate || "",
-                price: 0,
+                price: rushSlots.reduce((sum, s) => sum + (s.price ?? 0), 0),
               }}
+              rushCaseSchedule={rushCaseSchedule}
+              labBusinessHours={labBusinessHours}
             />
           )
         })()}

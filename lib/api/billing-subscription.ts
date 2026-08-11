@@ -17,13 +17,17 @@ function unwrapData<T>(raw: unknown): T | null {
 }
 
 export interface BillingUsage {
+  id?: number
+  customer_id?: number
   slip_count?: number
   slip_capacity?: number
+  remaining_slips?: number
   credit_used?: number
   overage_count?: number
   period_start?: string
   period_end?: string
-  remaining_slips?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface BillingCreditBalance {
@@ -46,6 +50,43 @@ export interface SubscriptionInvoice {
   created_at?: string | null
   paid_at?: string | null
   due_date?: string | null
+  customer?: {
+    id?: number | string | null
+    name?: string | null
+    email?: string | null
+  } | null
+  metadata?: {
+    type?: string | null
+    frequency?: string | null
+    customer_id?: number | string | null
+    billing_plan_id?: number | string | null
+    resolved_source_id?: number | string | null
+    resolved_source_type?: string | null
+  } | null
+  source?: {
+    status?: string | null
+    billing_plan_id?: number | string | null
+    current_period_start?: string | null
+    current_period_end?: string | null
+    stripe_checkout_session_id?: string | null
+    stripe_customer_id?: string | null
+    stripe_invoice_id?: string | null
+  } | null
+  stripe_checkout_session_id?: string | null
+  stripe_customer_id?: string | null
+  stripe_invoice_id?: string | null
+  credit_book_purchases?:
+    | Array<{
+        id?: number | string | null
+        quantity?: number | string | null
+        amount?: number | string | null
+        amount_paid?: number | string | null
+        amount_due?: number | string | null
+        currency?: string | null
+        status?: string | null
+        created_at?: string | null
+      }>
+    | null
 }
 
 export interface CatalogAddOn {

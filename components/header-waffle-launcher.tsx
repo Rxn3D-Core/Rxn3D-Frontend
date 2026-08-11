@@ -29,6 +29,7 @@ const FALLBACK_ICONS: Record<string, React.ReactNode> = {
   "subscriptions":       <BadgeDollarSign className="h-5 w-5" />,
   "charge-management":   <Receipt className="h-5 w-5" />,
   "generate-statements": <FileText className="h-5 w-5" />,
+  "office-statements":   <FileText className="h-5 w-5" />,
   "system-setting-main": <Settings className="h-5 w-5" />,
 }
 
@@ -38,12 +39,19 @@ function withFallbackIcon(item: MenuItem): MenuItem {
   return icon ? { ...item, icon } : item
 }
 
+function hasRealPath(path?: string): boolean {
+  return Boolean(path && path !== "#")
+}
+
 function getTopLevelItems(items: MenuItem[]): MenuItem[] {
-  return items.filter((item) => item.path || (item.children && item.children.length > 0)).slice(0, 9)
+  return items
+    .filter((item) => hasRealPath(item.path) || (item.children && item.children.length > 0))
+    .slice(0, 9)
 }
 
 function tileHref(item: MenuItem): string {
-  return item.path ?? item.children?.[0]?.path ?? "#"
+  if (hasRealPath(item.path)) return item.path as string
+  return item.children?.[0]?.path ?? "#"
 }
 
 interface TileProps {
@@ -143,9 +151,10 @@ export function HeaderWaffleLauncher() {
           {displayItems.map((item) => {
             const hasChildren = (item.children?.length ?? 0) > 0
             const href = tileHref(item)
-            const isActive = pathname.startsWith(href) && href !== "#"
+            const isActive = hasRealPath(href) && pathname.startsWith(href)
 
-            if (hasChildren && !item.path) {
+            // Parent folders (or path "#") open a drilldown instead of navigating nowhere.
+            if (hasChildren && !hasRealPath(item.path)) {
               return (
                 <NavTile
                   key={item.id}

@@ -100,7 +100,7 @@ export function DoctorDashboard() {
         {/* Header Section */}
         <div className="mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Doctor Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-600">Manage your cases, appointments, and patient information</p>
+          <p className="text-sm sm:text-base text-gray-600">Manage your practice operations and case activity</p>
         </div>
 
         {/* KPI Cards */}

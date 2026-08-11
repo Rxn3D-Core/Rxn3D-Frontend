@@ -39,8 +39,6 @@ export type ChargeManagementAdvancedFiltersPanelProps = {
   onAdvProductIdChange: (id: number | null) => void
   advStageId: number | null
   onAdvStageIdChange: (id: number | null) => void
-  advItemStatus: string
-  onAdvItemStatusChange: (v: string) => void
   advAttachment: "all" | "yes" | "no"
   onAdvAttachmentChange: (v: "all" | "yes" | "no") => void
   showCasesWithAddon: boolean
@@ -158,8 +156,6 @@ export function ChargeManagementAdvancedFiltersPanel({
   onAdvProductIdChange,
   advStageId,
   onAdvStageIdChange,
-  advItemStatus,
-  onAdvItemStatusChange,
   advAttachment,
   onAdvAttachmentChange,
   showCasesWithAddon,
@@ -254,12 +250,14 @@ export function ChargeManagementAdvancedFiltersPanel({
         </div>
       </div>
 
+      {/* Advance-filters description hidden for now.
       <p className="text-xs text-gray-500 mb-3">
         {t("chargeManagement.advancedFiltersIndependent", {
           defaultValue:
             "Category, subcategory, product, and stage can be used alone or together. Toolbar filters apply automatically.",
         })}
       </p>
+      */}
 
       <div className="flex flex-nowrap items-end gap-2 md:gap-3 min-w-0 overflow-x-auto pb-1 [scrollbar-width:thin]">
         <div className="space-y-1.5 min-w-[160px] flex-1 shrink-0">
@@ -368,26 +366,6 @@ export function ChargeManagementAdvancedFiltersPanel({
             emptyMessage={t("chargeManagement.noStagesMatch", { defaultValue: "No stages found." })}
             searchPlaceholder={t("chargeManagement.searchStages", { defaultValue: "Search stages…" })}
           />
-        </div>
-
-        <div className="space-y-1.5 w-[140px] shrink-0">
-          <Label className="text-xs text-gray-500">
-            {t("chargeManagement.billingStatus", { defaultValue: "Billing status" })}
-          </Label>
-          <Select value={advItemStatus} onValueChange={onAdvItemStatusChange}>
-            <SelectTrigger className="h-10 bg-white border-gray-200">
-              <SelectValue placeholder={t("chargeManagement.selectStatus", { defaultValue: "Status" })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("chargeManagement.anyStatus", { defaultValue: "Any" })}</SelectItem>
-              <SelectItem value="unbilled">Unbilled</SelectItem>
-              <SelectItem value="checked">Checked</SelectItem>
-              <SelectItem value="billed">Billed</SelectItem>
-              <SelectItem value="paid">Paid</SelectItem>
-              <SelectItem value="refund">Refund</SelectItem>
-              <SelectItem value="dispute">Dispute</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="space-y-1.5 w-[120px] shrink-0">

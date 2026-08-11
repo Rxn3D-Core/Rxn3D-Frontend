@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -19,9 +19,10 @@ type HeaderField = {
   label: string;
   value: string;
   valueClassName?: string;
+  valueNode?: React.ReactNode;
 };
 
-/** Label/value rows — grid keeps values vertically aligned within each column. */
+/** Label/value rows â€” grid keeps values vertically aligned within each column. */
 function Column({ fields }: { fields: HeaderField[] }) {
   return (
     <div className="grid min-w-0 grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-[4px] gap-y-[clamp(3px,0.45vw,7px)] font-sans sm:gap-x-[6px]">
@@ -29,10 +30,10 @@ function Column({ fields }: { fields: HeaderField[] }) {
         <div key={field.label} className="contents">
           <span className={`${FIELD_LABEL} whitespace-nowrap`}>{field.label}:</span>
           <span
-            className={`${FIELD_VALUE} ${field.valueClassName ?? ""}`}
+            className={`${FIELD_VALUE} ${field.valueClassName ?? ""} inline-flex items-center gap-1`}
             title={hasDisplayValue(field.value) ? field.value.trim() : undefined}
           >
-            {hasDisplayValue(field.value) ? field.value.trim() : "\u00A0"}
+            {field.valueNode ?? (hasDisplayValue(field.value) ? field.value.trim() : "\u00A0")}
           </span>
         </div>
       ))}
@@ -73,7 +74,7 @@ function Avatar({
           onError={() => setFailed(true)}
         />
       ) : (
-        <span className="text-sm font-bold text-gray-500">{initials || "—"}</span>
+        <span className="text-sm font-bold text-gray-500">{initials || "â€”"}</span>
       )}
     </div>
   );
@@ -118,7 +119,7 @@ export function VirtualSlipHeader({
   return (
     <div className="border border-[#D9D9D9] bg-white">
       <div className="flex items-stretch gap-3 px-3 py-[4px] sm:gap-4 sm:px-5 lg:gap-6">
-        {/* Doctor — avatar spans top (logos/actions) + bottom (fields) rows */}
+        {/* Doctor â€” avatar spans top (logos/actions) + bottom (fields) rows */}
         <div className="flex w-[clamp(72px,8vw,120px)] shrink-0 flex-col items-center justify-center gap-[4px] self-stretch py-1">
           <Avatar
             src={header.doctorImage}
@@ -126,12 +127,15 @@ export function VirtualSlipHeader({
             sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
           />
           {hasDisplayValue(header.doctorName) && (
-            <p
-              className="max-w-[clamp(72px,8vw,120px)] truncate text-center font-sans text-[clamp(11px,0.75vw,13.5px)] font-semibold leading-[1.2] tracking-[-0.02em] text-[#1162A8]"
-              title={header.doctorName.trim()}
-            >
-              {header.doctorName.trim()}
-            </p>
+            <div className="flex flex-col items-center gap-[2px] text-center font-sans">
+              <span className="text-[clamp(10px,0.65vw,12px)] text-[#7F7F7F]">Doctor:</span>
+              <span
+                className="max-w-[clamp(72px,8vw,120px)] truncate text-[clamp(11px,0.75vw,13.5px)] font-semibold leading-[1.2] tracking-[-0.02em] text-[#1162A8]"
+                title={header.doctorName.trim()}
+              >
+                {header.doctorName.trim()}
+              </span>
+            </div>
           )}
         </div>
 
@@ -219,14 +223,31 @@ export function VirtualSlipHeader({
             <Column
               fields={[
                 { label: "Pickup date", value: header.pickupDate },
-                { label: "Delivery date", value: header.dueDate },
+                {
+                  label: "Delivery date",
+                  value: header.dueDate,
+                  valueClassName: header.isRush ? "text-red-600 font-bold" : undefined,
+                  valueNode: header.isRush ? (
+                    <>
+                      {header.dueDate}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/icons/virtual-slip-center/rush.svg"
+                        alt="Rush"
+                        width={16}
+                        height={16}
+                        className="inline-block h-4 w-4 shrink-0 object-contain"
+                      />
+                    </>
+                  ) : undefined,
+                },
                 { label: "Delivery time", value: header.deliveryTime },
               ]}
             />
           </div>
         </div>
 
-        {/* Created By — avatar spans both center rows */}
+        {/* Created By â€” avatar spans both center rows */}
         {(hasDisplayValue(header.createdByName) || header.createdByImage) && (
           <div className="flex w-[clamp(72px,8vw,120px)] shrink-0 flex-col items-center justify-center gap-[4px] self-stretch py-1">
             <Avatar

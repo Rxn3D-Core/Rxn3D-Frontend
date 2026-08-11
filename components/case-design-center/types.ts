@@ -154,6 +154,13 @@ export interface CaseDesignProps {
    */
   preloadInitialSlipState?: boolean;
   /**
+   * Edit-slip only: suppress every field auto-open helper (stage, teeth/stump shade,
+   * gum shade, impression). The slip is fully preloaded with the user's existing
+   * selections, so the design center displays them (like the read-only virtual slip)
+   * without re-prompting for each already-selected field.
+   */
+  suppressFieldAutoOpen?: boolean;
+  /**
    * Add-new-stage only: per-arch stage history from eligibility API and optional
    * sequential stage modal prompt on load (maxillary, then mandibular).
    */
@@ -170,6 +177,12 @@ export interface CaseDesignProps {
   labBusinessHours?: import("@/lib/api-business-settings").BusinessHour[] | null;
   /** Fired when product field accordions are visible (compact slip header should be used). */
   onSlipHeaderCompactChange?: (compact: boolean) => void;
+  /** Attachment browser context — doctor/patient shown in the right-panel header */
+  attachmentDoctorName?: string;
+  attachmentPatientName?: string;
+  /** Case/slip IDs for the attachment browser (available after submission) */
+  attachmentCaseId?: number;
+  attachmentSlipId?: number;
 }
 
 export interface AddedProduct {
@@ -247,6 +260,9 @@ export interface VirtualSlipInitialState {
    */
   maxillaryNoActiveBoxTeeth: number[];
   mandibularNoActiveBoxTeeth: number[];
+  /** Saved edit-slip implant and abutment selections keyed by tooth number. */
+  maxillaryImplantDetailsByTooth: Record<number, ImplantDetailData>;
+  mandibularImplantDetailsByTooth: Record<number, ImplantDetailData>;
 }
 
 export interface NotesProps {
@@ -263,6 +279,12 @@ export interface NotesProps {
   /** Extraction map: toothNumber → extractionCode for non-default boxes (missing, extracting, etc.) */
   maxillaryToothExtractionMap?: Record<number, string>;
   mandibularToothExtractionMap?: Record<number, string>;
+  /** Overlay/clasp teeth — excluded from product tooth numbers in notes (match orange header). */
+  maxillaryClaspTeeth?: number[];
+  mandibularClaspTeeth?: number[];
+  /** Removable product teeth that also carry a status (no-active-box path). */
+  maxillaryNoActiveBoxTeeth?: number[];
+  mandibularNoActiveBoxTeeth?: number[];
   /** Get the API product assigned to a tooth */
   getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null;
   /** Get the value for a field step on a tooth */
@@ -531,6 +553,9 @@ export interface ProductAddon {
   is_default?: string;
   price?: string | number | null;
   quantity?: number;
+  /** Some library payloads nest default/qty on the join row. */
+  lab_addon?: { is_default?: string; quantity?: number | string | null } | null;
+  pivot?: { is_default?: string; quantity?: number | string | null } | null;
   subcategory?: {
     id: number;
     name: string;
@@ -655,6 +680,10 @@ export interface ProductApiData {
   }>;
   has_impression?: "Yes" | "No" | null;
   has_default_tooth_chart?: "Yes" | "No" | null;
+  allow_select_only_implant?: "Yes" | "No" | null;
+  /** When "Yes", `custom_label` overrides the default tooth-chart selection prompt on the slip. */
+  enable_custom_label?: "Yes" | "No" | null;
+  custom_label?: string | null;
   default_tooth_chart?: Array<{
     tooth_number: number
     retention_option_id?: number | null

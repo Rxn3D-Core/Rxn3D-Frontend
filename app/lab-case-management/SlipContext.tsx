@@ -27,6 +27,7 @@ type Slip = {
   rush: boolean;
   location: string;
   attachment: boolean;
+  newStageEligible?: boolean;
   dueDate: string;
   overdue: boolean;
   doctor?: string;
@@ -195,6 +196,10 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     rush: !!apiSlip.is_rush,
     location: apiSlip.location?.current?.name || "",
     attachment: !!apiSlip.attachments?.has_attachments,
+    newStageEligible:
+      typeof apiSlip.new_stage_eligible === "string"
+        ? apiSlip.new_stage_eligible.trim().toLowerCase() === "yes"
+        : Boolean(apiSlip.new_stage_eligible),
     dueDate: apiSlip.delivery_date?.final_date || "",
     overdue: false, // You can set this based on your logic
     doctor: apiSlip.case?.doctor?.name || apiSlip.doctor || undefined,

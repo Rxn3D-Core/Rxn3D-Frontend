@@ -62,17 +62,29 @@ export function areFixedProductShadesComplete(
     fieldType: ShadeFieldType,
     advanceFieldId?: number | null
   ) => string,
-  options: { needsStumpShade: boolean; needsToothShade: boolean }
-): boolean {
-  const named = getShadeGuideAdvanceFields(advanceFields);
-  if (named.length > 0) {
-    return getFirstMissingShadeGuideField(advanceFields, productShadeId, arch, getSelectedShade) == null;
+  options: {
+    needsStumpShade: boolean;
+    needsToothShade: boolean;
+    /** When true, named shade_guide fields are separate and do not replace classic teeth/gum. */
+    classicShadeFlags?: boolean;
   }
+): boolean {
+  // Classic product-level teeth/gum (no advance_field id) — same storage as removaables.
   if (options.needsStumpShade && !getSelectedShade(productShadeId, arch, "stump_shade")) {
     return false;
   }
   if (options.needsToothShade && !getSelectedShade(productShadeId, arch, "tooth_shade")) {
     return false;
+  }
+  // Named shade_guide fields (Body / Cervical / …) are separate from classic Teeth/Gum.
+  // When the product has has_teeth_shade / has_gum_shade, classic completeness is enough
+  // to unlock post-shade fields; named fields remain independently editable.
+  if (options.classicShadeFlags) {
+    return true;
+  }
+  const named = getShadeGuideAdvanceFields(advanceFields);
+  if (named.length > 0) {
+    return getFirstMissingShadeGuideField(advanceFields, productShadeId, arch, getSelectedShade) == null;
   }
   return true;
 }

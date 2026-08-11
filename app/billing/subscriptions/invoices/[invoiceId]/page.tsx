@@ -58,6 +58,11 @@ function getInvoiceRetryUrl(invoice: SubscriptionInvoice | null): string | null 
   return invoice.hosted_invoice_url || invoice.invoice_pdf || null
 }
 
+function getInvoiceFieldValue(value?: string | number | null): string {
+  if (value === null || value === undefined || value === "") return "—"
+  return String(value)
+}
+
 function buildInvoiceShareHref(invoice: SubscriptionInvoice | null, recipientEmail?: string | null): string {
   const subject = encodeURIComponent(`Invoice ${invoice?.invoice_number || `#${invoice?.id ?? ""}`}`.trim())
   const body = encodeURIComponent(
@@ -133,12 +138,19 @@ export default function SubscriptionInvoiceDetailPage({ params }: InvoiceDetailP
 
   const invoiceDate = invoice?.created_at || invoice?.paid_at || null
   const dueDate = invoice?.due_date || invoiceDate
-  const billToName = user?.customers?.[0]?.name || user?.customer?.name || "Customer account"
-  const billToEmail = user?.email || ""
+  const billToName =
+    invoice?.customer?.name || user?.customers?.[0]?.name || user?.customer?.name || "Customer account"
+  const billToEmail = invoice?.customer?.email || user?.email || ""
   const planLabel = user?.customer?.type === "office" ? "Office account" : "Business subscription"
   const retryUrl = getInvoiceRetryUrl(invoice)
   const isFailedInvoice = (invoice?.status ?? "").trim().toLowerCase() === "failed"
   const downloadUrl = invoice?.invoice_pdf || invoice?.hosted_invoice_url || null
+  const source = invoice?.source
+  const metadata = invoice?.metadata
+  const stripeCheckoutSessionId = invoice?.stripe_checkout_session_id || source?.stripe_checkout_session_id
+  const stripeCustomerId = invoice?.stripe_customer_id || source?.stripe_customer_id
+  const stripeInvoiceId = invoice?.stripe_invoice_id || source?.stripe_invoice_id
+  const creditBookPurchases = invoice?.credit_book_purchases ?? []
 
   const lineItems = useMemo(
     () =>
@@ -333,6 +345,14 @@ export default function SubscriptionInvoiceDetailPage({ params }: InvoiceDetailP
                     <span>{formatCurrency(invoiceAmount, invoice.currency || "USD")}</span>
                   </div>
                   <div className="flex items-center justify-between">
+                    <span>Amount paid</span>
+                    <span>{formatCurrency(invoice.amount_paid, invoice.currency || "USD")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Amount due</span>
+                    <span>{formatCurrency(invoice.amount_due, invoice.currency || "USD")}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span>Discount</span>
                     <span>-$0.00</span>
                   </div>
@@ -349,6 +369,138 @@ export default function SubscriptionInvoiceDetailPage({ params }: InvoiceDetailP
                 </div>
               </aside>
             </div>
+
+            <section className="rounded-2xl border border-[#E2E8F0] bg-white px-6 py-5 shadow-[0_2px_18px_rgba(15,23,42,0.04)]">
+              <h3 className="text-base font-semibold text-[#111827]">Invoice metadata</h3>
+              <div className="mt-4 grid gap-3 text-sm text-[#6B7280] md:grid-cols-2">
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Type</p>
+                  <p className="mt-1 text-[#111827]">{getInvoiceFieldValue(metadata?.type)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Frequency</p>
+                  <p className="mt-1 text-[#111827]">{getInvoiceFieldValue(metadata?.frequency)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Metadata customer id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(metadata?.customer_id)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Metadata plan id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(metadata?.billing_plan_id)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Resolved source id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(metadata?.resolved_source_id)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Resolved source type</p>
+                  <p className="mt-1 text-[#111827]">{getInvoiceFieldValue(metadata?.resolved_source_type)}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#E2E8F0] bg-white px-6 py-5 shadow-[0_2px_18px_rgba(15,23,42,0.04)]">
+              <h3 className="text-base font-semibold text-[#111827]">Source and Stripe references</h3>
+              <div className="mt-4 grid gap-3 text-sm text-[#6B7280] md:grid-cols-2">
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Source status</p>
+                  <p className="mt-1 text-[#111827]">{getInvoiceFieldValue(source?.status)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Source plan id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(source?.billing_plan_id)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Current period start</p>
+                  <p className="mt-1 text-[#111827]">{formatBillingDate(source?.current_period_start || null)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Current period end</p>
+                  <p className="mt-1 text-[#111827]">{formatBillingDate(source?.current_period_end || null)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Stripe checkout session id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(stripeCheckoutSessionId)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Stripe customer id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(stripeCustomerId)}</p>
+                </div>
+                <div className="rounded-xl border border-[#E7EDF4] px-4 py-3 md:col-span-2">
+                  <p className="text-xs uppercase tracking-[0.06em] text-[#9CA3AF]">Stripe invoice id</p>
+                  <p className="mt-1 break-all text-[#111827]">{getInvoiceFieldValue(stripeInvoiceId)}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#E2E8F0] bg-white px-6 py-5 shadow-[0_2px_18px_rgba(15,23,42,0.04)]">
+              <h3 className="text-base font-semibold text-[#111827]">Invoice links and purchases</h3>
+              <div className="mt-4 space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  {invoice.hosted_invoice_url ? (
+                    <a
+                      href={invoice.hosted_invoice_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9E1EC] bg-white px-4 text-sm font-medium text-[#111827] transition-colors hover:border-[#1162A8] hover:text-[#1162A8]"
+                    >
+                      <Mail className="h-4 w-4" />
+                      Open hosted invoice
+                    </a>
+                  ) : null}
+                  {invoice.invoice_pdf ? (
+                    <a
+                      href={invoice.invoice_pdf}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#D9E1EC] bg-white px-4 text-sm font-medium text-[#111827] transition-colors hover:border-[#1162A8] hover:text-[#1162A8]"
+                    >
+                      <Download className="h-4 w-4" />
+                      Open invoice PDF
+                    </a>
+                  ) : null}
+                </div>
+
+                <div className="rounded-xl border border-[#E7EDF4]">
+                  <div className="border-b border-[#E7EDF4] px-4 py-3">
+                    <p className="text-sm font-semibold text-[#111827]">
+                      Credit book purchases ({creditBookPurchases.length})
+                    </p>
+                  </div>
+                  {creditBookPurchases.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-[#6B7280]">No credit book purchases on this invoice.</p>
+                  ) : (
+                    <div className="space-y-2 px-4 py-3">
+                      {creditBookPurchases.map((purchase, index) => (
+                        <div
+                          key={`${purchase.id ?? "purchase"}-${index}`}
+                          className="rounded-lg border border-[#EEF2F7] bg-[#FAFBFD] px-3 py-2 text-sm text-[#6B7280]"
+                        >
+                          <p className="font-medium text-[#111827]">
+                            Purchase #{getInvoiceFieldValue(purchase.id)} · Qty {getInvoiceFieldValue(purchase.quantity)}
+                          </p>
+                          <p className="mt-1">
+                            Amount paid:{" "}
+                            <span className="text-[#111827]">
+                              {formatCurrency(purchase.amount_paid ?? purchase.amount, purchase.currency || invoice.currency || "USD")}
+                            </span>{" "}
+                            · Due:{" "}
+                            <span className="text-[#111827]">
+                              {formatCurrency(purchase.amount_due, purchase.currency || invoice.currency || "USD")}
+                            </span>
+                          </p>
+                          <p className="mt-1">
+                            Status: <span className="text-[#111827]">{getInvoiceFieldValue(purchase.status)}</span> · Created:{" "}
+                            <span className="text-[#111827]">{formatBillingDate(purchase.created_at || null)}</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
           </>
         )}
       </div>

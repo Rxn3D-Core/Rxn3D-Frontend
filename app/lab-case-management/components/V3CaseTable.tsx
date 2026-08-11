@@ -5,6 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { slipIsInOffice, slipShowsPickupDropoff } from "@/lib/slip-location"
+import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
@@ -12,6 +14,7 @@ import { V3RowActionsPopover } from "./V3RowActionsPopover"
 import type { ColumnKey } from "./V3FilterBar"
 
 const AMBER = "#FFE2A1"
+const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
 const monoFilter = ""
@@ -37,6 +40,12 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  /**
+   * Office profile listing: the counterparty column reads "Lab", driver
+   * actions are withheld, and rush rows lose the amber highlight (a
+   * lab-visibility cue). Defaults false.
+   */
+  officeProfile?: boolean
   // kept for API compatibility with V3CaseWidget; not used internally
   printMenuRow: number | null
   moreMenuRow: number | null
@@ -64,17 +73,23 @@ type DesktopColumn = {
 }
 
 const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
+  { key: "office", label: "Office", width: 200 },
   { key: "patient", label: "Patient / Slip", width: 260 },
   { key: "panProduct", label: "Pan / Product", width: 180 },
   { key: "location", label: "Location", width: 150 },
   { key: "status", label: "Status", width: 150 },
-  { key: "office", label: "Office", width: 200 },
   { key: "caseNo", label: "Case #", width: 130 },
   { key: "dueDate", label: "Due Date", width: 150 },
 ]
 
-function buildDesktopColumns(visibleColumns: Set<ColumnKey>): DesktopColumn[] {
-  return DESKTOP_COLUMN_DEFS.filter((column) => column.key === "panProduct" || column.key === "status" || visibleColumns.has(column.key))
+function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: boolean): DesktopColumn[] {
+  return DESKTOP_COLUMN_DEFS.filter(
+    (column) => column.key === "panProduct" || column.key === "status" || visibleColumns.has(column.key)
+  ).map((column) =>
+    // The counterparty column names the other side of the case: an office user
+    // is looking at labs, a lab user at offices.
+    column.key === "office" && officeProfile ? { ...column, label: "Lab" } : column
+  )
 }
 
 export function V3CaseTable(props: Props) {
@@ -87,7 +102,12 @@ export function V3CaseTable(props: Props) {
   // one on every tap inside it.
   const mobilePopoverRef = useRef<HTMLDivElement>(null)
   const desktopPopoverRef = useRef<HTMLTableRowElement>(null)
-  const desktopColumns = buildDesktopColumns(props.visibleColumns)
+  const officeProfile =
+    props.officeProfile === true || isOfficeCustomerContext()
+  // Lab listings tint rush rows amber; office profiles (admin / doctor / user)
+  // keep the rush bolt only — no yellow row adaptation.
+  const highlightRushRows = !officeProfile
+  const desktopColumns = buildDesktopColumns(props.visibleColumns, officeProfile)
   const columnCount = desktopColumns.length + 2
 
   useEffect(() => {
@@ -129,10 +149,10 @@ export function V3CaseTable(props: Props) {
               </div>
             )
           : props.rows.map((row) => {
-              const isAmber = isOverdueOrToday(row.dueDate)
-              const dueDateColor = dueDateTextColor(row.dueDate, row.rush)
-              const mobileIsLocked = !!row.rush
-              const cardBg = mobileIsLocked ? AMBER : isAmber ? AMBER : "#FFFFFF"
+              const dueDateColor = dueDateTextColor(row)
+              // The amber rush highlight is a lab-visibility cue — office
+              // profiles keep the rush bolt icon but not the tinted row.
+              const cardBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
 
               return (
                 <div
@@ -170,9 +190,11 @@ export function V3CaseTable(props: Props) {
                       <div className="text-[12px] text-[#575757] mt-0.5">
                         {row.slipNumber || row.caseNumber || `#${row.id}`}
                       </div>
-                      <div className="text-[12px] text-[#575757]">
-                        {row.createdAt ? formatCreatedAt(row.createdAt) : ""}
-                      </div>
+                      {props.visibleColumns.has("timestamp") && row.createdAt && (
+                        <div className="text-[12px] text-[#575757]">
+                          {formatCreatedAt(row.createdAt)}
+                        </div>
+                      )}
                     </button>
 
                     {/* Kebab */}
@@ -192,7 +214,9 @@ export function V3CaseTable(props: Props) {
                           row={row}
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
-                          canSendBack={props.canSendBack(row)}
+                          canSendBack={!officeProfile && props.canSendBack(row)}
+                          allowDriverActions={!officeProfile}
+                          allowRush={!officeProfile}
                           onClose={() => setPopoverRow(null)}
                         />
                       )}
@@ -207,68 +231,109 @@ export function V3CaseTable(props: Props) {
                     {/* OFFICE + DUE DATE */}
                     <div className="flex items-end justify-between gap-2">
                       <div>
-                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">OFFICE</div>
+                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">{officeProfile ? "LAB" : "OFFICE"}</div>
                         <div className="text-[14px] font-bold text-black">{row.officeCode || "—"}</div>
                         {row.doctor && <div className="text-[12px] text-[#575757]">{row.doctor}</div>}
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">DUE DATE</div>
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 justify-end"
-                          onClick={(e) => { e.stopPropagation(); props.rowActions.onChangeDueDate(row) }}
-                        >
-                          <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
+                        {officeProfile ? (
                           <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
-                            {formatDueDate(row.dueDate, row.status)}
+                            {formatDueDate(row)}
                           </span>
-                        </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 justify-end"
+                            onClick={(e) => { e.stopPropagation(); props.rowActions.onChangeDueDate(row) }}
+                          >
+                            <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
+                            <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
+                              {formatDueDate(row)}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     {/* LOCATION */}
-                    {row.location && (
-                      <div
-                        className="flex flex-row items-center gap-2 rounded-[10px] px-2 py-2"
-                        style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
-                      >
-                        <img
-                          src={mobileLocationIcon(row.locationId)}
-                          alt=""
-                          className="shrink-0"
-                          style={{ width: 29, height: 22, objectFit: "contain" }}
-                        />
-                        <div className="flex flex-col items-start min-w-0 flex-1">
-                          <span
-                            className="tracking-[0.275px] uppercase"
-                            style={{ fontSize: 11, lineHeight: "16px", color: "#968F8F", fontFamily: "Inter, sans-serif" }}
-                          >
-                            Location
-                          </span>
-                          <span
-                            className="truncate w-full"
-                            style={{ fontSize: 14, lineHeight: "21px", color: "#000000", fontFamily: "Helvetica, Arial, sans-serif" }}
-                          >
-                            {row.location}
-                          </span>
-                        </div>
-                        {row.pan && (
-                          <div
-                            className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
-                            style={{
-                              background: PAN_BG,
-                              height: 24,
-                              ...row.panColorStyle,
-                              ...(row.rush && props.rushCasePanColor ? { backgroundColor: props.rushCasePanColor } : null),
-                            }}
-                          >
-                            <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Helvetica, Arial, sans-serif" }}>
-                              {row.pan}
+                    {row.location && (() => {
+                      const mobileLocationAction = row.newStageEligible
+                        ? "addStage"
+                        : !officeProfile
+                        ? isReadyToSendLocation(row)
+                          ? "readyToSend"
+                          : isPickupDropoffLocation(row)
+                            ? "driverHistory"
+                            : null
+                        : null
+                      const locationInner = (
+                        <>
+                          <img
+                            src={mobileLocationIcon(row)}
+                            alt=""
+                            className="shrink-0"
+                            style={{ width: 29, height: 22, objectFit: "contain" }}
+                          />
+                          <div className="flex flex-col items-start min-w-0 flex-1">
+                            <span
+                              className="tracking-[0.275px] uppercase"
+                              style={{ fontSize: 11, lineHeight: "16px", color: "#968F8F", fontFamily: "Inter, sans-serif" }}
+                            >
+                              Location
+                            </span>
+                            <span
+                              className="truncate w-full text-left"
+                              style={{ fontSize: 14, lineHeight: "21px", color: "#000000", fontFamily: "Helvetica, Arial, sans-serif" }}
+                            >
+                              {row.location}
                             </span>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          {row.pan && (
+                            <div
+                              className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
+                              style={{
+                                background: PAN_BG,
+                                height: 24,
+                                ...row.panColorStyle,
+                                ...(row.rush && highlightRushRows && props.rushCasePanColor
+                                  ? { backgroundColor: props.rushCasePanColor }
+                                  : null),
+                              }}
+                            >
+                              <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Helvetica, Arial, sans-serif" }}>
+                                {row.pan}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )
+                      return mobileLocationAction ? (
+                        <button
+                          type="button"
+                          className="flex w-full flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
+                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
+                          title={mobileLocationAction === "addStage" ? "Add stage" : mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            mobileLocationAction === "addStage"
+                              ? props.rowActions.onAddStage(row)
+                              : mobileLocationAction === "readyToSend"
+                              ? props.rowActions.onReadyToSend(row)
+                              : props.rowActions.onDriverHistory(row)
+                          }}
+                        >
+                          {locationInner}
+                        </button>
+                      ) : (
+                        <div
+                          className="flex flex-row items-center gap-2 rounded-[10px] px-2 py-2"
+                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
+                        >
+                          {locationInner}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )
@@ -334,12 +399,12 @@ export function V3CaseTable(props: Props) {
             </tr>
           ) : (
             props.rows.map((row, idx) => {
-              const isAmber = isOverdueOrToday(row.dueDate)
               const isEvenRow = idx % 2 === 1
-              const defaultBg = isAmber ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
-              const isLocked = !!row.rush
-              const rowBg = isLocked ? AMBER : defaultBg
-              const dueDateColor = dueDateTextColor(row.dueDate, row.rush)
+              const rowBg = row.rush && highlightRushRows ? AMBER : isEvenRow ? "#F2F3F4" : "#FFFFFF"
+              const dueDateColor = dueDateTextColor(row)
+              // Only lab rush rows lock hover (amber stays put). Office rush rows
+              // use normal zebra + hover like every other row.
+              const isLocked = !!row.rush && highlightRushRows
 
               return (
                 <tr
@@ -384,6 +449,9 @@ export function V3CaseTable(props: Props) {
                       rowActions={props.rowActions}
                       rowBg={rowBg}
                       rushCasePanColor={props.rushCasePanColor}
+                      showTimestamp={props.visibleColumns.has("timestamp")}
+                      allowDriverActions={!officeProfile}
+                      highlightRushRows={highlightRushRows}
                     />
                   ))}
 
@@ -408,7 +476,9 @@ export function V3CaseTable(props: Props) {
                         row={row}
                         actions={props.rowActions}
                         canPrintStatement={props.canPrintStatement(row)}
-                        canSendBack={props.canSendBack(row)}
+                        canSendBack={!officeProfile && props.canSendBack(row)}
+                        allowDriverActions={!officeProfile}
+                        allowRush={!officeProfile}
                         onClose={() => setPopoverRow(null)}
                       />
                     )}
@@ -431,9 +501,15 @@ function DesktopCell({
   rowActions,
   rowBg,
   rushCasePanColor,
+  showTimestamp,
+  allowDriverActions,
+  highlightRushRows,
 }: {
   column: DesktopColumn
   dueDateColor: string
+  showTimestamp: boolean
+  allowDriverActions: boolean
+  highlightRushRows: boolean
   row: V2CaseRowData
   rowActions: V2RowActions
   rowBg: string
@@ -461,7 +537,7 @@ function DesktopCell({
           </div>
           <span className="truncate" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af", maxWidth: column.width - 30 }}>
             {row.slipNumber || `#${row.id}`}
-            {row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
+            {showTimestamp && row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
           </span>
         </button>
       </td>
@@ -481,7 +557,9 @@ function DesktopCell({
               height: 24,
               gap: 10,
               ...row.panColorStyle,
-              ...(row.rush && rushCasePanColor ? { backgroundColor: rushCasePanColor } : null),
+              ...(row.rush && highlightRushRows && rushCasePanColor
+                ? { backgroundColor: rushCasePanColor }
+                : null),
             }}
           >
             <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
@@ -497,21 +575,50 @@ function DesktopCell({
   }
 
   if (column.key === "location") {
+    // Office profiles run neither ready to send nor pick up / drop off, so the
+    // location label stays plain text for them rather than opening a modal.
+    const locationAction = row.newStageEligible
+      ? "addStage"
+      : allowDriverActions
+        ? isReadyToSendLocation(row)
+          ? "readyToSend"
+          : isPickupDropoffLocation(row)
+            ? "driverHistory"
+            : null
+        : null
+
+    if (!locationAction) {
+      return (
+        <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
+          <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
+            {locationIcon(row)}
+            <span className="whitespace-nowrap" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>
+              {row.location || "Unknown"}
+            </span>
+          </div>
+        </td>
+      )
+    }
+
     return (
       <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-          {locationIcon(row.locationId)}
           <button
-            className="whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer" }}
-            title={isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
+            className="inline-flex items-center gap-2.5 whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+            style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            title={locationAction === "addStage" ? "Add stage" : locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              isReadyToSendLocation(row) ? rowActions.onReadyToSend(row) : rowActions.onDriverHistory(row)
+              locationAction === "addStage"
+                ? rowActions.onAddStage(row)
+                : locationAction === "readyToSend"
+                ? rowActions.onReadyToSend(row)
+                : rowActions.onDriverHistory(row)
             }}
           >
-            {row.location || "Unknown"}
+            {locationIcon(row)}
+            <span>{row.location || "Unknown"}</span>
           </button>
         </div>
       </td>
@@ -522,15 +629,22 @@ function DesktopCell({
     return (
       <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
         <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-          <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
-          <button
-            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-            style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer" }}
-            type="button"
-            onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
-          >
-            {formatDueDate(row.dueDate, row.status)}
-          </button>
+          {allowDriverActions ? (
+            <button
+              className="inline-flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+              style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              type="button"
+              title="Change due date"
+              onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
+            >
+              <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
+              <span>{formatDueDate(row)}</span>
+            </button>
+          ) : (
+            <span style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
+              {formatDueDate(row)}
+            </span>
+          )}
         </div>
       </td>
     )
@@ -584,7 +698,9 @@ function StatusPill({ status }: { status: string }) {
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
 }
 
-function mobileLocationIcon(locationId?: number): string {
+function mobileLocationIcon(row: V2CaseRowData): string {
+  if (row.newStageEligible) return `${VS}/add-stage.svg`
+  const locationId = row.locationId
   if (locationId === 1 || locationId === 4) return `${VS}/pick-up.svg`
   if (locationId === 2 || locationId === 5) return `${VS}/drop-off.svg`
   if (locationId === 3) return `/images/paper-airplane.svg`
@@ -592,7 +708,9 @@ function mobileLocationIcon(locationId?: number): string {
   return `${VS}/pick-up.svg`
 }
 
-function locationIcon(locationId?: number) {
+function locationIcon(row: V2CaseRowData) {
+  if (row.newStageEligible) return <img src={`${VS}/add-stage.svg`} style={{ width: 28, height: 28, objectFit: "contain" as const }} aria-hidden alt="" />
+  const locationId = row.locationId
   const imgProps = { style: { width: 28, height: 28, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
   if (locationId === 1 || locationId === 4) return <img src={`${VS}/pick-up.svg`} {...imgProps} />
   if (locationId === 2 || locationId === 5) return <img src={`${VS}/drop-off.svg`} {...imgProps} />
@@ -613,37 +731,49 @@ function isReadyToSendLocation(row: V2CaseRowData) {
   return row.location === SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === 3)?.label
 }
 
-function isOverdueOrToday(dueDate: string): boolean {
-  if (!dueDate) return false
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return false
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  return due.getTime() <= today.getTime()
+function isPickupDropoffLocation(row: V2CaseRowData) {
+  return slipShowsPickupDropoff({ locationId: row.locationId, location: row.location || "" })
 }
 
-function dueDateTextColor(dueDate: string, rush?: boolean): string {
-  if (rush) return "#347B4E"
+/** Delivered = physically in office (id 6) or workflow finished — either way it's done. */
+function isDeliveredRow(row: V2CaseRowData): boolean {
+  return slipIsInOffice({ locationId: row.locationId, location: row.location }) || isSlipCaseFinished(row.status)
+}
+
+function dueDateTextColor(row: V2CaseRowData): string {
+  // A delivered case can't be late, so it keeps the settled green even when its
+  // due date has passed.
+  if (isDeliveredRow(row)) return "#347B4E"
+  const { dueDate, rush } = row
   if (!dueDate) return "#575757"
   const due = new Date(dueDate)
   if (isNaN(due.getTime())) return "#575757"
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   due.setHours(0, 0, 0, 0)
-  return due.getTime() <= today.getTime() ? "#347B4E" : "#2BA5DE"
+  // Overdue outranks rush — a late rush case is the one that most needs flagging.
+  if (due.getTime() < today.getTime()) return OVERDUE_RED
+  if (rush) return "#347B4E"
+  return due.getTime() === today.getTime() ? "#347B4E" : "#2BA5DE"
 }
 
-function formatDueDate(dueDate: string, status?: string): string {
-  if (isSlipCaseFinished(status)) return "Delivered"
+function formatDueDate(row: V2CaseRowData): string {
+  const { dueDate } = row
+  const due = dueDate ? new Date(dueDate) : null
+  const dueValid = due && !isNaN(due.getTime())
+  // A delivered case (in office / finished) shows the delivery date instead of a
+  // countdown: "Delivered 04/30".
+  if (isDeliveredRow(row)) {
+    if (!dueValid) return "Delivered"
+    return `Delivered ${due!.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })}`
+  }
   if (!dueDate) return "—"
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return dueDate
+  if (!dueValid) return dueDate
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
-  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
-  const mmdd = due.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+  due!.setHours(0, 0, 0, 0)
+  const days = Math.round((due!.getTime() - today.getTime()) / 86_400_000)
+  const mmdd = due!.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
   const label = days === 0 ? "Today" : days < 0 ? `${Math.abs(days)}d ago` : `${days}d`
   return `${label} · ${mmdd}`
 }

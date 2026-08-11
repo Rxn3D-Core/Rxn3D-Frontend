@@ -1,10 +1,39 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { formatFieldValueForNote, formatTeethNumbers } from "./caseNoteBuilder.ts";
+import {
+  buildRemovableProductNote,
+  formatFieldValueForNote,
+  formatTeethNumbers,
+} from "./caseNoteBuilder.ts";
 
-test("formatTeethNumbers uses ranges", () => {
-  assert.equal(formatTeethNumbers([3, 4]), "#3–#4");
+test("formatTeethNumbers lists teeth separately up to 8 in a run", () => {
+  assert.equal(formatTeethNumbers([3, 4]), "#3, #4");
+  assert.equal(
+    formatTeethNumbers([1, 2, 3, 4, 5, 6, 7, 8]),
+    "#1, #2, #3, #4, #5, #6, #7, #8",
+  );
+});
+
+test("formatTeethNumbers collapses a consecutive run longer than 8", () => {
+  assert.equal(formatTeethNumbers([1, 2, 3, 4, 5, 6, 7, 8, 9]), "#1–#9");
+  assert.equal(
+    formatTeethNumbers([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+    "#1–#16",
+  );
+});
+
+test("formatTeethNumbers collapses only the long run, listing short ones", () => {
+  assert.equal(
+    formatTeethNumbers([2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16]),
+    "#2, #4, #6–#14, #16",
+  );
+});
+
+test("formatTeethNumbers handles non-consecutive teeth and duplicates", () => {
+  assert.equal(formatTeethNumbers([6, 7, 8, 9, 10, 12]), "#6, #7, #8, #9, #10, #12");
+  assert.equal(formatTeethNumbers([8, 8, 10]), "#8, #10");
+  assert.equal(formatTeethNumbers([]), "");
 });
 
 test("formatFieldValueForNote expands contact icon JSON with field names", () => {
@@ -45,4 +74,34 @@ test("formatFieldValueForNote formats per-tooth embrasure JSON as tooth labels",
   ]);
   assert.equal(result, "#41 MRL, #42 Type II, #43 Normal, #44 Medium");
   assert.ok(!result.includes("{"));
+});
+
+test("buildRemovableProductNote lists only product teeth passed in", () => {
+  const note = buildRemovableProductNote({
+    arch: "maxillary",
+    teeth: [8, 10],
+    allCardTeeth: [6, 8, 10, 11],
+    product: { id: 1, name: "Stayplate" },
+    repTooth: 8,
+    getFieldValue: () => null,
+    getSelectedShade: () => null,
+  });
+  assert.match(note, /for #8, #10/);
+  assert.ok(!note.includes("#6"));
+  assert.ok(!note.includes("#11"));
+});
+
+test("buildRemovableProductNote omits teeth clause when empty", () => {
+  const note = buildRemovableProductNote({
+    arch: "mandibular",
+    teeth: [],
+    allCardTeeth: [19, 22],
+    product: { id: 2, name: "Flipper" },
+    repTooth: 25,
+    getFieldValue: () => null,
+    getSelectedShade: () => null,
+  });
+  assert.equal(note, "Please fabricate Flipper.");
+  assert.ok(!note.includes("#19"));
+  assert.ok(!note.includes("#22"));
 });

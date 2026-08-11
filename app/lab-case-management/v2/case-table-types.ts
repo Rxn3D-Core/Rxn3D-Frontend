@@ -16,6 +16,7 @@ export interface V2CaseRowData {
   rush: boolean
   location: string
   locationId?: number
+  newStageEligible?: boolean
   attachment: boolean
   dueDate: string
   doctor?: string
@@ -74,6 +75,7 @@ export interface V2RowActions {
   onChangeDueDate: (row: V2CaseRowData) => void
   onDriverHistory: (row: V2CaseRowData) => void
   onReadyToSend: (row: V2CaseRowData) => void
+  onAddStage: (row: V2CaseRowData) => void
   onSendBack: (row: V2CaseRowData) => void
   onRush: (row: V2CaseRowData) => void
   onCancel: (row: V2CaseRowData) => void

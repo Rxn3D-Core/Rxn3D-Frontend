@@ -284,6 +284,9 @@ export const labAdminMenu: MenuItem[] = [
     id: "case-management",
     title: "Case Management",
     icon: <Folder className="h-5 w-5" />,
+    // Path on a parent makes the waffle tile navigate straight to the listing
+    // instead of drilling in; the sidebar still expands to the children.
+    path: "/lab-case-management/",
     children: [
       {
         id: "case-list",
@@ -399,7 +402,7 @@ export const officeAdminMenu: MenuItem[] = [
     id: "user-management",
     title: "User Management",
     icon: <Users className="h-5 w-5" />,
-    path: "#",
+    // Parent-only: waffle launcher drills into children when there is no real path.
     children: [
       {
         id: "all-users",
@@ -428,17 +431,21 @@ export const officeAdminMenu: MenuItem[] = [
     ],
   },
   {
+    // Office has only the case list here, so it links straight through rather
+    // than opening a submenu with a single entry.
     id: "case-management",
     title: "Case Management",
     icon: <Folder className="h-5 w-5" />,
-    children: [
-      {
-        id: "case-list",
-        title: "Case List",
-        path: "/office-case-management/",
-        permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
-      },
-    ],
+    path: "/office-case-management/",
+    permission: ["view_case_details_status", "submit_new_case", "edit_slip"],
+  },
+  {
+    // Read-only view of statements the office has received from its labs.
+    id: "office-statements",
+    title: "Statements",
+    icon: <FileText className="h-5 w-5" />,
+    path: "/office-statements",
+    permission: ["view_statements", "manage_statements"],
   },
   {
     id: "settings",

@@ -55,6 +55,7 @@ import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
 import { cn } from "@/lib/utils"
+import { isOfficeCustomerContext } from "@/lib/role-utils"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
@@ -152,11 +153,16 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   // When acting as lab admin, treat the session as non-superadmin across the whole UI
   const isSuperAdmin = isActingAsLabAdmin ? false : (isSuperadmin || userRoles.includes("superadmin"))
-  const isOfficeAdmin = userRoles.includes("office_admin")
   const canCreateSlip = isSuperAdmin || hasPermission("submit_new_case")
+  // New Office is for lab/superadmin contexts — office profiles already have an office.
+  const isOfficeSideUser = ["office_admin", "office_user", "doctor", "doctor_admin"].some((role) =>
+    userRoles.includes(role),
+  )
   const canCreateOffice =
-    isSuperAdmin ||
-    hasAnyPermission(["manage_office", "edit_office", "view_office"])
+    !isOfficeCustomerContext() &&
+    !isOfficeSideUser &&
+    (isSuperAdmin ||
+      hasAnyPermission(["manage_office", "edit_office", "view_office"]))
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -905,7 +911,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                   <span>{t("header.newSlip", "+ New Slip")}</span>
                 </Button>
               )}
-              {!isOfficeAdmin && canCreateOffice && (
+              {canCreateOffice && (
                 <Button
                   size="sm"
                   className={`${HEADER_ACTION_BUTTON_CLASS} hidden sm:inline-flex`}

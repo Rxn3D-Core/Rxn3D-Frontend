@@ -6,6 +6,7 @@
 export type PickupDeliveryEntry = {
   id: string;
   office: string;
+  labName: string;
   patientName: string;
   location: string;
   isChecked: boolean;
@@ -44,6 +45,7 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
 
   const caseObj = (raw.case as Record<string, unknown> | undefined) ?? {};
   const office = (caseObj.office as Record<string, unknown> | undefined) ?? (raw.office as Record<string, unknown> | undefined);
+  const lab = (caseObj.lab as Record<string, unknown> | undefined) ?? (raw.lab as Record<string, unknown> | undefined);
   const locationObj = (raw.location as Record<string, unknown> | undefined) ?? {};
   const locationCurrent = (locationObj.current as Record<string, unknown> | undefined) ?? {};
 
@@ -61,19 +63,42 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
     raw.locationId
   );
 
-  const customerCode = firstStr(
-    raw.customer_code,
+  // Office: prefer an office code, then the office name. The flat pickup response
+  // can carry the lab's code in customer_code, so it must never take priority over
+  // the real office fields — it is only an absolute last resort for display.
+  const officeCode = firstStr(
+    raw.office_code,
     office?.code,
     office?.customer_code,
-    caseObj.customer_code,
-    office?.name
+    caseObj.office_code
+  );
+  const officeName = firstStr(
+    raw.office_name,
+    office?.name,
+    caseObj.office_name
+  );
+  const officeDisplay = firstStr(
+    officeCode,
+    officeName,
+    raw.customer_code,
+    caseObj.customer_code
   );
 
   const customerId = firstNum(raw.customer_id, office?.id, caseObj.customer_id);
 
+  // Lab: prefer a code, fall back to the full name.
+  const labName = firstStr(
+    raw.lab_code,
+    lab?.code,
+    raw.lab_name,
+    lab?.name,
+    caseObj.lab_name
+  );
+
   return {
     id: `virtual-slip-${slipId}`,
-    office: customerCode,
+    office: officeDisplay,
+    labName,
     patientName: firstStr(raw.patient_name, raw.patient, caseObj.patient_name),
     location: locationName,
     isChecked: true,
@@ -87,7 +112,7 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
       (caseObj.casepan as Record<string, unknown> | undefined)?.number
     ),
     location_id: locationId,
-    customer_code: customerCode || undefined,
+    customer_code: officeCode || undefined,
     customer_id: customerId,
   };
 }

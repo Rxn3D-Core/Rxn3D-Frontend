@@ -10,8 +10,17 @@ export interface BillingListParams {
   doctor_name?: string
   date_from?: string
   date_to?: string
-  /** Client-only arg to force refetches when presets change; never sent to backend. */
-  client_date_preset?: string
+  date_range?:
+    | "today"
+    | "yesterday"
+    | "last_7_days"
+    | "this_week"
+    | "last_week"
+    | "this_month"
+    | "last_month"
+    | "this_year"
+    | "last_year"
+    | "custom"
   amount_min?: number
   amount_max?: number
   sort_by?: string
@@ -104,6 +113,11 @@ export interface BillingProduct {
   product_name?: string | null
   product_code?: string | null
   product_type?: string | null
+  /** Selected product variation (when the product has variations) */
+  variation_id?: number | null
+  variation_name?: string | null
+  variation_image_url?: string | null
+  variation_teeth_spec?: string | null
   grade_name?: string | null
   stage_name?: string | null
   teeth_count?: number | null
@@ -188,6 +202,7 @@ export interface BillingListResult {
 
 export interface StatementListParams {
   search?: string
+  office_id?: number
   office_code?: string
   recipient_email?: string
   statement_id?: string
@@ -218,6 +233,11 @@ export interface StatementListParams {
   page?: number
 }
 
+export interface StatementPartyNamedRef {
+  id?: number | null
+  name?: string | null
+}
+
 export interface StatementParty {
   id?: number | null
   name?: string | null
@@ -225,6 +245,11 @@ export interface StatementParty {
   phone?: string | null
   code?: string | null
   address?: string | null
+  city?: string | null
+  postal_code?: string | null
+  /** API may return a plain string or `{ name }` object (same shape as customer profiles). */
+  state?: string | StatementPartyNamedRef | null
+  country?: string | StatementPartyNamedRef | null
 }
 
 export interface StatementHistoryEntry {
@@ -274,6 +299,10 @@ export interface StatementRecord {
   lab?: StatementParty | null
   billing_items?: StatementBillingItem[]
   history?: StatementHistoryEntry[]
+  /** Statement-level refund deducted from total (API may return string e.g. "50.00"). */
+  refund_amount?: number | string | null
+  /** Refund explanation shown on the statement. */
+  refund_reason?: string | null
 }
 
 export interface StatementListResult {
@@ -316,6 +345,32 @@ export interface GenerateStatementBody {
   direction: "outgoing" | "incoming"
   template?: string
   auto_mark_billed?: boolean
+  /** Statement due date as YYYY-MM-DD (when supported by API). */
+  due_date?: string
+  /** Statement-level refund deducted from total (when supported by API). */
+  refund_amount?: number
+  /** Refund explanation shown on statement (maps to backend `refund_reason`). */
+  refund_reason?: string
+}
+
+/** Body for `PUT /statements/{id}/due-date` — updates the statement (and its line-item) due dates + writes history. Requires `update_statements`. */
+export interface UpdateStatementDueDateBody {
+  /** New due date as YYYY-MM-DD */
+  due_date: string
+  /** Optional reason/notes recorded in history */
+  notes?: string
+}
+
+/** Valid `payment_status` values for statements (matches backend `UpdateStatementStatusRequest`). */
+export type StatementPaymentStatus = "sent" | "billed" | "paid" | "overdue" | "disputed" | "refunded"
+
+/** Body for `PUT /statements/{id}/status` — manual payment status update (no payment gateway). Requires `update_statements`. */
+export interface UpdateStatementStatusBody {
+  status: StatementPaymentStatus
+  notes?: string
+  is_disputed?: boolean
+  dispute_reason?: string
+  dispute_notes?: string
 }
 
 export interface StatementPdfResult {
@@ -373,7 +428,6 @@ function buildBillingQueryString(params: BillingListParams): string {
   const searchParams = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return
-    if (key === "client_date_preset") return
     searchParams.append(key, String(value))
   })
   const qs = searchParams.toString()
@@ -519,6 +573,41 @@ export const billingApi = apiSlice.injectEndpoints({
         url: `/statements/${id}/generate-pdf`,
         method: "GET",
       }),
+    }),
+
+    updateStatementDueDate: builder.mutation<
+      { success?: boolean; data?: StatementRecord; message?: string },
+      { id: number; body: UpdateStatementDueDateBody }
+    >({
+      query: ({ id, body }) => ({
+        url: `/statements/${id}/due-date`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Statements", id: "LIST" },
+        { type: "Statements", id: "SUMMARY" },
+        { type: "Statements", id: String(id) },
+      ],
+    }),
+
+    /** Manual mark paid / change payment status — `PUT /statements/{id}/status` (no payment gateway). */
+    updateStatementStatus: builder.mutation<
+      { success?: boolean; data?: StatementRecord; message?: string },
+      { id: number; body: UpdateStatementStatusBody }
+    >({
+      query: ({ id, body }) => ({
+        url: `/statements/${id}/status`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Statements", id: "LIST" },
+        { type: "Statements", id: "SUMMARY" },
+        { type: "Statements", id: String(id) },
+        { type: "Billing", id: "LIST" },
+        { type: "Billing", id: "STATS" },
+      ],
     }),
 
     getBillingStatistics: builder.query<BillingStatistics, BillingListParams | void>({
@@ -884,6 +973,8 @@ export const {
   useSendStatementMutation,
   useGenerateStatementMutation,
   useGenerateStatementPdfMutation,
+  useUpdateStatementDueDateMutation,
+  useUpdateStatementStatusMutation,
   useGetBillingStatisticsQuery,
   useAdvancedBillingSearchMutation,
   useGetBillingInvoiceByIdQuery,

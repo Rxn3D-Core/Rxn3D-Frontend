@@ -33,6 +33,11 @@ import { useArchSelectionStore } from "@/stores/arch-selection-store"
 import { CustomerLogo } from "@/components/customer-logo"
 import { isValidPatientName } from "@/lib/patient-name-validation"
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
+import { useToast } from "@/hooks/use-toast"
+import {
+  resolveSlipCreationEligibility,
+  OFFICE_LAB_UNAVAILABLE_MESSAGE,
+} from "@/lib/slip-creation-guardrails"
 
 // Dynamic Showing Results Component
 interface ShowingResultsProps {
@@ -624,6 +629,7 @@ export function DentalSlipPageContent({
       userDisplayName = ""
     }
   }
+  const { toast } = useToast()
 
   // Fetch doctors when step is 1 (doctor selection step)
   useEffect(() => {
@@ -738,6 +744,19 @@ export function DentalSlipPageContent({
 
   // Use correct data for selection
   const selectionData = isLabAdmin ? (connectedOffices || []) : (connectedLabs || [])
+  const blockedLabIds = useMemo(() => {
+    if (!isOfficeAdmin) return new Set<string>()
+    const ids = new Set<string>()
+    for (const item of selectionData as any[]) {
+      const labId = String((item as ConnectedLab)?.lab?.id ?? (item as any)?.id ?? "")
+      if (!labId) continue
+      const eligibility = resolveSlipCreationEligibility(item)
+      if (!eligibility.canCreate && eligibility.reason === "limit_exceeded") {
+        ids.add(labId)
+      }
+    }
+    return ids
+  }, [isOfficeAdmin, selectionData])
 
   // Filtering and sorting for labs/offices
   const filteredSelection = selectionData.filter((item: any) => {
@@ -1230,6 +1249,17 @@ export function DentalSlipPageContent({
     const item = selectionData.find((l: any) =>
       String(isLabAdmin ? (l as ConnectedOffice).office?.id : (l as ConnectedLab).lab?.id) === labId
     )
+    if (isOfficeAdmin && item) {
+      const eligibility = resolveSlipCreationEligibility(item)
+      if (!eligibility.canCreate && eligibility.reason === "limit_exceeded") {
+        toast({
+          title: "Lab unavailable for new slips",
+          description: OFFICE_LAB_UNAVAILABLE_MESSAGE,
+          variant: "destructive",
+        })
+        return
+      }
+    }
 
     // Normal selection: update selection only (don't auto-proceed)
     setSelectedLab(labId)
@@ -2595,7 +2625,7 @@ export function DentalSlipPageContent({
                           )
 
                           return (
-                            <div className="rounded-full bg-gray-200 flex items-center justify-center overflow-hidden" style={{ width: '103.92px', height: '103.92px' }}>
+                            <div className="rounded-full bg-gray-200 flex items-center justify-center overflow-hidden" style={{ width: '110.92px', height: '110.92px' }}>
                               {(() => {
                                 const imageSrc = resolveDoctorImageUrl(selectedDoctor as any)
                                 return imageSrc ? (
@@ -2965,6 +2995,7 @@ export function DentalSlipPageContent({
                       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 p-1 content-start">
                       {sortedSelectionWithDefault.map((item) => {
                         const entity = isLabAdmin ? (item as ConnectedOffice).office : (item as ConnectedLab).lab
+                        const isBlockedForOffice = isOfficeAdmin && blockedLabIds.has(String(entity?.id ?? ""))
                         const logoSrc =
                           entity?.name === "HMC innovs LLC"
                             ? "/images/hmc2.png"
@@ -2972,11 +3003,23 @@ export function DentalSlipPageContent({
                         return (
                           <div key={entity?.id || 'unknown'} className="relative group">
                             <Card 
-                              className={`transition-all duration-300 hover:shadow-lg rounded-lg border h-full cursor-pointer transform hover:scale-[1.02] group-hover:border-blue-600 group-hover:ring-2 group-hover:ring-blue-100 ${selectedLab === String(entity?.id)
+                              className={`transition-all duration-300 rounded-lg border h-full transform ${isBlockedForOffice ? "opacity-70 cursor-not-allowed border-amber-300 bg-amber-50/40" : "cursor-pointer hover:shadow-lg hover:scale-[1.02] group-hover:border-blue-600 group-hover:ring-2 group-hover:ring-blue-100"} ${selectedLab === String(entity?.id)
                                 ? 'border-blue-500 shadow-lg ring-2 ring-blue-200 scale-[1.02] bg-white'
-                                : 'border-gray-200 hover:border-blue-600 bg-white hover:bg-blue-50/30'
+                                : isBlockedForOffice
+                                  ? "border-amber-300 bg-amber-50/40"
+                                  : 'border-gray-200 hover:border-blue-600 bg-white hover:bg-blue-50/30'
                                 }`}
-                              onClick={() => handleLabSelect(String(entity?.id))}
+                              onClick={() => {
+                                if (isBlockedForOffice) {
+                                  toast({
+                                    title: "Lab unavailable for new slips",
+                                    description: OFFICE_LAB_UNAVAILABLE_MESSAGE,
+                                    variant: "destructive",
+                                  })
+                                  return
+                                }
+                                handleLabSelect(String(entity?.id))
+                              }}
                             >
                               <CardContent className="p-3 sm:p-4 text-center flex flex-col items-center h-50 sm:h-50">
                                 <div className="mb-4">
@@ -2988,6 +3031,11 @@ export function DentalSlipPageContent({
                                 </div>
                                 <h4 className="font-semibold text-base mb-2 line-clamp-2 text-gray-900">{entity?.name || 'Unknown Name'}</h4>
                                 <p className="text-sm text-gray-600">{entity?.city || 'Unknown City'}, {entity?.state || 'Unknown State'}</p>
+                                {isBlockedForOffice && (
+                                  <p className="mt-2 text-xs font-medium text-amber-700">
+                                    No credits/active plan. Cannot accept slips.
+                                  </p>
+                                )}
 
                                 <div className="mt-auto w-full">
                                   {/* Set Default Button Only */}

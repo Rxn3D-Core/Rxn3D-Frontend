@@ -50,9 +50,10 @@ export function InvitationForm({
   const [email, setEmail] = useState("")
   const [role, setRole] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const { toast } = useToast()
   const { user } = useAuth()
-  const { sendInvitation } = useInvitation()
+  const { sendInvitation, error: invitationError, clearMessages } = useInvitation()
   const { mutate: createUserInvitation } = useCreateUserInvitation()
   const queryClient = useQueryClient()
 
@@ -61,14 +62,19 @@ export function InvitationForm({
   const customerType = selectedLocation?.type || null
   const customerId = selectedLocation?.id || null
   const roleOptions = getRoleOptions(customerType)
+  const namePlaceholder = type === "User" ? "Full Name *" : `${type} Name *`
+  const nameRequiredLabel = type === "User" ? "Full Name" : `${type} Name`
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    setSubmitError(null)
+
     if (!name.trim() || !email.trim()) {
+      const message = `${nameRequiredLabel} and Email address are required.`
+      setSubmitError(message)
       toast({
         title: "Error",
-        description: `${type} Name and Email address are required.`,
+        description: message,
         variant: "destructive",
       })
       return
@@ -76,9 +82,11 @@ export function InvitationForm({
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
+      const message = "Please enter a valid email address."
+      setSubmitError(message)
       toast({
         title: "Error",
-        description: "Please enter a valid email address.",
+        description: message,
         variant: "destructive",
       })
       return
@@ -135,43 +143,46 @@ export function InvitationForm({
     // For other types, use the existing invitation flow
     try {
       setIsSubmitting(true)
-      
+
       // Determine the entity type based on the invitation type
-      const entityType: EntityType = 
-        type === "Office" ? "Office" : 
-        type === "Lab" ? "Lab" : 
+      const entityType: EntityType =
+        type === "Office" ? "Office" :
+        type === "Lab" ? "Lab" :
         type === "Doctor" ? "Doctor" :
         type === "Practice" ? "Office" : "Office"
 
       const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
 
-      await sendInvitation({
+      const success = await sendInvitation({
         name,
         email,
         invited_by: invitedBy,
         type: entityType,
       })
 
+      if (!success) {
+        // Toast + invitation context `error` already carry the API message
+        return
+      }
+
       // Invalidate queries to refresh dashboard
       queryClient.invalidateQueries({ queryKey: ["invitations"] })
       queryClient.invalidateQueries({ queryKey: ["connections"] })
 
-      toast({
-        title: "Invitation Sent",
-        description: `Invitation sent to ${name}`,
-      })
-      
       setName("")
       setEmail("")
-      
+      setSubmitError(null)
+
       if (onSuccess) {
         onSuccess()
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error sending ${type} invitation:`, error)
+      const message = error?.message || "Failed to send invitation. Please try again."
+      setSubmitError(message)
       toast({
         title: "Error",
-        description: `Failed to send invitation. Please try again.`,
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -180,14 +191,21 @@ export function InvitationForm({
   }
 
   const showRoleField = type === "User" && roleOptions.length > 0
+  const displayError = submitError || invitationError
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <div className="flex flex-col sm:flex-row gap-3">
         <Input
-          placeholder={`${type} Name *`}
+          placeholder={namePlaceholder}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value)
+            if (submitError || invitationError) {
+              setSubmitError(null)
+              clearMessages()
+            }
+          }}
           required
           className="flex-1 min-w-0"
         />
@@ -195,9 +213,16 @@ export function InvitationForm({
           placeholder="Email address *"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value)
+            if (submitError || invitationError) {
+              setSubmitError(null)
+              clearMessages()
+            }
+          }}
           required
           className="flex-1 min-w-0"
+          aria-invalid={!!displayError}
         />
         {showRoleField && (
           <Select value={role} onValueChange={setRole} required>
@@ -214,6 +239,11 @@ export function InvitationForm({
           </Select>
         )}
       </div>
+      {displayError && (
+        <p className="text-sm text-red-600" role="alert">
+          {displayError}
+        </p>
+      )}
       <div className={`flex gap-3 ${actionsAlign === "end" ? "justify-end" : "justify-start"}`}>
         <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
           {isSubmitting ? "Sending..." : "Send"}

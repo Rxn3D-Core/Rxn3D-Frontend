@@ -170,9 +170,16 @@ export function removableCardAckKey(arch: "maxillary" | "mandibular", cardId: nu
   return `${arch}-removable-${cardId}`;
 }
 
-/** Card 0 fixed restoration: user acknowledged tooth chart retention picks. */
-export function fixedRetentionAckKey(arch: "maxillary" | "mandibular"): string {
-  return `${arch}-fixed-retention-0`;
+/**
+ * Fixed restoration: user acknowledged tooth chart retention picks ("Done").
+ * Keyed per card — card 0 is the initial product, added products use their card id —
+ * so acknowledging one fixed product never auto-acknowledges the next one on that arch.
+ */
+export function fixedRetentionAckKey(
+  arch: "maxillary" | "mandibular",
+  cardId = 0
+): string {
+  return `${arch}-fixed-retention-${cardId}`;
 }
 
 /**

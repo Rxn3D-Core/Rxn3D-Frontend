@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/auth-context"
 import {
   useGetUserInvitation,
   acceptUserInvitation,
+  buildAuthDataFromInvitationAccept,
   isExistingActiveUserInvitation,
   isRegistrationInvitation,
 } from "@/hooks/use-user-invitations"
@@ -98,7 +99,7 @@ export default function UserInvitationPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
-  const { user, token: authToken, isAuthenticated, logout } = useAuth()
+  const { user, token: authToken, isAuthenticated, logout, setAuthFromData } = useAuth()
 
   const token = (Array.isArray(params?.token) ? params?.token[0] : params?.token) || ""
   const invitationPath = `/user-invitations/${token}`
@@ -163,12 +164,26 @@ export default function UserInvitationPage() {
     }
   }
 
+  /** Apply JWT from accept response; returns true when session was set (navigation may follow). */
+  const tryAutoLoginFromAccept = (response: Awaited<ReturnType<typeof acceptUserInvitation>>) => {
+    const authData = buildAuthDataFromInvitationAccept(response, user)
+    if (!authData) return false
+    return setAuthFromData(authData, invitation?.email || authData.user.email)
+  }
+
   // Existing ACTIVE user accepting a second profile (authenticated, Bearer, token-only body)
   const handleAcceptExisting = async () => {
     setError(null)
     setIsSubmitting(true)
     try {
-      await acceptUserInvitation(token, {}, authToken)
+      const response = await acceptUserInvitation(token, {}, authToken)
+      if (tryAutoLoginFromAccept(response)) {
+        toast({
+          title: "Invitation accepted",
+          description: `You now have access to ${invitation?.customer?.name || "your organization"}.`,
+        })
+        return
+      }
       setAcceptedAsExisting(true)
       setIsSuccess(true)
     } catch (err: any) {
@@ -202,7 +217,7 @@ export default function UserInvitationPage() {
 
     setIsSubmitting(true)
     try {
-      await acceptUserInvitation(token, {
+      const response = await acceptUserInvitation(token, {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         phone: phone.trim(),
@@ -212,6 +227,13 @@ export default function UserInvitationPage() {
           ? { license_number: licenseNumber.trim(), signature: signature || undefined }
           : {}),
       })
+      if (tryAutoLoginFromAccept(response)) {
+        toast({
+          title: "Account created",
+          description: `Welcome! You're signed in to ${invitation?.customer?.name || "your organization"}.`,
+        })
+        return
+      }
       setAcceptedAsExisting(false)
       setIsSuccess(true)
     } catch (err: any) {
@@ -252,6 +274,7 @@ export default function UserInvitationPage() {
     )
   }
 
+  // Fallback only when accept succeeded but auth payload was missing
   if (isSuccess) {
     return (
       <Shell>

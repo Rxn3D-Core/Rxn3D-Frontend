@@ -105,11 +105,18 @@ export function V2CaseTable(props: V2CaseTableProps) {
                 <td className="px-3 py-2.5 align-top text-right">
                   <button
                     className="inline-flex items-center gap-1.5 rounded text-left text-xs text-[#5f5b55] hover:text-[#292724] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#918d84]"
-                    title={isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
+                    title={row.newStageEligible ? "Add stage" : isReadyToSendLocation(row) ? "Mark ready to send" : "View driver history"}
                     type="button"
-                    onClick={(event) => { event.stopPropagation(); isReadyToSendLocation(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row) }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (row.newStageEligible) {
+                        props.rowActions.onAddStage(row)
+                        return
+                      }
+                      isReadyToSendLocation(row) ? props.rowActions.onReadyToSend(row) : props.rowActions.onDriverHistory(row)
+                    }}
                   >
-                    {locationIcon(row.locationId)}
+                    {locationIcon(row)}
                     <span>{row.location || "Unknown"}</span>
                   </button>
                 </td>
@@ -155,7 +162,11 @@ function StatusPill({ status }: { status: string }) {
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
 }
 
-function locationIcon(locationId?: number) {
+function locationIcon(row: V2CaseRowData) {
+  if (row.newStageEligible) {
+    return <img src={`${VS}/add-stage.svg`} style={{ width: 20, height: 20, objectFit: "contain" }} aria-hidden alt="" />
+  }
+  const locationId = row.locationId
   const imgProps = { style: { width: 20, height: 20, filter: monoFilter, objectFit: "contain" as const }, "aria-hidden": true, alt: "" }
   if (locationId === 1 || locationId === 4) return <img src={`${VS}/pick-up.svg`} {...imgProps} />
   if (locationId === 2 || locationId === 5) return <img src={`${VS}/drop-off.svg`} {...imgProps} />

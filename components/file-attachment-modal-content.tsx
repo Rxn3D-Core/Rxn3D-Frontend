@@ -12,7 +12,6 @@ import {
   FileText,
   Archive,
   Box,
-  Maximize2,
   Minimize2,
   RotateCcw,
   RotateCw,
@@ -154,6 +153,7 @@ export default function FileAttachmentModalContent({
   onFileCountsChange,
   impressionFiles = [],
   open,
+  initialViewerItems,
 }: FileAttachmentModalContentProps) {
   const {
     uploadSlipAttachment,
@@ -901,6 +901,24 @@ export default function FileAttachmentModalContent({
     setViewing3dUrl(null)
   }
 
+  // Carry the compact browser's selection into the viewer when we open fullscreen,
+  // so the user doesn't have to re-pick the files they already chose.
+  const seededSelectionRef = useRef("")
+  useEffect(() => {
+    if (!open) {
+      seededSelectionRef.current = ""
+      return
+    }
+    const items = initialViewerItems ?? []
+    const key = items.map(i => `${i.type}:${i.url}`).join("|")
+    if (!key || key === seededSelectionRef.current) return
+    seededSelectionRef.current = key
+    setViewerItems(items)
+    setViewerStlUrls(items.filter(i => i.type === "stl").map(i => i.url))
+    const firstStl = items.find(i => i.type === "stl")
+    setViewing3dUrl(firstStl?.url ?? items[0]?.url ?? null)
+  }, [open, initialViewerItems])
+
   // Clear display
   const displaySlipId = slipId ? String(slipId) : "------"
 
@@ -1038,242 +1056,244 @@ export default function FileAttachmentModalContent({
   }
 
   return (
-    <div className="flex flex-col bg-white relative overflow-hidden" style={{ width: "100vw", height: "100vh" }}>
-      {/* ===== Row 1: My Studio header ===== */}
-      <div className="relative flex items-center justify-center px-4 py-2 border-b flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center">
-            <span className="text-white text-[9px] font-bold">3D</span>
-          </div>
-          <span className="font-semibold text-sm">My Studio</span>
-        </div>
-        <button
-          type="button"
-          className="absolute right-4 p-1 rounded hover:bg-gray-100 transition"
-          onClick={() => setShowAttachModal(false)}
-          aria-label="Close"
-        >
-          <X className="w-4 h-4 text-gray-500" />
-        </button>
-      </div>
+    <div className="flex bg-white overflow-hidden" style={{ width: "100vw", height: "100vh" }}>
 
-      {/* ===== Row 2: Profile / doctor info bar ===== */}
-      <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 bg-gray-50">
-        <div className="flex items-center gap-6">
-          {caseId
-            ? caseNumber && <span className="text-sm text-gray-700">Case #<span className="font-semibold text-gray-900">{caseNumber}</span></span>
-            : slipId && <span className="text-sm text-gray-700">Slip #<span className="font-semibold text-gray-900">{slipId}</span></span>
-          }
-          <span className="font-semibold text-sm">Dr: {doctorName || "-"}</span>
-          <span className="text-sm text-gray-700">Patient: {patientName || "-"}</span>
-          <span className="text-xs text-gray-500">Total Size: {totalSizeMB} MB</span>
+      {/* ── LEFT SIDEBAR ─────────────────────────────────────── */}
+      <div className="w-[160px] flex-shrink-0 border-r border-gray-200 flex flex-col bg-white overflow-hidden">
+
+        {/* Logo / MyStudio header */}
+        <div className="flex items-center gap-2 px-4 py-3.5 border-b border-gray-100">
+          <div className="w-6 h-6 bg-[#1162A8] rounded flex items-center justify-center flex-shrink-0">
+            <span className="text-white text-[8px] font-bold leading-none">3D</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">MyStudio</span>
         </div>
-        <div className="flex items-center gap-2">
-          {hasSelectedFiles && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-[11px] px-2.5 text-gray-600 border-gray-300 hover:bg-gray-50"
+
+        {/* Display controls */}
+        <div className="px-3 pt-4 pb-3 border-b border-gray-100">
+          <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest mb-2.5">Display</div>
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              className="w-full h-8 px-3 text-xs rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-left font-medium transition"
               onClick={handleClearSelectedFiles}
             >
-              <X className="w-3 h-3 mr-1" />
-              Clear Selected
-            </Button>
-          )}
-	          {stages.length > 0 && (
-	            <Select value={stageFilter} onValueChange={setStageFilter} disabled={isCaseSubmitted}>
-              <SelectTrigger className="w-[110px] h-7 text-[11px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all-stages">All Stages</SelectItem>
-                {stages.map((stage) => (
-                  <SelectItem key={stage} value={stage.toLowerCase().replace(/\s+/g, "-")}>{stage}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {stages.length > 0 && (
-            <Select value={visibilityFilter} onValueChange={setVisibilityFilter} disabled={isCaseSubmitted}>
-              <SelectTrigger className="w-[110px] h-7 text-[11px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all-visibility">All Visibility</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
-                <SelectItem value="private">Private</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className={`${hideArchived ? "bg-[#0d4a85]" : "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)]"} text-white hover:bg-[#0d4a85] hover:text-white border-[#1162A8] hover:border-[#0d4a85] h-7 text-[11px] px-2.5`}
-            disabled={isCaseSubmitted}
-            onClick={() => setHideArchived((prev) => !prev)}
-          >
-            <Archive className="w-3 h-3 mr-1" />
-            {hideArchived ? "Show Archived" : "Hide Archived"}
-          </Button>
+              Clear Selection
+            </button>
+            <button
+              type="button"
+              className={`w-full h-8 px-3 text-xs rounded-md border font-medium text-left transition ${
+                isWireframe
+                  ? "border-[#1162A8] bg-blue-50 text-[#1162A8]"
+                  : "border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
+              }`}
+              onClick={() => setIsWireframe(prev => !prev)}
+            >
+              Wireframe
+            </button>
+            <button
+              type="button"
+              className={`w-full h-8 px-3 text-xs rounded-md border font-medium text-left transition ${
+                showGrid
+                  ? "border-[#1162A8] bg-blue-50 text-[#1162A8]"
+                  : "border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
+              }`}
+              onClick={() => setShowGrid(prev => !prev)}
+            >
+              Grid
+            </button>
+          </div>
+        </div>
+
+        {/* Layout picker */}
+        <div className="px-3 pt-4 pb-3 flex-1 overflow-y-auto">
+          <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest mb-2.5">Layout</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(["1x1","2x2","1-1v","2-1h","1h-2","1-2v","3s-1","1-3s","3x2","2x3"] as const).map((layoutId) => (
+              <button
+                key={layoutId}
+                type="button"
+                className={`aspect-[10/7] rounded-md border flex items-center justify-center p-1 transition ${
+                  selectedLayout === layoutId
+                    ? "border-[#82298D] bg-purple-50"
+                    : "border-gray-300 bg-white hover:border-gray-400"
+                }`}
+                onClick={() => setSelectedLayout(layoutId)}
+              >
+                <LayoutIcon layoutId={layoutId} isActive={selectedLayout === layoutId} />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ===== Row 3 + 4: Slip pills + Canvas | Controls ===== */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      {/* ── RIGHT MAIN AREA ──────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
 
-        {/* Center: pills bar + 3D canvas / image viewer */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        {/* Header: Dr/Patient/Total + filter tabs + icons */}
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 flex-shrink-0 bg-white">
+          <div className="flex items-center gap-4 flex-shrink-0">
+            {doctorName && (
+              <span className="text-sm text-gray-700">
+                Dr: <span className="font-semibold text-gray-900">{doctorName}</span>
+              </span>
+            )}
+            {patientName && (
+              <span className="text-sm text-gray-700">
+                Patient: <span className="font-semibold text-gray-900">{patientName}</span>
+              </span>
+            )}
+            <span className="text-xs text-gray-500 flex-shrink-0">Total Size: {totalSizeMB} MB</span>
+          </div>
 
-          {/* Slip pills */}
+          {/* Slip filter tabs */}
           {slipGroups.length > 0 && (
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-white overflow-x-auto flex-shrink-0">
+            <div className="flex items-center gap-1.5 overflow-x-auto min-w-0">
               <button
                 type="button"
                 onClick={() => setActiveSlipKey(null)}
-                className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
+                className={`flex-shrink-0 rounded-full px-3.5 py-1 text-xs font-medium border transition-colors ${
                   activeSlipKey === null
-                    ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]"
+                    ? "text-white border-transparent"
                     : "bg-white text-gray-600 border-gray-300 hover:border-[#1162A8] hover:text-[#1162A8]"
                 }`}
+                style={activeSlipKey === null ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" } : undefined}
               >
-                All
+                All Files
               </button>
               {slipGroups.map((group) => (
                 <button
                   key={group.key}
                   type="button"
                   onClick={() => setActiveSlipKey(group.key === activeSlipKey ? null : group.key)}
-                  className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
+                  className={`flex-shrink-0 rounded-full px-3.5 py-1 text-xs font-medium border transition-colors ${
                     activeSlipKey === group.key
-                      ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]"
+                      ? "text-white border-transparent"
                       : "bg-white text-gray-600 border-gray-300 hover:border-[#1162A8] hover:text-[#1162A8]"
                   }`}
+                  style={activeSlipKey === group.key ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" } : undefined}
                 >
-                  {group.key === "case"
-                    ? "Case Attachments"
-                    : group.stageName
-                      ? `${group.stageName} – Slip #${group.slipNumber ?? group.key}`
-                      : `Slip #${group.slipNumber ?? group.key}`}
+                  {group.key === "case" ? "Case" : `S${String(group.slipNumber ?? group.key).replace(/^S/i, "")}`}
                 </button>
               ))}
             </div>
           )}
 
-          {/* File strip — below pills, above canvas */}
-          <div className="flex-shrink-0 border-b bg-white">
-            <div className="flex items-end gap-2.5 px-4 py-2.5 overflow-x-auto">
-              {!isCaseSubmitted && (
-                <button
-                  type="button"
-                  className="flex-shrink-0 w-[120px] h-[120px] rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 hover:border-[#1162A8] hover:bg-blue-50 transition text-gray-400 hover:text-[#1162A8]"
-                  onClick={() => fileInputRef.current?.click()}
+          {/* Minimize (back to compact) + Close */}
+          <div className="ml-auto flex items-center gap-0.5 flex-shrink-0">
+            <button
+              type="button"
+              className="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 transition"
+              title="Exit fullscreen"
+              aria-label="Exit fullscreen"
+              onClick={() => setShowAttachModal(false)}
+            >
+              <Minimize2 className="w-4 h-4 text-gray-500" />
+            </button>
+            <button
+              type="button"
+              className="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 transition"
+              title="Close"
+              onClick={() => setShowAttachModal(false)}
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* Thumbnail strip */}
+        <div className="flex-shrink-0 border-b border-gray-200 bg-white">
+          <div className="flex items-center gap-2 px-4 py-2 overflow-x-auto">
+            {!isCaseSubmitted && (
+              <button
+                type="button"
+                className="flex-shrink-0 w-[88px] h-[72px] rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 hover:border-[#1162A8] hover:bg-blue-50 transition text-gray-400 hover:text-[#1162A8]"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-[9px] font-medium">Add Files</span>
+              </button>
+            )}
+            {filteredUploads.length === 0 && isCaseSubmitted && (
+              <div className="text-gray-400 text-xs py-2">No files</div>
+            )}
+            {filteredUploads.map((upload, idx) => {
+              const isInViewer = viewerItems.some(v => v.url === upload.url)
+              const isImage = upload.type === "image"
+              return (
+                <div
+                  key={upload.url}
+                  draggable
+                  onDragStart={() => { dragFileIdx.current = idx }}
+                  onDragOver={(e) => { e.preventDefault(); dragOverFileIdx.current = idx }}
+                  onDrop={() => {
+                    const from = dragFileIdx.current
+                    const to = dragOverFileIdx.current
+                    if (from === null || to === null || from === to) return
+                    setFileOrder(prev => {
+                      const urls = filteredUploads.map(u => u.url)
+                      const next = [...urls]
+                      const [moved] = next.splice(from, 1)
+                      next.splice(to, 0, moved)
+                      const allUrls = visibleUploads.map(u => u.url)
+                      const filteredSet = new Set(urls)
+                      let ni = 0
+                      return allUrls.map(u => filteredSet.has(u) ? next[ni++] : u)
+                    })
+                    dragFileIdx.current = null
+                    dragOverFileIdx.current = null
+                  }}
+                  onDragEnd={() => { dragFileIdx.current = null; dragOverFileIdx.current = null }}
+                  className={`flex-shrink-0 w-[88px] rounded-lg border cursor-grab active:cursor-grabbing select-none group ${
+                    isInViewer ? "ring-2 ring-[#1162A8] border-[#1162A8]" : "border-gray-200 hover:border-gray-400"
+                  } ${upload.archived ? "opacity-60" : ""}`}
+                  onClick={() => handleToggleFileInViewer(upload.url)}
                 >
-                  <Plus className="w-5 h-5" />
-                  <span className="text-[9px] font-medium">Add Files</span>
-                </button>
-              )}
-              {filteredUploads.length === 0 && isCaseSubmitted && (
-                <div className="text-gray-400 text-xs py-1">No files</div>
-              )}
-              {filteredUploads.map((upload, idx) => {
-                const isInViewer = viewerItems.some(v => v.url === upload.url)
-                const isImage = upload.type === "image"
-                const uploadDate = upload.file.lastModified
-                  ? new Date(upload.file.lastModified).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                  : null
-                return (
-                  <div
-                    key={upload.url}
-                    draggable
-                    onDragStart={() => { dragFileIdx.current = idx }}
-                    onDragOver={(e) => { e.preventDefault(); dragOverFileIdx.current = idx }}
-                    onDrop={() => {
-                      const from = dragFileIdx.current
-                      const to = dragOverFileIdx.current
-                      if (from === null || to === null || from === to) return
-                      setFileOrder(prev => {
-                        const urls = filteredUploads.map(u => u.url)
-                        const next = [...urls]
-                        const [moved] = next.splice(from, 1)
-                        next.splice(to, 0, moved)
-                        const allUrls = visibleUploads.map(u => u.url)
-                        const filteredSet = new Set(urls)
-                        let ni = 0
-                        return allUrls.map(u => filteredSet.has(u) ? next[ni++] : u)
-                      })
-                      dragFileIdx.current = null
-                      dragOverFileIdx.current = null
-                    }}
-                    onDragEnd={() => { dragFileIdx.current = null; dragOverFileIdx.current = null }}
-                    className={`flex-shrink-0 w-[120px] rounded-lg border cursor-grab active:cursor-grabbing select-none group ${
-                      isInViewer ? "ring-2 ring-[#1162A8] border-[#1162A8]" : "border-gray-200 hover:border-gray-400"
-                    } ${upload.archived ? "opacity-60" : ""}`}
-                    onClick={() => handleToggleFileInViewer(upload.url)}
-                  >
-                    <div className="relative h-[88px] bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
-                      {isImage ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={toProxiedFileUrl(upload.url)} alt={upload.file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <Box className="w-8 h-8 text-gray-300" />
-                      )}
-                      {isInViewer && (
-                        <div className="absolute inset-0 bg-[#1162A8]/15 pointer-events-none">
-                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#1162A8] flex items-center justify-center">
-                            <Eye className="w-3 h-3 text-white" />
-                          </div>
+                  <div className="relative h-[58px] bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
+                    {isImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={toProxiedFileUrl(upload.url)} alt={upload.file.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <Box className="w-6 h-6 text-gray-300" />
+                    )}
+                    {isInViewer && (
+                      <div className="absolute inset-0 bg-[#1162A8]/15 pointer-events-none">
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#1162A8] flex items-center justify-center">
+                          <Eye className="w-2.5 h-2.5 text-white" />
                         </div>
-                      )}
-                      <div
-                        className={`absolute bottom-1.5 right-1.5 flex items-center gap-1 transition-opacity ${
-                          isInViewer ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-                        }`}
-                      >
-                        {upload.remoteId && (
-                          <button
-                            type="button"
-                            className="w-6 h-6 rounded-md bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8] hover:bg-white"
-                            title={upload.archived ? "Unarchive file" : "Archive file"}
-                            aria-label={upload.archived ? "Unarchive file" : "Archive file"}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              void handleToggleArchive(upload)
-                            }}
-                          >
-                            <Archive className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {upload.url && (
-                          <button
-                            type="button"
-                            className="w-6 h-6 rounded-md bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8] hover:bg-white"
-                            title="Download file"
-                            aria-label="Download file"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDownloadFile(upload)
-                            }}
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                       </div>
-                    </div>
-                    <div className="px-2 py-1.5">
-                      <div className="truncate text-[9px] font-medium text-gray-700">{upload.file.name || "File"}</div>
-                      {uploadDate && <div className="truncate text-[8px] text-gray-400 mt-0.5">{uploadDate}</div>}
+                    )}
+                    <div className={`absolute bottom-1 right-1 flex gap-0.5 transition-opacity ${isInViewer ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                      {upload.remoteId && (
+                        <button type="button" className="w-5 h-5 rounded bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8]"
+                          title={upload.archived ? "Unarchive" : "Archive"}
+                          onClick={(e) => { e.stopPropagation(); void handleToggleArchive(upload) }}>
+                          <Archive className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                      {upload.url && (
+                        <button type="button" className="w-5 h-5 rounded bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-[#1162A8]"
+                          title="Download"
+                          onClick={(e) => { e.stopPropagation(); handleDownloadFile(upload) }}>
+                          <Download className="w-2.5 h-2.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                )
-              })}
-            </div>
+                  <div className="px-1.5 py-1">
+                    <div className="truncate text-[8px] font-medium text-gray-700">{upload.file.name || "File"}</div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+        </div>
 
         {/* 3D canvas / image viewer */}
         <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden bg-[#e9ecef]">
           {viewerItems.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
-              Select a file to preview
+              Select a file above to preview
             </div>
           ) : (
             <div
@@ -1286,10 +1306,7 @@ export default function FileAttachmentModalContent({
                   <div
                     key={`${selectedLayout}-${idx}`}
                     className="bg-[#e9ecef] overflow-hidden relative"
-                    style={{
-                      gridColumn: `span ${cell.colSpan}`,
-                      gridRow: `span ${cell.rowSpan}`,
-                    }}
+                    style={{ gridColumn: `span ${cell.colSpan}`, gridRow: `span ${cell.rowSpan}` }}
                   >
                     {item?.type === "stl" ? (
                       <div className="absolute inset-0">
@@ -1305,29 +1322,13 @@ export default function FileAttachmentModalContent({
                     ) : item?.type === "image" ? (
                       <div
                         className="absolute inset-0 bg-white overflow-hidden cursor-grab active:cursor-grabbing"
-                        onWheel={(e) => {
-                          e.stopPropagation()
-                          if (e.deltaY < 0) handleImageZoomIn(item.url)
-                          else handleImageZoomOut(item.url)
-                        }}
+                        onWheel={(e) => { e.stopPropagation(); if (e.deltaY < 0) handleImageZoomIn(item.url); else handleImageZoomOut(item.url) }}
                         onMouseDown={(e) => {
                           if (e.button !== 0) return
-                          const startX = e.clientX
-                          const startY = e.clientY
+                          const startX = e.clientX, startY = e.clientY
                           const startPan = imagePan[item.url] || { x: 0, y: 0 }
-                          const onMove = (ev: MouseEvent) => {
-                            setImagePan(prev => ({
-                              ...prev,
-                              [item.url]: {
-                                x: startPan.x + (ev.clientX - startX),
-                                y: startPan.y + (ev.clientY - startY),
-                              },
-                            }))
-                          }
-                          const onUp = () => {
-                            window.removeEventListener("mousemove", onMove)
-                            window.removeEventListener("mouseup", onUp)
-                          }
+                          const onMove = (ev: MouseEvent) => setImagePan(prev => ({ ...prev, [item.url]: { x: startPan.x + (ev.clientX - startX), y: startPan.y + (ev.clientY - startY) } }))
+                          const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp) }
                           window.addEventListener("mousemove", onMove)
                           window.addEventListener("mouseup", onUp)
                         }}
@@ -1345,55 +1346,21 @@ export default function FileAttachmentModalContent({
                           }}
                         />
                         <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 rounded-lg px-1.5 py-1 z-20">
-                          <button
-                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
-                            onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }}
-                            title="Zoom out"
-                          >
-                            <ZoomOut className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="text-white text-[9px] font-medium min-w-[32px] text-center">
-                            {Math.round((imageZoom[item.url] || 1) * 100)}%
-                          </span>
-                          <button
-                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
-                            onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }}
-                            title="Zoom in"
-                          >
-                            <ZoomIn className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
-                            onClick={(e) => { e.stopPropagation(); handleImageRotateLeft(item.url) }}
-                            title="Rotate left"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                          </button>
-                          <button
-                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
-                            onClick={(e) => { e.stopPropagation(); handleImageRotateRight(item.url) }}
-                            title="Rotate right"
-                          >
-                            <RotateCw className="w-3 h-3" />
-                          </button>
-                          <button
-                            className="p-0.5 hover:bg-white/20 rounded text-white transition"
-                            onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}
-                            title="Reset view"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                          </button>
+                          <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }} title="Zoom out"><ZoomOut className="w-3.5 h-3.5" /></button>
+                          <span className="text-white text-[9px] font-medium min-w-[32px] text-center">{Math.round((imageZoom[item.url] || 1) * 100)}%</span>
+                          <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }} title="Zoom in"><ZoomIn className="w-3.5 h-3.5" /></button>
+                          <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageRotateLeft(item.url) }} title="Rotate left"><RotateCcw className="w-3 h-3" /></button>
+                          <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageRotateRight(item.url) }} title="Rotate right"><RotateCw className="w-3 h-3" /></button>
+                          <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }} title="Reset view"><RotateCcw className="w-3 h-3" /></button>
                         </div>
                       </div>
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-[10px]">
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
                         {idx === 0 ? "Select a file to preview" : `Cell ${idx + 1}`}
                       </div>
                     )}
                     {activeLayout.cells.length > 1 && (
-                      <div className="absolute top-1 left-1 bg-black/40 text-white text-[8px] font-medium px-1.5 py-0.5 rounded z-10">
-                        {idx + 1}
-                      </div>
+                      <div className="absolute top-1 left-1 bg-black/40 text-white text-[8px] font-medium px-1.5 py-0.5 rounded z-10">{idx + 1}</div>
                     )}
                   </div>
                 )
@@ -1401,259 +1368,10 @@ export default function FileAttachmentModalContent({
             </div>
           )}
         </div>
-        </div>
-
-        {/* Right: Controls sidebar */}
-        <div className="w-[130px] flex-shrink-0 border-l overflow-y-auto p-2.5 space-y-3 bg-white">
-          {viewerItems.slice(0, maxCells).some(v => v.type === "stl") && (
-            <div>
-              <h4 className="text-[10px] font-semibold mb-2 uppercase tracking-wide text-gray-500">Controls</h4>
-              <div className="flex items-center justify-center mb-2">
-                <div className="relative w-[96px] h-[96px]">
-                  {/* Up */}
-                  <button
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-b-[16px] border-b-gray-400 hover:border-b-blue-600 transition"
-                    title="Rotate up"
-                    onClick={() => {
-                      const c = orbitControlsRef.current
-                      if (!c) return
-                      rotateOrbitControls(c, 0, -0.3)
-                    }}
-                  />
-                  {/* Down */}
-                  <button
-                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[16px] border-t-gray-400 hover:border-t-blue-600 transition"
-                    title="Rotate down"
-                    onClick={() => {
-                      const c = orbitControlsRef.current
-                      if (!c) return
-                      rotateOrbitControls(c, 0, 0.3)
-                    }}
-                  />
-                  {/* Left */}
-                  <button
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-r-[16px] border-r-gray-400 hover:border-r-blue-600 transition"
-                    title="Rotate left"
-                    onClick={() => {
-                      const c = orbitControlsRef.current
-                      if (!c) return
-                      rotateOrbitControls(c, -0.3, 0)
-                    }}
-                  />
-                  {/* Right */}
-                  <button
-                    className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[12px] border-t-transparent border-b-[12px] border-b-transparent border-l-[16px] border-l-blue-600 hover:border-l-blue-700 transition"
-                    title="Rotate right"
-                    onClick={() => {
-                      const c = orbitControlsRef.current
-                      if (!c) return
-                      rotateOrbitControls(c, 0.3, 0)
-                    }}
-                  />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-blue-600 rounded-full" />
-                </div>
-              </div>
-              <button
-                className="w-full flex items-center justify-center gap-1 border rounded-lg py-1 text-[9px] text-gray-600 hover:bg-gray-50"
-                onClick={() => { orbitControlsRef.current?.reset(); orbitControlsRef.current?.update() }}
-              >
-                <RotateCcw className="w-2.5 h-2.5" />
-                Reset
-              </button>
-            </div>
-          )}
-
-          {viewerItems.slice(0, maxCells).some(v => v.type === "stl") && (
-            <div>
-              <h4 className="text-[10px] font-semibold mb-2 uppercase tracking-wide text-gray-500">Display</h4>
-              <div className="space-y-1">
-                <button
-                  className={`w-full border rounded-lg py-1 text-[9px] font-medium transition ${isWireframe ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
-                  onClick={() => setIsWireframe(prev => !prev)}
-                >
-                  Wireframe
-                </button>
-                <button
-                  className={`w-full border rounded-lg py-1 text-[9px] font-medium transition ${showGrid ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`}
-                  onClick={() => setShowGrid(prev => !prev)}
-                >
-                  Grid
-                </button>
-                <div className="flex items-center gap-1.5 pt-0.5">
-                  <input
-                    type="color"
-                    value={modelColor}
-                    onChange={(e) => setModelColor(e.target.value)}
-                    className="w-5 h-5 rounded border border-gray-300 cursor-pointer p-0"
-                  />
-                  <span className="text-[9px] text-gray-600">Color</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <h4 className="text-[10px] font-semibold mb-2 uppercase tracking-wide text-gray-500">Layout</h4>
-            <div className="grid grid-cols-2 gap-1">
-              {[
-                "1x1", "2x2",
-                "1-1v", "2-1h",
-                "1h-2", "1-2v",
-                "3s-1", "1-3s",
-                "3x2", "2x3",
-              ].map((layoutId) => (
-                <button
-                  key={layoutId}
-                  className={`w-full aspect-square border rounded-lg p-0.5 transition ${
-                    selectedLayout === layoutId ? "border-blue-600 bg-blue-50" : "border-gray-300 hover:border-gray-400"
-                  }`}
-                  onClick={() => setSelectedLayout(layoutId)}
-                >
-                  <LayoutIcon layoutId={layoutId} isActive={selectedLayout === layoutId} />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="pt-2 space-y-2 border-t mt-2">
-            <button
-              className="w-full py-2 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-              onClick={() => setShowCancelModal(true)}
-            >
-              Cancel
-            </button>
-            {viewerItems.length > 0 && (
-              <button
-                className="w-full py-2 rounded-lg bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white text-xs font-semibold hover:bg-[#0e5290] transition"
-                onClick={handleAttachFiles}
-              >
-                Attach Files
-              </button>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Hidden file input */}
-      <input
-        type="file"
-        style={{ display: "none" }}
-        onChange={handleFileChange}
-        multiple
-        ref={fileInputRef}
-        accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx"
-      />
-
-      {/* Fullscreen Studio Viewer */}
-      <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
-        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] overflow-hidden flex flex-col p-0">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 bg-blue-600 rounded flex items-center justify-center">
-                <span className="text-white text-[9px]">3D</span>
-              </div>
-              <span className="font-semibold text-sm">Studio</span>
-            </div>
-            <button className="p-1.5 hover:bg-gray-100 rounded" title="Exit full screen" onClick={() => setIsFullscreen(false)}>
-              <Minimize2 className="w-4 h-4 text-gray-500" />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 flex min-h-0 overflow-hidden">
-            {/* Controls sidebar — only for STL */}
-            {viewerItems.slice(0, maxCells).some(v => v.type === "stl") && (
-            <div className="w-[140px] flex-shrink-0 border-r overflow-y-auto p-3 space-y-4">
-              <div>
-                <h4 className="text-xs font-semibold mb-2">Controls</h4>
-                <div className="flex items-center justify-center mb-2">
-                  <div className="relative w-[70px] h-[70px]">
-                    <button className="absolute top-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-b-[12px] border-b-gray-400 hover:border-b-blue-600 transition" title="Top view" />
-                    <button className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[9px] border-l-transparent border-r-[9px] border-r-transparent border-t-[12px] border-t-gray-400 hover:border-t-blue-600 transition" title="Bottom view" />
-                    <button className="absolute left-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[9px] border-t-transparent border-b-[9px] border-b-transparent border-r-[12px] border-r-gray-400 hover:border-r-blue-600 transition" title="Left view" />
-                    <button className="absolute right-0 top-1/2 -translate-y-1/2 w-0 h-0 border-t-[9px] border-t-transparent border-b-[9px] border-b-transparent border-l-[12px] border-l-blue-600 hover:border-l-blue-700 transition" title="Right view" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-blue-600 rounded-full" />
-                  </div>
-                </div>
-                <button className="w-full flex items-center justify-center gap-1 border rounded py-1.5 text-[10px] text-gray-600 hover:bg-gray-50">
-                  <RotateCcw className="w-3 h-3" /> Reset
-                </button>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold mb-2">Display</h4>
-                <div className="space-y-1.5">
-                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${isWireframe ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setIsWireframe(prev => !prev)}>Wireframe</button>
-                  <button className={`w-full border rounded py-1.5 text-[10px] font-medium transition ${showGrid ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white border-[#1162A8]" : "text-gray-600 hover:bg-gray-50"}`} onClick={() => setShowGrid(prev => !prev)}>Grid</button>
-                  <div className="flex items-center gap-1.5">
-                    <input type="color" value={modelColor} onChange={(e) => setModelColor(e.target.value)} className="w-6 h-6 rounded border border-gray-300 cursor-pointer p-0" />
-                    <span className="text-[10px] text-gray-600">Color Picker</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold mb-2">Layout</h4>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {["1x1","2x2","1-1v","2-1h","1h-2","1-2v","3s-1","1-3s","3x2","2x3"].map((layoutId) => (
-                    <button key={layoutId} className={`w-full aspect-square border rounded p-0.5 transition ${selectedLayout === layoutId ? "border-blue-600 bg-blue-50" : "border-gray-300 hover:border-gray-400"}`} onClick={() => setSelectedLayout(layoutId)}>
-                      <LayoutIcon layoutId={layoutId} isActive={selectedLayout === layoutId} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            )}
-
-            {/* Canvas grid */}
-            <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden">
-              <div className={`absolute inset-0 grid ${activeLayout.cols} gap-[2px] bg-gray-300 overflow-hidden`} style={{ gridTemplateRows: `repeat(${activeLayout.rows}, 1fr)` }}>
-                {activeLayout.cells.map((cell, idx) => {
-                  const item = viewerItems[idx]
-                  return (
-                    <div key={`fs-${selectedLayout}-${idx}`} className="bg-[#e9ecef] overflow-hidden relative" style={{ gridColumn: `span ${cell.colSpan}`, gridRow: `span ${cell.rowSpan}` }}>
-                      {item?.type === "stl" ? (
-                        <div className="absolute inset-0">
-                          <STLCanvasOnly src={toProxiedFileUrl(item.url)} isWireframe={isWireframe} showGrid={showGrid} modelColor={modelColor} autoRotate />
-                        </div>
-                      ) : item?.type === "image" ? (
-                        <div className="absolute inset-0 bg-white overflow-hidden cursor-grab active:cursor-grabbing"
-                          onWheel={(e) => { e.stopPropagation(); if (e.deltaY < 0) handleImageZoomIn(item.url); else handleImageZoomOut(item.url); }}
-                          onMouseDown={(e) => {
-                            if (e.button !== 0) return
-                            const startX = e.clientX, startY = e.clientY
-                            const startPan = imagePan[item.url] || { x: 0, y: 0 }
-                            const onMove = (ev: MouseEvent) => { setImagePan(prev => ({ ...prev, [item.url]: { x: startPan.x + (ev.clientX - startX), y: startPan.y + (ev.clientY - startY) } })) }
-                            const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp) }
-                            window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp)
-                          }}
-                        >
-	                          <img src={toProxiedFileUrl(item.url)} alt={`Preview ${idx + 1}`} className="w-full h-full object-contain select-none" draggable={false} referrerPolicy="no-referrer"
-	                            style={{ transform: `scale(${imageZoom[item.url] || 1}) translate(${(imagePan[item.url]?.x || 0) / (imageZoom[item.url] || 1)}px, ${(imagePan[item.url]?.y || 0) / (imageZoom[item.url] || 1)}px) rotate(${imageRotation[item.url] || 0}deg)`, transformOrigin: "center center" }}
-	                          />
-	                          <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/50 rounded-lg px-2 py-1 z-20">
-	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomOut(item.url) }}><ZoomOut className="w-4 h-4" /></button>
-	                            <span className="text-white text-xs font-medium min-w-[36px] text-center">{Math.round((imageZoom[item.url] || 1) * 100)}%</span>
-	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomIn(item.url) }}><ZoomIn className="w-4 h-4" /></button>
-	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" title="Rotate left" onClick={(e) => { e.stopPropagation(); handleImageRotateLeft(item.url) }}><RotateCcw className="w-3.5 h-3.5" /></button>
-	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" title="Rotate right" onClick={(e) => { e.stopPropagation(); handleImageRotateRight(item.url) }}><RotateCw className="w-3.5 h-3.5" /></button>
-	                            <button className="p-0.5 hover:bg-white/20 rounded text-white transition" onClick={(e) => { e.stopPropagation(); handleImageZoomReset(item.url) }}><RotateCcw className="w-3.5 h-3.5" /></button>
-	                          </div>
-                        </div>
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">{idx === 0 ? "Select a file to preview" : `Cell ${idx + 1}`}</div>
-                      )}
-                      {activeLayout.cells.length > 1 && (
-                        <div className="absolute top-1.5 left-1.5 bg-black/40 text-white text-[9px] font-medium px-2 py-0.5 rounded z-10">{idx + 1}</div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <input type="file" style={{ display: "none" }} onChange={handleFileChange} multiple ref={fileInputRef} accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx" />
 
       {/* Cancel Confirmation Modal */}
       <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
@@ -1664,19 +1382,11 @@ export default function FileAttachmentModalContent({
               Are you sure you want to cancel? Any unsaved file uploads will be lost.
             </span>
             <div className="flex gap-3 mt-2">
+              <Button variant="outline" className="px-4 h-8 text-xs" onClick={() => setShowCancelModal(false)}>Go Back</Button>
               <Button
-                variant="outline"
-                className="px-4 h-8 text-xs"
-                onClick={() => setShowCancelModal(false)}
-              >
-                Go Back
-              </Button>
-              <Button
-                className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:bg-[#0f5490] text-white px-4 h-8 text-xs"
-                onClick={() => {
-                  setShowCancelModal(false)
-                  setShowAttachModal(false)
-                }}
+                className="px-4 h-8 text-xs text-white"
+                style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }}
+                onClick={() => { setShowCancelModal(false); setShowAttachModal(false) }}
               >
                 Yes, Cancel
               </Button>
@@ -1686,8 +1396,9 @@ export default function FileAttachmentModalContent({
       </Dialog>
     </div>
   )
-}
 
+  void uploading; void uploadedAttachments; void addingFiles; void setIsFullscreen
+}
 
 // Small layout icon component for the layout grid picker
 function LayoutIcon({ layoutId, isActive }: { layoutId: string; isActive: boolean }) {

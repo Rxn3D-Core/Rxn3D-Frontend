@@ -19,10 +19,10 @@ export function buildSlipLevelNotes(
 ): SlipCreationNote[] {
   const trimmed = caseSummaryNotes?.trim();
   if (trimmed) {
-    return slipIndex === 0 ? [{ note: trimmed }] : [];
+    return slipIndex === 0 ? [{ note: trimmed, type: "stage" }] : [];
   }
   return slipProducts
     .map((p) => p.notes)
     .filter((note): note is string => Boolean(note))
-    .map((note) => ({ note }));
+    .map((note) => ({ note, type: "stage" as const }));
 }
