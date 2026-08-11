@@ -11,27 +11,7 @@ import ReactQueryProvider from '@/components/ReactQueryProvider'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
-import { Inter, Island_Moments, WindSong } from "next/font/google"
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-})
-
-const islandMoments = Island_Moments({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-island-moments",
-  display: "swap",
-})
-
-const windSong = WindSong({
-  weight: "400",
-  subsets: ["latin"],
-  variable: "--font-windsong",
-  display: "swap",
-})
+import { inter, islandMoments, windSong } from "@/lib/fonts"
 
 // Force all pages to be dynamic (client-rendered) to avoid SSR issues with i18n and navigation hooks
 export const dynamic = 'force-dynamic'
