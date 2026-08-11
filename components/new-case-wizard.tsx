@@ -550,10 +550,22 @@ function StepLab({
   entityLabel?: "lab" | "office";
   onAddNew?: () => void;
 }) {
+  const [searchTerm, setSearchTerm] = useState("");
   const entityPlural = entityLabel === "office" ? "offices" : "labs";
+  const entitySingular = entityLabel === "office" ? "Office" : "Lab";
   const loadErrorMsg = entityLabel === "office"
     ? "Unable to load connected offices. Please try again."
     : "Unable to load connected labs. Please try again.";
+
+  const filteredLabs = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return labs;
+    return labs.filter((lab) => {
+      const name = lab.name?.toLowerCase() ?? "";
+      const location = lab.location?.toLowerCase() ?? "";
+      return name.includes(query) || location.includes(query);
+    });
+  }, [labs, searchTerm]);
 
   if (error) {
     return (
@@ -587,84 +599,106 @@ function StepLab({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
+      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-4">
         {stepTitle}
       </h2>
 
-      {/* Top bar with filter and Add New button */}
-      <div className="flex items-center justify-between mb-2">
-        <button className="p-2 hover:bg-[#eef1f4] rounded transition-colors">
-          <Filter size={18} className="text-[#7f7f7f]" />
-        </button>
+      {/* Centered search — same density as product search */}
+      <div className="flex justify-center mb-4">
+        <div className="relative w-full max-w-[320px] h-[34px] border border-[#B4B0B0] rounded-[4px] flex items-center px-3 gap-2 bg-white">
+          <input
+            type="text"
+            placeholder={`Search ${entitySingular}`}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label={`Search ${entityPlural}`}
+            className="flex-1 min-w-0 text-[14px] font-normal text-[#1d1d1b] bg-transparent outline-none tracking-[-0.02em] leading-[22px] placeholder:text-[#B4B0B0]"
+            style={{ fontFamily: "Verdana, sans-serif" }}
+          />
+          <Search size={12} className="text-[#B4B0B0] flex-shrink-0" />
+        </div>
+      </div>
+
+      {/* Meta row: count + Add New, aligned with card grid */}
+      <div className="flex items-center justify-between gap-3 mb-4 max-w-[1400px] mx-auto w-full px-4">
+        <p
+          style={{ fontFamily: "Verdana, sans-serif", fontSize: 13, lineHeight: "20px", letterSpacing: "-0.02em" }}
+          className="text-[#b4b0b0]"
+        >
+          {filteredLabs.length} {entityPlural} found
+        </p>
         <button
           onClick={onAddNew}
-          style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em", borderRadius: 6, padding: "8px 16px" }}
+          style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em", borderRadius: 6, padding: "6px 14px" }}
           className="flex items-center gap-2 bg-[#1162a8] hover:bg-[#0d4a85] text-white font-bold transition-colors whitespace-nowrap"
         >
           Add New {entityLabel}
         </button>
       </div>
 
-      {/* Count */}
-      <p
-        style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px", letterSpacing: "-0.02em" }}
-        className="text-[#b4b0b0] text-right mb-6"
-      >
-        {labs.length} {entityPlural} found
-      </p>
-
       {/* Cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4">
-        {labs.map((lab, i) => (
-          <button
-            key={`${lab.id}-${i}`}
-            onClick={() => onSelect(lab.id)}
-            style={{ height: 215, borderRadius: 6, width: 307.65 }}
-            className="group relative flex flex-col items-center justify-center transition-all bg-white border-2 border-[#b4b0b0] hover:border-[#1162a8] w-full"
-          >
-            {/* "Click and select" text - shown on hover */}
-            <span className="absolute top-3 text-[11px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
-              Click and select
-            </span>
+      {filteredLabs.length === 0 ? (
+        <p
+          style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px", letterSpacing: "-0.02em" }}
+          className="text-[#7f7f7f] text-center py-12"
+        >
+          {searchTerm.trim()
+            ? `No ${entityPlural} match "${searchTerm.trim()}".`
+            : `No ${entityPlural} found.`}
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4 justify-items-center w-full">
+          {filteredLabs.map((lab, i) => (
+            <button
+              key={`${lab.id}-${i}`}
+              onClick={() => onSelect(lab.id)}
+              style={{ height: 215, borderRadius: 6, maxWidth: 307.65 }}
+              className={`group relative flex flex-col items-center justify-center transition-all bg-white border-2 w-full ${
+                selected === lab.id
+                  ? "border-[#1162a8]"
+                  : "border-[#b4b0b0] hover:border-[#1162a8]"
+              }`}
+            >
+              <span className="absolute top-3 text-[11px] text-[#7f7f7f] opacity-0 group-hover:opacity-100 transition-opacity">
+                Click and select
+              </span>
 
-            {/* Logo area - uses logo_url from API */}
-            <div
-              style={{ width: 185, height: 117 }}
-              className="flex items-center justify-center mb-2 overflow-hidden"
-            >
-              {lab.logo ? (
-                <img
-                  src={lab.logo}
-                  alt={`${lab.name} logo`}
-                  style={{ width: "100%", objectFit: "contain" }}
-                  className="rounded"
-                />
-              ) : (
-                <span
-                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "15px", letterSpacing: "-0.02em" }}
-                  className="font-bold text-[#1162a8] text-center"
-                >
-                  {lab.name}
-                </span>
-              )}
-            </div>
-            {/* Lab name */}
-            <span
-              style={{ fontFamily: "Verdana, sans-serif", fontSize: 16, lineHeight: "22px", letterSpacing: "-0.02em" }}
-              className="text-[#000000] text-center mb-1"
-            >
-              {lab.name}
-            </span>
-            {/* Location */}
-            <span
-              style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em" }}
-              className="text-[#b4b0b0] text-center"
-            >
-              {lab.location}
-            </span>
-          </button>
-        ))}
-      </div>
+              <div
+                style={{ width: 185, height: 117 }}
+                className="flex items-center justify-center mb-2 overflow-hidden"
+              >
+                {lab.logo ? (
+                  <img
+                    src={lab.logo}
+                    alt={`${lab.name} logo`}
+                    style={{ width: "100%", objectFit: "contain" }}
+                    className="rounded"
+                  />
+                ) : (
+                  <span
+                    style={{ fontFamily: "Verdana, sans-serif", fontSize: 28, lineHeight: "32px", letterSpacing: "-0.02em" }}
+                    className="font-bold text-[#1162a8] text-center"
+                  >
+                    {getInitials(lab.name) || "?"}
+                  </span>
+                )}
+              </div>
+              <span
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: 16, lineHeight: "22px", letterSpacing: "-0.02em" }}
+                className="text-[#000000] text-center mb-1 px-3 line-clamp-2"
+              >
+                {lab.name}
+              </span>
+              <span
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: 12, lineHeight: "22px", letterSpacing: "-0.02em" }}
+                className="text-[#b4b0b0] text-center"
+              >
+                {lab.location}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
