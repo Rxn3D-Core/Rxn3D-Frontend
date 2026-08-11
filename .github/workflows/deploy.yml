@@ -3,7 +3,7 @@ name: Deploy RXN3D Frontend
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   deploy:
