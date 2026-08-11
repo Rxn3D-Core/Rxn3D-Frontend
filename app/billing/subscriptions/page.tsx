@@ -926,7 +926,7 @@ export default function SubscriptionsPage() {
               No active subscription
             </h2>
             <p className="text-sm text-gray-500 mb-6">
-              Choose a plan to unlock your lab's full potential.
+              Choose a plan to unlock your lab's full potential
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-10 gap-y-2 mb-8">
