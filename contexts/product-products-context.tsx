@@ -20,6 +20,7 @@ import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
 import { useAuth } from "@/contexts/auth-context" // <-- adjust as needed
+import { getCustomerId } from "@/lib/dashboard-widgets"
 
 interface ValidationError {
   field: string
@@ -1084,11 +1085,20 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         const token = getAuthToken()
         const body: { status: "Active" | "Inactive"; customer_id?: number } = { status }
 
-        if (isLabAdmin && user?.customers?.length) {
-          const customerId = user.customers[0]?.id
-          if (customerId) {
-            body.customer_id = customerId
-          }
+        // Lab (and other non-superadmin) status updates require customer_id.
+        // Prefer localStorage customerId (same as fetchProducts / other lab library APIs).
+        const customerId = getCustomerId(user)
+        const isSuperAdmin = user?.roles?.includes("superadmin")
+
+        if (customerId) {
+          body.customer_id = customerId
+        } else if (!isSuperAdmin) {
+          throw new Error(
+            t(
+              "productContext.customerIdRequired",
+              "Customer ID is required for non super admin users",
+            ),
+          )
         }
 
         const response = await fetch(
@@ -1146,7 +1156,6 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     [
       currentLanguage,
       fetchProducts,
-      isLabAdmin,
       pagination.current_page,
       pagination.per_page,
       searchQuery,
