@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/auth-context'
 import { getAuthToken, redirectToLogin } from '@/lib/auth-utils'
 import { normalizeOppositeImpressionPayload } from '@/lib/library-product-api-mapping'
+import { resolveLibraryCustomerId, userHasLabLibraryRole } from '@/lib/customer-scope'
 
 type ApiErrorPayload = {
   message: string
@@ -42,6 +43,8 @@ export function useProductMutations() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const isLabAdmin = user?.roles?.includes("lab_admin")
+  const isLabLibraryUser = userHasLabLibraryRole(user) || isLabAdmin
+  const labCustomerId = resolveLibraryCustomerId(user)
 
   const updateProductMutation = useMutation({
     mutationFn: async ({ id, payload, releasingStageIds = [] }: ProductUpdatePayload) => {
@@ -61,12 +64,9 @@ export function useProductMutations() {
         })
       }
 
-      // Add customer_id for lab_admin
-      if (isLabAdmin && user?.customers?.length) {
-        const customerId = user.customers[0]?.id;
-        if (customerId) {
-          finalPayload.customer_id = customerId;
-        }
+      // Add customer_id for lab library roles (lab_admin, lab_user, lab_driver)
+      if (labCustomerId) {
+        finalPayload.customer_id = labCustomerId;
       }
 
       // Clean up office_stage_grade_pricing: remove items missing grade_id or stage_id
@@ -121,7 +121,7 @@ export function useProductMutations() {
         }
       } else {
         // For lab products (with customer_id), keep price but remove other pricing fields for non-admin users
-        if (!isLabAdmin) {
+        if (!isLabLibraryUser) {
           // DO NOT delete price - backend requires it when customer_id is present
           // delete finalPayload.price  // REMOVED - price is required when customer_id is present
           delete finalPayload.price_type
@@ -280,12 +280,9 @@ export function useProductMutations() {
 
       normalizeOppositeImpressionPayload(finalPayload)
 
-      // Add customer_id for lab_admin
-      if (isLabAdmin && user?.customers?.length) {
-        const customerId = user.customers[0]?.id;
-        if (customerId) {
-          finalPayload.customer_id = customerId;
-        }
+      // Add customer_id for lab library roles (lab_admin, lab_user, lab_driver)
+      if (labCustomerId) {
+        finalPayload.customer_id = labCustomerId;
       }
 
       // Clean up office_stage_grade_pricing: remove items missing grade_id or stage_id
@@ -319,8 +316,8 @@ export function useProductMutations() {
           finalPayload.addons = finalPayload.addons.map(({ price, ...rest }) => rest)
         }
       } else {
-        // For lab products (with customer_id), keep price and stage_grades but remove other pricing fields for non-admin users
-        if (!isLabAdmin) {
+        // For lab products (with customer_id), keep price and stage_grades but remove other pricing fields for non-lab-library users
+        if (!isLabLibraryUser) {
           // DO NOT delete price - backend requires it when customer_id is present
           // delete finalPayload.price
           delete finalPayload.price_type
@@ -385,13 +382,10 @@ export function useProductMutations() {
     mutationFn: async (id: number) => {
       const token = getAuthToken()
       let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}`
-      
-      // Add customer_id query param for lab_admin
-      if (isLabAdmin && user?.customers?.length) {
-        const customerId = user.customers[0]?.id;
-        if (customerId) {
-          url += `?customer_id=${customerId}`;
-        }
+
+      // Add customer_id query param for lab library roles
+      if (labCustomerId) {
+        url += `?customer_id=${labCustomerId}`;
       }
 
       const response = await fetch(url, {

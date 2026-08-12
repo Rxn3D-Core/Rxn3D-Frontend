@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast"
 import { AlertCircle, CheckCircle, Save, Trash2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { useAuth } from "@/contexts/auth-context" // Added import
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 
 // Types
 export interface GumShade {
@@ -285,12 +286,9 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
           params.append("sort_by", sortDir)
         }
 
-        // Add customer_id if lab_admin with primary customer
-        if (user?.roles?.includes("lab_admin") && user?.customers?.length) {
-          const primaryCustomer = user.customers.find((customer) => customer.is_primary === 1)
-          if (primaryCustomer) {
-            params.append("customer_id", primaryCustomer.id.toString())
-          }
+        const gumCustomerId = resolveLibraryCustomerId(user)
+        if (gumCustomerId) {
+          params.append("customer_id", gumCustomerId.toString())
         }
 
         const response = await fetch(`${API_BASE_URL}/library/gum-shade-brands?${params}&lang=${currentLanguage}`, {
@@ -333,12 +331,9 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
 
     try {
       let url = `${API_BASE_URL}/library/groups?GumShade`
-      // Add customer_id if lab_admin with primary customer
-      if (user?.roles?.includes("lab_admin") && user?.customers?.length) {
-        const primaryCustomer = user.customers.find((customer) => customer.is_primary === 1)
-        if (primaryCustomer) {
-          url += `&customer_id=${primaryCustomer.id}`
-        }
+      const gumCustomerId = resolveLibraryCustomerId(user)
+      if (gumCustomerId) {
+        url += `&customer_id=${gumCustomerId}`
       }
 
       const response = await fetch(url, {
@@ -379,12 +374,9 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
 
     try {
       let url = `${API_BASE_URL}/library/gum-shade-brands?per_page=10&lang=${currentLanguage}`
-      // Add customer_id if lab_admin with primary customer
-      if (user?.roles?.includes("lab_admin") && user?.customers?.length) {
-        const primaryCustomer = user.customers.find((customer) => customer.is_primary === 1)
-        if (primaryCustomer) {
-          url += `&customer_id=${primaryCustomer.id}`
-        }
+      const gumCustomerId = resolveLibraryCustomerId(user)
+      if (gumCustomerId) {
+        url += `&customer_id=${gumCustomerId}`
       }
 
       const response = await fetch(url, {
@@ -480,13 +472,10 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
     setError(null)
 
     try {
-      // Add customer_id if user is lab_admin with a primary customer
       let payload: any = { ...data }
-      if (user?.roles?.includes("lab_admin") && Array.isArray(user.customers)) {
-        const primaryCustomer = user.customers.find((customer) => customer.is_primary === 1)
-        if (primaryCustomer) {
-          payload.customer_id = primaryCustomer.id
-        }
+      const gumCustomerId = resolveLibraryCustomerId(user)
+      if (gumCustomerId) {
+        payload.customer_id = gumCustomerId
       }
 
       const response = await fetch(`${API_BASE_URL}/library/gum-shade-brands`, {
@@ -653,14 +642,10 @@ export function GumShadesProvider({ children }: GumShadesProviderProps) {
     setError(null)
 
     try {
-      // Prepare payload
       let payload: any = { name }
-      // If user is lab_admin, add customer_id from primary customer
-      if (user?.roles?.includes("lab_admin") && Array.isArray(user.customers)) {
-        const primaryCustomer = user.customers.find((customer) => customer.is_primary === 1)
-        if (primaryCustomer) {
-          payload.customer_id = primaryCustomer.id
-        }
+      const gumCustomerId = resolveLibraryCustomerId(user)
+      if (gumCustomerId) {
+        payload.customer_id = gumCustomerId
       }
 
       const response = await fetch(`${API_BASE_URL}/library/gum-shade-groups`, {

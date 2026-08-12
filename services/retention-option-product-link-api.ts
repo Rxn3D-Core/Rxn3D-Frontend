@@ -1,3 +1,5 @@
+import { resolveLibraryCustomerId, isLabLibraryRole } from "@/lib/customer-scope"
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 // Helper function to get auth token
@@ -6,30 +8,8 @@ const getAuthToken = () => {
   return localStorage.getItem('token') || ''
 }
 
-// Helper function to get customer ID
-const getCustomerId = () => {
-  if (typeof window === 'undefined') return null
-
-  const role = localStorage.getItem('role')
-  const isLabAdmin = role === 'lab_admin'
-  const isSuperAdmin = role === 'superadmin'
-  const isOfficeAdmin = role === 'office_admin'
-  const isDoctor = role === 'doctor'
-
-  if (isOfficeAdmin || isDoctor) {
-    const selectedLabId = localStorage.getItem('selectedLabId')
-    if (selectedLabId) {
-      return Number(selectedLabId)
-    }
-  } else if (isLabAdmin || isSuperAdmin) {
-    const customerId = localStorage.getItem('customerId')
-    if (customerId) {
-      return parseInt(customerId, 10)
-    }
-  }
-
-  return null
-}
+// Helper function to get customer ID for lab library roles
+const getCustomerId = (): number | null => resolveLibraryCustomerId()
 
 export interface LinkRetentionOptionProductPayload {
   product_id: number
@@ -122,20 +102,14 @@ export const buildRetentionOptionLinkPayload = (
   products: any[],
   retentionOptions: any[]
 ): LinkRetentionOptionsProductsCategoriesPayload => {
-  // Get customer ID and role
   const customerId = getCustomerId()
   const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
-  const isLabAdmin = role === 'lab_admin'
-  const isSuperAdmin = role === 'superadmin'
 
-  // For lab_admin, customer_id is required
-  if (isLabAdmin && !customerId) {
-    throw new Error('Customer ID is required for lab_admin role')
+  // For lab library roles, customer_id is required
+  if (isLabLibraryRole(role) && !customerId) {
+    throw new Error('Customer ID is required for lab library roles')
   }
 
-  // For super admin, customer_id is optional (can be null)
-  // For lab_admin, customer_id is required and must be included
-  // For other roles, include customer_id if available
   const payload: LinkRetentionOptionsProductsCategoriesPayload = {
     ...(customerId ? { customer_id: customerId } : {}),
     retention_options: [],

@@ -27,6 +27,7 @@ import { useStages, type StagePayload, type Stage, type StageVariation } from "@
 import { DiscardChangesDialog } from "./discard-changes-dialog" 
 import { useAuth } from "@/contexts/auth-context"
 import { generateCodeFromName } from "@/lib/utils"
+import { isLabLibraryRole, resolveLibraryCustomerId, userHasLabLibraryRole } from "@/lib/customer-scope"
 import {
   getStageVariations,
   createStageVariation,
@@ -74,8 +75,10 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   const { createStage, updateStage, fetchStages, isLoading: isContextLoading } = useStages()
   const { user, token: authToken } = useAuth()
 
-  const userRole = user?.roles?.[0] || user?.customers?.[0]?.role
-  const isSuperAdminOrLabAdmin = userRole === "superadmin" || userRole === "lab_admin"
+  const userRole = user?.roles?.[0] || user?.customers?.[0]?.role || (typeof window !== "undefined" ? localStorage.getItem("role") : null)
+  const isLabLibraryUser = userHasLabLibraryRole(user) || isLabLibraryRole(userRole)
+  const isSuperAdminOrLabAdmin = userRole === "superadmin" || isLabLibraryUser
+  const libraryCustomerId = resolveLibraryCustomerId(user)
 
   const [formData, setFormData] = useState<StagePayload>(defaultFormData)
   const [initialFormData, setInitialFormData] = useState<StagePayload>(defaultFormData)
@@ -852,7 +855,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       image: string
     }> } = { ...formData }
     
-    if (userRole === "lab_admin") {
+    if (isLabLibraryUser) {
       payload.price = formData.price || 0
     } else {
       delete payload.price
@@ -893,9 +896,9 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
         }
       })
       
-      // For lab_admin users, always include price in update payload even if unchanged
+      // For lab library users, always include price in update payload even if unchanged
       // This ensures the backend validation doesn't fail
-      if (userRole === "lab_admin" && !changedFields.price) {
+      if (isLabLibraryUser && !changedFields.price) {
         changedFields.price = formData.price || 0
       }
       
@@ -939,7 +942,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"
         const bodyPayload = {
           ...payload,
-          ...(userRole === "lab_admin" && user?.customers?.[0]?.id ? { customer_id: user.customers[0].id } : {}),
+          ...(libraryCustomerId ? { customer_id: libraryCustomerId } : {}),
         }
         
         const response = await fetch(`${API_BASE_URL}/library/stages`, {
@@ -1160,7 +1163,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                 </div>
               
 
-                {userRole === "lab_admin" ? (
+                {isLabLibraryUser ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="stagePrice">Price</Label>
@@ -1177,7 +1180,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                   </div>
                 ) : (
                   <div className="text-xs text-gray-500 mb-4">
-                    Price field only available for lab_admin users (Current role: {userRole || 'none'})
+                    Price field only available for lab library users (Current role: {userRole || 'none'})
                   </div>
                 )}
 

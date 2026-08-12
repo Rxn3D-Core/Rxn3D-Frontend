@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { isLabLibraryRole, resolveLibraryCustomerId } from "@/lib/customer-scope"
 
 export type AdvanceModeCustomerScope = {
   /** After client reads localStorage (first paint may be pre-hydration) */
   ready: boolean
   isLabAdmin: boolean
-  /** When lab_admin and `customerId` exists in localStorage */
+  /** When isLabAdmin (lab_admin/lab_user/lab_driver) and `customerId` is resolved */
   labCustomerId: number | undefined
 }
 
@@ -22,12 +23,12 @@ export function useAdvanceModeCustomerScope(): AdvanceModeCustomerScope {
   })
 
   useEffect(() => {
-    const role = localStorage.getItem("role")
-    const isLabAdmin = role === "lab_admin"
+    const role = localStorage.getItem("role") ?? ""
+    const isLabAdmin = isLabLibraryRole(role)
     let labCustomerId: number | undefined
     if (isLabAdmin) {
-      const raw = localStorage.getItem("customerId")
-      labCustomerId = raw ? Number.parseInt(raw, 10) : undefined
+      const resolved = resolveLibraryCustomerId()
+      labCustomerId = resolved != null ? resolved : undefined
     }
     setScope({ ready: true, isLabAdmin, labCustomerId })
   }, [])

@@ -43,6 +43,7 @@ import { useTranslation } from "react-i18next"
 import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context" // <-- add this import
 import { getCustomerId } from "@/lib/dashboard-widgets"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 import {
   hydrateAdvanceFieldsFormFromProduct,
   serializeAdvanceFieldsForApi,
@@ -2166,10 +2167,13 @@ export function AddLabProductModal({
       payload[key] = serializeAdvanceFieldsForApi(Array.isArray(raw) ? raw : [])
     }
 
-    // Add customer_id if user is lab_admin (for both create and update)
+    // Add customer_id for lab library roles (lab_admin, lab_user, lab_driver)
     // Must be set before price block so the fallback can check for customer_id
-    if (user?.role === "lab_admin" && user.customers?.length) {
-      payload.customer_id = payload.customer_id ?? user.customers[0]?.id
+    {
+      const libraryCustomerId = resolveLibraryCustomerId(user) ?? getCustomerId(user)
+      if (libraryCustomerId) {
+        payload.customer_id = payload.customer_id ?? libraryCustomerId
+      }
     }
 
     // If grades are enabled (has_grade_based_pricing === "Yes"), set base_price from default grade
@@ -2645,7 +2649,7 @@ export function AddLabProductModal({
       // This must be determined before processing stages
       const willHaveCustomerId = (formData.customer_id !== undefined &&
                                  formData.customer_id !== null) ||
-                                 (user?.role === "lab_admin" && user?.customers?.length > 0)
+                                 Boolean(resolveLibraryCustomerId(user) ?? getCustomerId(user))
 
       // Process array fields similar to onSubmit
       function ensureSequenceAndStatus(arr: any[], idKey: string) {
@@ -2838,11 +2842,14 @@ export function AddLabProductModal({
         delete payload.jaw_photos
       }
 
-      // Ensure customer_id is included in payload if present in formData or for lab_admin
+      // Ensure customer_id is included in payload if present in formData or for lab library roles
       if (formData.customer_id !== undefined && formData.customer_id !== null) {
         payload.customer_id = formData.customer_id
-      } else if (user?.role === "lab_admin" && user?.customers?.length > 0) {
-        payload.customer_id = user.customers[0]?.id
+      } else {
+        const libraryCustomerId = resolveLibraryCustomerId(user) ?? getCustomerId(user)
+        if (libraryCustomerId) {
+          payload.customer_id = libraryCustomerId
+        }
       }
 
       // Always include price in every section update — backend requires it when customer_id is present.
@@ -2963,7 +2970,7 @@ export function AddLabProductModal({
           releasingStageIds: releasingIds,
           currentStages: formData.stages,
           changes,
-          hasCustomerId: payload.customer_id || formData.customer_id || (user?.role === "lab_admin" && user?.customers?.length > 0),
+          hasCustomerId: payload.customer_id || formData.customer_id || Boolean(resolveLibraryCustomerId(user) ?? getCustomerId(user)),
           userRole: user?.role,
           userCustomers: user?.customers
         })

@@ -6,6 +6,7 @@ import { Award, CheckCircle, AlertCircle, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context" // Import useAuth
 import { useLanguage } from "./language-context"
+import { resolveLibraryCustomerId, isLabLibraryRole } from "@/lib/customer-scope"
 // Define types based on actual API response
 export interface Grade {
   id: number
@@ -123,41 +124,15 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [customerId, setCustomerId] = useState<number | null>(null)
   
-  // Initialize user role on client side
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const role = localStorage.getItem("role")
-      setUserRole(role)
-      setIsLabAdmin(role === "lab_admin")
-      setIsSuperAdmin(role === "superadmin")
-    }
-  }, [])
-  
-  // Get customerId from localStorage (similar to other contexts)
+  // Initialize user role and customerId on client side
   useEffect(() => {
     if (typeof window === "undefined") return
-    
-    let id: number | null = null
-    
-    if (isLabAdmin || isSuperAdmin) {
-      // For lab_admin or superadmin roles, use customer_id from localStorage
-      const storedCustomerId = localStorage.getItem("customerId")
-      if (storedCustomerId) {
-        id = parseInt(storedCustomerId, 10)
-      } else if (user?.customers?.length) {
-        // Fallback to user.customers if not found in localStorage
-        id = user.customers[0]?.id || null
-      }
-    } else {
-      // For other roles, use selectedLabId from localStorage as customer_id
-      const storedLabId = localStorage.getItem("selectedLabId")
-      if (storedLabId) {
-        id = parseInt(storedLabId, 10)
-      }
-    }
-    
-    setCustomerId(id)
-  }, [isLabAdmin, isSuperAdmin, user?.customers])
+    const role = localStorage.getItem("role")
+    setUserRole(role)
+    setIsLabAdmin(isLabLibraryRole(role))
+    setIsSuperAdmin(role === "superadmin")
+    setCustomerId(resolveLibraryCustomerId(user))
+  }, [user?.customers])
 
   const redirectToLogin = () => {
     localStorage.removeItem("user")
@@ -217,21 +192,8 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           params.append("sort_by", "asc")
         }
 
-        // Check role directly from localStorage to ensure it's available
-        let roleIsLabAdmin = false
-        if (typeof window !== "undefined") {
-          const role = localStorage.getItem("role")
-          roleIsLabAdmin = role === "lab_admin"
-        }
-        
-        // Use lab-grades endpoint for lab_admin, grades endpoint for others
-        
-        // Only pass customer_id for lab_admin role, get it directly from localStorage
-        if (roleIsLabAdmin && typeof window !== "undefined") {
-          const storedCustomerId = localStorage.getItem("customerId")
-          if (storedCustomerId) {
-            params.append("customer_id", storedCustomerId)
-          }
+        if (customerId) {
+          params.append("customer_id", customerId.toString())
         }
 
         const response = await fetch(`${API_BASE_URL}/library/grades?${params}`, {
@@ -278,7 +240,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       groupIdFilter,
       toast,
       currentLanguage,
-      isLabAdmin,
+      customerId,
     ],
   )
 
@@ -351,7 +313,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/grades`, {
           method: "POST",
@@ -407,7 +369,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchGrades, isLabAdmin, customerId],
+    [authToken, toast, fetchGrades, customerId],
   )
 
   const updateGrade = useCallback(
@@ -430,7 +392,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/grades/${id}`, {
           method: "PUT",
@@ -477,7 +439,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchGrades, isLabAdmin, customerId],
+    [authToken, toast, fetchGrades, customerId],
   )
 
   const deleteGrade = useCallback(
@@ -499,7 +461,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       try {
         let url = `${API_BASE_URL}/library/grades/${id}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `?customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -543,7 +505,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchGrades, isLabAdmin, customerId],
+    [authToken, toast, fetchGrades, customerId],
   )
 
   const bulkDeleteGrades = useCallback(
@@ -562,7 +524,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const bodyPayload = {
           ids,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/grades/bulk-delete`, {
           method: "DELETE",
@@ -610,7 +572,7 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchGrades, isLabAdmin, customerId],
+    [authToken, toast, fetchGrades, customerId],
   )
 
   const clearMessages = useCallback(() => {

@@ -10,6 +10,7 @@ import { generateCodeFromName } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useWatch } from "react-hook-form"
 import { cn } from "@/lib/utils"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 
 type WatchedMaterial = {
   material_id: number
@@ -72,30 +73,8 @@ export function MaterialSection({
     return localStorage.getItem('token') || ''
   }
 
-  // Helper function to get customer ID
-  const getCustomerId = () => {
-    if (typeof window === 'undefined') return null
-    
-    const role = localStorage.getItem('role')
-    const isLabAdmin = role === 'lab_admin'
-    const isSuperAdmin = role === 'superadmin'
-    const isOfficeAdmin = role === 'office_admin'
-    const isDoctor = role === 'doctor'
-    
-    if (isOfficeAdmin || isDoctor) {
-      const selectedLabId = localStorage.getItem('selectedLabId')
-      if (selectedLabId) {
-        return Number(selectedLabId)
-      }
-    } else if (isLabAdmin || isSuperAdmin) {
-      const customerId = localStorage.getItem('customerId')
-      if (customerId) {
-        return parseInt(customerId, 10)
-      }
-    }
-    
-    return null
-  }
+  // Helper function to get customer ID (lab_admin, lab_user, lab_driver, etc.)
+  const getCustomerId = () => resolveLibraryCustomerId()
   
   // Generate a temporary ID for custom material (using negative number to avoid conflicts)
   const generateCustomMaterialId = (): number => {

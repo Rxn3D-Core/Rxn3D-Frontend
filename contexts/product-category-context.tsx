@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context" 
 import { useAuth } from "@/contexts/auth-context"
+import { resolveLibraryCustomerId, isLabLibraryRole } from "@/lib/customer-scope"
 import { current } from "@reduxjs/toolkit"
 
 export interface ProductCategory {
@@ -260,29 +261,10 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
     const role = localStorage.getItem("role")
     setUserRole(role)
-    setIsLabAdmin(role === "lab_admin")
+    setIsLabAdmin(isLabLibraryRole(role))
     setIsSuperAdmin(role === "superadmin")
 
-    let id: number | null = null
-
-    if (role === "lab_admin" || role === "superadmin") {
-      // For lab_admin or superadmin roles, use customer_id from localStorage
-      const storedCustomerId = localStorage.getItem("customerId")
-      if (storedCustomerId) {
-        id = parseInt(storedCustomerId, 10)
-      } else if (user?.customers?.length) {
-        // Fallback to user.customers if not found in localStorage
-        id = user.customers[0]?.id || null
-      }
-    } else {
-      // For other roles, use selectedLabId from localStorage as customer_id
-      const storedLabId = localStorage.getItem("selectedLabId")
-      if (storedLabId) {
-        id = parseInt(storedLabId, 10)
-      }
-    }
-
-    setCustomerId(id)
+    setCustomerId(resolveLibraryCustomerId(user))
     setIsRoleInitialized(true)
   }, [user?.customers])
 
@@ -478,8 +460,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     try {
       const token = getAuthToken()
       const params = new URLSearchParams({ per_page: "100", status: "Active", lang: currentLanguage })
-      // Lab admin: scope to their customer. Superadmin: global list.
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         params.append("customer_id", customerId.toString())
       }
       const response = await fetch(
@@ -515,7 +496,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       setIsLoadingParentDropdown(false)
       fetchCategoriesInFlightRef.current = false
     }
-  }, [toast, currentLanguage, customerId, isLabAdmin, isRoleInitialized])
+  }, [toast, currentLanguage, customerId, isRoleInitialized])
 
   const createCategoryInternal = async (
     endpoint: string,
@@ -811,27 +792,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   // Fetch all categories (top-level, not subcategories)
   const fetchAllCategories = useCallback(
     async (lang = "en", passedCustomerId?: number) => {
-      // Use passed customerId, or get fresh customerId from context
-      let customerIdToUse = passedCustomerId
-      if (!customerIdToUse) {
-        // Get fresh customerId using the same logic
-        // Only auto-resolve for lab_admin; superadmin should pass it explicitly when needed
-        if (typeof window !== "undefined") {
-          if (isLabAdmin) {
-            const storedCustomerId = localStorage.getItem("customerId")
-            if (storedCustomerId) {
-              customerIdToUse = parseInt(storedCustomerId, 10)
-            } else if (user?.customers?.length) {
-              customerIdToUse = user.customers[0]?.id
-            }
-          } else if (!isSuperAdmin) {
-            const storedLabId = localStorage.getItem("selectedLabId")
-            if (storedLabId) {
-              customerIdToUse = parseInt(storedLabId, 10)
-            }
-          }
-        }
-      }
+      const customerIdToUse = passedCustomerId ?? resolveLibraryCustomerId(user) ?? undefined
       
       // Create a unique key for this fetch request
       const fetchKey = `${lang}-${customerIdToUse || 'default'}`
@@ -894,7 +855,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         fetchAllCategoriesInProgressRef.current = null
       }
     },
-    [isLabAdmin, isSuperAdmin, user]
+    [user]
   )
 
   // Fetch subcategories by category ID
@@ -909,8 +870,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           category_id: categoryId.toString()
         })
         
-        // Add customer_id if provided, otherwise use context customerId for lab admin only
-        const customerIdToUse = passedCustomerId || (isLabAdmin ? customerId : undefined)
+        const customerIdToUse = passedCustomerId ?? customerId ?? undefined
         if (customerIdToUse) {
           params.append("customer_id", customerIdToUse.toString())
         }
@@ -973,7 +933,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setSubcategoriesLoading(false)
       }
     },
-    [isLabAdmin, customerId, toast, logout]
+    [customerId, toast, logout]
   )
 
   const clearMessages = useCallback(() => {

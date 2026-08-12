@@ -1,5 +1,7 @@
 import { useProductModalStore } from '@/stores/product-modal-store'
 
+import { isLabLibraryRole, resolveLibraryCustomerId } from "@/lib/customer-scope"
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api"
 
 // Helper function to get auth token
@@ -8,24 +10,8 @@ const getAuthToken = () => {
   return localStorage.getItem('token') || ''
 }
 
-// Helper function to get customer ID for lab admin
-const getCustomerId = () => {
-  if (typeof window === 'undefined') return undefined
-  
-  const role = localStorage.getItem('role')
-  if (role === 'lab_admin') {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        return user?.customers?.find((customer: any) => customer.id)?.id
-      } catch (e) {
-        console.error('Error parsing user data:', e)
-      }
-    }
-  }
-  return undefined
-}
+// Helper function to get customer ID for lab library roles
+const getCustomerId = (): number | null | undefined => resolveLibraryCustomerId()
 
 // Fetch all categories with caching
 export const fetchAllCategoriesWithCache = async (language: string = 'en') => {
@@ -175,7 +161,7 @@ export const fetchProductsWithCache = async (labId: number, params: Record<strin
     
     if (typeof window !== "undefined") {
       const role = localStorage.getItem("role")
-      const isLabAdmin = role === "lab_admin"
+      const isLabStaff = isLabLibraryRole(role)
       const isSuperAdmin = role === "superadmin"
       const isOfficeAdmin = role === "office_admin"
       const isDoctor = role === "doctor"
@@ -186,12 +172,8 @@ export const fetchProductsWithCache = async (labId: number, params: Record<strin
           effectiveLabId = Number(storedLabId)
           customerId = effectiveLabId // Use the selectedLabId as customer_id
         }
-      } else if (isLabAdmin || isSuperAdmin) {
-        // For lab_admin or superadmin, use customerId from localStorage
-        const storedCustomerId = localStorage.getItem("customerId")
-        if (storedCustomerId) {
-          customerId = parseInt(storedCustomerId, 10)
-        }
+      } else if (isLabStaff || isSuperAdmin) {
+        customerId = resolveLibraryCustomerId()
       }
     }
     

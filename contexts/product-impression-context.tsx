@@ -6,6 +6,7 @@ import { Package, CheckCircle, AlertCircle, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
 import { useAuth } from "@/contexts/auth-context"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 
 // Define types based on actual API response
 export interface Impression {
@@ -113,11 +114,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const { currentLanguage } = useLanguage()
   const { token: authToken, user } = useAuth()
 
-  // Determine user role and customerId
-  
-  const userRole = localStorage.getItem("role")
-  const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const customerId = resolveLibraryCustomerId(user)
 
   // Clear animation after it completes
   useEffect(() => {
@@ -180,8 +177,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           params.append("sort_by", "asc")
         }
 
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -219,7 +215,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId],
+    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, customerId],
   )
 
   const getImpressionDetail = useCallback(
@@ -227,7 +223,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const token = getAuthToken()
         let url = `${API_BASE_URL}/library/impressions/${id}?lang=${currentLanguage}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `&customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -272,7 +268,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return null
       }
     },
-    [currentLanguage, toast, isLabAdmin, customerId],
+    [currentLanguage, toast, customerId],
   )
 
   const createImpression = useCallback(
@@ -286,7 +282,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const token = getAuthToken()
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/impressions`, {
           method: "POST",
@@ -354,7 +350,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [toast, fetchImpressions, isLabAdmin, customerId],
+    [toast, fetchImpressions, customerId],
   )
 
   const updateImpression = useCallback(
@@ -368,7 +364,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const token = getAuthToken()
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/impressions/${id}`, {
           method: "PUT",
@@ -435,7 +431,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [toast, fetchImpressions, isLabAdmin, customerId],
+    [toast, fetchImpressions, customerId],
   )
 
   const deleteImpression = useCallback(
@@ -448,7 +444,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const token = getAuthToken()
         let url = `${API_BASE_URL}/library/impressions/${id}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `?customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -498,7 +494,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [toast, fetchImpressions, isLabAdmin, customerId],
+    [toast, fetchImpressions, customerId],
   )
 
   const bulkDeleteImpressions = useCallback(
@@ -512,7 +508,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const token = getAuthToken()
         const bodyPayload = {
           ids,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/impressions/bulk-delete`, {
           method: "DELETE",
@@ -564,7 +560,7 @@ export const ImpressionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [toast, fetchImpressions, isLabAdmin, customerId],
+    [toast, fetchImpressions, customerId],
   )
 
   const clearMessages = useCallback(() => {

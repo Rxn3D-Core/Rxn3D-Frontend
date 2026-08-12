@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useState } from "react"
 import { generateCodeFromName, cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 
 export function AddOnsSection({
   control,
@@ -39,30 +40,8 @@ export function AddOnsSection({
     return localStorage.getItem('token') || ''
   }
 
-  // Helper function to get customer ID
-  const getCustomerId = () => {
-    if (typeof window === 'undefined') return null
-    
-    const role = localStorage.getItem('role')
-    const isLabAdmin = role === 'lab_admin'
-    const isSuperAdmin = role === 'superadmin'
-    const isOfficeAdmin = role === 'office_admin'
-    const isDoctor = role === 'doctor'
-    
-    if (isOfficeAdmin || isDoctor) {
-      const selectedLabId = localStorage.getItem('selectedLabId')
-      if (selectedLabId) {
-        return Number(selectedLabId)
-      }
-    } else if (isLabAdmin || isSuperAdmin) {
-      const customerId = localStorage.getItem('customerId')
-      if (customerId) {
-        return parseInt(customerId, 10)
-      }
-    }
-    
-    return null
-  }
+  // Helper function to get customer ID (lab_admin, lab_user, lab_driver, etc.)
+  const getCustomerId = () => resolveLibraryCustomerId()
 
   // Get default subcategory from existing addons
   const getDefaultSubcategoryId = (): number | null => {
