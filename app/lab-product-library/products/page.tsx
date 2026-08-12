@@ -20,6 +20,8 @@ import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useAuth } from "@/contexts/auth-context"
+import { useToast } from "@/components/ui/use-toast"
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
 
 export default function ProductsPage() {
   const {
@@ -43,6 +45,7 @@ export default function ProductsPage() {
     deleteProduct,
     deleteMultipleProducts,
     getProductDetail,
+    updateProductStatus,
   } = useProducts()
 
   const {
@@ -57,6 +60,8 @@ export default function ProductsPage() {
   } = useProductCategory()
 
   const { user } = useAuth()
+  const { toast } = useToast()
+  const { canUpdateProduct } = usePermissionCapabilities()
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "10")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
@@ -110,6 +115,7 @@ export default function ProductsPage() {
   // State for category/subcategory filters
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [availableSubcategories, setAvailableSubcategories] = useState<any[]>([])
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
 
   // Open single delete modal
   const openDeleteModal = (id: number) => {
@@ -239,6 +245,26 @@ export default function ProductsPage() {
       setSelectedItems([...selectedItems, itemId])
     } else {
       setSelectedItems(selectedItems.filter((id) => id !== itemId))
+    }
+  }
+
+  const handleStatusChange = async (productId: number, newStatus: "Active" | "Inactive") => {
+    if (!canUpdateProduct) return
+    setStatusUpdatingId(productId)
+    try {
+      await updateProductStatus(productId, newStatus)
+      toast({
+        title: t("Success"),
+        description: t("Product status updated to {{status}}", { status: newStatus }),
+      })
+    } catch (error: any) {
+      toast({
+        title: t("Error"),
+        description: error?.message || t("Failed to update product status"),
+        variant: "destructive",
+      })
+    } finally {
+      setStatusUpdatingId(null)
     }
   }
 
@@ -595,15 +621,28 @@ export default function ProductsPage() {
                         <span className="font-medium text-gray-900 text-xs">{price}</span>
                       </TableCell>
                       <TableCell className="py-2 px-2">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            product.status === "Active"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : "bg-gray-50 text-gray-700 border-gray-200"
-                          }`}
+                        <Select
+                          value={product.status === "Inactive" ? "Inactive" : "Active"}
+                          onValueChange={(value) =>
+                            handleStatusChange(product.id, value as "Active" | "Inactive")
+                          }
+                          disabled={!canUpdateProduct || statusUpdatingId === product.id}
                         >
-                          {product.status || "Active"}
-                        </span>
+                          <SelectTrigger
+                            className={`h-7 w-[110px] text-xs font-medium border ${
+                              product.status === "Active"
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : "bg-gray-50 text-gray-700 border-gray-200"
+                            }`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Active">{t("Active")}</SelectItem>
+                            <SelectItem value="Inactive">{t("Inactive")}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="text-center py-2 px-2">
                         <div className="flex items-center justify-center gap-0.5">

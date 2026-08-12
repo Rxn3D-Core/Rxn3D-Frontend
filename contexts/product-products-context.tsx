@@ -81,6 +81,7 @@ interface ProductsContextType {
     payload: ProductCreateForm,
     releasingStageIds?: (string | number)[],
   ) => Promise<ProductSaveResult>
+  updateProductStatus: (id: number, status: "Active" | "Inactive") => Promise<boolean>
   deleteProduct: (id: number) => Promise<boolean>
   deleteMultipleProducts: (ids: number[]) => Promise<boolean>
   setSearchQuery: (query: string) => void
@@ -1075,6 +1076,89 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     ],
   )
 
+  const updateProductStatus = useCallback(
+    async (id: number, status: "Active" | "Inactive") => {
+      setError(null)
+
+      try {
+        const token = getAuthToken()
+        const body: { status: "Active" | "Inactive"; customer_id?: number } = { status }
+
+        if (isLabAdmin && user?.customers?.length) {
+          const customerId = user.customers[0]?.id
+          if (customerId) {
+            body.customer_id = customerId
+          }
+        }
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}/status`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              "Accept-Language": currentLanguage || "en",
+            },
+            body: JSON.stringify(body),
+          },
+        )
+
+        if (response.status === 401) {
+          redirectToLogin()
+          return false
+        }
+
+        const result = await response.json().catch(() => ({}))
+
+        if (!response.ok) {
+          throw new Error(
+            result.message ||
+              t("productContext.httpError", `HTTP error! status: ${response.status}`),
+          )
+        }
+
+        setProducts((prev) =>
+          prev.map((product) => (product.id === id ? { ...product, status } : product)),
+        )
+
+        // Refresh so status filters stay accurate after the change
+        await fetchProducts(
+          pagination.current_page,
+          pagination.per_page,
+          searchQuery,
+          sortColumn,
+          sortDirection,
+          statusFilter,
+          subcategoryFilter,
+        )
+
+        return true
+      } catch (err: any) {
+        console.error("Failed to update product status:", err)
+        setError(
+          err.message ||
+            t("productContext.statusUpdateFailed", "Failed to update product status."),
+        )
+        throw err
+      }
+    },
+    [
+      currentLanguage,
+      fetchProducts,
+      isLabAdmin,
+      pagination.current_page,
+      pagination.per_page,
+      searchQuery,
+      sortColumn,
+      sortDirection,
+      statusFilter,
+      subcategoryFilter,
+      t,
+      user,
+    ],
+  )
+
   const deleteProduct = useCallback(
     async (id: number) => {
       setIsLoading(true)
@@ -1307,6 +1391,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     fetchProducts,
     createProduct,
     updateProduct,
+    updateProductStatus,
     deleteProduct,
     deleteMultipleProducts,
     setSearchQuery,
@@ -1335,6 +1420,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     fetchProducts,
     createProduct,
     updateProduct,
+    updateProductStatus,
     deleteProduct,
     deleteMultipleProducts,
     showAnimation,
