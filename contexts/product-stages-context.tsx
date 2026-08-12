@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context" // Assuming you have this
 import { Award, CheckCircle, AlertCircle, Trash2, Save } from "lucide-react"
 import { useLanguage } from "./language-context"
+import { resolveLibraryCustomerId, isLabLibraryRole } from "@/lib/customer-scope"
 // --- Types based on API ---
 export interface StageConfiguration {
   grade: "Yes" | "No"
@@ -177,16 +178,9 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof window !== "undefined") {
       const role = localStorage.getItem("role")
       setUserRole(role)
-      const labAdmin = role === "lab_admin"
-      setIsLabAdmin(labAdmin)
-      
-      // Set customerId based on role
-      if (labAdmin) {
-        const customer = user?.customers?.find((customer) => customer.id)
-        setCustomerId(customer?.id)
-      } else {
-        setCustomerId(undefined)
-      }
+      setIsLabAdmin(isLabLibraryRole(role))
+      const resolved = resolveLibraryCustomerId(user)
+      setCustomerId(resolved ?? undefined)
     }
   }, [user?.customers])
 
@@ -254,7 +248,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setPagination(defaultPagination)
         return
       }
-      // Lab admin must have customerId resolved before fetching
+      // Lab staff must have customerId resolved before fetching
       if (isLabAdmin && !customerId) {
         return
       }
@@ -271,8 +265,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         params.append("order_by", sortColumn as string)
         params.append("sort_by", sortDirection)
       }
-      // Pass customer_id if isLabAdmin and customerId is defined
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         params.append("customer_id", customerId.toString())
       }
 
@@ -328,7 +321,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/stages`, {
           method: "POST",
@@ -380,7 +373,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/stages/${id}`, {
           method: "PUT",
@@ -431,7 +424,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setError(null)
       try {
         let url = `${API_BASE_URL}/library/stages/${id}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `?customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -485,7 +478,7 @@ export const StagesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const bodyPayload = {
           ids,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/stages/bulk-delete`, {
           method: "DELETE",

@@ -20,6 +20,11 @@ import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
 import { useAuth } from "@/contexts/auth-context" // <-- adjust as needed
+import {
+  isLabLibraryRole,
+  resolveLibraryCustomerId,
+  userHasLabLibraryRole,
+} from "@/lib/customer-scope"
 
 interface ValidationError {
   field: string
@@ -123,6 +128,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { user } = useAuth()
   const isLabAdmin = user?.roles?.includes("lab_admin")
+  const isLabLibraryUser = userHasLabLibraryRole(user) || isLabLibraryRole(
+    typeof window !== "undefined" ? localStorage.getItem("role") : null,
+  )
 
   const triggerAnimation = useCallback((type: "creating" | "updating" | "deleting" | "success" | "error", message: string) => {
     setShowAnimation(true)
@@ -668,54 +676,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products?${params}&lang=${currentLanguage}`
         
         // Determine which ID to use based on user role
-        const userRoles = user?.roles || (user?.role ? [user.role] : [])
-        const isLabAdmin = userRoles.includes("lab_admin")
-        const isSuperAdmin = userRoles.includes("superadmin")
-        const isOfficeAdmin = userRoles.includes("office_admin")
-        const isDoctor = userRoles.includes("doctor")
-        
-        let customerId = null;
-        
-        if (isLabAdmin || isSuperAdmin) {
-          // For lab_admin or superadmin roles, use customer_id from localStorage
-          // First try to get from localStorage
-          if (typeof window !== "undefined") {
-            const storedCustomerId = localStorage.getItem("customerId");
-            if (storedCustomerId) {
-              customerId = parseInt(storedCustomerId, 10);
-            }
-          }
-          
-          // Fallback to user.customers if not found in localStorage
-          if (!customerId && user?.customers?.length) {
-            customerId = user.customers[0]?.id;
-          }
-        } else if (isOfficeAdmin || isDoctor) {
-          // For office_admin or doctor roles, always use selectedLabId from localStorage as customer_id
-          if (typeof window !== "undefined") {
-            const storedLabId = localStorage.getItem("selectedLabId");
-            if (storedLabId) {
-              customerId = parseInt(storedLabId, 10);
-            } else if (selectedLabId) {
-              // Fallback to parameter if localStorage doesn't have it
-              customerId = selectedLabId;
-            }
-          } else if (selectedLabId) {
-            // Fallback to parameter if window is undefined
-            customerId = selectedLabId;
-          }
-        } else {
-          // For other roles, use selectedLabId if available
-          if (selectedLabId) {
-            customerId = selectedLabId;
-          } else if (typeof window !== "undefined") {
-            // Try localStorage as fallback
-            const storedLabId = localStorage.getItem("selectedLabId");
-            if (storedLabId) {
-              customerId = parseInt(storedLabId, 10);
-            }
-          }
-        }
+        const customerId = resolveLibraryCustomerId(user) ?? selectedLabId ?? null
         
         // Append customer_id if we have one
         if (customerId) {
@@ -789,11 +750,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           finalPayload.image = payload.image
         }
 
-        if (isLabAdmin && user?.customers && user.customers.length > 0) {
-          const customerId = user.customers[0]?.id
-          if (customerId) {
-            finalPayload.customer_id = customerId
-          }
+        const libraryCustomerId = resolveLibraryCustomerId(user)
+        if (libraryCustomerId) {
+          finalPayload.customer_id = libraryCustomerId
         }
 
         if (Array.isArray(finalPayload.office_stage_grade_pricing)) {
@@ -830,7 +789,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             finalPayload.stage_grades = []
           }
 
-          if (!isLabAdmin) {
+          if (!isLabAdmin && !isLabLibraryUser) {
             delete finalPayload.price
             delete finalPayload.price_type
             delete finalPayload.grade_prices
@@ -843,7 +802,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Schema validation temporarily disabled
-        // Super admin / global products: no customer_id in URL or body. Lab admin: only when payload has customer_id.
+        // Super admin / global products: no customer_id in URL or body. Lab library: when payload has customer_id.
         const apiBase = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products`
         const cid = finalPayload.customer_id
         const createUrl =
@@ -913,6 +872,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       t,
       user,
       isLabAdmin,
+      isLabLibraryUser,
     ],
   )
 
@@ -942,12 +902,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           finalPayload.image = payload.image
         }
 
-        // Add customer_id for lab_admin
-        if (isLabAdmin && user?.customers?.length) {
-          const customerId = user.customers[0]?.id;
-          if (customerId) {
-            finalPayload.customer_id = customerId;
-          }
+        const libraryCustomerId = resolveLibraryCustomerId(user)
+        if (libraryCustomerId) {
+          finalPayload.customer_id = libraryCustomerId
         }
 
         // Clean up office_stage_grade_pricing: remove items missing grade_id or stage_id
@@ -986,8 +943,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
             finalPayload.stage_grades = []
           }
 
-          // Remove other pricing fields for non-admin users, but keep stage_grades when stages are sent
-          if (!isLabAdmin) {
+          // Remove other pricing fields for non-lab-library users, but keep stage_grades when stages are sent
+          if (!isLabAdmin && !isLabLibraryUser) {
             delete finalPayload.price
             delete finalPayload.price_type
             delete finalPayload.grade_prices
@@ -1066,6 +1023,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       t,
       user,
       isLabAdmin,
+      isLabLibraryUser,
       pagination.current_page,
       pagination.per_page,
       searchQuery,
@@ -1084,11 +1042,19 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         const token = getAuthToken()
         const body: { status: "Active" | "Inactive"; customer_id?: number } = { status }
 
-        if (isLabAdmin && user?.customers?.length) {
-          const customerId = user.customers[0]?.id
-          if (customerId) {
-            body.customer_id = customerId
-          }
+        // Lab (and other non-superadmin) status updates require customer_id.
+        const customerId = resolveLibraryCustomerId(user)
+        const isSuperAdmin = user?.roles?.includes("superadmin")
+
+        if (customerId) {
+          body.customer_id = customerId
+        } else if (!isSuperAdmin) {
+          throw new Error(
+            t(
+              "productContext.customerIdRequired",
+              "Customer ID is required for non super admin users",
+            ),
+          )
         }
 
         const response = await fetch(
@@ -1146,7 +1112,6 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     [
       currentLanguage,
       fetchProducts,
-      isLabAdmin,
       pagination.current_page,
       pagination.per_page,
       searchQuery,
@@ -1169,12 +1134,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         const token = getAuthToken()
         let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}`
         
-        // Add customer_id query param for lab_admin
-        if (isLabAdmin && user?.customers?.length) {
-          const customerId = user.customers[0]?.id;
-          if (customerId) {
-            url += `?customer_id=${customerId}`;
-          }
+        const libraryCustomerId = resolveLibraryCustomerId(user)
+        if (libraryCustomerId) {
+          url += `?customer_id=${libraryCustomerId}`
         }
 
         const response = await fetch(url, {
@@ -1245,12 +1207,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         const token = getAuthToken()
         let payload: { ids: number[]; customer_id?: number } = { ids }
         
-        // Add customer_id for lab_admin
-        if (isLabAdmin && user?.customers?.length) {
-          const customerId = user.customers[0]?.id;
-          if (customerId) {
-            payload.customer_id = customerId;
-          }
+        const libraryCustomerId = resolveLibraryCustomerId(user)
+        if (libraryCustomerId) {
+          payload.customer_id = libraryCustomerId
         }
 
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/bulk-delete`, {
@@ -1320,31 +1279,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products/${id}?lang=${currentLanguage}&t=${new Date().getTime()}`
         
         // Get user role information
-        const userRoles = user?.roles || (user?.role ? [user.role] : [])
-        const isLabAdmin = userRoles.includes("lab_admin")
-        const isSuperAdmin = userRoles.includes("superadmin")
-        
-        // Determine which customer_id to use based on user role
-        let effectiveCustomerId: number | null = null;
-        
-        if (isLabAdmin || isSuperAdmin) {
-          // For lab_admin or superadmin roles, use customer_id from localStorage, then first linked customer
-          if (typeof window !== "undefined") {
-            const storedCustomerId = localStorage.getItem("customerId");
-            if (storedCustomerId) {
-              effectiveCustomerId = Number(storedCustomerId);
-            }
-          }
-          if (!effectiveCustomerId && user?.customers?.length) {
-            const cid = user.customers[0]?.id;
-            if (cid) effectiveCustomerId = Number(cid);
-          }
-        } else {
-          // For other roles, use selectedLabId
-          if (selectedLabId) {
-            effectiveCustomerId = selectedLabId;
-          }
-        }
+        const effectiveCustomerId =
+          resolveLibraryCustomerId(user) ?? (selectedLabId ? Number(selectedLabId) : null)
         
         if (effectiveCustomerId) {
           url += `&customer_id=${effectiveCustomerId}`

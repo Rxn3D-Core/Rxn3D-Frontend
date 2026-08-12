@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { useAuth } from "./auth-context"
 import { AlertCircle, Award, CheckCircle, Save, Trash2 } from "lucide-react"
 import { useLanguage } from "./language-context"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 interface RetentionOptionItem {
   id: number
   name: string
@@ -97,11 +98,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
 
   const { currentLanguage } = useLanguage()
 
-  // Determine user role and customerId
-  
-  const userRole = localStorage.getItem("role")
-  const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const customerId = resolveLibraryCustomerId(user)
 
   useEffect(() => {
     if (showAnimation) {
@@ -137,8 +134,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
           ...(orderBy && { order_by: orderBy }),
           ...(sortBy && { sort_by: sortBy }),
         })
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -169,7 +165,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
       }
     },
-    [token, currentLanguage, isLabAdmin, customerId],
+    [token, currentLanguage, customerId],
   )
 
   const createRetention = useCallback(
@@ -186,7 +182,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${baseUrl}/library/retentions`, {
           method: "POST",
@@ -218,7 +214,7 @@ export function RetentionProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false)
       }
     },
-    [token, fetchRetentions, pagination.per_page, isLabAdmin, customerId],
+    [token, fetchRetentions, pagination.per_page, customerId],
   )
 
   const deleteRetention = useCallback(

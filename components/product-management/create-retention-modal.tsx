@@ -15,6 +15,7 @@ import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { useRetention } from "@/contexts/product-retention-context"
 import { useAuth } from "@/contexts/auth-context"
 import { generateCodeFromName } from "@/lib/utils"
+import { isLabLibraryRole, resolveLibraryCustomerId, userHasLabLibraryRole } from "@/lib/customer-scope"
 import {
   getRetentionVariations,
   createRetentionVariation,
@@ -91,13 +92,14 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
   const [isAddOptionModalOpen, setIsAddOptionModalOpen] = useState(false)
   const [editingOptionId, setEditingOptionId] = useState<string | null>(null)
 
-  // Helper to check lab admin role (matches context logic)
+  // Lab library staff (lab_admin, lab_user, lab_driver) — used for pricing UI + customer scope
   const isLabAdmin = (() => {
     if (!user) return false
-    if (user.roles && user.roles.length > 0) {
-      return user.roles[0] === "lab_admin"
+    if (userHasLabLibraryRole(user)) return true
+    if (typeof window !== "undefined") {
+      return isLabLibraryRole(localStorage.getItem("role"))
     }
-    return user.role === "lab_admin"
+    return false
   })()
 
   // Helper to check if user is superadmin
@@ -109,8 +111,8 @@ export function CreateRetentionModal({ isOpen, onClose, retention, isCopying = f
     return user.role === "superadmin" || user.roles === "superadmin"
   })()
 
-  // Get customer ID for lab admin
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  // Get customer ID for lab library roles
+  const customerId = resolveLibraryCustomerId(user) ?? undefined
 
   // Track changes
   useEffect(() => {

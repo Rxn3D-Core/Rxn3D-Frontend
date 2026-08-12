@@ -6,6 +6,7 @@ import { Award, CheckCircle, AlertCircle, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { useLanguage } from "./language-context"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 // Define types based on actual API response
 export interface Shade {
   id?: number // ID is optional for new shades
@@ -154,11 +155,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3
 export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { token: authToken, user } = useAuth() // Get token from AuthContext
 
-  // Determine user role and customerId
-  const userRole = localStorage.getItem("role")
-  
-  const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const customerId = resolveLibraryCustomerId(user)
 
   const [teethShadeBrands, setTeethShadeBrands] = useState<TeethShadeBrand[]>([])
   const [teethShadeGroups, setTeethShadeGroups] = useState<TeethShadeGroup[]>([])
@@ -253,8 +250,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           params.append("sort_by", "asc")
         }
 
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -300,7 +296,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [authToken, searchQuery, sortColumn, sortDirection, statusFilter, toast, currentLanguage, isLabAdmin, customerId],
+    [authToken, searchQuery, sortColumn, sortDirection, statusFilter, toast, currentLanguage, customerId],
   )
 
   const fetchTeethShadeGroups = useCallback(async () => {
@@ -380,7 +376,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/teeth-shade-brands`, {
           method: "POST",
@@ -450,7 +446,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchTeethShadeBrands, isLabAdmin, customerId],
+    [authToken, toast, fetchTeethShadeBrands, customerId],
   )
 
   const updateTeethShadeBrand = useCallback(
@@ -475,7 +471,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const bodyPayload = {
           ...payload,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/teeth-shade-brands/${id}`, {
           method: "PUT",
@@ -530,7 +526,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchTeethShadeBrands, isLabAdmin, customerId],
+    [authToken, toast, fetchTeethShadeBrands, customerId],
   )
 
   const deleteTeethShadeBrand = useCallback(
@@ -554,7 +550,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       try {
         let url = `${API_BASE_URL}/library/teeth-shade-brands/${id}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `?customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -607,7 +603,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchTeethShadeBrands, isLabAdmin, customerId],
+    [authToken, toast, fetchTeethShadeBrands, customerId],
   )
 
   const bulkDeleteTeethShadeBrands = useCallback(
@@ -632,7 +628,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const bodyPayload = {
           ids,
-          ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+          ...(customerId ? { customer_id: customerId } : {}),
         }
         const response = await fetch(`${API_BASE_URL}/library/teeth-shade-brands/bulk-delete`, {
           method: "DELETE",
@@ -687,7 +683,7 @@ export const TeethShadesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoading(false)
       }
     },
-    [authToken, toast, fetchTeethShadeBrands, isLabAdmin, customerId],
+    [authToken, toast, fetchTeethShadeBrands, customerId],
   )
 
   const createTeethShadeGroup = useCallback(

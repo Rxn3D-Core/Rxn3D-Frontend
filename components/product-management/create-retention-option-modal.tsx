@@ -11,6 +11,7 @@ import { LinkRetentionOptionModal } from "./link-retention-option-modal"
 import { GlobalRetentionOptionToothImagesPanel } from "@/components/product-management/global-retention-option-tooth-images-panel"
 import { useAuth } from "@/contexts/auth-context"
 import { generateCodeFromName } from "@/lib/utils"
+import { isLabLibraryRole, resolveLibraryCustomerId, userHasLabLibraryRole } from "@/lib/customer-scope"
 import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -93,32 +94,17 @@ export function CreateRetentionOptionModal({
 
     const toggleMaximize = () => setIsMaximized((v) => !v)
 
-    // Helper to check lab admin role
+    // Lab library staff (lab_admin, lab_user, lab_driver)
     const isLabAdmin = (() => {
         if (!user) return false
-        if (user.roles && user.roles.length > 0) {
-            return user.roles[0] === "lab_admin"
+        if (userHasLabLibraryRole(user)) return true
+        if (typeof window !== "undefined") {
+            return isLabLibraryRole(localStorage.getItem("role"))
         }
-        return user.role === "lab_admin"
+        return false
     })()
 
-    const getCustomerId = () => {
-        if (typeof window === "undefined") return null
-        const storedCustomerId = localStorage.getItem("customerId")
-        if (storedCustomerId) {
-            return parseInt(storedCustomerId, 10)
-        }
-        if (user?.customers && user.customers.length > 0) {
-            return user.customers[0].id
-        }
-        if (user?.customer_id) {
-            return user.customer_id
-        }
-        if (user?.customer?.id) {
-            return user.customer.id
-        }
-        return null
-    }
+    const getCustomerId = () => resolveLibraryCustomerId(user)
 
     const inferredCustomerId = getCustomerId()
     const customerId =
@@ -292,8 +278,8 @@ export function CreateRetentionOptionModal({
                     image: imagePayload,
                 }
 
-                // Add customer_id for lab admin if needed
-                if (isLabAdmin && customerId) {
+                // Add customer_id for lab library roles if needed
+                if (customerId) {
                     updatePayload.customer_id = customerId
                 }
 
@@ -317,8 +303,8 @@ export function CreateRetentionOptionModal({
                     image: imagePayload,
                 }
 
-                // Add customer_id for lab admin
-                if (isLabAdmin && customerId) {
+                // Add customer_id for lab library roles
+                if (customerId) {
                     createPayload.customer_id = customerId
                 }
 
