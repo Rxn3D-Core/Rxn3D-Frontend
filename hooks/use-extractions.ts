@@ -10,6 +10,7 @@ import type {
   UpdateExtractionPayload,
   ExtractionsFilters
 } from '@/lib/schemas'
+import { resolveLibraryCustomerId } from '@/lib/customer-scope'
 
 // Query keys for React Query
 export const extractionsKeys = {
@@ -35,22 +36,8 @@ export function useExtractions(filters: ExtractionsFilters = {}) {
   })
 }
 
-// Helper function to get customer ID for lab_admin
-const getCustomerId = (): number | null => {
-  if (typeof window === 'undefined') return null
-  
-  const role = localStorage.getItem('role')
-  const isLabAdmin = role === 'lab_admin'
-  
-  if (isLabAdmin) {
-    const customerId = localStorage.getItem('customerId')
-    if (customerId) {
-      return parseInt(customerId, 10)
-    }
-  }
-  
-  return null
-}
+// Helper function to get customer ID for lab library roles
+const getCustomerId = (): number | null => resolveLibraryCustomerId()
 
 // Fetch single extraction by ID (supports language-specific labels)
 export function useExtraction(id: number | null, lang?: string) {

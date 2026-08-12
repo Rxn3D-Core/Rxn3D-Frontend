@@ -3,6 +3,23 @@
  * resolves the correct profile. See docs/permissions/README.md
  */
 
+import { isLabCustomerContext, normalizeRoleSlug } from "@/lib/role-utils"
+
+const LAB_LIBRARY_ROLES = new Set(["lab_admin", "lab_user", "lab_driver"])
+
+/** True for lab_admin, lab_user, and lab_driver (any lab staff role). */
+export function isLabLibraryRole(role?: string | null): boolean {
+  return LAB_LIBRARY_ROLES.has(normalizeRoleSlug(role))
+}
+
+export function userHasLabLibraryRole(
+  user?: { roles?: string[]; role?: string } | null,
+): boolean {
+  if (!user) return false
+  const roles = user.roles?.length ? user.roles : user.role ? [user.role] : []
+  return roles.some((role) => isLabLibraryRole(role))
+}
+
 export function getActiveCustomerId(): string | null {
   if (typeof window === "undefined") return null
   return localStorage.getItem("customerId")
@@ -34,6 +51,58 @@ export function resolveListingCustomerId(): number | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Customer id for product / library APIs.
+ * Lab staff (lab_admin, lab_user, lab_driver) and lab customer context use the active
+ * profile `customerId` — without this, lab_user requests omit customer_id and return
+ * global/superadmin catalog data.
+ */
+export function resolveLibraryCustomerId(
+  user?: {
+    roles?: string[]
+    role?: string
+    customers?: Array<{ id: number }>
+    customer_id?: number
+    customer?: { id: number }
+  } | null,
+): number | null {
+  if (typeof window === "undefined") return null
+
+  const storedRole = localStorage.getItem("role")
+  const roles = [
+    ...(user?.roles ?? []),
+    ...(user?.role ? [user.role] : []),
+    ...(storedRole ? [storedRole] : []),
+  ]
+  const isSuperAdmin = roles.some((role) => normalizeRoleSlug(role) === "superadmin")
+  const isLabStaff =
+    roles.some((role) => isLabLibraryRole(role)) || isLabCustomerContext()
+
+  if (isLabStaff || isSuperAdmin) {
+    const fromStorage = getActiveCustomerId()
+    if (fromStorage) {
+      const parsed = Number(fromStorage)
+      if (Number.isFinite(parsed) && parsed > 0) return parsed
+    }
+
+    const fromUser =
+      user?.customer_id ??
+      user?.customer?.id ??
+      user?.customers?.find((customer) => customer.id)?.id
+    if (typeof fromUser === "number" && fromUser > 0) return fromUser
+
+    return resolveListingCustomerId()
+  }
+
+  const selectedLabId = localStorage.getItem("selectedLabId")
+  if (selectedLabId) {
+    const parsed = Number(selectedLabId)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+  }
+
+  return null
 }
 
 /** Active profile customer id for permission-scoped API calls. */

@@ -4,6 +4,7 @@ import type { ReactNode, Dispatch, SetStateAction } from "react"
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 import { ADDONS_LIBRARY_API_MAX_PER_PAGE } from "@/lib/constants"
 import { Loader2, Trash2, Save, CheckCircle, AlertCircle, Package } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -166,11 +167,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
   const { token: authToken, logout, user } = useAuth()
   const { toast } = useToast()
 
-  // Determine user role and customerId
-  const userRole = localStorage.getItem("role")
-  
-  const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const customerId = resolveLibraryCustomerId(user)
 
   // Add-ons state
   const [addOns, setAddOns] = useState<AddOn[]>([])
@@ -315,8 +312,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
           params.append("order_by", orderBy)
           params.append("sort_by", sortDir)
         }
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -358,7 +354,6 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       getAuthHeaders,
       clearSelectedItems,
       currentLanguage,
-      isLabAdmin,
       customerId,
     ],
   )
@@ -407,7 +402,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
           })
           if (search) params.append("q", search)
           appendSortParams(params)
-          if (isLabAdmin && customerId) {
+          if (customerId) {
             params.append("customer_id", customerId.toString())
           }
 
@@ -458,7 +453,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
         fetchingRef.current = false
       }
     },
-    [getAuthHeaders, clearSelectedItems, currentLanguage, isLabAdmin, customerId],
+    [getAuthHeaders, clearSelectedItems, currentLanguage, customerId],
   )
 
   const createAddOn = async (data: Omit<AddOn, "id" | "subcategory" | "category_name" | "subcategory_name">) => {
@@ -468,9 +463,8 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     triggerAnimation("creating", "Creating add-on...") 
 
     try {
-      // Add customer_id if lab_admin
       let payload = { ...data }
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         payload.customer_id = customerId
       }
 
@@ -515,9 +509,8 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     triggerAnimation("updating", "Updating add-on...")
 
     try {
-      // Add customer_id if lab_admin
       let payload = { ...data }
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         payload.customer_id = customerId
       }
 
@@ -552,9 +545,8 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
     triggerAnimation("deleting", "Deleting add-on...")
 
     try {
-      // Add customer_id as query param if lab_admin
       let url = `${API_BASE_URL}/library/addons/${id}`
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         url += `?customer_id=${customerId}`
       }
 
@@ -595,7 +587,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
 
       try {
         let url = `${API_BASE_URL}/library/addons/${id}?language=${currentLanguage}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `&customer_id=${customerId}`
         }
 
@@ -621,7 +613,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
         return null
       }
     },
-    [getAuthHeaders, currentLanguage, isLabAdmin, customerId],
+    [getAuthHeaders, currentLanguage, customerId],
   )
 
   const createAddOnSubCategory = async (data: AddOnSubCategoryCreate) => {
@@ -678,7 +670,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
 
     try {
       let url = `${API_BASE_URL}/library/addon-categories?include=subcategories&limit=500`
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         url += `&customer_id=${customerId}`
       }
       const response = await fetch(url, {
@@ -710,7 +702,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
       setIsLoadingCategoriesForSelect(false)
       fetchingCategoriesForSelectRef.current = false
     }
-  }, [getAuthHeaders, isLabAdmin, customerId])
+  }, [getAuthHeaders, customerId])
 
   // Add similar protection for fetchAddOnGroups
   const groupsFetchedRef = useRef(false)

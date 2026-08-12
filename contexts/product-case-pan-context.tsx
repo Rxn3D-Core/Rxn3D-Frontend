@@ -8,6 +8,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 import { useAuth } from "@/contexts/auth-context"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
 import { get } from "http"
 
 // Define Zod schemas
@@ -146,11 +147,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
 
   const { toast } = useToast()
 
-  // Helper to get user role
-  
-  const userRole = localStorage.getItem("role")
-  const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const customerId = resolveLibraryCustomerId(user)
 
   // Clear animation after it completes
   useEffect(() => {
@@ -210,20 +207,17 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
           params.q = searchQuery
         }
 
-        // Add customer_id if lab_admin
-        const cid = customerId || customCustomerId
-        if (isLabAdmin && cid) {
+        const cid = customerId ?? customCustomerId
+        if (cid) {
           params.customer_id = cid
         }
 
-        let response;
         const urlParams = new URLSearchParams();
-        if (isLabAdmin && cid) {
-         
-          Object.entries(params).forEach(([key, value]) => {
-            if (value !== undefined && value !== null) urlParams.append(key, String(value));
-          });
-          response = await fetch( `${API_BASE_URL}/library/case-pans?${urlParams.toString()}`,
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) urlParams.append(key, String(value));
+        });
+        const response = await fetch(
+          `${API_BASE_URL}/library/case-pans?${urlParams.toString()}`,
           {
             method: "GET",
             headers: {
@@ -231,25 +225,8 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
               "Content-Type": "application/json",
               "Accept-Language": currentLanguage || "en",
             },
-          });
-        } else {
-          // GET for others
-          const urlParams = new URLSearchParams();
-          Object.entries(params).forEach(([key, value]) => {
-            if (value !== undefined && value !== null) urlParams.append(key, String(value));
-          });
-          response = await fetch(
-            `${API_BASE_URL}/library/case-pans?${urlParams.toString()}`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-                "Accept-Language": currentLanguage || "en",
-              },
-            }
-          );
-        }
+          }
+        );
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -278,7 +255,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         setIsLoading(false)
       }
     },
-    [searchQuery, sortColumn, sortDirection, currentLanguage, isLabAdmin, customerId, toast, t],
+    [searchQuery, sortColumn, sortDirection, currentLanguage, customerId, toast, t],
   )
 
   const createCasePan = useCallback(
@@ -297,8 +274,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
           ...(payload.quantity !== undefined && { quantity: Number(payload.quantity) })
         }
         
-        // Add customer_id if lab_admin
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           formattedPayload.customer_id = customerId
         }
         
@@ -364,7 +340,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         setIsLoading(false)
       }
     },
-    [toast, fetchCasePans, isLabAdmin, customerId, t],
+    [toast, fetchCasePans, customerId, t],
   )
 
   const updateCasePan = useCallback(
@@ -377,9 +353,8 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
       try {
         const token = getAuthToken()
         
-        // Add customer_id if lab_admin
         const formattedPayload = { ...payload }
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           formattedPayload.customer_id = customerId
         }
         
@@ -435,7 +410,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         setIsLoading(false)
       }
     },
-    [toast, fetchCasePans, t, isLabAdmin, customerId],
+    [toast, fetchCasePans, t, customerId],
   )
 
   const deleteCasePan = useCallback(
@@ -448,9 +423,8 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
       try {
         const token = getAuthToken()
         
-        // Add customer_id as query param if lab_admin
         let url = `${API_BASE_URL}/library/case-pans/${id}`;
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `?customer_id=${customerId}`;
         }
         
@@ -505,7 +479,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         setIsLoading(false)
       }
     },
-    [toast, fetchCasePans, t, isLabAdmin, customerId],
+    [toast, fetchCasePans, t, customerId],
   )
 
   const bulkDeleteCasePans = useCallback(
@@ -518,9 +492,8 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
       try {
         const token = getAuthToken()
         
-        // Create the payload with ids and customer_id if needed
-        const payload = { ids };
-        if (isLabAdmin && customerId) {
+        const payload: Record<string, any> = { ids };
+        if (customerId) {
           payload.customer_id = customerId;
         }
         
@@ -580,7 +553,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         setIsLoading(false)
       }
     },
-    [toast, fetchCasePans, t, isLabAdmin, customerId],
+    [toast, fetchCasePans, t, customerId],
   )
 
   const getCasePanDetail = useCallback(
@@ -591,7 +564,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         const token = getAuthToken()
         const lang = currentLanguage
         let url = `${API_BASE_URL}/library/case-pans/${id}?lang=${lang}`
-        if (isLabAdmin && customerId) {
+        if (customerId) {
           url += `&customer_id=${customerId}`
         }
         const response = await fetch(url, {
@@ -621,7 +594,7 @@ export const ProductLibraryProvider: React.FC<{ children: React.ReactNode }> = (
         setIsDetailLoading(false)
       }
     },
-    [currentLanguage, isLabAdmin, customerId, t],
+    [currentLanguage, customerId, t],
   )
 
   const clearMessages = useCallback(() => {

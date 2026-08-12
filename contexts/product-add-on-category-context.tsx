@@ -4,6 +4,7 @@ import type { ReactNode, Dispatch, SetStateAction } from "react"
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { resolveLibraryCustomerId, isLabLibraryRole } from "@/lib/customer-scope"
 import { Loader2, Trash2, Save, CheckCircle, AlertCircle, Package } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
@@ -258,44 +259,15 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [customerId, setCustomerId] = useState<number | null>(null)
   
-  // Initialize user role on client side
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const role = localStorage.getItem("role")
-      setUserRole(role)
-      setIsLabAdmin(role === "lab_admin")
-      setIsSuperAdmin(role === "superadmin")
-    }
-  }, [])
-  
-  // Get customerId from localStorage (similar to product category context)
+  // Initialize user role and customerId on client side
   useEffect(() => {
     if (typeof window === "undefined") return
-    
-    let id: number | null = null
-    
-    if (isSuperAdmin) {
-      // Superadmin does not need customer_id
-      id = null
-    } else if (isLabAdmin) {
-      // For lab_admin roles, use customer_id from localStorage
-      const storedCustomerId = localStorage.getItem("customerId")
-      if (storedCustomerId) {
-        id = parseInt(storedCustomerId, 10)
-      } else if (user?.customers?.length) {
-        // Fallback to user.customers if not found in localStorage
-        id = user.customers[0]?.id || null
-      }
-    } else {
-      // For other roles, use selectedLabId from localStorage as customer_id
-      const storedLabId = localStorage.getItem("selectedLabId")
-      if (storedLabId) {
-        id = parseInt(storedLabId, 10)
-      }
-    }
-    
-    setCustomerId(id)
-  }, [isLabAdmin, isSuperAdmin, user?.customers])
+    const role = localStorage.getItem("role")
+    setUserRole(role)
+    setIsLabAdmin(isLabLibraryRole(role))
+    setIsSuperAdmin(role === "superadmin")
+    setCustomerId(resolveLibraryCustomerId(user))
+  }, [user?.customers])
 
   const triggerAnimation = useCallback((type: AnimationType, message = "", duration = 3000) => {
     setAnimationType(type)
