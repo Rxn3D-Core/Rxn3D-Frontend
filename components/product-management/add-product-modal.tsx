@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff } from "lucide-react"
+import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff, AlertCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -22,8 +22,11 @@ import {
   collectMaterialStepErrors,
   collectAddonsStepErrors,
   collectRetentionsStepErrors,
-  firstSlipPicklistValidationFailure,
 } from "@/lib/slip-relation-step-validation"
+import {
+  firstProductModalValidationFailure,
+  tabHasValidationErrors,
+} from "@/lib/product-modal-tab-validation"
 import { ProductCreateFormSchema, type ProductCreateForm, type Extraction } from "@/lib/schemas"
 import {
   finalizeLibraryProductApiPayload,
@@ -544,6 +547,7 @@ export function AddProductModal({
   const watchedMaterialsSlip = useWatch({ control, name: "materials" }) || []
   const watchedAddonsSlip = useWatch({ control, name: "addons" }) || []
   const watchedRetentionsSlip = useWatch({ control, name: "retentions" }) || []
+  const watchedRetentionOptionsSlip = useWatch({ control, name: "retention_options" }) || []
 
   /** Skip Variation when not per-tooth; skip Stages when product is single-stage (no workflow). */
   const tabsForNavigation = useMemo(() => {
@@ -566,6 +570,7 @@ export function AddProductModal({
       const stepErrs = collectProductDetailsStepErrors(values, {
         enforceLabPricing,
         sections: { grades: sections.grades },
+        jawPhotos,
       })
       setManualDetailErrors(stepErrs)
       void trigger(["name", "code", "category_id", "subcategory_id"])
@@ -657,7 +662,10 @@ export function AddProductModal({
     if (activeTab === "toothChartConfigurations" && sections.retention) {
       const values = getValues() as Record<string, unknown>
       const rErr = collectRetentionsStepErrors(values, { retentionSectionEnabled: sections.retention })
-      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", rErr))
+      setManualSlipRelationErrors((prev) => {
+        const without = prev.filter((e) => e.field !== "retentions" && e.field !== "retention_options")
+        return [...without, ...rErr]
+      })
       if (rErr.length > 0) return
     }
 
@@ -1198,12 +1206,32 @@ export function AddProductModal({
     )
   }
 
+  const allManualAndClientErrors = useMemo(
+    () => [
+      ...validationErrors,
+      ...manualDetailErrors,
+      ...manualVariationErrors,
+      ...manualGradeErrors,
+      ...manualStageErrors,
+      ...manualSlipRelationErrors,
+    ],
+    [
+      validationErrors,
+      manualDetailErrors,
+      manualVariationErrors,
+      manualGradeErrors,
+      manualStageErrors,
+      manualSlipRelationErrors,
+    ],
+  )
+
   useEffect(() => {
     setManualDetailErrors((prev) => {
       if (prev.length === 0) return prev
       const next = collectProductDetailsStepErrors(getValues() as Record<string, unknown>, {
         enforceLabPricing,
         sections: { grades: sections.grades },
+        jawPhotos,
       })
       if (
         prev.length === next.length &&
@@ -1215,7 +1243,7 @@ export function AddProductModal({
     })
     // Sync step-level errors whenever details fields change (after Next failed validation).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getValues intentionally omitted (stable snapshot on watched fields change only)
-  }, [watchedProductDetailsStep, enforceLabPricing, sections.grades])
+  }, [watchedProductDetailsStep, enforceLabPricing, sections.grades, jawPhotos])
 
   useEffect(() => {
     setManualVariationErrors((prev) => {
@@ -1290,6 +1318,7 @@ export function AddProductModal({
         if (e.field === "materials" && !sections.material) return false
         if (e.field === "addons" && !sections.addOns) return false
         if (e.field === "retentions" && !sections.retention) return false
+        if (e.field === "retention_options" && !sections.retention) return false
         return true
       }),
     )
@@ -1329,7 +1358,7 @@ export function AddProductModal({
       if (fieldsToRefresh.has("addons")) {
         nextSlip.push(...collectAddonsStepErrors(v, { addOnsSectionEnabled: sections.addOns }))
       }
-      if (fieldsToRefresh.has("retentions")) {
+      if (fieldsToRefresh.has("retentions") || fieldsToRefresh.has("retention_options")) {
         nextSlip.push(
           ...collectRetentionsStepErrors(v, { retentionSectionEnabled: sections.retention }),
         )
@@ -1352,6 +1381,7 @@ export function AddProductModal({
     watchedMaterialsSlip,
     watchedAddonsSlip,
     watchedRetentionsSlip,
+    watchedRetentionOptionsSlip,
     sections.impressions,
     sections.gumShade,
     sections.teethShade,
@@ -1417,50 +1447,44 @@ export function AddProductModal({
 
   const onSubmit = async (data: ProductCreateForm) => {
     const record = { ...data } as Record<string, unknown>
-    const stepErrs = collectProductDetailsStepErrors(record, {
+    const fail = firstProductModalValidationFailure(record, {
+      sections: {
+        impressions: sections.impressions,
+        gumShade: sections.gumShade,
+        teethShade: sections.teethShade,
+        material: sections.material,
+        addOns: sections.addOns,
+        retention: sections.retention,
+        grades: sections.grades,
+        stages: sections.stages,
+        variation: sections.variation,
+      },
       enforceLabPricing,
-      sections: { grades: sections.grades },
+      isSingleStage: data.is_single_stage === "Yes",
+      isSuperAdmin: userRole === "superadmin",
+      masterGrades: masterGradesForValidation,
+      jawPhotos,
     })
-    setManualDetailErrors(stepErrs)
-    if (stepErrs.length > 0) {
-      setActiveTab("details")
-      return
-    }
 
-    const variationErrs = collectVariationStepErrors(record, { variationSectionEnabled: sections.variation })
-    setManualVariationErrors(variationErrs)
-    if (variationErrs.length > 0) {
-      setActiveTab("variation")
-      return
-    }
-
-    if (enforceLabPricing) {
-      const gradeErrs = collectGradesStepErrors(record, {
-        enforceLabGradePricing: enforceLabPricing,
-        gradesSectionEnabled: sections.grades,
-        masterGrades: masterGradesForValidation,
-      })
-      setManualGradeErrors(gradeErrs)
-      if (gradeErrs.length > 0) {
-        setActiveTab("grades")
-        return
-      }
-    }
-
-    const slipFailSubmit = firstSlipPicklistValidationFailure(record, {
-      impressions: sections.impressions,
-      gumShade: sections.gumShade,
-      teethShade: sections.teethShade,
-      material: sections.material,
-      addOns: sections.addOns,
-      retention: sections.retention,
-    })
-    setManualSlipRelationErrors((prev) => [
-      ...prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field)),
-      ...(slipFailSubmit?.errors ?? []),
-    ])
-    if (slipFailSubmit) {
-      setActiveTab(slipFailSubmit.tabId)
+    const all = fail?.allErrors ?? []
+    setManualDetailErrors(all.filter((e) => tabHasValidationErrors("details", [e])))
+    setManualVariationErrors(all.filter((e) => tabHasValidationErrors("variation", [e])))
+    setManualGradeErrors(all.filter((e) => tabHasValidationErrors("grades", [e])))
+    setManualStageErrors(all.filter((e) => tabHasValidationErrors("stages", [e])))
+    setManualSlipRelationErrors(
+      all.filter(
+        (e) =>
+          tabHasValidationErrors("impressions", [e]) ||
+          tabHasValidationErrors("gumShade", [e]) ||
+          tabHasValidationErrors("teethShade", [e]) ||
+          tabHasValidationErrors("material", [e]) ||
+          tabHasValidationErrors("addOns", [e]) ||
+          tabHasValidationErrors("toothChartConfigurations", [e]),
+      ),
+    )
+    if (fail) {
+      setVisibleTabs((prev) => new Set([...prev, fail.tabId]))
+      setActiveTab(fail.tabId)
       return
     }
 
@@ -1948,10 +1972,13 @@ export function AddProductModal({
   const retentionsStepErrsPreview = useMemo(
     () =>
       collectRetentionsStepErrors(
-        { retentions: watchedRetentionsSlip } as Record<string, unknown>,
+        {
+          retentions: watchedRetentionsSlip,
+          retention_options: watchedRetentionOptionsSlip,
+        } as Record<string, unknown>,
         { retentionSectionEnabled: sections.retention },
       ),
-    [watchedRetentionsSlip, sections.retention],
+    [watchedRetentionsSlip, watchedRetentionOptionsSlip, sections.retention],
   )
 
   // Check if current step is valid for enabling/disabling Next button
@@ -2128,6 +2155,7 @@ export function AddProductModal({
                       const isActive = activeTab === tab.id
                       const isVisible = visibleTabs.has(tab.id)
                       const isSectionOff = tab.sectionKey ? sections[tab.sectionKey as keyof typeof sections] === false : false
+                      const hasTabErrors = tabHasValidationErrors(tab.id, allManualAndClientErrors)
                       if (tab.id === "variation" && watchedIsTeethBased !== "Yes") return null
                       if (tab.id === "stages" && watchedIsSingleStage === "Yes") return null
                       if (!isVisible) return null
@@ -2147,7 +2175,11 @@ export function AddProductModal({
                           `}
                         >
                           {tab.label}
-                          {isSectionOff && <EyeOff className="h-3.5 w-3.5 text-gray-400" />}
+                          {hasTabErrors ? (
+                            <AlertCircle className="h-3.5 w-3.5 text-red-500" aria-label="Validation errors on this tab" />
+                          ) : isSectionOff ? (
+                            <EyeOff className="h-3.5 w-3.5 text-gray-400" />
+                          ) : null}
                         </button>
                       )
                     })}

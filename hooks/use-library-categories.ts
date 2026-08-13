@@ -54,7 +54,7 @@ export interface WizardSubcategoryShape {
 }
 
 export const libraryCategoriesQueryKey = (customerId: number | undefined, lang: string) =>
-  ["library-categories", customerId, lang] as const
+  ["library-categories", customerId, lang, "Active"] as const
 
 const CATEGORY_IMG_FALLBACK = "/placeholder.svg"
 const SUBCATEGORY_IMG_FALLBACK = "/placeholder.svg"
@@ -144,6 +144,7 @@ async function fetchLibraryCategories(
   const url = new URL("/v1/library/categories", API_BASE_URL)
   url.searchParams.set("lang", lang)
   url.searchParams.set("customer_id", String(customerId))
+  url.searchParams.set("status", "Active")
 
   const res = await fetch(url.toString(), {
     method: "GET",
@@ -193,7 +194,9 @@ export function useLibraryCategories(options: {
 
   const categoriesAsWizard: WizardCategoryShape[] = useMemo(
     () =>
-      (query.data?.data?.data ?? []).map((cat) => ({
+      (query.data?.data?.data ?? [])
+        .filter((cat) => String(cat.status ?? "Active").trim() === "Active")
+        .map((cat) => ({
         id: cat.id,
         name: cat.name,
         img: cat.image_url || getCategoryFallbackImg(cat.name, cat.code),
@@ -210,7 +213,10 @@ export function useLibraryCategories(options: {
     const out: Record<number, WizardSubcategoryShape[]> = {}
     const list = query.data?.data?.data ?? []
     for (const cat of list) {
-      out[cat.id] = (cat.subcategories ?? []).map((sub) => ({
+      if (String(cat.status ?? "Active").trim() !== "Active") continue
+      out[cat.id] = (cat.subcategories ?? [])
+        .filter((sub) => String(sub.status ?? "Active").trim() === "Active")
+        .map((sub) => ({
         id: sub.id,
         name: sub.name,
         img: sub.image_url || getSubcategoryFallbackImg(sub),

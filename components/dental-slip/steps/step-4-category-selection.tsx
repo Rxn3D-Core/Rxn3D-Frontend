@@ -12,7 +12,7 @@ interface Step4CategorySelectionProps {
   productCategory: string
   setProductCategory: (category: string) => void
   setStep: (step: number) => void
-  fetchSubcategoriesByCategory: (categoryId: number, language: string) => void
+  fetchSubcategoriesByCategory: (categoryId: number, language: string, customerId?: number, status?: string) => void
   showSpotlight: boolean
   activateSpotlight: (element: HTMLElement) => void
 }
@@ -108,7 +108,7 @@ export const Step4CategorySelection: React.FC<Step4CategorySelectionProps> = ({
                       }
                       setProductCategory(cat.name);
                       // Fetch subcategories for the selected category
-                      fetchSubcategoriesByCategory(cat.id, "en");
+                      fetchSubcategoriesByCategory(cat.id, "en", undefined, "Active");
                       setStep(5);
                     }}
                   >

@@ -88,19 +88,23 @@ async function fetchLabProducts(labId: number, params?: Record<string, any>) {
     url.searchParams.append('customer_id', customerId.toString())
   }
 
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== null && v !== undefined && v !== '') {
-        if (k === 'sort_by') {
-          url.searchParams.append('order_by', String(v))
-        } else if (k === 'sort_order') {
-          url.searchParams.append('sort_by', String(v))
-        } else {
-          url.searchParams.append(k, String(v))
-        }
+  // Slip creation should only offer Active products unless the caller overrides status
+  const effectiveParams: Record<string, any> = { status: 'Active', ...(params || {}) }
+
+  Object.entries(effectiveParams).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && v !== '') {
+      if (k === 'sort_by') {
+        url.searchParams.append('order_by', String(v))
+      } else if (k === 'sort_order') {
+        url.searchParams.append('sort_by', String(v))
+      } else if (k === 'search') {
+        // Slip creation library products keyword filter uses `q` (not `search`)
+        url.searchParams.append('q', String(v))
+      } else {
+        url.searchParams.append(k, String(v))
       }
-    })
-  }
+    }
+  })
 
   const response = await fetch(url.toString(), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},

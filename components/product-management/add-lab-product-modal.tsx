@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react"
-import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff } from "lucide-react"
+import { X, Maximize2, ChevronLeft, ChevronRight, EyeOff, AlertCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,8 +16,12 @@ import {
   collectMaterialStepErrors,
   collectAddonsStepErrors,
   collectRetentionsStepErrors,
-  firstSlipPicklistValidationFailure,
 } from "@/lib/slip-relation-step-validation"
+import {
+  firstProductModalValidationFailure,
+  tabHasValidationErrors,
+} from "@/lib/product-modal-tab-validation"
+import { collectJawPhotosStepErrors } from "@/lib/product-details-step-validation"
 import {
   finalizeLibraryProductApiPayload,
   validateStageAllocationPercents,
@@ -568,7 +572,40 @@ export function AddLabProductModal({
   const watchedMaterialsSlip = useWatch({ control, name: "materials" }) || []
   const watchedAddonsSlip = useWatch({ control, name: "addons" }) || []
   const watchedRetentionsSlip = useWatch({ control, name: "retentions" }) || []
+  const watchedRetentionOptionsSlip = useWatch({ control, name: "retention_options" }) || []
+  const watchedShowJawPhoto = useWatch({ control, name: "show_jaw_photo" })
   const watchedHasGradeBasedPricing = watch("has_grade_based_pricing")
+
+  // Clear / refresh jaw photo validation errors as slots or the toggle change
+  useEffect(() => {
+    setManualSlipRelationErrors((prev) => {
+      const prevJaw = prev.filter((e) => e.field.startsWith("jaw_photos"))
+      if (prevJaw.length === 0) return prev
+      const without = prev.filter((e) => !e.field.startsWith("jaw_photos"))
+      const nextJaw = collectJawPhotosStepErrors(
+        { show_jaw_photo: watchedShowJawPhoto } as Record<string, unknown>,
+        jawPhotos,
+      )
+      if (
+        nextJaw.length === prevJaw.length &&
+        nextJaw.every((e, i) => e.field === prevJaw[i]?.field && e.message === prevJaw[i]?.message)
+      ) {
+        return prev
+      }
+      return [...without, ...nextJaw]
+    })
+  }, [jawPhotos, watchedShowJawPhoto])
+  const masterGradesForValidation = useMemo(
+    () =>
+      (Array.isArray(grades) ? grades : (grades as { data?: unknown[] })?.data || []).map(
+        (g: { id?: number | string; sequence?: number }) => ({
+          id: g.id as number | string,
+          sequence: g.sequence,
+        }),
+      ),
+    [grades],
+  )
+  const enforceLabPricing = userRole !== "superadmin"
   // Serialized key for stages to ensure useMemo recomputes when price/days change
   const stagesValidationKey = watchedStages.map((s: any) => `${s.stage_id}:${s.economy_price || s.standard_price || 0}:${s.days || 0}`).join(",")
 
@@ -791,7 +828,10 @@ export function AddLabProductModal({
     if (activeTab === "toothChartConfigurations" && sections.retention) {
       return (
         collectRetentionsStepErrors(
-          { retentions: watchedRetentionsSlip } as Record<string, unknown>,
+          {
+            retentions: watchedRetentionsSlip,
+            retention_options: watchedRetentionOptionsSlip,
+          } as Record<string, unknown>,
           { retentionSectionEnabled: sections.retention },
         ).length === 0
       )
@@ -862,6 +902,7 @@ export function AddLabProductModal({
     watchedMaterialsSlip,
     watchedAddonsSlip,
     watchedRetentionsSlip,
+    watchedRetentionOptionsSlip,
   ])
 
   const handleNext = async () => {
@@ -876,6 +917,23 @@ export function AddLabProductModal({
         toast({
           title: "Validation Error",
           description: "Please fill in all required fields before proceeding.",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
+    if (activeTab === "details") {
+      const record = getValues() as Record<string, unknown>
+      const jawErrs = collectJawPhotosStepErrors(record, jawPhotos)
+      setManualSlipRelationErrors((prev) => {
+        const without = prev.filter((e) => !e.field.startsWith("jaw_photos"))
+        return [...without, ...jawErrs]
+      })
+      if (jawErrs.length > 0) {
+        toast({
+          title: "Validation Error",
+          description: jawErrs[0].message,
           variant: "destructive",
         })
         return
@@ -953,7 +1011,10 @@ export function AddLabProductModal({
     if (activeTab === "toothChartConfigurations" && sections.retention) {
       const record = getValues() as Record<string, unknown>
       const err = collectRetentionsStepErrors(record, { retentionSectionEnabled: sections.retention })
-      setManualSlipRelationErrors((prev) => replaceSlipFieldErrors(prev, "retentions", err))
+      setManualSlipRelationErrors((prev) => {
+        const without = prev.filter((e) => e.field !== "retentions" && e.field !== "retention_options")
+        return [...without, ...err]
+      })
       if (err.length > 0) {
         toast({ title: "Validation Error", description: err[0].message, variant: "destructive" })
         return
@@ -1058,6 +1119,15 @@ export function AddLabProductModal({
         if (e.field === "materials" && !sections.material) return false
         if (e.field === "addons" && !sections.addOns) return false
         if (e.field === "retentions" && !sections.retention) return false
+        if (e.field === "retention_options" && !sections.retention) return false
+        if ((e.field === "grades" || e.field.startsWith("grades.")) && !sections.grades) return false
+        if ((e.field === "stages" || e.field.startsWith("stages.")) && !sections.stages) return false
+        if (
+          (e.field === "tooth_count_variations" || e.field.startsWith("tooth_count_variations.")) &&
+          !sections.variation
+        ) {
+          return false
+        }
         return true
       }),
     )
@@ -1068,6 +1138,9 @@ export function AddLabProductModal({
     sections.material,
     sections.addOns,
     sections.retention,
+    sections.grades,
+    sections.stages,
+    sections.variation,
   ])
 
   useEffect(() => {
@@ -1097,7 +1170,7 @@ export function AddLabProductModal({
       if (fieldsToRefresh.has("addons")) {
         nextSlip.push(...collectAddonsStepErrors(v, { addOnsSectionEnabled: sections.addOns }))
       }
-      if (fieldsToRefresh.has("retentions")) {
+      if (fieldsToRefresh.has("retentions") || fieldsToRefresh.has("retention_options")) {
         nextSlip.push(
           ...collectRetentionsStepErrors(v, { retentionSectionEnabled: sections.retention }),
         )
@@ -1120,6 +1193,7 @@ export function AddLabProductModal({
     watchedMaterialsSlip,
     watchedAddonsSlip,
     watchedRetentionsSlip,
+    watchedRetentionOptionsSlip,
     sections.impressions,
     sections.gumShade,
     sections.teethShade,
@@ -1965,26 +2039,33 @@ export function AddLabProductModal({
   const onSubmit = async (data: ProductCreateForm) => {
     clearValidationErrors()
 
-    const slipFlags = {
-      impressions: sections.impressions,
-      gumShade: sections.gumShade,
-      teethShade: sections.teethShade,
-      material: sections.material,
-      addOns: sections.addOns,
-      retention: sections.retention,
-    }
-    const slipFailSave = firstSlipPicklistValidationFailure({ ...data } as Record<string, unknown>, slipFlags)
-    setManualSlipRelationErrors((prev) => [
-      ...prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field)),
-      ...(slipFailSave?.errors ?? []),
-    ])
-    if (slipFailSave) {
+    const fail = firstProductModalValidationFailure({ ...data } as Record<string, unknown>, {
+      sections: {
+        impressions: sections.impressions,
+        gumShade: sections.gumShade,
+        teethShade: sections.teethShade,
+        material: sections.material,
+        addOns: sections.addOns,
+        retention: sections.retention,
+        grades: sections.grades,
+        stages: sections.stages,
+        variation: sections.variation,
+      },
+      enforceLabPricing,
+      isSingleStage: data.is_single_stage === "Yes",
+      isSuperAdmin: userRole === "superadmin",
+      masterGrades: masterGradesForValidation,
+      jawPhotos,
+    })
+    setManualSlipRelationErrors(fail?.allErrors ?? [])
+    if (fail) {
       toast({
         title: "Validation Error",
-        description: slipFailSave.errors[0].message,
+        description: fail.errors[0].message,
         variant: "destructive",
       })
-      setActiveTab(slipFailSave.tabId)
+      setVisibleTabs((prev) => new Set([...prev, fail.tabId]))
+      setActiveTab(fail.tabId)
       return
     }
 
@@ -2365,7 +2446,7 @@ export function AddLabProductModal({
       onSubmit(data)
     },
     (errors) => {
-      // Handle validation errors - show toast notification
+      // Handle validation errors - show toast notification and jump to the owning tab
       const errorMessages = flattenErrors(errors)
       if (errorMessages.length > 0) {
         const firstError = errorMessages[0]
@@ -2374,6 +2455,28 @@ export function AddLabProductModal({
           description: `${firstError.field}: ${firstError.message}`,
           variant: "destructive",
         })
+        const tabOrder = Object.keys(
+          // prefer PRODUCT_MODAL_TAB_FIELD_PREFIXES order via tabHasValidationErrors
+          {
+            details: true,
+            variation: true,
+            grades: true,
+            stages: true,
+            impressions: true,
+            gumShade: true,
+            teethShade: true,
+            material: true,
+            addOns: true,
+            toothChartConfigurations: true,
+            advanceFields: true,
+            visibility: true,
+          },
+        )
+        const jumpTab = tabOrder.find((tabId) => tabHasValidationErrors(tabId, errorMessages))
+        if (jumpTab) {
+          setVisibleTabs((prev) => new Set([...prev, jumpTab]))
+          setActiveTab(jumpTab)
+        }
       }
     }
   )
@@ -2563,28 +2666,33 @@ export function AddLabProductModal({
       clearValidationErrors()
       const formData = watch()
 
-      const slipFailSection = firstSlipPicklistValidationFailure(
-        formData as Record<string, unknown>,
-        {
+      const failSection = firstProductModalValidationFailure(formData as Record<string, unknown>, {
+        sections: {
           impressions: sections.impressions,
           gumShade: sections.gumShade,
           teethShade: sections.teethShade,
           material: sections.material,
           addOns: sections.addOns,
           retention: sections.retention,
+          grades: sections.grades,
+          stages: sections.stages,
+          variation: sections.variation,
         },
-      )
-      setManualSlipRelationErrors((prev) => [
-        ...prev.filter((e) => !SLIP_RELATION_FIELD_SET.has(e.field)),
-        ...(slipFailSection?.errors ?? []),
-      ])
-      if (slipFailSection) {
+        enforceLabPricing,
+        isSingleStage: formData.is_single_stage === "Yes",
+        isSuperAdmin: userRole === "superadmin",
+        masterGrades: masterGradesForValidation,
+        jawPhotos,
+      })
+      setManualSlipRelationErrors(failSection?.allErrors ?? [])
+      if (failSection) {
         toast({
           title: "Validation Error",
-          description: slipFailSection.errors[0].message,
+          description: failSection.errors[0].message,
           variant: "destructive",
         })
-        setActiveTab(slipFailSection.tabId)
+        setVisibleTabs((prev) => new Set([...prev, failSection.tabId]))
+        setActiveTab(failSection.tabId)
         return
       }
 
@@ -3215,6 +3323,7 @@ export function AddLabProductModal({
                       const isSectionOff = tab.sectionKey
                         ? sections[tab.sectionKey as keyof typeof sections] === false
                         : false
+                      const hasTabErrors = tabHasValidationErrors(tab.id, validationErrors)
                       if (!isVisible) return null
                       return (
                         <button
@@ -3232,7 +3341,11 @@ export function AddLabProductModal({
                           `}
                         >
                           {tab.label}
-                          {isSectionOff && <EyeOff className="h-3.5 w-3.5 text-gray-400" />}
+                          {hasTabErrors ? (
+                            <AlertCircle className="h-3.5 w-3.5 text-red-500" aria-label="Validation errors on this tab" />
+                          ) : isSectionOff ? (
+                            <EyeOff className="h-3.5 w-3.5 text-gray-400" />
+                          ) : null}
                         </button>
                       )
                     })}

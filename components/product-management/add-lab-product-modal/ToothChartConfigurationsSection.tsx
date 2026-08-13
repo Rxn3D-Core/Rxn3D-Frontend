@@ -297,7 +297,7 @@ export function ToothChartConfigurationsSection({
             <label htmlFor="tooth-chart-retention-toggle" className="text-sm font-medium cursor-pointer">
               Retention
             </label>
-            {sectionHasErrors(["retentions"]) ? (
+            {sectionHasErrors(["retentions", "retention_options"]) ? (
               <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
             ) : (
               <TooltipProvider delayDuration={200}>

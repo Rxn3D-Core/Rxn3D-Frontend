@@ -12,6 +12,7 @@ export const SLIP_RELATION_FORM_FIELDS = [
   "materials",
   "addons",
   "retentions",
+  "retention_options",
 ] as const
 
 export type SlipRelationFormField = (typeof SLIP_RELATION_FORM_FIELDS)[number]
@@ -151,13 +152,32 @@ export function collectRetentionsStepErrors(
   v: Record<string, unknown>,
   opts: { retentionSectionEnabled: boolean },
 ): SlipRelationStepFieldError[] {
-  return collectMinOneSelected(v, {
-    sectionEnabled: opts.retentionSectionEnabled,
+  if (!opts.retentionSectionEnabled) return []
+
+  const hasType = collectMinOneSelected(v, {
+    sectionEnabled: true,
     arrayKey: "retentions",
     idKey: "retention_id",
     errorField: "retentions",
-    message: "Select at least one retention when Retention is on.",
-  })
+    message: "",
+  }).length === 0
+
+  const hasOption = collectMinOneSelected(v, {
+    sectionEnabled: true,
+    arrayKey: "retention_options",
+    idKey: "retention_option_id",
+    errorField: "retention_options",
+    message: "",
+  }).length === 0
+
+  // Retention ON requires at least one type and/or one option selected.
+  if (hasType || hasOption) return []
+  return [
+    {
+      field: "retentions",
+      message: "Select at least one retention type or retention option when Retention is on.",
+    },
+  ]
 }
 
 /** Sections map matches `sections` state in product modals (camelCase keys). */
@@ -199,7 +219,8 @@ export function firstSlipPicklistValidationFailure(
       run: () => collectAddonsStepErrors(v, { addOnsSectionEnabled: sections.addOns }),
     },
     {
-      tabId: "retention",
+      // Retention UI lives on the Tooth Chart Configurations tab (not a standalone tab id).
+      tabId: "toothChartConfigurations",
       run: () =>
         collectRetentionsStepErrors(v, { retentionSectionEnabled: sections.retention }),
     },

@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { generateCodeFromName, cn } from "@/lib/utils"
 import { productHasAnyJawPhotoUrls } from "@/lib/library-product-api-mapping"
+import { ValidationError } from "@/components/ui/validation-error"
 import {
   Select,
   SelectContent,
@@ -372,9 +373,10 @@ interface JawPhotoUploadProps {
   jawType: JawType
   value: string | null | undefined
   onChange: (jawType: JawType, base64: string | null) => void
+  errorMessage?: string
 }
 
-function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps) {
+function JawPhotoUpload({ label, jawType, value, onChange, errorMessage }: JawPhotoUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleClick = () => fileInputRef.current?.click()
@@ -390,12 +392,18 @@ function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps
     e.target.value = ""
   }
 
-  const boxClass =
-    "relative flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl h-28 w-28 sm:h-32 sm:w-32 shrink-0 bg-gradient-to-br from-gray-50 to-gray-100 hover:border-gray-400 hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group overflow-hidden"
+  const boxClass = cn(
+    "relative flex items-center justify-center border-2 border-dashed rounded-xl h-28 w-28 sm:h-32 sm:w-32 shrink-0 bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group overflow-hidden",
+    errorMessage
+      ? "border-red-400 hover:border-red-500"
+      : "border-gray-300 hover:border-gray-400",
+  )
 
   return (
     <div className="flex flex-col items-center gap-2 max-w-[8rem] sm:max-w-[8.5rem] mx-auto">
-      <span className="text-sm font-medium text-gray-700 text-center">{label}</span>
+      <span className={cn("text-sm font-medium text-center", errorMessage ? "text-red-600" : "text-gray-700")}>
+        {label}
+      </span>
       <div className={boxClass} onClick={handleClick}>
         {value ? (
           <img
@@ -417,6 +425,9 @@ function JawPhotoUpload({ label, jawType, value, onChange }: JawPhotoUploadProps
           onChange={handleFileChange}
         />
       </div>
+      {errorMessage ? (
+        <p className="text-[11px] leading-snug text-red-600 text-center">{errorMessage}</p>
+      ) : null}
       {value && (
         <div className="flex gap-2 w-full">
           <Button
@@ -438,10 +449,20 @@ interface ShowJawPhotoSectionProps {
   control: any
   jawPhotos: { upper?: string | null; lower?: string | null; both?: string | null }
   onJawPhotoChange: (jawType: JawType, base64: string | null) => void
+  getValidationError?: (field: string) => string | undefined
 }
 
-function ShowJawPhotoSection({ control, jawPhotos, onJawPhotoChange }: ShowJawPhotoSectionProps) {
+function ShowJawPhotoSection({
+  control,
+  jawPhotos,
+  onJawPhotoChange,
+  getValidationError = () => undefined,
+}: ShowJawPhotoSectionProps) {
   const showJawPhoto = useWatch({ control, name: "show_jaw_photo" })
+  const upperErr = getValidationError("jaw_photos.upper")
+  const lowerErr = getValidationError("jaw_photos.lower")
+  const bothErr = getValidationError("jaw_photos.both")
+  const anyJawErr = Boolean(upperErr || lowerErr || bothErr)
 
   return (
     <div className="space-y-4">
@@ -458,38 +479,47 @@ function ShowJawPhotoSection({ control, jawPhotos, onJawPhotoChange }: ShowJawPh
           )}
         />
         <label className="text-sm font-medium text-gray-700">Show jaw photo</label>
+        {anyJawErr ? <AlertCircle className="h-4 w-4 text-red-500" /> : null}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Info className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
             </TooltipTrigger>
             <TooltipContent>
-              <p>Enable to attach upper, lower, and/or both-jaw reference images for this product</p>
+              <p>When enabled, upper, lower, and both-jaw reference images are required</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
       {showJawPhoto === "Yes" && (
-        <div className="grid grid-cols-6 gap-2 justify-items-left">
-          <JawPhotoUpload
-            label="Upper Jaw"
-            jawType="upper"
-            value={jawPhotos.upper}
-            onChange={onJawPhotoChange}
-          />
-          <JawPhotoUpload
-            label="Lower Jaw"
-            jawType="lower"
-            value={jawPhotos.lower}
-            onChange={onJawPhotoChange}
-          />
-          <JawPhotoUpload
-            label="Both"
-            jawType="both"
-            value={jawPhotos.both}
-            onChange={onJawPhotoChange}
-          />
+        <div className="space-y-2">
+          <div className="grid grid-cols-6 gap-2 justify-items-left">
+            <JawPhotoUpload
+              label="Upper Jaw"
+              jawType="upper"
+              value={jawPhotos.upper}
+              onChange={onJawPhotoChange}
+              errorMessage={upperErr}
+            />
+            <JawPhotoUpload
+              label="Lower Jaw"
+              jawType="lower"
+              value={jawPhotos.lower}
+              onChange={onJawPhotoChange}
+              errorMessage={lowerErr}
+            />
+            <JawPhotoUpload
+              label="Both"
+              jawType="both"
+              value={jawPhotos.both}
+              onChange={onJawPhotoChange}
+              errorMessage={bothErr}
+            />
+          </div>
+          {anyJawErr ? (
+            <ValidationError message="Upload upper, lower, and both jaw photos when Show jaw photo is on." />
+          ) : null}
         </div>
       )}
     </div>
@@ -798,6 +828,9 @@ export function ProductDetailsSection({
     getValidationError("teeth_first_tooth_price") ||
     getValidationError("teeth_additional_tooth_price") ||
     getValidationError("teeth_custom_prices") ||
+    getValidationError("jaw_photos.upper") ||
+    getValidationError("jaw_photos.lower") ||
+    getValidationError("jaw_photos.both") ||
     Array.from({ length: MAX_TEETH }, (_, i) => getValidationError(`teeth_custom_prices.${i}`)).some(Boolean)
 
   // Helper function to determine validation state based on focus and value
@@ -1113,6 +1146,7 @@ export function ProductDetailsSection({
             control={control}
             jawPhotos={jawPhotos}
             onJawPhotoChange={onJawPhotoChange ?? (() => {})}
+            getValidationError={getValidationError}
           />
 
           {/* Base Price - Third Row */}

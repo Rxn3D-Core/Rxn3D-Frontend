@@ -92,13 +92,29 @@ function pickDoctorImageRaw(doctor: DoctorImageSource): string {
 }
 
 /**
+ * Join first + last for slip doctor labels. Empty values and "-" placeholders
+ * are omitted so a single given name shows without a dash.
+ */
+export function formatDoctorDisplayName(
+  firstName?: string | null,
+  lastName?: string | null,
+  fallback = "Doctor",
+): string {
+  const name = [firstName, lastName]
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter((part) => part !== "" && part !== "-")
+    .join(" ")
+  return name || fallback
+}
+
+/**
  * Compute up-to-two-letter initials from a full name (or first/last parts).
  * Used as the ONLY fallback for doctor/user avatars — no placeholder images.
  */
 export function getInitials(...parts: Array<string | null | undefined>): string {
   const source = parts
     .map((p) => (typeof p === "string" ? p.trim() : ""))
-    .filter(Boolean)
+    .filter((p) => p !== "" && p !== "-")
     .join(" ")
     .trim()
   if (!source) return ""
