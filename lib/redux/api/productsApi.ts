@@ -17,7 +17,7 @@ export const productsApi = apiSlice.injectEndpoints({
         params.append("page", page.toString())
         params.append("limit", limit.toString())
 
-        if (filter.search) params.append("search", filter.search)
+        if (filter.search) params.append("q", filter.search)
         if (filter.categoryId) params.append("categoryId", filter.categoryId)
         if (filter.isActive !== undefined) params.append("isActive", filter.isActive.toString())
         if (filter.requiresImpression !== undefined)

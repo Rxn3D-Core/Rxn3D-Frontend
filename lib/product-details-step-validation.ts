@@ -1,15 +1,24 @@
 /**
  * Product Details tab validation (global / lab product modal).
  * Lab admin: pricing + per-tooth pricing when enabled. Super admin: identity fields only.
+ * Jaw photos: when Show jaw photo is on, upper + lower + both are required (any role).
  */
 export type ProductDetailsSectionFlags = {
   grades: boolean
+}
+
+export type JawPhotosValidationState = {
+  upper?: string | null
+  lower?: string | null
+  both?: string | null
 }
 
 export type ProductDetailsStepValidationOpts = {
   /** When false (superadmin), skip all price rules */
   enforceLabPricing: boolean
   sections: ProductDetailsSectionFlags
+  /** Outside RHF — preview URLs / new base64 uploads for jaw slots */
+  jawPhotos?: JawPhotosValidationState
 }
 
 export type ProductDetailsFieldError = { field: string; message: string }
@@ -21,6 +30,32 @@ function parseNonNegativeMoney(raw: unknown): number | null {
   const n = parseFloat(s)
   if (!Number.isFinite(n) || n < 0) return null
   return n
+}
+
+function jawPhotoSlotPresent(raw: unknown): boolean {
+  if (raw === undefined || raw === null) return false
+  return String(raw).trim() !== ""
+}
+
+/** When Show jaw photo is Yes, every slot (upper, lower, both) must have an image. */
+export function collectJawPhotosStepErrors(
+  v: Record<string, unknown>,
+  jawPhotos?: JawPhotosValidationState,
+): ProductDetailsFieldError[] {
+  if (String(v.show_jaw_photo ?? "") !== "Yes") return []
+
+  const slots = jawPhotos ?? {}
+  const errs: ProductDetailsFieldError[] = []
+  if (!jawPhotoSlotPresent(slots.upper)) {
+    errs.push({ field: "jaw_photos.upper", message: "Upper jaw photo is required when Show jaw photo is on." })
+  }
+  if (!jawPhotoSlotPresent(slots.lower)) {
+    errs.push({ field: "jaw_photos.lower", message: "Lower jaw photo is required when Show jaw photo is on." })
+  }
+  if (!jawPhotoSlotPresent(slots.both)) {
+    errs.push({ field: "jaw_photos.both", message: "Both-jaw photo is required when Show jaw photo is on." })
+  }
+  return errs
 }
 
 export function collectProductDetailsStepErrors(
@@ -45,6 +80,9 @@ export function collectProductDetailsStepErrors(
   if (sub == null || sub === "" || Number(sub) <= 0 || !Number.isFinite(Number(sub))) {
     errs.push({ field: "subcategory_id", message: "Subcategory is required" })
   }
+
+  // Jaw photos apply for lab and superadmin whenever the switch is on
+  errs.push(...collectJawPhotosStepErrors(v, opts.jawPhotos))
 
   if (!opts.enforceLabPricing) {
     return errs

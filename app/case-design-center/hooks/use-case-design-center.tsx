@@ -2846,7 +2846,7 @@ export function useCaseDesignCenter() {
     // Fetch categories (will use cache if available in context, otherwise fetch fresh)
     // For office_admin, use selectedLab.id; for others, use customerId
     const customerIdNum = getCustomerIdForApi()
-    fetchAllCategories("en", customerIdNum)
+    fetchAllCategories("en", customerIdNum, "Active")
 
     // Load saved products from localStorage
     const storedProducts = localStorage.getItem("savedProducts")
@@ -3898,12 +3898,14 @@ export function useCaseDesignCenter() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   // Filtered subcategories based on search query
-  // Only show subcategories that belong to the currently selected category
+  // Only show Active subcategories that belong to the currently selected category
   const filteredSubcategories = useMemo(() => {
-    // First, ensure we only show subcategories for the selected category
-    let categoryFilteredSubcategories = subcategoriesByCategory
+    // First, ensure we only show active subcategories for the selected category
+    let categoryFilteredSubcategories = subcategoriesByCategory.filter(
+      (subcategory: ProductCategory) => String(subcategory.status ?? "Active").trim() === "Active"
+    )
     if (selectedCategoryId) {
-      categoryFilteredSubcategories = subcategoriesByCategory.filter(
+      categoryFilteredSubcategories = categoryFilteredSubcategories.filter(
         (subcategory: ProductCategory) => subcategory.parent_id === selectedCategoryId
       )
     }
@@ -3918,13 +3920,16 @@ export function useCaseDesignCenter() {
     )
   }, [subcategoriesByCategory, debouncedSearchQuery, selectedCategoryId])
 
-  // Filtered products based on search query
+  // Filtered products based on search query — Active only for slip creation
   const filteredProducts = useMemo(() => {
+    const activeProducts = products.filter(
+      (product: Product) => String((product as any).status ?? "Active").trim() === "Active"
+    )
     if (!debouncedSearchQuery.trim()) {
-      return products
+      return activeProducts
     }
     const query = debouncedSearchQuery.toLowerCase().trim()
-    return products.filter((product: Product) =>
+    return activeProducts.filter((product: Product) =>
       product.name?.toLowerCase().includes(query)
     )
   }, [products, debouncedSearchQuery])
@@ -3973,11 +3978,14 @@ export function useCaseDesignCenter() {
       const params: Record<string, any> = {
         per_page: 50,
         page: 1,
-        search: searchTerm,
+        q: searchTerm,
+        status: "Active",
       }
 
       const results = await fetchLabProducts(labId, params)
-      return Array.isArray(results) ? results : []
+      return Array.isArray(results)
+        ? results.filter((p: Product) => String((p as any).status ?? "Active").trim() === "Active")
+        : []
     },
     enabled: shouldSearch,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -4036,6 +4044,7 @@ export function useCaseDesignCenter() {
   }
 
   const mainCategories = allCategories?.filter((cat: ProductCategoryApi) => {
+    if (String(cat.status ?? "Active").trim() !== "Active") return false
     const name = cat.name.toLowerCase()
     return name.includes("fixed") || name.includes("removable") || name.includes("ortho")
   }) || []
@@ -4085,7 +4094,7 @@ export function useCaseDesignCenter() {
     // Fetch subcategories for the selected category
     // For office_admin, use selectedLab.id; for others, use customerId
     const customerIdNum = getCustomerIdForApi()
-    fetchSubcategoriesByCategory(category.id, "en", customerIdNum)
+    fetchSubcategoriesByCategory(category.id, "en", customerIdNum, "Active")
   }
 
   const handleSubcategorySelect = async (subcategory: ProductCategory) => {
@@ -4114,10 +4123,11 @@ export function useCaseDesignCenter() {
         per_page: 50,
         page: 1,
         subcategory_id: subcategory.id,
+        status: "Active",
       }
 
       if (searchQuery.trim()) {
-        params.search = searchQuery.trim()
+        params.q = searchQuery.trim()
       }
 
       await fetchLabProducts(labId, params)
@@ -4762,7 +4772,7 @@ export function useCaseDesignCenter() {
             !subcategoriesByCategory.some(sc => sc.parent_id === matchedCategory.id)) {
             // For office_admin, use selectedLab.id; for others, use customerId
             const customerIdNum = getCustomerIdForApi()
-            await fetchSubcategoriesByCategory(matchedCategory.id, "en", customerIdNum)
+            await fetchSubcategoriesByCategory(matchedCategory.id, "en", customerIdNum, "Active")
           }
           // Find subcategories for this category
           const subcats = subcategoriesByCategory.filter(sc => sc.parent_id === matchedCategory.id)

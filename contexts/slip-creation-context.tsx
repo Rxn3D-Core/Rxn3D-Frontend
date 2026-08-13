@@ -432,23 +432,27 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
       if (customerId) {
         url.searchParams.append("customer_id", customerId.toString());
       }
+
+      // Slip creation should only offer Active products unless the caller overrides status
+      const effectiveParams: Record<string, any> = { status: "Active", ...(params || {}) }
       
       // Add other params, mapping sort_by to order_by and sort_order to sort_by
-      if (params) {
-        Object.entries(params).forEach(([k, v]) => {
-          if (v !== null && v !== undefined && v !== '') {
-            // Map sort_by to order_by and sort_order to sort_by for the new API
-            if (k === 'sort_by' && typeof v === 'string') {
-              url.searchParams.append('order_by', String(v));
-            } else if (k === 'sort_order') {
-              url.searchParams.append('sort_by', String(v));
-            } else {
-              // For all other params, keep them as is
-              url.searchParams.append(k, String(v));
-            }
+      // Library products keyword filter on slip creation uses `q` (not `search`)
+      Object.entries(effectiveParams).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== '') {
+          // Map sort_by to order_by and sort_order to sort_by for the new API
+          if (k === 'sort_by' && typeof v === 'string') {
+            url.searchParams.append('order_by', String(v));
+          } else if (k === 'sort_order') {
+            url.searchParams.append('sort_by', String(v));
+          } else if (k === 'search') {
+            url.searchParams.append('q', String(v));
+          } else {
+            // For all other params, keep them as is
+            url.searchParams.append(k, String(v));
           }
-        });
-      }
+        }
+      });
       
       const res = await fetch(url.toString(), { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       if (res.status === 401) { window.location.href = '/login'; return }

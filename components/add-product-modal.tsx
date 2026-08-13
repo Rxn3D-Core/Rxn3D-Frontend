@@ -132,7 +132,11 @@ const fetchProducts = async (labId: number, params: Record<string, any>) => {
   const url = new URL(`/v1/slip/lab/${effectiveLabId}/products`, API_BASE_URL)
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') {
-      url.searchParams.append(k, String(v))
+      if (k === 'search') {
+        url.searchParams.append('q', String(v))
+      } else {
+        url.searchParams.append(k, String(v))
+      }
     }
   })
   
@@ -233,9 +237,9 @@ const AddProductModal = React.memo(function AddProductModal({ isOpen, onClose, o
       page: currentPage
     }
 
-    // Add search parameter
+    // Add search parameter (product APIs filter on `q`)
     if (debouncedProductSearch.trim()) {
-      params.search = debouncedProductSearch.trim()
+      params.q = debouncedProductSearch.trim()
     }
 
     // Add category filter

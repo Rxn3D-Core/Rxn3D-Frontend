@@ -524,7 +524,9 @@ export function DentalSlipPageContent({
     // Use rawLabProducts from slip creation context (fetchLabProducts)
     // Only log when products actually change, not on every step change
     if (rawLabProducts && Array.isArray(rawLabProducts) && rawLabProducts.length > 0) {
-      return rawLabProducts
+      return rawLabProducts.filter(
+        (p: any) => String(p?.status ?? "Active").trim() === "Active"
+      )
     }
     
     return []
@@ -822,7 +824,8 @@ export function DentalSlipPageContent({
       }
       if (labId) {
         const params: Record<string, any> = {}
-        if (productSearch) params.search = productSearch
+        if (productSearch) params.q = productSearch
+
         if (productSort === "name-az") {
           params.sort_by = "name"
           params.sort_order = "asc"
@@ -887,12 +890,14 @@ export function DentalSlipPageContent({
         // Build parameters for fetchLabProducts similar to add product modal
         const params: Record<string, any> = {
           per_page: 10,
-          page: 1
+          page: 1,
+          status: "Active",
         }
 
         // Add search parameter
         if (productSearch.trim()) {
-          params.search = productSearch.trim()
+          params.q = productSearch.trim()
+
         }
 
         // Add subcategory filter
@@ -960,12 +965,13 @@ export function DentalSlipPageContent({
       // Build parameters for fetchLabProducts similar to add product modal
       const params: Record<string, any> = {
         per_page: 25,
-        page: 1
+        page: 1,
+        status: "Active",
       }
 
       // Add search parameter
       if (productSearch.trim()) {
-        params.search = productSearch.trim()
+        params.q = productSearch.trim()
       }
 
       // Add subcategory filter
@@ -2421,7 +2427,7 @@ export function DentalSlipPageContent({
       // Pass customer_id from localStorage if available
       const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
       const customerIdNum = customerId ? Number(customerId) : undefined
-      fetchAllCategories("en", customerIdNum)
+      fetchAllCategories("en", customerIdNum, "Active")
     }
   }, [step, fetchAllCategories])
 
@@ -3298,7 +3304,7 @@ export function DentalSlipPageContent({
                               // Fetch subcategories for the selected category
                               const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
                               const customerIdNum = customerId ? Number(customerId) : undefined
-                              fetchSubcategoriesByCategory(cat.id, "en", customerIdNum);
+                              fetchSubcategoriesByCategory(cat.id, "en", customerIdNum, "Active");
                               setStep(5);
                             }}
                           >
@@ -3382,7 +3388,7 @@ export function DentalSlipPageContent({
                           if (selectedCategory) {
                             const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
                             const customerIdNum = customerId ? Number(customerId) : undefined
-                            fetchSubcategoriesByCategory(selectedCategory.id, "en", customerIdNum);
+                            fetchSubcategoriesByCategory(selectedCategory.id, "en", customerIdNum, "Active");
                           }
                         }}
                         className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"

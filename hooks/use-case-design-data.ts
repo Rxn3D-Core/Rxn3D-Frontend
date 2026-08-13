@@ -24,7 +24,7 @@ interface UseCaseDesignDataReturn {
  * Hook to manage case design data loading from localStorage and saving
  */
 export function useCaseDesignData(
-  fetchAllCategories: (lang: string, customerId?: number) => void
+  fetchAllCategories: (lang: string, customerId?: number, status?: string) => void
 ): UseCaseDesignDataReturn {
   const { toast } = useToast()
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null)
@@ -84,7 +84,7 @@ export function useCaseDesignData(
     // Fetch categories
     // For office_admin, use selectedLab.id; for others, use customerId
     const customerIdNum = getCustomerIdForApi(null)
-    fetchAllCategories("en", customerIdNum)
+    fetchAllCategories("en", customerIdNum, "Active")
 
     // Load saved products from localStorage
     const storedProducts = localStorage.getItem("savedProducts")
