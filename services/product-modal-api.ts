@@ -184,10 +184,14 @@ export const fetchProductsWithCache = async (labId: number, params: Record<strin
       url.searchParams.append('customer_id', customerId.toString())
     }
     
-    // Add other params
+    // Add other params (product keyword filter uses `q`)
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') {
-        url.searchParams.append(k, String(v))
+        if (k === 'search') {
+          url.searchParams.append('q', String(v))
+        } else {
+          url.searchParams.append(k, String(v))
+        }
       }
     })
     

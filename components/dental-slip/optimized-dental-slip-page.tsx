@@ -406,7 +406,9 @@ export function OptimizedDentalSlipPageContent({
   // Memoized values
   const labProducts = useMemo(() => {
     if (rawLabProducts && Array.isArray(rawLabProducts) && rawLabProducts.length > 0) {
-      return rawLabProducts
+      return rawLabProducts.filter(
+        (p: any) => String(p?.status ?? "Active").trim() === "Active"
+      )
     }
     return []
   }, [rawLabProducts, forceProductsRefresh])
@@ -445,7 +447,7 @@ export function OptimizedDentalSlipPageContent({
   // Fetch categories when step 4 is reached
   useEffect(() => {
     if (step === 4) {
-      fetchAllCategories("en")
+      fetchAllCategories("en", undefined, "Active")
     }
   }, [step, fetchAllCategories])
 
@@ -1089,7 +1091,7 @@ export function OptimizedDentalSlipPageContent({
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center flex-wrap">
                     {/* Fixed Restoration */}
                     {allCategories
-                      .filter(category => category.name === "Fixed Restoration")
+                      .filter(category => category.name === "Fixed Restoration" && String(category.status ?? "Active") === "Active")
                       .map((category) => (
                         <div
                           key={category.id}
@@ -1114,7 +1116,7 @@ export function OptimizedDentalSlipPageContent({
 
                     {/* Removable Restoration */}
                     {allCategories
-                      .filter(category => category.name === "Removable Restoration")
+                      .filter(category => category.name === "Removable Restoration" && String(category.status ?? "Active") === "Active")
                       .map((category) => (
                         <div
                           key={category.id}
@@ -1139,7 +1141,7 @@ export function OptimizedDentalSlipPageContent({
 
                     {/* Orthodontics */}
                     {allCategories
-                      .filter(category => category.name === "Orthodontics")
+                      .filter(category => category.name === "Orthodontics" && String(category.status ?? "Active") === "Active")
                       .map((category) => (
                         <div
                           key={category.id}
@@ -1164,7 +1166,10 @@ export function OptimizedDentalSlipPageContent({
 
                     {/* Other categories */}
                     {allCategories
-                      .filter(category => !["Fixed Restoration", "Removable Restoration", "Orthodontics"].includes(category.name))
+                      .filter(category =>
+                        !["Fixed Restoration", "Removable Restoration", "Orthodontics"].includes(category.name) &&
+                        String(category.status ?? "Active") === "Active"
+                      )
                       .map((category) => (
                         <div
                           key={category.id}
@@ -1193,7 +1198,7 @@ export function OptimizedDentalSlipPageContent({
                   <div className="text-center">
                     <p className="text-gray-600 mb-4">No categories available.</p>
                     <button
-                      onClick={() => fetchAllCategories("en")}
+                      onClick={() => fetchAllCategories("en", undefined, "Active")}
                       className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
                     >
                       Retry
@@ -1264,7 +1269,7 @@ export function OptimizedDentalSlipPageContent({
                       onClick={() => {
                         const selectedCategory = allCategories.find(cat => cat.name === productCategory);
                         if (selectedCategory) {
-                          fetchSubcategoriesByCategory(selectedCategory.id, "en");
+                          fetchSubcategoriesByCategory(selectedCategory.id, "en", undefined, "Active");
                         }
                       }}
                       className="px-4 py-2 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg hover:bg-blue-700"
@@ -1273,7 +1278,7 @@ export function OptimizedDentalSlipPageContent({
                     </button>
                   </div>
                 </div>
-              ) : subcategoriesData.length === 0 ? (
+              ) : subcategoriesData.filter((s) => String(s.status ?? "Active") === "Active").length === 0 ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-center">
                     <p className="text-gray-600 mb-4">No subcategories available for this category.</p>
@@ -1288,7 +1293,9 @@ export function OptimizedDentalSlipPageContent({
               ) : (
                 <div className="w-full max-w-6xl">
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center flex-wrap">
-                    {subcategoriesData.map((subcategory) => (
+                    {subcategoriesData
+                      .filter((subcategory) => String(subcategory.status ?? "Active") === "Active")
+                      .map((subcategory) => (
                       <div
                         key={subcategory.id}
                         className={`cursor-pointer transition-all duration-200 rounded-2xl border-2 bg-white flex flex-col items-center p-4 sm:p-6 w-full sm:w-auto sm:min-w-[240px] ${

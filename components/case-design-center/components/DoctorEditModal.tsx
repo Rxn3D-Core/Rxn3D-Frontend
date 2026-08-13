@@ -9,14 +9,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { WizardDoctorShape } from "@/components/new-case-wizard";
-import { resolveDoctorImageUrl, getInitials, type DoctorImageSource } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName, type DoctorImageSource } from "@/utils/avatar-utils";
 
 export function mapOfficeDoctorsToWizardShape(
   raw: (DoctorImageSource & { id: number; first_name?: string; last_name?: string })[]
 ): WizardDoctorShape[] {
   return raw.map((d) => ({
     id: d.id,
-    name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
+    name: formatDoctorDisplayName(d.first_name, d.last_name),
     // Empty string when no photo — UI shows initials (never a placeholder image)
     img: resolveDoctorImageUrl(d) || "",
   }));

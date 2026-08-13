@@ -197,7 +197,7 @@ export const parseCaseNotes = async (
           !subcategoriesByCategory.some(sc => sc.parent_id === matchedCategory!.id)) {
           // For office_admin, use selectedLab.id; for others, use customerId
           const customerIdNum = getCustomerIdForApi()
-          await fetchSubcategoriesByCategory(matchedCategory.id, "en", customerIdNum)
+          await fetchSubcategoriesByCategory(matchedCategory.id, "en", customerIdNum, "Active")
         }
         // Find subcategories for this category
         const subcats = subcategoriesByCategory.filter(sc => sc.parent_id === matchedCategory!.id)

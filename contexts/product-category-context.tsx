@@ -118,13 +118,15 @@ type ProductCategoryContextType = {
   allCategories: ProductCategoryApi[]
   allCategoriesLoading: boolean
   allCategoriesError: string | null
-  fetchAllCategories: (lang?: string, customerId?: number) => Promise<void>
+  /** Optional `status` (e.g. `"Active"`) filters at the API — use for slip creation. */
+  fetchAllCategories: (lang?: string, customerId?: number, status?: string) => Promise<void>
 
   // Subcategories by category ID
   subcategoriesByCategory: ProductCategory[]
   subcategoriesLoading: boolean
   subcategoriesError: string | null
-  fetchSubcategoriesByCategory: (categoryId: number, lang?: string, customerId?: number) => Promise<void>
+  /** Optional `status` (e.g. `"Active"`) filters at the API — use for slip creation. */
+  fetchSubcategoriesByCategory: (categoryId: number, lang?: string, customerId?: number, status?: string) => Promise<void>
 
   // Categories with nested subcategories (for product form dropdowns)
   categoriesWithSubcategories: CategoryWithSubcategories[]
@@ -446,8 +448,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // Refs for in-flight guards and cache tracking (shared between fetchParentDropdownCategories and fetchAllCategories)
   const fetchCategoriesInFlightRef = useRef(false)
-  const fetchAllCategoriesInProgressRef = useRef<{ lang: string; customerId?: number } | null>(null)
-  const lastFetchParamsRef = useRef<{ lang: string; customerId?: number } | null>(null)
+  const fetchAllCategoriesInProgressRef = useRef<{ lang: string; customerId?: number; status?: string } | null>(null)
+  const lastFetchParamsRef = useRef<{ lang: string; customerId?: number; status?: string } | null>(null)
   const hasCategoriesLoadedRef = useRef<boolean>(false)
 
   // Single debounced fetch that populates parentDropdownCategories, categoriesWithSubcategories, and allCategories
@@ -485,7 +487,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       setParentDropdownCategories(categories)
       setCategoriesWithSubcategories(normalizeCategoriesWithNestedSubcategories(rawCategories))
       setAllCategories(rawCategories)
-      lastFetchParamsRef.current = { lang: currentLanguage, customerId: customerId ?? undefined }
+      lastFetchParamsRef.current = { lang: currentLanguage, customerId: customerId ?? undefined, status: "Active" }
       hasCategoriesLoadedRef.current = rawCategories.length > 0
     } catch (err: any) {
       console.error("Error fetching categories for dropdown.", err)
@@ -791,15 +793,15 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // Fetch all categories (top-level, not subcategories)
   const fetchAllCategories = useCallback(
-    async (lang = "en", passedCustomerId?: number) => {
+    async (lang = "en", passedCustomerId?: number, status?: string) => {
       const customerIdToUse = passedCustomerId ?? resolveLibraryCustomerId(user) ?? undefined
       
       // Create a unique key for this fetch request
-      const fetchKey = `${lang}-${customerIdToUse || 'default'}`
+      const fetchKey = `${lang}-${customerIdToUse || 'default'}-${status || 'all'}`
       
       // Check if the same fetch is already in progress
       if (fetchAllCategoriesInProgressRef.current) {
-        const currentKey = `${fetchAllCategoriesInProgressRef.current.lang}-${fetchAllCategoriesInProgressRef.current.customerId || 'default'}`
+        const currentKey = `${fetchAllCategoriesInProgressRef.current.lang}-${fetchAllCategoriesInProgressRef.current.customerId || 'default'}-${fetchAllCategoriesInProgressRef.current.status || 'all'}`
         if (currentKey === fetchKey) {
           // Same fetch is already in progress, skip duplicate call
           return
@@ -808,7 +810,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       
       // Check if we already have data for these exact parameters
       if (lastFetchParamsRef.current && hasCategoriesLoadedRef.current) {
-        const lastKey = `${lastFetchParamsRef.current.lang}-${lastFetchParamsRef.current.customerId || 'default'}`
+        const lastKey = `${lastFetchParamsRef.current.lang}-${lastFetchParamsRef.current.customerId || 'default'}-${lastFetchParamsRef.current.status || 'all'}`
         if (lastKey === fetchKey) {
           // We already have the data for these parameters, skip duplicate call
           return
@@ -816,7 +818,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       }
       
       // Mark this fetch as in progress
-      fetchAllCategoriesInProgressRef.current = { lang, customerId: customerIdToUse }
+      fetchAllCategoriesInProgressRef.current = { lang, customerId: customerIdToUse, status }
       
       setAllCategoriesLoading(true)
       setAllCategoriesError(null)
@@ -826,6 +828,9 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         
         if (customerIdToUse) {
           params.append("customer_id", String(customerIdToUse))
+        }
+        if (status) {
+          params.append("status", status)
         }
         
         const response = await fetch(
@@ -843,7 +848,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         const categoriesData = responseData.data.data || []
         setAllCategories(categoriesData)
         // Store the successful fetch parameters
-        lastFetchParamsRef.current = { lang, customerId: customerIdToUse }
+        lastFetchParamsRef.current = { lang, customerId: customerIdToUse, status }
         hasCategoriesLoadedRef.current = categoriesData.length > 0
       } catch (err: any) {
         setAllCategories([])
@@ -860,7 +865,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // Fetch subcategories by category ID
   const fetchSubcategoriesByCategory = useCallback(
-    async (categoryId: number, lang = "en", passedCustomerId?: number) => {
+    async (categoryId: number, lang = "en", passedCustomerId?: number, status?: string) => {
       setSubcategoriesLoading(true)
       setSubcategoriesError(null)
       try {
@@ -873,6 +878,9 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         const customerIdToUse = passedCustomerId ?? customerId ?? undefined
         if (customerIdToUse) {
           params.append("customer_id", customerIdToUse.toString())
+        }
+        if (status) {
+          params.append("status", status)
         }
 
         const response = await fetch(

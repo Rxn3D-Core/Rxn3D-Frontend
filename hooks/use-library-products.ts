@@ -118,13 +118,13 @@ export const libraryProductsQueryKey = (
   customerId: number | undefined,
   subcategoryId: number | undefined,
   page: number
-) => ["library-products", customerId, subcategoryId, page] as const
+) => ["library-products", customerId, subcategoryId, page, "Active"] as const
 
 export const libraryProductSearchQueryKey = (
   customerId: number | undefined,
   search: string,
   page: number
-) => ["library-product-search", customerId, search, page] as const
+) => ["library-product-search", customerId, search, page, "Active"] as const
 
 const PRODUCT_IMG_FALLBACK = "/placeholder.svg"
 
@@ -166,10 +166,12 @@ async function fetchLibraryProductsSearch(
 
   const url = new URL("/v1/library/products", API_BASE_URL)
   url.searchParams.set("customer_id", String(customerId))
-  url.searchParams.set("search", search)
+  // Slip / wizard product search — API filters on `q` (not `search`)
+  url.searchParams.set("q", search)
   url.searchParams.set("per_page", String(perPage))
   url.searchParams.set("page", String(page))
   url.searchParams.set("lang", "en")
+  url.searchParams.set("status", "Active")
 
   const res = await fetch(url.toString(), {
     method: "GET",
@@ -217,6 +219,7 @@ async function fetchLibraryProducts(
   url.searchParams.set("per_page", String(perPage))
   url.searchParams.set("page", String(page))
   url.searchParams.set("lang", "en")
+  url.searchParams.set("status", "Active")
 
   const res = await fetch(url.toString(), {
     method: "GET",
@@ -282,7 +285,9 @@ export function useLibraryProducts(options: {
   })
 
   const productsAsWizard: WizardProductShape[] =
-    (query.data?.data?.data ?? []).map((p) => ({
+    (query.data?.data?.data ?? [])
+      .filter((p) => String(p.status ?? "Active").trim() === "Active")
+      .map((p) => ({
       id: p.id,
       name: p.name,
       img: p.image_url || getProductFallbackImg(p),
@@ -345,7 +350,9 @@ export function useLibraryProductSearch(options: {
     refetchOnWindowFocus: false,
   })
 
-  const products: LibraryProductApi[] = query.data?.data?.data ?? []
+  const products: LibraryProductApi[] = (query.data?.data?.data ?? []).filter(
+    (p) => String(p.status ?? "Active").trim() === "Active"
+  )
 
   return {
     ...query,
@@ -383,14 +390,14 @@ export function useSubcategoryProductCounts(options: {
   subcategoryIds.forEach((id, i) => {
     const result = results[i]
     const pagination = result.data?.data?.pagination
-    const data = result.data?.data?.data
-    if (pagination) {
-      counts[id] = pagination.total
-    } else if (data) {
-      counts[id] = data.length
-    } else {
+    const raw = result.data?.data?.data
+    if (!raw) {
       counts[id] = undefined
+      products[id] = undefined
+      return
     }
+    const data = raw.filter((p) => String(p.status ?? "Active").trim() === "Active")
+    counts[id] = pagination ? pagination.total : data.length
     products[id] = data
   })
   return { counts, products }

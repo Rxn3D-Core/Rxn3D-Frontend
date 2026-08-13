@@ -128,9 +128,9 @@ export function ProductSelectionFlow({
                     key={product.id}
                     onClick={() => handleProductSelect(product)}
                     className={`bg-white border-2 ${isSelected ? "border-[#1162a8] shadow-lg" : "border-[#b4b0b0] hover:border-[#1162A8]"
-                      } rounded-lg h-[210px] w-[155px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all`}
+                      } rounded-lg h-[250px] w-[200px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:shadow-md transition-all`}
                   >
-                    <div className="w-[117px] h-[117px] rounded overflow-hidden">
+                    <div className="w-[150px] h-[150px] rounded overflow-hidden">
                       <img
                         src={product.image_url || "/images/product-default.png"}
                         alt={product.name}
@@ -140,21 +140,9 @@ export function ProductSelectionFlow({
                         }}
                       />
                     </div>
-                    <p className="text-[11px] text-black text-center">
+                    <p className="text-base text-black text-center">
                       {product.name}
                     </p>
-                    <div className="flex flex-col gap-1 items-start w-[87px]">
-                      <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-                        <p className="text-[#1162a8] text-[9.5px]">
-                          ${product.price || 999}
-                        </p>
-                      </div>
-                      <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-                        <p className="text-[#929393] text-[9.5px]">
-                          est {product.estimated_days || 14} days
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 )
               })}
@@ -358,18 +346,6 @@ export function ProductSelectionFlow({
                       <p className="text-base text-black text-center">
                         {product.name}
                       </p>
-                      <div className="flex flex-col gap-1 items-start w-[120px]">
-                        <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[20px] flex items-center justify-center w-full">
-                          <p className="text-[#1162a8] text-xs">
-                            ${product.price || 999}
-                          </p>
-                        </div>
-                        <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[20px] flex items-center justify-center w-full">
-                          <p className="text-[#929393] text-xs">
-                            est {product.estimated_days || 14} days
-                          </p>
-                        </div>
-                      </div>
                     </div>
                   )
                 })}

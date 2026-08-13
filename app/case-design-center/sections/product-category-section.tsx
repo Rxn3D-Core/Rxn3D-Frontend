@@ -221,10 +221,6 @@ export function ProductCategorySection() {
               >
                 <Skeleton className="w-[150px] h-[150px] rounded" />
                 <Skeleton className="h-4 w-28" />
-                <div className="flex flex-col gap-1 items-start w-[120px]">
-                  <Skeleton className="h-5 w-full rounded-[10px]" />
-                  <Skeleton className="h-5 w-full rounded-[10px]" />
-                </div>
               </div>
             ))}
           </div>
@@ -276,14 +272,6 @@ export function ProductCategorySection() {
                       />
                     </div>
                     <p className="text-base text-black text-center">{product.name}</p>
-                    <div className="flex flex-col gap-1 items-start w-[120px]">
-                      <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[20px] flex items-center justify-center w-full">
-                        <p className="text-[#1162a8] text-xs">${product.price ?? 999}</p>
-                      </div>
-                      <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[20px] flex items-center justify-center w-full">
-                        <p className="text-[#929393] text-xs">est {product.estimated_days ?? 14} days</p>
-                      </div>
-                    </div>
                   </div>
                 )
               })}

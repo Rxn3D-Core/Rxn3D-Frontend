@@ -33,7 +33,7 @@ import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
-import { resolveDoctorImageUrl, getInitials } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName } from "@/utils/avatar-utils";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -211,44 +211,6 @@ const ProductPickerCardLabel = React.forwardRef<
   );
 });
 
-function formatProductDaysLabel(product: LibraryProductApi): string | null {
-  const min = product.min_days_to_process;
-  const max = product.max_days_to_process;
-  if (min != null && max != null) return `est ${min}-${max} days`;
-  if (min != null) return `est ${min} days`;
-  if (max != null) return `est ${max} days`;
-  return null;
-}
-
-function ProductPickerPriceMeta({
-  price,
-  daysLabel,
-}: {
-  price?: string | null;
-  daysLabel?: string | null;
-}) {
-  if (!price && !daysLabel) return null;
-
-  return (
-    <div className="flex flex-col gap-1 px-2 pb-2 w-full mt-auto">
-      {price ? (
-        <div className="bg-[rgba(17,98,168,0.2)] border border-[#1162a8] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-          <p className="text-[#1162a8] text-[9px] leading-none" style={{ fontFamily: "Verdana, sans-serif" }}>
-            ${price}
-          </p>
-        </div>
-      ) : null}
-      {daysLabel ? (
-        <div className="bg-[rgba(146,147,147,0.2)] border border-[#929393] rounded-[10px] h-[15px] flex items-center justify-center w-full">
-          <p className="text-[#929393] text-[9px] leading-none" style={{ fontFamily: "Verdana, sans-serif" }}>
-            {daysLabel}
-          </p>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function ProductPickerCardSkeleton() {
   return (
     <div className={PRODUCT_CARD_ITEM_CLASS}>
@@ -375,11 +337,8 @@ function ProductSearchResults({
             alt={product.name}
             name={product.name}
             className="rounded-none"
-            bgClassName=""
-          />
-          <ProductPickerPriceMeta
-            price={product.price}
-            daysLabel={formatProductDaysLabel(product)}
+            bgClassName="bg-[#080808]"
+            textClassName="text-[#b4b0b0]"
           />
         </button>
       ))}
@@ -1676,21 +1635,28 @@ function StepMaterial({
   }, [products, selected, categoryShowJawSelection, forceArch, isLoading, onSelect]);
 
   useEffect(() => {
-    if (products.length <= 1 && archPopoverProductId) {
-      setArchPopoverProductId(null);
-    }
-  }, [products.length, archPopoverProductId]);
-
-  useEffect(() => {
     if (!initialArchPopoverProductId || isLoading) return;
     setArchPopoverProductId(initialArchPopoverProductId);
   }, [initialArchPopoverProductId, isLoading]);
 
   const onlyProduct = products.length === 1 ? products[0] : null;
+  const onlyProductId = onlyProduct != null ? String(onlyProduct.id) : null;
   const singleProductNeedsArch =
     onlyProduct != null && shouldShowJawArchSelection(onlyProduct, categoryShowJawSelection);
   const shouldAutoSelectSingle = products.length === 1 && (!singleProductNeedsArch || !!forceArch);
-  const shouldAskArchOnly = products.length === 1 && singleProductNeedsArch && !forceArch && !isLoading;
+
+  // Single product that needs arch: open the image popover on the card (same as multi-product).
+  useEffect(() => {
+    if (isLoading || !onlyProductId || !singleProductNeedsArch || forceArch) return;
+    if (initialArchPopoverProductId) return;
+    setArchPopoverProductId(onlyProductId);
+  }, [
+    isLoading,
+    onlyProductId,
+    singleProductNeedsArch,
+    forceArch,
+    initialArchPopoverProductId,
+  ]);
 
   if (error) {
     return (
@@ -1747,34 +1713,7 @@ function StepMaterial({
 
       {!productSearch.trim() && (
       <>
-      {/* Single removable product with no forced arch: show arch picker without product grid */}
-      {shouldAskArchOnly && (
-        <div className="flex justify-center mb-6">
-          <div className="relative">
-            <div className="bg-white rounded-xl shadow-lg border border-[#E5E7EB] overflow-hidden min-w-[220px]">
-              {([
-                { label: "Upper arch only", value: "maxillary" as const },
-                { label: "Both arches", value: "both" as const },
-                { label: "Lower arch only", value: "mandibular" as const },
-              ]).map((option) => (
-                <div
-                  key={option.value}
-                  className="px-6 py-3 cursor-pointer hover:bg-[#DFEEFB] transition-colors text-[#1d1d1b]"
-                  style={{ fontFamily: "Verdana, sans-serif", fontSize: 14, lineHeight: "22px" }}
-                  onClick={() => {
-                    const only = products[0];
-                    onSelect(String(only.id), option.value);
-                  }}
-                >
-                  {option.label}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!shouldAutoSelectSingle && !shouldAskArchOnly && (
+      {!shouldAutoSelectSingle && (
         <div className={PRODUCT_CARD_GRID_CLASS}>
           {products.map((prod) => {
             const prodId = String(prod.id);
@@ -2176,7 +2115,7 @@ export default function NewCaseWizard({
       (officeDoctorsRaw as { id: number; first_name?: string; last_name?: string; image?: string; profile_image?: string; avatar?: string; signature_url?: string }[]).map(
         (d) => ({
           id: d.id,
-          name: [d.first_name, d.last_name].filter(Boolean).join(" ").trim() || "Doctor",
+          name: formatDoctorDisplayName(d.first_name, d.last_name),
           // Empty string when no photo — UI shows initials (never a placeholder image)
           img: resolveDoctorImageUrl(d) || "",
         })
