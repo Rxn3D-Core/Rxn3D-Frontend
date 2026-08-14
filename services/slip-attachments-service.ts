@@ -108,7 +108,7 @@ export type SlipAttachmentUploadOptions = {
   notes?: string;
 };
 
-export const SLIP_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024;
+export const SLIP_ATTACHMENT_MAX_BYTES = 500 * 1024 * 1024;
 
 export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "jpg",
@@ -168,7 +168,7 @@ async function uploadFormData<T>(endpoint: string, formData: FormData): Promise<
 
 export function validateSlipAttachmentFile(file: File): string | null {
   if (file.size > SLIP_ATTACHMENT_MAX_BYTES) {
-    return "The file size must not exceed 100MB.";
+    return "The file size must not exceed 500MB.";
   }
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (
