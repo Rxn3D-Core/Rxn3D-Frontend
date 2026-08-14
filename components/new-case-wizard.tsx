@@ -98,11 +98,13 @@ function ProductImageWithFallback({
   // Reset failed state when src changes
   React.useEffect(() => { setFailed(!src); }, [src]);
 
-  const sizeClass = fillHeight ? "w-full flex-1 min-h-0" : "w-full aspect-square";
+  const sizeClass = fillHeight
+    ? "relative w-full flex-1 min-h-0"
+    : "relative w-full aspect-square flex-shrink-0";
 
   if (failed) {
     return (
-      <div className={`${sizeClass} ${className} overflow-hidden flex-shrink-0 ${bgClassName} flex items-center justify-center p-3`}>
+      <div className={`${sizeClass} ${className} overflow-hidden ${bgClassName} flex items-center justify-center p-3`}>
         <span
           className={`text-[13px] font-semibold ${textClassName} text-center leading-tight`}
           style={{ fontFamily: "Verdana, sans-serif" }}
@@ -114,11 +116,11 @@ function ProductImageWithFallback({
   }
 
   return (
-    <div className={`${sizeClass} ${className} overflow-hidden flex-shrink-0 ${bgClassName}`}>
+    <div className={`${sizeClass} ${className} overflow-hidden ${bgClassName}`}>
       <img
         src={src!}
         alt={alt}
-        className="w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full object-cover"
         onError={() => setFailed(true)}
       />
     </div>
@@ -187,7 +189,7 @@ const PRODUCT_CARD_SKELETON_COUNT = 6;
 
 function productPickerCardClass(selected: boolean, extra?: string) {
   return cn(
-    "group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-full transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5",
+    "group flex flex-col overflow-hidden rounded-[7px] border-[3px] w-full aspect-[4/5] transition-all hover:border-[#1162A8] hover:bg-[#1162A8]/5",
     selected ? "border-[#1162A8] bg-[#1162A8]/5" : "border-[#d9d9d9] bg-white",
     extra
   );
@@ -201,12 +203,14 @@ const ProductPickerCardLabel = React.forwardRef<
     <span
       ref={ref}
       className={cn(
-        "text-[16px] font-normal text-black text-center self-stretch tracking-[-0.02em] leading-[15px] py-2 px-2 flex items-center justify-center",
+        "h-[52px] min-h-[52px] shrink-0 px-2 py-1 flex items-center justify-center self-stretch overflow-hidden",
         className
       )}
       style={{ fontFamily: "Verdana, sans-serif" }}
     >
-      {children}
+      <span className="text-[16px] font-normal text-black text-center tracking-[-0.02em] leading-[18px] line-clamp-2">
+        {children}
+      </span>
     </span>
   );
 });
@@ -339,6 +343,7 @@ function ProductSearchResults({
             className="rounded-none"
             bgClassName="bg-[#080808]"
             textClassName="text-[#b4b0b0]"
+            fillHeight
           />
         </button>
       ))}
@@ -1311,7 +1316,7 @@ function StepCategory({
                 className={cn(productPickerCardClass(selected === cat.id), PRODUCT_CARD_ITEM_CLASS)}
               >
                 <ProductPickerCardLabel>{cat.name}</ProductPickerCardLabel>
-                <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" />
+                <ProductImageWithFallback src={cat.img} alt={cat.name} name={cat.name} className="rounded-none" bgClassName="" fillHeight />
               </button>
             ))}
           </div>
@@ -1470,7 +1475,7 @@ function StepSubProduct({
               <ProductPickerCardLabel ref={(el) => { subLabelRefs.current[prod.id] = el; }}>
                 {prod.name}
               </ProductPickerCardLabel>
-              <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" />
+              <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="" fillHeight />
             </button>
             {archPopoverSubId === prod.id &&
               onArchPickForSingle &&
@@ -1735,12 +1740,12 @@ function StepMaterial({
                       }
                     }
                   }}
-                  className={productPickerCardClass(isSelected, "relative items-center")}
+                  className={productPickerCardClass(isSelected, "relative")}
                 >
                   <ProductPickerCardLabel ref={(el) => { labelRefs.current[prodId] = el; }}>
                     {prod.name}
                   </ProductPickerCardLabel>
-                  <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" />
+                  <ProductImageWithFallback src={prod.img} alt={prod.name} name={prod.name} className="rounded-none" bgClassName="bg-[#080808]" textClassName="text-[#b4b0b0]" fillHeight />
                 </button>
                   {archPopoverProductId === prodId && (() => {
                     const archImages = prod.arch_images ?? {};
