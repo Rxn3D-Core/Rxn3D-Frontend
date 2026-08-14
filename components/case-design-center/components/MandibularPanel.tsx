@@ -2521,7 +2521,7 @@ export function MandibularPanel({
                 selected={panelGumShadePicker.selectedName ?? null}
                 onSelect={(shade) => {
                   const step = panelGumShadePicker.stepOverride ?? "gum_shade";
-                  completeFieldStep("mandibular", panelGumShadePicker.toothNumber, step, JSON.stringify({ gum_shade_id: shade.gum_shade_id, brand_id: shade.brand.id, name: shade.name }));
+                  completeFieldStep("mandibular", panelGumShadePicker.toothNumber, step, JSON.stringify({ gum_shade_id: shade.gum_shade_id, brand_id: shade.brand?.id, name: shade.name }));
                   // Fixed products gate post-shade fields on getSelectedShade(..., "stump_shade"),
                   // so the gum pick must also land in the shade-selection map.
                   if (step === "fixed_stump_shade" && setSelectedShades) {

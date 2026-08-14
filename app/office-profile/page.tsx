@@ -8,6 +8,12 @@ import { OperatingHoursTab } from "@/components/office-administrator/office-prof
 import ActivityLogTab from "@/components/lab-administrator/lab-profile-activity-log"
 import { OfficeProfileSidebar } from "@/components/office-administrator/office-profile-sidebar"
 import OfficeProfileTabs from "@/components/office-administrator/office-profile-tabs"
+import {
+  DEFAULT_CLOSE_TIME_12,
+  DEFAULT_OPEN_TIME_12,
+  parseBusinessHourTime,
+  resolveDisplayTimezone,
+} from "@/utils/time-utils"
 
 const tabs = [
   { id: "overview", label: "Overview" },
@@ -94,18 +100,10 @@ export default function OfficeProfile() {
     workingDays: customerProfile.business_settings.business_hours.map(hour => ({
       day: hour.day.charAt(0).toUpperCase() + hour.day.slice(1),
       enabled: hour.is_open,
-      startTime: hour.open_time ? new Date(hour.open_time).toLocaleTimeString("en-US", { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }) : "",
-      endTime: hour.close_time ? new Date(hour.close_time).toLocaleTimeString("en-US", { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }) : "",
+      startTime: parseBusinessHourTime(hour.open_time, hour.is_open ? DEFAULT_OPEN_TIME_12 : ""),
+      endTime: parseBusinessHourTime(hour.close_time, hour.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
     })),
-    timezone: customerProfile.state?.name || "Unknown Timezone",
+    timezone: resolveDisplayTimezone(customerProfile.state?.name),
     holidays: "All Federal Holidays",
   } : null
 
@@ -141,7 +139,7 @@ export default function OfficeProfile() {
       case "operating-hours":
         return <OperatingHoursTab hoursData={transformedHoursData || {
           workingDays: [],
-          timezone: "Unknown Timezone",
+          timezone: resolveDisplayTimezone(null),
           holidays: "All Federal Holidays"
         }} />
       case "activity-log":

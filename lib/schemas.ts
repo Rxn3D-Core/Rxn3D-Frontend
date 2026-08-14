@@ -412,6 +412,8 @@ export const ProductCreateFormSchema = z
           retention_option_id: z.number(),
           sequence: z.number().optional(),
           status: z.enum(["Active", "Inactive"]).default("Active").optional(),
+          name: z.string().optional(),
+          code: z.string().optional(),
         }),
       )
       .optional()
@@ -421,6 +423,8 @@ export const ProductCreateFormSchema = z
               retention_option_id: item.retention_option_id,
               sequence: typeof item.sequence === "number" ? item.sequence : idx + 1,
               status: item.status === "Inactive" ? "Inactive" : "Active",
+              ...(item.name ? { name: item.name } : {}),
+              ...(item.code ? { code: item.code } : {}),
             }))
           : arr,
       ),

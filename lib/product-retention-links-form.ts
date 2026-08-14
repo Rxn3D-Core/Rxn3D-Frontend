@@ -6,6 +6,9 @@ export type ProductRetentionOptionLinkFormRow = {
   retention_option_id: number
   sequence: number
   status: "Active" | "Inactive"
+  /** Present on GET embeddings; used to match lab catalog rows whose ids differ. */
+  name?: string
+  code?: string
 }
 
 export function serializeRetentionOptionsForApi(
@@ -44,8 +47,8 @@ export function hydrateRetentionOptionsFromProduct(
           : undefined
     if (id != null && Number.isNaN(id)) id = undefined
 
-    const lab = entry.lab_retention_option as { id?: number } | undefined
-    const ro = entry.retention_option as { id?: number } | undefined
+    const lab = entry.lab_retention_option as { id?: number; name?: string; code?: string } | undefined
+    const ro = entry.retention_option as { id?: number; name?: string; code?: string } | undefined
     const pivot = entry.pivot as { retention_option_id?: number | string } | undefined
 
     if (id == null && typeof lab?.id === "number") id = lab.id
@@ -75,7 +78,30 @@ export function hydrateRetentionOptionsFromProduct(
     const status: "Active" | "Inactive" =
       statusRaw === "Inactive" || statusRaw === "inactive" ? "Inactive" : "Active"
 
-    out.push({ retention_option_id: id, sequence: seq, status })
+    const name =
+      typeof entry.name === "string"
+        ? entry.name
+        : typeof ro?.name === "string"
+          ? ro.name
+          : typeof lab?.name === "string"
+            ? lab.name
+            : undefined
+    const code =
+      typeof entry.code === "string"
+        ? entry.code
+        : typeof ro?.code === "string"
+          ? ro.code
+          : typeof lab?.code === "string"
+            ? lab.code
+            : undefined
+
+    out.push({
+      retention_option_id: id,
+      sequence: seq,
+      status,
+      ...(name ? { name } : {}),
+      ...(code ? { code } : {}),
+    })
   })
 
   out.sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
