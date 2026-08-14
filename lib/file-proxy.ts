@@ -1,33 +1,18 @@
 /**
- * Helper to wrap remote S3 file URLs through a same-origin proxy route.
- * Prevents CORS issues when loading STL/image files from AWS S3.
- */
-
-const PROXY_ROUTE = "/api/file-proxy";
-
-/**
- * Convert a remote file URL to a proxied URL if needed.
- * - Local blob: URLs are returned as-is (already same-origin)
- * - Remote http(s) S3 URLs are wrapped through the proxy
- * - Returns the original URL if it's relative/same-origin
+ * Return the URL to use when loading an attachment.
  *
- * @param url The original file URL (could be blob:, http(s), or relative)
- * @returns The URL to use for loading (either the original or proxied)
+ * Files are loaded directly from S3. A Next.js `/api/file-proxy` wrapper was
+ * used previously to dodge CORS and force `Content-Disposition: inline`, but:
+ * - `<img>` / `<a href>` do not need CORS
+ * - the proxy allowlist only had `rxn3d-media-files`, so `rxn3d-prod-files`
+ *   attachments (current slip uploads) returned 403
+ * - large files (up to 500MB) cannot stream through Next.js (60s maxDuration)
+ *
+ * STL canvas fetch() still needs a CORS rule on the bucket allowing GET from
+ * the app origin. That belongs on S3, not in a frontend proxy.
+ *
+ * blob: and relative URLs are returned as-is.
  */
 export function toProxiedFileUrl(url: string): string {
-  if (!url) return url;
-
-  // Blob URLs are already same-origin, don't proxy them
-  if (url.startsWith("blob:")) {
-    return url;
-  }
-
-  // Relative URLs are same-origin, don't proxy them
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return url;
-  }
-
-  // For remote http(s) URLs, wrap through the proxy
-  const encodedUrl = encodeURIComponent(url);
-  return `${PROXY_ROUTE}?url=${encodedUrl}`;
+  return url;
 }
