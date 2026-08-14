@@ -106,7 +106,7 @@ export function WorkingHoursModal({ open, onOpenChange }: WorkingHoursModalProps
           <div className="pt-4 border-t space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Time zone:</span>
-              <span className="font-medium">Phoenix, Arizona (GMT -7)</span>
+              <span className="font-medium">Pacific Time (Las Vegas / Los Angeles)</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Holidays:</span>

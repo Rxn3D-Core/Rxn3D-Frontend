@@ -1383,7 +1383,7 @@ export function RetentionProductFields({
                 "fixed_stump_shade",
                 JSON.stringify({
                   gum_shade_id: shade.gum_shade_id,
-                  brand_id: shade.brand.id,
+                  brand_id: shade.brand?.id,
                   name: shade.name,
                 })
               );

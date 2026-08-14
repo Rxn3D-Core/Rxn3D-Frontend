@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OperatingHoursTab } from "@/components/lab-administrator/lab-profile-operating-hours"
 import { PickupDeliveryTab } from "@/components/lab-administrator/lab-profile-pickup-delivery"
 import { useAuth } from "@/contexts/auth-context"
+import { resolveDisplayTimezone } from "@/utils/time-utils"
 
 interface User {
   id: number
@@ -436,7 +437,7 @@ export function StaffUserDetail({
               hoursData={
                 hoursData || {
                   workingDays: [],
-                  timezone: "Unknown Timezone",
+                  timezone: resolveDisplayTimezone(null),
                   holidays: "All Federal Holidays",
                 }
               }

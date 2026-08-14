@@ -3,6 +3,12 @@
 import { useState } from "react"
 import { Edit, Moon } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import {
+  DEFAULT_CLOSE_TIME_12,
+  DEFAULT_OPEN_TIME_12,
+  parseBusinessHourTime,
+  resolveDisplayTimezone,
+} from "@/utils/time-utils"
 
 interface OperatingHoursTabProps {
   hoursData: {
@@ -26,20 +32,8 @@ export function OperatingHoursTab({ hoursData }: OperatingHoursTabProps) {
     setWorkingDays(updatedDays)
   }
 
-  const formatTime = (time: string) => {
-    if (!time) return ""
-    const timeParts = time.split(":")
-    if (timeParts.length !== 2) return ""
-    
-    const [hours, minutes] = timeParts
-    if (!hours || !minutes) return ""
-    
-    const hour = Number.parseInt(hours)
-    if (isNaN(hour)) return ""
-    
-    const ampm = hour >= 12 ? "pm" : "am"
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-    return `${displayHour.toString().padStart(2, "0")}:${minutes.padStart(2, "0")} ${ampm}`
+  const formatTime = (time: string, fallback: string) => {
+    return parseBusinessHourTime(time, fallback)
   }
 
   return (
@@ -61,9 +55,9 @@ export function OperatingHoursTab({ hoursData }: OperatingHoursTabProps) {
 
                   {day.enabled ? (
                     <div className="flex items-center gap-4 flex-1">
-                      <span className="text-gray-900">{formatTime(day.startTime)}</span>
+                      <span className="text-gray-900">{formatTime(day.startTime, DEFAULT_OPEN_TIME_12)}</span>
                       <span className="text-gray-400">——</span>
-                      <span className="text-gray-900">{formatTime(day.endTime)}</span>
+                      <span className="text-gray-900">{formatTime(day.endTime, DEFAULT_CLOSE_TIME_12)}</span>
                       <Edit className="h-4 w-4 text-gray-400 cursor-pointer ml-2" />
                     </div>
                   ) : (
@@ -80,7 +74,7 @@ export function OperatingHoursTab({ hoursData }: OperatingHoursTabProps) {
           <div className="mt-8 pt-6 border-t space-y-3">
             <div className="flex items-center">
               <span className="text-gray-500 w-24">Time zone:</span>
-              <span className="font-medium text-gray-900">{hoursData.timezone}</span>
+              <span className="font-medium text-gray-900">{resolveDisplayTimezone(hoursData.timezone)}</span>
             </div>
             <div className="flex items-center">
               <span className="text-gray-500 w-24">Holidays:</span>

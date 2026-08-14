@@ -18,15 +18,17 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
   const [showBrandDropdown, setShowBrandDropdown] = useState(false);
   const [localSelected, setLocalSelected] = useState<string | null>(selected ?? null);
 
-  // Get unique brands for the dropdown
+  // Get unique brands for the dropdown (API can return shade.brand = null)
   const brands = useMemo(() => {
-    const brandMap = new Map<number, ProductGumShade["brand"]>();
+    const brandMap = new Map<number, NonNullable<ProductGumShade["brand"]>>();
     for (const shade of gumShades) {
-      if (!brandMap.has(shade.brand.id)) {
-        brandMap.set(shade.brand.id, shade.brand);
+      const brand = shade.brand;
+      if (!brand || brand.id == null) continue;
+      if (!brandMap.has(brand.id)) {
+        brandMap.set(brand.id, brand);
       }
     }
-    return Array.from(brandMap.values()).sort((a, b) => a.sequence - b.sequence);
+    return Array.from(brandMap.values()).sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
   }, [gumShades]);
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
@@ -42,7 +44,7 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
   // Filter shades by selected brand, or show all if none selected
   const filteredShades = useMemo(() => {
     if (selectedBrandId === null) return gumShades;
-    return gumShades.filter((s) => s.brand.id === selectedBrandId);
+    return gumShades.filter((s) => s.brand?.id === selectedBrandId);
   }, [gumShades, selectedBrandId]);
 
   useEffect(() => {

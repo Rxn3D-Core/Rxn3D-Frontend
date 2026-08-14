@@ -14,6 +14,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useCustomer } from "@/contexts/customer-context"
 import ReactDOM from "react-dom"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import {
+  DEFAULT_CLOSE_TIME_12,
+  DEFAULT_DELIVERY_TIME_12,
+  DEFAULT_OPEN_TIME_12,
+  DEFAULT_PICKUP_TIME_12,
+  parseBusinessHourTime,
+  resolveDisplayTimezone,
+} from "@/utils/time-utils"
 
 // Updated interface to match customer data structure
 interface LabCustomer {
@@ -197,10 +205,10 @@ export default function AllLabs() {
         workingDays: (profileData?.business_settings?.business_hours || []).map((hour: any) => ({
           day: hour?.day ? `${String(hour.day).charAt(0).toUpperCase()}${String(hour.day).slice(1)}` : "",
           enabled: !!hour?.is_open,
-          startTime: hour?.open_time ? toDisplayTime(hour.open_time) : "",
-          endTime: hour?.close_time ? toDisplayTime(hour.close_time) : "",
+          startTime: parseBusinessHourTime(hour?.open_time, hour?.is_open ? DEFAULT_OPEN_TIME_12 : ""),
+          endTime: parseBusinessHourTime(hour?.close_time, hour?.is_open ? DEFAULT_CLOSE_TIME_12 : ""),
         })),
-        timezone: profileData?.state?.name || "Unknown Timezone",
+        timezone: resolveDisplayTimezone(profileData?.state?.name),
         holidays: "All Federal Holidays",
       }
       const pickupData = {
@@ -208,9 +216,10 @@ export default function AllLabs() {
           profileData?.business_settings?.pickup_area ||
           `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
         pickupDays: profileData?.business_settings?.pickup_days || "Lab hours",
-        cutOffTime: profileData?.business_settings?.case_schedule?.default_pickup_time
-          ? toDisplayTime(profileData.business_settings.case_schedule.default_pickup_time)
-          : "",
+        cutOffTime: parseBusinessHourTime(
+          profileData?.business_settings?.case_schedule?.default_pickup_time,
+          DEFAULT_PICKUP_TIME_12
+        ),
         frequency: profileData?.business_settings?.pickup_frequency || "Daily",
         window: profileData?.business_settings?.pickup_window || "10:00 am - 2:00 pm",
       }
@@ -219,9 +228,10 @@ export default function AllLabs() {
           profileData?.business_settings?.delivery_area ||
           `${profileData?.city || ""}, ${profileData?.state?.name || ""} ${profileData?.country?.name || ""}`.trim(),
         deliveryDays: profileData?.business_settings?.delivery_days || "Lab hours",
-        defaultTime: profileData?.business_settings?.case_schedule?.default_delivery_time
-          ? toDisplayTime(profileData.business_settings.case_schedule.default_delivery_time)
-          : "",
+        defaultTime: parseBusinessHourTime(
+          profileData?.business_settings?.case_schedule?.default_delivery_time,
+          DEFAULT_DELIVERY_TIME_12
+        ),
         window: profileData?.business_settings?.delivery_window || "3:00 pm - 6:00 pm",
       }
       const rushSettings = {
@@ -285,7 +295,7 @@ export default function AllLabs() {
         release_casepan: "",
         hoursData: {
           workingDays: [],
-          timezone: "Unknown Timezone",
+          timezone: resolveDisplayTimezone(null),
           holidays: "All Federal Holidays",
         },
         pickupData: {

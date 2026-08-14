@@ -449,7 +449,7 @@ export interface ProductGumShade {
     status: string;
     sequence: number;
     default?: string;
-  };
+  } | null;
   color_code_top: string;
   color_code_middle: string;
   color_code_bottom: string;
