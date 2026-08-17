@@ -117,6 +117,7 @@ export default function LabProfile() {
       position: customerProfile.users?.[0]?.role?.name?.replace('_', ' ') || "Lab Admin",
       logo_url: customerProfile.logo_url || "",
       release_casepan: customerProfile.release_casepan || "",
+      code: customerProfile.code || "",
     },
     hoursData: {
       workingDays: customerProfile.business_settings?.business_hours?.map(hour => ({

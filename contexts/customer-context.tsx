@@ -17,6 +17,7 @@ interface Customer {
   email: string
   type: string
   status: string
+  code?: string
   unique_code: string
   created_at: string
   updated_at: string
@@ -401,6 +402,10 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Support release_casepan
         if ((data as any).release_casepan !== undefined) {
           updateData.release_casepan = (data as any).release_casepan
+        }
+        // Support code
+        if ((data as any).code !== undefined) {
+          updateData.code = (data as any).code
         }
 
         const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {

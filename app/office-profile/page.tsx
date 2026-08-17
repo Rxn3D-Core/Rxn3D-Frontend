@@ -93,6 +93,8 @@ export default function OfficeProfile() {
     }),
     position: customerProfile.users?.[0]?.role?.name?.replace('_', ' ') || "Office Admin",
     logo_url: customerProfile.logo_url || "",
+    unique_code: customerProfile.unique_code || "",
+    code: customerProfile.code || "",
   } : null
 
   // Transform business hours data

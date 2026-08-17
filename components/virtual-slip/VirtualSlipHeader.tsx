@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import type { VirtualSlipHeaderVM } from "@/lib/virtual-slip-view-model";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 import {
@@ -80,6 +79,47 @@ function Avatar({
   );
 }
 
+/**
+ * Shows a logo image when available; falls back to the entity's name as text
+ * so the header always identifies the office / lab even without a logo.
+ */
+function LogoOrName({
+  src,
+  name,
+  containerClassName,
+  imgClassName,
+  textClassName,
+}: {
+  src: string | null;
+  name: string;
+  containerClassName: string;
+  imgClassName: string;
+  textClassName: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+  const showImage = Boolean(src) && !failed;
+  return (
+    <div className={containerClassName}>
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src!}
+          alt={name}
+          className={imgClassName}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className={textClassName} title={name}>
+          {name}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function HeaderActionButton({
   src,
   label,
@@ -142,17 +182,13 @@ export function VirtualSlipHeader({
         {/* Center: office/actions/lab row + patient field columns */}
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center justify-between border-b border-[#D9D9D9] px-1 py-[6px]">
-            <div className="relative h-[40px] w-[clamp(120px,16vw,200px)] shrink-0">
-              <Image
-                src={header.officeLogo || "/images/practice-logo.png"}
-                alt={header.officeName || "Office"}
-                fill
-                className="object-contain object-center"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
+            <LogoOrName
+              src={header.officeLogo}
+              name={header.officeName || "Office"}
+              containerClassName="flex h-[40px] w-[clamp(120px,16vw,200px)] shrink-0 items-center"
+              imgClassName="h-full w-auto max-w-full object-contain object-left"
+              textClassName="min-w-0 truncate text-[clamp(14px,1.2vw,20px)] font-bold leading-tight text-[#4C4D55]"
+            />
 
             <div className="flex shrink-0 items-center gap-[18px]">
               <HeaderActionButton
@@ -167,17 +203,13 @@ export function VirtualSlipHeader({
               />
             </div>
 
-            <div className="relative h-[28px] w-[clamp(64px,8vw,84px)] shrink-0">
-              <Image
-                src={header.labLogo || "/images/hmci3-logo.png"}
-                alt={header.labName}
-                fill
-                className="object-contain object-center"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
+            <LogoOrName
+              src={header.labLogo}
+              name={header.labName}
+              containerClassName="flex h-[40px] w-[clamp(120px,16vw,200px)] shrink-0 items-center justify-end"
+              imgClassName="h-full w-auto max-w-full object-contain object-right"
+              textClassName="min-w-0 text-[clamp(14px,1.2vw,20px)] font-bold leading-tight text-[#4C4D55] text-right"
+            />
           </div>
 
           <div className="grid min-w-0 flex-1 grid-cols-5 items-center gap-x-[clamp(16px,1.4vw,28px)] py-[4px]">

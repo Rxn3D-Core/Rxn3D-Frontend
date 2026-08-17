@@ -436,8 +436,8 @@ export function ToothStatusBoxes({
         })}
       </div>
 
-      {/* Done button centered below options when not yet acknowledged */}
-      {!acknowledged && onAcknowledgedChange && (
+      {/* Done button — only show when at least one tooth is assigned to any product box */}
+      {!acknowledged && onAcknowledgedChange && activeExtractions.some((e) => getTeethForBox(e).length > 0) && (
         <div className="w-full flex justify-center py-1 overflow-visible">
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>

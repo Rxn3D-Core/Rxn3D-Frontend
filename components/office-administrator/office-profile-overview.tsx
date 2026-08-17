@@ -24,6 +24,8 @@ interface OverviewTabProps {
     joiningDate: string
     position: string
     logo_url?: string
+    unique_code?: string
+    code?: string
   }
   onLogoUpdate?: (logoUrl: string) => void
   onProfileUpdate?: () => void
@@ -280,6 +282,11 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
               <div className="grid grid-cols-2 gap-4">
                 <label className="text-sm text-gray-500">Position:</label>
                 <p className="font-medium text-sm">{officeData.position}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Office Code:</label>
+                <p className="font-medium text-sm">{officeData.code || "—"}</p>
               </div>
             </div>
           </div>

@@ -58,6 +58,8 @@ interface OverviewTabProps {
     countryName?: string
     countryId?: number | null
     release_casepan?: string
+    unique_code?: string
+    code?: string
   }
   onLogoUpdate?: (logoUrl: string) => void
   onProfileUpdate?: () => void
@@ -133,6 +135,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
       release_casepan: labData.release_casepan || "",
+      code: labData.code || "",
     }
   })
 
@@ -151,6 +154,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
       release_casepan: labData.release_casepan || "",
+      code: labData.code || "",
     })
   }, [labData])
 
@@ -377,6 +381,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
         state: customerData.state?.name || "",
         state_id: customerData.state?.id ?? null,
         release_casepan: customerData.release_casepan || "",
+        code: customerData.code || "",
       }
       
       setFormData(fetchedFormData)
@@ -414,6 +419,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
       state: labData.stateName || "",
       state_id: labData.stateId ?? null,
       release_casepan: labData.release_casepan || "",
+      code: labData.code || "",
     }
     
     setFormData(initialFormData)
@@ -525,6 +531,11 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
         if (formData.release_casepan && formData.release_casepan !== "") {
           updateData.release_casepan = formData.release_casepan
         }
+      }
+
+      // Compare code
+      if (formData.code !== originalFormData.code) {
+        updateData.code = formData.code
       }
 
       // If no fields have changed, show a message and return
@@ -697,6 +708,11 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 <label className="text-sm text-gray-500">Release Casepan:</label>
                 <p className="font-medium text-sm">{labData.release_casepan || "—"}</p>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <label className="text-sm text-gray-500">Lab Code:</label>
+                <p className="font-medium text-sm">{labData.code || "—"}</p>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -782,6 +798,18 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                     <SelectItem value="After Product">After Product</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="lab-code">Lab Code</Label>
+                <Input
+                  id="lab-code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="Enter lab code"
+                />
               </div>
             </div>
 

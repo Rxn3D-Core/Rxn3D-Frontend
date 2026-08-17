@@ -392,11 +392,11 @@ function OfficeCaseManagementPage() {
     if (!selectedSlipForCancel?.id || !reason.trim()) return
     setCancelSlipSubmitting(true)
     try {
-      await cancelSlip(selectedSlipForCancel.id, reason.trim())
-      toast({ title: "Case cancelled", description: "The case was cancelled successfully.", duration: 3000 })
+      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      toast({ title: "Case cancelled", description: res?.message ?? "The case was cancelled successfully.", duration: 3000 })
       setCancelSlipModalOpen(false); setSelectedSlipForCancel(null); refreshCurrentListing()
     } catch (error) {
-      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+      toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setCancelSlipSubmitting(false)
     }
@@ -415,11 +415,11 @@ function OfficeCaseManagementPage() {
     if (!selectedSlipForHold?.id || !reason.trim()) return
     setHoldSlipSubmitting(true)
     try {
-      await holdSlip(selectedSlipForHold.id, reason.trim())
-      toast({ title: "Case put on hold", description: "The case has been put on hold successfully.", duration: 3000 })
+      const res = await holdSlip(selectedSlipForHold.id, reason.trim())
+      toast({ title: "Case put on hold", description: res?.message ?? "The case has been put on hold successfully.", duration: 3000 })
       setHoldSlipModalOpen(false); setSelectedSlipForHold(null); refreshCurrentListing()
     } catch (error) {
-      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" })
+      toast({ title: "Unable to put case on hold", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setHoldSlipSubmitting(false)
     }
