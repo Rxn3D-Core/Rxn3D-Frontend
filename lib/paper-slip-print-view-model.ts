@@ -1,4 +1,5 @@
 import { buildOpposingArchVM } from "./virtual-slip-extraction-display.ts";
+import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates.ts";
 import {
   isSplintedSlipProduct,
   parseSplintedTeethToLinks,
@@ -996,13 +997,6 @@ function formatTime(iso: string | null | undefined): string {
   return `${hour}:${String(minutes).padStart(2, "0")} ${ampm}`;
 }
 
-function formatDueDate(date: string | null | undefined, time: string | null | undefined): string {
-  const formattedDate = formatDate(date);
-  const formattedTime = formatTime(time);
-  if (formattedDate && formattedTime) return `${formattedDate} @ ${formattedTime}`;
-  return formattedDate || formattedTime;
-}
-
 function joinAddress(parts: unknown[]): string {
   return parts
     .map((part) => firstStr(part))
@@ -1024,9 +1018,15 @@ export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
   const doctor = caseData?.doctor ?? caseData?.doctor_details ?? data?.doctor ?? {};
   const delivery = data?.delivery ?? {};
   const products = Array.isArray(data?.products) ? data.products : [];
+  const deliveryDates = resolveSlipDeliveryDates(data, products);
   const relatedSlips = Array.isArray(caseData?.slips)
     ? caseData.slips.map((slip: any) => firstStr(slip?.slip_number)).filter(Boolean)
     : [];
+  const dueTime = formatTime(delivery?.delivery_time);
+  const dueDate =
+    deliveryDates.dueDate && dueTime
+      ? `${deliveryDates.dueDate} @ ${dueTime}`
+      : deliveryDates.dueDate || dueTime;
 
   return {
     slipId: Number(data?.id ?? 0),
@@ -1057,7 +1057,7 @@ export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
       slipNumber: firstStr(data?.slip_number),
       locationName: firstStr(data?.location?.name),
       pickupDate: formatDate(delivery?.pickup_date),
-      dueDate: formatDueDate(delivery?.delivery_date, delivery?.delivery_time),
+      dueDate,
       casePanNumber: firstStr(data?.casepan?.number, data?.casepan?.code, data?.casepan_number),
     },
     arches: {
