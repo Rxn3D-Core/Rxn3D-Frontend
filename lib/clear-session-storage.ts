@@ -18,7 +18,6 @@ export function clearSessionStorage(): void {
     "selectedLocation",
     "selectedLabId",
     "role",
-    "sessionHistory",
     "labAdminHistory",
     "originalUser", // for impersonation
     "originalToken", // for impersonation
