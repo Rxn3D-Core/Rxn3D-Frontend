@@ -3076,6 +3076,8 @@ export function MandibularPanel({
                               handleOpenStageModal={handleOpenStageModal}
                               handleShadeFieldClick={handleShadeFieldClick}
                               handleOpenImpressionModal={safeOpenImpressionModal}
+                              getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: Arch) => string}
+                              selectedImpressions={selectedImpressions}
                               handleOpenAddOnsModal={handleOpenAddOnsModal}
                               setPanelGumShadePicker={setPanelGumShadePicker}
                               noOpposingNeeded={noOpposingNeeded}
@@ -3703,6 +3705,8 @@ export function MandibularPanel({
                         handleOpenStageModal={handleOpenStageModal}
                         handleShadeFieldClick={handleShadeFieldClick}
                         handleOpenImpressionModal={safeOpenImpressionModal}
+                        getImpressionDisplayText={getImpressionDisplayText as (productId: string, arch: Arch) => string}
+                        selectedImpressions={selectedImpressions}
                         handleOpenAddOnsModal={handleOpenAddOnsModal}
                         setPanelGumShadePicker={setPanelGumShadePicker}
                         noOpposingNeeded={noOpposingNeeded}

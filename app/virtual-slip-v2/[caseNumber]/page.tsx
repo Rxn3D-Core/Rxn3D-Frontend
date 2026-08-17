@@ -34,6 +34,7 @@ import { VirtualSlipCenterActions } from "@/components/virtual-slip/VirtualSlipC
 import { VirtualSlipToolbarRow } from "@/components/virtual-slip/VirtualSlipToolbarRow";
 import DriverHistoryModal from "@/components/driver-history-modal";
 import ReadyToSendModal from "@/components/ready-to-send-modal";
+import ChangeDateModal from "@/components/change-date-modal";
 import { SlipDriverHistoryViewModal } from "@/components/slip-driver-history-view-modal";
 import { buildPickupDeliveryEntryFromSlip } from "@/lib/virtual-slip-pickup-entry";
 import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog";
@@ -97,6 +98,7 @@ export default function VirtualSlipV2Page() {
   const [sendBackToOfficeOpen, setSendBackToOfficeOpen] = useState(false);
   const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] =
     useState(false);
+  const [changeDateOpen, setChangeDateOpen] = useState(false);
   const [addStageEligible, setAddStageEligible] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -421,6 +423,15 @@ export default function VirtualSlipV2Page() {
       });
       return;
     }
+    const successTitle =
+      action === "hold" ? "Case put on hold" : action === "resume" ? "Case resumed" : "Case cancelled";
+    const errorTitle =
+      action === "hold" ? "Unable to put case on hold" : action === "resume" ? "Unable to resume case" : "Unable to cancel case";
+    const fallbackSuccess =
+      action === "hold" ? "The case has been put on hold." : action === "resume" ? "The case has been resumed." : "The case has been cancelled.";
+    const fallbackError =
+      action === "hold" ? "Could not put case on hold." : action === "resume" ? "Could not resume case." : "Could not cancel case.";
+
     setCaseStatusSubmitting(true);
     try {
       const fn =
@@ -431,14 +442,8 @@ export default function VirtualSlipV2Page() {
             : cancelSlip;
       const res = await fn(slipId, reason);
       toast({
-        title: "Success",
-        description:
-          res?.message ??
-          (action === "hold"
-            ? "Case has been put on hold."
-            : action === "resume"
-              ? "Case has been resumed."
-              : "Case has been cancelled."),
+        title: successTitle,
+        description: res?.message ?? fallbackSuccess,
         duration: 3000,
       });
       setCaseStatusModal(null);
@@ -446,15 +451,8 @@ export default function VirtualSlipV2Page() {
       setNotesRefreshKey((key) => key + 1);
     } catch (err) {
       toast({
-        title: "Error",
-        description:
-          err instanceof Error
-            ? err.message
-            : action === "hold"
-              ? "Could not put case on hold."
-              : action === "resume"
-                ? "Could not resume case."
-                : "Could not cancel case.",
+        title: errorTitle,
+        description: err instanceof Error ? err.message : fallbackError,
         variant: "destructive",
         duration: 5000,
       });
@@ -643,6 +641,11 @@ export default function VirtualSlipV2Page() {
           labBusinessHours={labBusinessHours}
           onAttachments={() => setShowAttachModal(true)}
           onDriverHistory={() => setDriverHistoryViewOpen(true)}
+          onChangeDate={
+            canRunLabDriverActions && !caseBlocked
+              ? () => setChangeDateOpen(true)
+              : undefined
+          }
           onHold={
             caseBlocked || slipInOffice ? undefined : () => setCaseStatusModal("hold")
           }
@@ -706,6 +709,27 @@ export default function VirtualSlipV2Page() {
         }}
         onConfirm={handleConfirmSendBackToOffice}
         loading={sendBackToOfficeSubmitting}
+      />
+
+      <ChangeDateModal
+        open={changeDateOpen}
+        onClose={() => setChangeDateOpen(false)}
+        patient={vm.header.patientName}
+        stage={primaryRushSlot?.stageName ?? stageSeeds[0]?.label ?? "Unknown Stage"}
+        currentDate={slipDeliveryDates.dueDate}
+        deliveryDate={slipDeliveryDates.standardDateIso}
+        deliveryTime={vm.header.deliveryTime}
+        deliveryTimeRaw={
+          (() => {
+            if (!virtualSlipDetails || typeof virtualSlipDetails !== "object") return undefined;
+            const d = (virtualSlipDetails as Record<string, unknown>).delivery as Record<string, unknown> | undefined;
+            return typeof d?.delivery_time === "string" ? d.delivery_time : undefined;
+          })()
+        }
+        slipId={slipId}
+        onSaved={() => {
+          if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
+        }}
       />
 
       <CaseActionModal

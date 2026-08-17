@@ -37,6 +37,11 @@ import {
 } from "../utils/gradeHelpers";
 import { buildRemovableAddonFieldContext } from "../utils/addonDisplayHelpers";
 import type { StoredAddonEntry } from "../utils/addonDisplayHelpers";
+import type { SlipImpressionSelections } from "../utils/impressionStorage";
+import {
+  ARCH_IMPRESSION_PRODUCT_ID,
+  archHasActiveImpressionSelections,
+} from "../utils/impressionFieldSync";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -485,6 +490,8 @@ interface RemovableRestorationFieldsProps {
   handleOpenStageModal: (productId: string, arch?: Arch, toothNumber?: number) => void;
   handleShadeFieldClick: (arch: Arch, fieldType: ShadeFieldType, productId: string) => void;
   handleOpenImpressionModal: (arch: Arch, productId: string, toothNumber?: number) => void;
+  getImpressionDisplayText?: (productId: string, arch: Arch) => string;
+  selectedImpressions?: SlipImpressionSelections;
   handleOpenAddOnsModal: (arch: Arch, productId: string, toothNumber?: number) => void;
   setPanelGumShadePicker: (state: { toothNumber: number; gumShades: any[]; selectedName?: string | null }) => void;
   /** Product+arch combos where user chose "Submit, no opposing needed" */
@@ -532,6 +539,8 @@ export function SelectionProductFields({
   handleOpenStageModal,
   handleShadeFieldClick,
   handleOpenImpressionModal,
+  getImpressionDisplayText,
+  selectedImpressions = { maxillary: [], mandibular: [] },
   handleOpenAddOnsModal,
   setPanelGumShadePicker,
   noOpposingNeeded = {},
@@ -571,13 +580,24 @@ export function SelectionProductFields({
     implantDetailCompleteByTooth,
     implantDetailByTooth
   );
+  const impressionDisplay =
+    getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) ||
+    getFieldValueFn(arch, firstToothNumber, "impression");
+  const impressionComplete =
+    isFieldCompletedFn(arch, firstToothNumber, "impression") ||
+    (!!impressionDisplay &&
+      archHasActiveImpressionSelections(
+        selectedImpressions,
+        ARCH_IMPRESSION_PRODUCT_ID,
+        arch
+      ));
 
   return (
     <>
       <AutoOpenImpressionIfEmpty
         isExpanded={isExpanded}
         isImpressionVisible={isVisible("impression") && implantDetailReady}
-        isImpressionEmpty={!isFieldCompletedFn(arch, firstToothNumber, "impression")}
+        isImpressionEmpty={!impressionComplete}
         onOpenImpressionModal={(a, productId, toothNum) => {
           handleOpenImpressionModal(a, productId, toothNum);
         }}
@@ -831,9 +851,9 @@ export function SelectionProductFields({
         <div className="flex flex-col gap-3 mt-3">
           <fieldset
             className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors w-full ${
-              isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted
+              impressionComplete && !caseSubmitted
                 ? "border-[#34a853]"
-                : isFieldCompletedFn(arch, firstToothNumber, "impression")
+                : impressionComplete
                   ? "border-[#b4b0b0]"
                   : "border-[#CF0202]"
             }`}
@@ -843,9 +863,9 @@ export function SelectionProductFields({
           >
             <legend
               className={`text-sm px-1 leading-none ${
-                isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted
+                impressionComplete && !caseSubmitted
                   ? "text-[#34a853]"
-                  : isFieldCompletedFn(arch, firstToothNumber, "impression")
+                  : impressionComplete
                     ? "text-[#7f7f7f]"
                     : "text-[#CF0202]"
               }`}
@@ -854,9 +874,9 @@ export function SelectionProductFields({
             </legend>
             <div className="flex items-center gap-2 w-full">
               <span className="text-[14px] sm:text-lg text-[#000000] break-words">
-                {getFieldValueFn(arch, firstToothNumber, "impression")}
+                {impressionDisplay}
               </span>
-              {isFieldCompletedFn(arch, firstToothNumber, "impression") && !caseSubmitted && (
+              {impressionComplete && !caseSubmitted && (
                 <Check size={16} className="text-[#34a853] ml-auto" />
               )}
             </div>

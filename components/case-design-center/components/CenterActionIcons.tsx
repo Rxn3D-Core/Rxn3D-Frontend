@@ -90,6 +90,7 @@ interface CenterActionIconsProps {
   onAttach?: () => void;
   onDriverHistory?: () => void;
   onCallLog?: () => void;
+  onChangeDate?: () => void;
   onSendBackToOffice?: () => void;
   onHold?: () => void;
   onCancel?: () => void;
@@ -111,6 +112,7 @@ export function CenterActionIcons({
   onAttach,
   onDriverHistory,
   onCallLog,
+  onChangeDate,
   onSendBackToOffice,
   onHold,
   onCancel,
@@ -128,6 +130,9 @@ export function CenterActionIcons({
       : "h-14 w-14 transition-transform duration-200 ease-out hover:scale-[1.15]"
   );
   const rushIconClass = virtualSlipIconSizing
+    ? VIRTUAL_SLIP_ICON_CLASS
+    : LEGACY_ICON_CLASS;
+  const calendarIconClass = virtualSlipIconSizing
     ? VIRTUAL_SLIP_ICON_CLASS
     : LEGACY_ICON_CLASS;
   const driverHistoryIconClass = virtualSlipIconSizing
@@ -175,6 +180,21 @@ export function CenterActionIcons({
       className: driverHistoryIconClass,
     }),
     rowIcon("call-log", "Call log", "call-log.svg", onCallLog),
+    {
+      key: "change-date",
+      label: "Change date",
+      onClick: onChangeDate,
+      node: (
+        // eslint-disable-next-line @next/next/no-img-element -- bundled PNG glyph
+        <img
+          src="/icons/slip-listing/calendar.png"
+          alt="Change date"
+          width={virtualSlipIconSizing ? 40 : 52}
+          height={virtualSlipIconSizing ? 40 : 52}
+          className={cn("object-contain", calendarIconClass)}
+        />
+      ),
+    },
     rowIcon("send-back-to-office", "Send back to office", "send-back-to-office.svg", onSendBackToOffice),
     rowIcon("on-hold", "On hold", "on-hold.png", onHold, {
       disabled: onHold ? !canPutOnHold : true,

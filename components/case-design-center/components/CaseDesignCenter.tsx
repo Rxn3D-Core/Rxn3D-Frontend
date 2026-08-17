@@ -150,6 +150,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     state.isStageModalOpen ||
     state.showAddOnsModal ||
     state.showRushModal ||
+    state.showAttachModal ||
     toothOwnershipWarning !== null;
   const onAnyModalOpenChangeRef = useRef(props.onAnyModalOpenChange);
   onAnyModalOpenChangeRef.current = props.onAnyModalOpenChange;

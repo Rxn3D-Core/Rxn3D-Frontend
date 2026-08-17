@@ -38,6 +38,7 @@ export interface VirtualSlipCenterActionsProps {
   onNotesChanged?: (summaryText: string) => void;
   onAddonsChanged?: () => void;
   onRushChanged?: () => void;
+  onChangeDateSaved?: () => void;
   hasMaxillary?: boolean;
   hasMandibular?: boolean;
   visibleArches?: SlipProductArchKey[];
@@ -49,6 +50,7 @@ export interface VirtualSlipCenterActionsProps {
   onOpenRushModalChange?: (open: boolean) => void;
   onDriverHistory?: () => void;
   onCallLog?: () => void;
+  onChangeDate?: () => void;
   onSendBackToOffice?: () => void;
   onHold?: () => void;
   onCancel?: () => void;
@@ -86,6 +88,7 @@ export function VirtualSlipCenterActions({
   onNotesChanged,
   onAddonsChanged,
   onRushChanged,
+  onChangeDateSaved,
   hasMaxillary = true,
   hasMandibular = true,
   visibleArches,
@@ -97,6 +100,7 @@ export function VirtualSlipCenterActions({
   onOpenRushModalChange,
   onDriverHistory,
   onCallLog,
+  onChangeDate,
   onSendBackToOffice,
   onHold,
   onCancel,
@@ -228,6 +232,7 @@ export function VirtualSlipCenterActions({
           onAttach={onAttachments}
           onDriverHistory={onDriverHistory}
           onCallLog={onCallLog}
+          onChangeDate={onChangeDate}
           onSendBackToOffice={onSendBackToOffice}
           onHold={onHold}
           onCancel={onCancel}

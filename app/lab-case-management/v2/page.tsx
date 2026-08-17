@@ -509,10 +509,10 @@ export default function LabSlipPage() {
 
     setHoldSlipSubmitting(true)
     try {
-      await holdSlip(selectedSlipForHold.id, reason.trim())
+      const res = await holdSlip(selectedSlipForHold.id, reason.trim())
       toast({
         title: "Case put on hold",
-        description: "The case has been put on hold successfully.",
+        description: res?.message ?? "The case has been put on hold successfully.",
         duration: 3000,
       })
       setHoldSlipModalOpen(false)
@@ -523,6 +523,7 @@ export default function LabSlipPage() {
         title: "Unable to put case on hold",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
+        duration: 5000,
       })
     } finally {
       setHoldSlipSubmitting(false)
@@ -564,10 +565,10 @@ export default function LabSlipPage() {
 
     setCancelSlipSubmitting(true)
     try {
-      await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim())
       toast({
         title: "Case cancelled",
-        description: "The case was cancelled successfully.",
+        description: res?.message ?? "The case was cancelled successfully.",
         duration: 3000,
       })
       setCancelSlipModalOpen(false)
@@ -578,6 +579,7 @@ export default function LabSlipPage() {
         title: "Unable to cancel case",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
+        duration: 5000,
       })
     } finally {
       setCancelSlipSubmitting(false)
