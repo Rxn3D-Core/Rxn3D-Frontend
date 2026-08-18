@@ -130,12 +130,15 @@ function ProductImageWithFallback({
 /* ------------------------------------------------------------------ */
 /*  Product search (shared across category / subcategory / material)   */
 /* ------------------------------------------------------------------ */
+type WizardArch = "maxillary" | "mandibular" | "both";
+
 interface ProductSearchProps {
   productSearch: string;
   onProductSearchChange: (value: string) => void;
   searchResults: LibraryProductApi[];
   isSearchingProducts: boolean;
-  onSearchProductSelect: (product: LibraryProductApi) => void;
+  onSearchProductSelect: (product: LibraryProductApi, arch?: WizardArch) => void;
+  forceArch?: WizardArch;
 }
 
 function ProductSearchBar({
@@ -294,16 +297,99 @@ function CaseDesignCenterToolbar({
   );
 }
 
+function searchResultNeedsJawSelection(
+  product: LibraryProductApi,
+  forceArch?: WizardArch,
+): boolean {
+  if (forceArch) return false;
+  return shouldShowJawArchSelection(
+    product,
+    categoryShowsJawSelection(product.subcategory?.category),
+  );
+}
+
+function getSearchResultJawOptions(product: LibraryProductApi) {
+  const fallbackImg = product.image_url;
+  const useJawPhotos =
+    product.show_jaw_photo === "Yes" ||
+    !!(product.jaw_photos?.upper || product.jaw_photos?.lower || product.jaw_photos?.both);
+  const jawPhotos = product.jaw_photos ?? {};
+  return [
+    {
+      label: "Upper only",
+      value: "maxillary" as const,
+      img: useJawPhotos ? (jawPhotos.upper ?? fallbackImg) : (product.arch_image_maxillary ?? fallbackImg),
+    },
+    {
+      label: "Both",
+      value: "both" as const,
+      img: useJawPhotos ? (jawPhotos.both ?? fallbackImg) : (product.arch_image_both ?? fallbackImg),
+    },
+    {
+      label: "Lower only",
+      value: "mandibular" as const,
+      img: useJawPhotos ? (jawPhotos.lower ?? fallbackImg) : (product.arch_image_mandibular ?? fallbackImg),
+    },
+  ];
+}
+
 function ProductSearchResults({
   productSearch,
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  forceArch,
 }: Pick<
   ProductSearchProps,
-  "productSearch" | "searchResults" | "isSearchingProducts" | "onSearchProductSelect"
+  "productSearch" | "searchResults" | "isSearchingProducts" | "onSearchProductSelect" | "forceArch"
 >) {
   const trimmed = productSearch.trim();
+  const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
+  const [activeLabelHeight, setActiveLabelHeight] = useState(0);
+  const cardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const labelRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setArchPopoverProductId(null);
+  }, [trimmed]);
+
+  useEffect(() => {
+    if (!archPopoverProductId) return;
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        const cardEl = cardRefs.current[archPopoverProductId];
+        if (cardEl && cardEl.contains(e.target as Node)) return;
+        setArchPopoverProductId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [archPopoverProductId]);
+
+  useEffect(() => {
+    if (archPopoverProductId === null) {
+      setActiveLabelHeight(0);
+      return;
+    }
+
+    const labelEl = labelRefs.current[archPopoverProductId];
+    if (!labelEl) return;
+
+    const updateLabelHeight = () => {
+      setActiveLabelHeight(labelEl.getBoundingClientRect().height);
+    };
+
+    updateLabelHeight();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(updateLabelHeight);
+    observer.observe(labelEl);
+
+    return () => observer.disconnect();
+  }, [archPopoverProductId, searchResults]);
+
   if (!trimmed) return null;
 
   if (isSearchingProducts) {
@@ -328,25 +414,89 @@ function ProductSearchResults({
 
   return (
     <div className={PRODUCT_CARD_GRID_CLASS}>
-      {searchResults.map((product) => (
-        <button
-          key={product.id}
-          type="button"
-          onClick={() => onSearchProductSelect(product)}
-          className={cn(productPickerCardClass(false), PRODUCT_CARD_ITEM_CLASS)}
-        >
-          <ProductPickerCardLabel>{product.name}</ProductPickerCardLabel>
-          <ProductImageWithFallback
-            src={product.image_url}
-            alt={product.name}
-            name={product.name}
-            className="rounded-none"
-            bgClassName="bg-[#080808]"
-            textClassName="text-[#b4b0b0]"
-            fillHeight
-          />
-        </button>
-      ))}
+      {searchResults.map((product) => {
+        const prodId = String(product.id);
+        const isPendingArch = archPopoverProductId === prodId;
+        return (
+          <div key={product.id} className={cn("relative", PRODUCT_CARD_ITEM_CLASS)}>
+            <button
+              ref={(el) => { cardRefs.current[prodId] = el; }}
+              type="button"
+              onClick={() => {
+                if (!searchResultNeedsJawSelection(product, forceArch)) {
+                  onSearchProductSelect(product, forceArch);
+                  return;
+                }
+                if (isPendingArch) {
+                  setArchPopoverProductId(null);
+                } else {
+                  setActiveLabelHeight(labelRefs.current[prodId]?.getBoundingClientRect().height ?? 0);
+                  setArchPopoverProductId(prodId);
+                }
+              }}
+              className={productPickerCardClass(isPendingArch, "relative")}
+            >
+              <ProductPickerCardLabel ref={(el) => { labelRefs.current[prodId] = el; }}>
+                {product.name}
+              </ProductPickerCardLabel>
+              <ProductImageWithFallback
+                src={product.image_url}
+                alt={product.name}
+                name={product.name}
+                className="rounded-none"
+                bgClassName="bg-[#080808]"
+                textClassName="text-[#b4b0b0]"
+                fillHeight
+              />
+            </button>
+            {isPendingArch && (() => {
+              const archOptions = getSearchResultJawOptions(product);
+              const popoverInsets = getJawSelectionPopoverInsets(activeLabelHeight);
+              return (
+                <div
+                  ref={popoverRef}
+                  className="absolute z-20 overflow-hidden rounded-b-[7px] bg-black"
+                  style={popoverInsets}
+                >
+                  <div className="flex h-full flex-col">
+                    {archOptions.map((option, i) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`group flex min-h-0 flex-1 flex-row overflow-hidden ${i < archOptions.length - 1 ? "border-b border-gray-700" : ""}`}
+                        onClick={() => {
+                          setArchPopoverProductId(null);
+                          onSearchProductSelect(product, option.value);
+                        }}
+                      >
+                        <div className="h-full w-[55%] flex-shrink-0 overflow-hidden">
+                          {option.img ? (
+                            <img src={option.img} alt={option.label} className="block h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-[#111]">
+                              <span className="text-xl font-bold text-gray-600">
+                                {product.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-1 items-center justify-center bg-black px-2 transition-colors group-hover:bg-[#1162A8]">
+                          <span
+                            style={{ fontFamily: "Verdana, sans-serif", fontSize: 12 }}
+                            className="text-center font-semibold text-white"
+                          >
+                            {option.label}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1237,6 +1387,7 @@ function StepCategory({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  forceArch,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -1305,6 +1456,7 @@ function StepCategory({
             searchResults={searchResults}
             isSearchingProducts={isSearchingProducts}
             onSearchProductSelect={onSearchProductSelect}
+            forceArch={forceArch}
           />
 
           {!productSearch.trim() && (
@@ -1356,6 +1508,7 @@ function StepSubProduct({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  forceArch,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -1443,6 +1596,7 @@ function StepSubProduct({
         searchResults={searchResults}
         isSearchingProducts={isSearchingProducts}
         onSearchProductSelect={onSearchProductSelect}
+        forceArch={forceArch}
       />
 
       {!productSearch.trim() && (
@@ -1567,7 +1721,6 @@ function StepMaterial({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
-  initialArchPopoverProductId = null,
 }: {
   subProductName: string;
   products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null }; show_jaw_photo?: boolean; jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } }[];
@@ -1586,7 +1739,6 @@ function StepMaterial({
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
-  initialArchPopoverProductId?: string | null;
 } & ProductSearchProps) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const [activeProductLabelHeight, setActiveProductLabelHeight] = useState(0);
@@ -1639,11 +1791,6 @@ function StepMaterial({
     }
   }, [products, selected, categoryShowJawSelection, forceArch, isLoading, onSelect]);
 
-  useEffect(() => {
-    if (!initialArchPopoverProductId || isLoading) return;
-    setArchPopoverProductId(initialArchPopoverProductId);
-  }, [initialArchPopoverProductId, isLoading]);
-
   const onlyProduct = products.length === 1 ? products[0] : null;
   const onlyProductId = onlyProduct != null ? String(onlyProduct.id) : null;
   const singleProductNeedsArch =
@@ -1653,14 +1800,12 @@ function StepMaterial({
   // Single product that needs arch: open the image popover on the card (same as multi-product).
   useEffect(() => {
     if (isLoading || !onlyProductId || !singleProductNeedsArch || forceArch) return;
-    if (initialArchPopoverProductId) return;
     setArchPopoverProductId(onlyProductId);
   }, [
     isLoading,
     onlyProductId,
     singleProductNeedsArch,
     forceArch,
-    initialArchPopoverProductId,
   ]);
 
   if (error) {
@@ -1714,6 +1859,7 @@ function StepMaterial({
         searchResults={searchResults}
         isSearchingProducts={isSearchingProducts}
         onSearchProductSelect={onSearchProductSelect}
+        forceArch={forceArch}
       />
 
       {!productSearch.trim() && (
@@ -2027,7 +2173,6 @@ export default function NewCaseWizard({
   const [archPopoverSubId, setArchPopoverSubId] = useState<number | null>(null);
   const [shouldAutoAdvanceProducts, setShouldAutoAdvanceProducts] = useState(false);
   const [productSearch, setProductSearch] = useState("");
-  const [pendingArchProductId, setPendingArchProductId] = useState<string | null>(null);
   const debouncedProductSearch = useDebounce(productSearch, 300);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showAddLabModal, setShowAddLabModal] = useState(false);
@@ -2131,11 +2276,26 @@ export default function NewCaseWizard({
   const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor) ?? initialDoctor;
 
   const finalizeSelection = useCallback(
-    (materialId: string, arch?: "maxillary" | "mandibular" | "both") => {
-      const selectedCategoryName = categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
-      const subProductName =
-        (subcategoriesByCategoryId[selectedCategory ?? -1] ?? []).find((p) => p.id === selectedSubProduct)?.name ?? "";
-      const materialName = productsAsWizard.find((p) => String(p.id) === String(materialId))?.name ?? "";
+    (
+      materialId: string,
+      arch?: "maxillary" | "mandibular" | "both",
+      fromSearch?: {
+        categoryId?: number;
+        categoryName?: string;
+        subcategoryId?: number;
+        materialName?: string;
+      },
+    ) => {
+      const categoryId = fromSearch?.categoryId ?? selectedCategory;
+      const subcategoryId = fromSearch?.subcategoryId ?? selectedSubProduct;
+      const selectedCategoryName =
+        fromSearch?.categoryName ??
+        categoriesAsWizard.find((c) => c.id === categoryId)?.name ??
+        "";
+      const materialName =
+        fromSearch?.materialName ??
+        productsAsWizard.find((p) => String(p.id) === String(materialId))?.name ??
+        "";
       const archToUse = arch ?? selectedArch ?? forceArch;
 
       setSelectedMaterial(materialId);
@@ -2150,9 +2310,9 @@ export default function NewCaseWizard({
         patientName,
         gender,
         age,
-        category: String(selectedCategory),
+        category: String(categoryId ?? ""),
         categoryName: selectedCategoryName,
-        product: String(selectedSubProduct),
+        product: String(subcategoryId ?? ""),
         material: materialId,
         materialName,
         arch: archToUse,
@@ -2167,7 +2327,6 @@ export default function NewCaseWizard({
     [
       categoriesAsWizard,
       selectedCategory,
-      subcategoriesByCategoryId,
       selectedSubProduct,
       productsAsWizard,
       selectedArch,
@@ -2183,7 +2342,7 @@ export default function NewCaseWizard({
   );
 
   const handleSearchProductSelect = useCallback(
-    (product: LibraryProductApi) => {
+    (product: LibraryProductApi, arch?: WizardArch) => {
       const categoryId = product.subcategory?.category?.id ?? product.subcategory?.category_id;
       const subcategoryId = product.subcategory?.id;
       const categoryName =
@@ -2197,21 +2356,12 @@ export default function NewCaseWizard({
       setShouldAutoAdvanceProducts(false);
       setProductSearch("");
 
-      const categoryShowJaw = categoryShowsJawSelection(
-        product.subcategory?.category ??
-          categoriesAsWizard.find((c) => c.id === categoryId),
-      );
-      const needsArchSelection = shouldShowJawArchSelection(product, categoryShowJaw);
-      const productId = String(product.id);
-
-      if (needsArchSelection && !forceArch) {
-        setSelectedMaterial(productId);
-        setPendingArchProductId(productId);
-        setStep(6);
-        return;
-      }
-
-      finalizeSelection(productId, forceArch);
+      finalizeSelection(String(product.id), arch ?? forceArch, {
+        categoryId: categoryId ?? undefined,
+        categoryName,
+        subcategoryId: subcategoryId ?? undefined,
+        materialName: product.name,
+      });
     },
     [categoriesAsWizard, forceArch, finalizeSelection]
   );
@@ -2223,8 +2373,9 @@ export default function NewCaseWizard({
       searchResults: productSearchResults,
       isSearchingProducts,
       onSearchProductSelect: handleSearchProductSelect,
+      forceArch,
     }),
-    [productSearch, productSearchResults, isSearchingProducts, handleSearchProductSelect]
+    [productSearch, productSearchResults, isSearchingProducts, handleSearchProductSelect, forceArch]
   );
 
   useEffect(() => {
@@ -2476,6 +2627,7 @@ export default function NewCaseWizard({
             fieldSettings={patientFieldSettings}
             patientInfoComplete={patientInfoComplete}
             {...productSearchProps}
+            forceArch={forceArch}
           />
         )}
         {step === 5 && selectedCategory != null && (
@@ -2541,11 +2693,9 @@ export default function NewCaseWizard({
               forceArch={forceArch ?? selectedArch}
               onBack={() => {
                 setShouldAutoAdvanceProducts(false);
-                setPendingArchProductId(null);
                 setStep(5);
               }}
               onSelect={(id, arch) => {
-                setPendingArchProductId(null);
                 setSelectedMaterial(id);
                 if (arch) setSelectedArch(arch);
                 const materialName = productsAsWizard.find((p) => String(p.id) === String(id))?.name ?? "";
@@ -2591,8 +2741,8 @@ export default function NewCaseWizard({
               onGenderChange={setGender}
               onAgeChange={setAge}
               fieldSettings={patientFieldSettings}
-              initialArchPopoverProductId={pendingArchProductId}
               {...productSearchProps}
+              forceArch={forceArch ?? selectedArch}
             />
           );
         })()}
