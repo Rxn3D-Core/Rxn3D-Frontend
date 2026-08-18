@@ -208,6 +208,50 @@ export function removeArchImpression(
   };
 }
 
+export function oppositeArch(arch: Arch): Arch {
+  return arch === "maxillary" ? "mandibular" : "maxillary";
+}
+
+/** STL catalog rows (name/code), used to open the file picker instead of qty-only. */
+export function isStlImpressionOption(
+  option: ImpressionOptionForModal | null | undefined
+): boolean {
+  if (!option) return false;
+  const name = (option.name ?? "").trim().toLowerCase();
+  const code = String(option.code ?? option.value ?? "").trim().toLowerCase();
+  return (
+    name.includes("stl") ||
+    code === "stl" ||
+    code === "stl_file" ||
+    name === "stl file"
+  );
+}
+
+export function findStlImpressionOption(
+  options: ImpressionOptionForModal[] | undefined
+): ImpressionOptionForModal | undefined {
+  return options?.find(isStlImpressionOption);
+}
+
+/**
+ * Users often attach both-jaw STLs in one upload. When 2+ files land on one
+ * arch, also select that catalog's STL row on the opposite arch (qty 1).
+ * Leaves an already-selected opposite STL unchanged. Non-STL uploads skip this.
+ */
+export function applyOppositeStlQtyForMultiFileUpload(
+  selections: SlipImpressionSelections,
+  uploadArch: Arch,
+  fileCount: number,
+  oppositeStlOption: ImpressionOptionForModal | undefined
+): SlipImpressionSelections {
+  if (fileCount <= 1 || !oppositeStlOption) return selections;
+  const other = oppositeArch(uploadArch);
+  if (getArchImpressionQtyForOption(selections, other, oppositeStlOption) > 0) {
+    return selections;
+  }
+  return setArchImpressionQty(selections, other, oppositeStlOption, 1);
+}
+
 /** Copy selections from one jaw to the other when the target jaw is still empty (fixed cross-arch mirror). */
 export function mirrorImpressionArch(
   selections: SlipImpressionSelections,
