@@ -12,8 +12,12 @@ import { STLFileSelectionModal, type STLFile } from "./stl-file-selection-modal"
 import type { ImpressionOptionForModal as ImpressionOption } from "@/components/case-design-center/types"
 import { DoneTransitionButton } from "@/components/case-design-center/components/DoneTransitionButton"
 import {
+  applyOppositeStlQtyForMultiFileUpload,
+  findStlImpressionOption,
   getArchImpressionQtyForOption,
   impressionTouchKey,
+  isStlImpressionOption,
+  oppositeArch,
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage"
 
@@ -64,6 +68,8 @@ function ImpressionGrid({
   isValidationComplete,
   onConfirmAllAndClose,
   suppressDoneButton = false,
+  peerArch,
+  peerImpressions = [],
 }: {
   impressions: ImpressionOption[]
   selectedImpressions: SlipImpressionSelections
@@ -88,6 +94,9 @@ function ImpressionGrid({
   onConfirmAllAndClose: () => void
   /** When true, hides the section-level Done button row. */
   suppressDoneButton?: boolean
+  /** Opposite jaw — used to auto-select STL qty when 2+ files are uploaded. */
+  peerArch?: "maxillary" | "mandibular"
+  peerImpressions?: ImpressionOption[]
 }) {
   const [showSTLModal, setShowSTLModal] = useState(false)
   const [selectedSTLImpression, setSelectedSTLImpression] = useState<ImpressionOption | null>(null)
@@ -105,11 +114,7 @@ function ImpressionGrid({
   const getQty = (impression: ImpressionOption) =>
     getArchImpressionQtyForOption(selectedImpressions, arch, impression)
 
-  const isSTL = (impression: ImpressionOption) => {
-    const name = (impression.name ?? "").toLowerCase()
-    const code = impression.code?.toLowerCase() || ""
-    return name.includes("stl") || code === "stl" || name === "stl file"
-  }
+  const isSTL = (impression: ImpressionOption) => isStlImpressionOption(impression)
 
   const handleCardClick = (impression: ImpressionOption) => {
     if (getQty(impression) > 0) return
@@ -158,6 +163,25 @@ function ImpressionGrid({
     const key = getKey(selectedSTLImpression)
     onSetArchQty(arch, selectedSTLImpression, files.length)
     onSTLFilesAttached(files, key)
+    const otherArch = peerArch ?? oppositeArch(arch)
+    const otherStl =
+      findStlImpressionOption(peerImpressions) ??
+      findStlImpressionOption(impressions)
+    const withOpposite = applyOppositeStlQtyForMultiFileUpload(
+      selectedImpressions,
+      arch,
+      files.length,
+      otherStl
+    )
+    const oppositeQty = otherStl
+      ? getArchImpressionQtyForOption(withOpposite, otherArch, otherStl)
+      : 0
+    const previousOppositeQty = otherStl
+      ? getArchImpressionQtyForOption(selectedImpressions, otherArch, otherStl)
+      : 0
+    if (otherStl && oppositeQty > 0 && previousOppositeQty === 0) {
+      onSetArchQty(otherArch, otherStl, oppositeQty)
+    }
     touchKey(key)
     setShowSTLModal(false)
     setSelectedSTLImpression(null)
@@ -549,6 +573,8 @@ export function ImpressionSelectionModal({
               impressions={topList}
               productId={productId}
               arch={topArch}
+              peerArch={oppositeArch(topArch)}
+              peerImpressions={optionListForArch(oppositeArch(topArch))}
             />
           </div>
 
@@ -575,6 +601,8 @@ export function ImpressionSelectionModal({
                 impressions={bottomList}
                 productId={productId}
                 arch={bottomArch}
+                peerArch={oppositeArch(bottomArch)}
+                peerImpressions={optionListForArch(oppositeArch(bottomArch))}
               />
               {shouldShowSkipOpposing && (
               <div className="flex justify-center mt-2 sm:mt-4">
