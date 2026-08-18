@@ -983,11 +983,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     (!requireMaxillaryImpression || hasMaxillaryArchImpressionSelected) &&
     (!requireMandibularImpression || hasMandibularArchImpressionSelected);
 
-  // Impression incomplete check is driven by common arch impression model.
-  const hasIncompleteAccordion =
-    (requireMaxillaryImpression && !hasMaxillaryArchImpressionSelected) ||
-    (requireMandibularImpression && !hasMandibularArchImpressionSelected);
-
   // Build unique products list for add-ons/rush modal tabs
   const caseProducts = useMemo(() => {
     const seen = new Map<number, { name: string; addons?: import("../types").ProductAddon[] }>();
@@ -1466,7 +1461,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       {!props.caseSubmitted && props.onBackToProducts && (
         <BackToProductsControl
           onBackToProducts={() => setShowChangeProductConfirm(true)}
-          hasIncompleteAccordion={hasIncompleteAccordion}
           className="absolute left-0 top-0 z-30"
         />
       )}

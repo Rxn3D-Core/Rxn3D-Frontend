@@ -4,28 +4,22 @@ import { addProductButtonLabel } from "../utils/archAddProductReadiness";
 
 export interface BackToProductsControlProps {
   onBackToProducts: () => void;
-  hasIncompleteAccordion: boolean;
   className?: string;
 }
 
 export function BackToProductsControl({
   onBackToProducts,
-  hasIncompleteAccordion,
   className = "",
 }: BackToProductsControlProps) {
   return (
     <button
       type="button"
-      onClick={!hasIncompleteAccordion ? onBackToProducts : undefined}
-      title={hasIncompleteAccordion ? "Complete all required fields before going back" : "Back to Products"}
+      onClick={onBackToProducts}
+      title="Back to Products"
       aria-label="Back to Products"
-      disabled={hasIncompleteAccordion}
-      className={`flex items-center gap-2 text-sm font-semibold ${hasIncompleteAccordion
-        ? "text-[#b4b0b0] cursor-not-allowed"
-        : "text-[#1162A8] hover:underline cursor-pointer"
-        } ${className}`}
+      className={`flex items-center gap-2 text-sm font-semibold text-[#1162A8] hover:underline cursor-pointer ${className}`}
     >
-      <BackToProductsIcon muted={hasIncompleteAccordion} />
+      <BackToProductsIcon />
     </button>
   );
 }
@@ -42,7 +36,7 @@ interface CaseDesignHeaderActionsProps {
   showSelectTeethToReplaceMandibular?: boolean;
 }
 
-function BackToProductsIcon({ muted = false }: { muted?: boolean }) {
+function BackToProductsIcon() {
   return (
     <svg
       width="27"
@@ -50,7 +44,7 @@ function BackToProductsIcon({ muted = false }: { muted?: boolean }) {
       viewBox="0 0 27 25"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`flex-shrink-0 ${muted ? "opacity-40" : ""}`}
+      className="flex-shrink-0"
       aria-hidden
     >
       <path
