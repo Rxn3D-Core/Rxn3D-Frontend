@@ -27,7 +27,7 @@ import { CaseDesignCenter } from "@/components/case-design-center/components/Cas
 import { PatientHeader } from "@/components/case-design-center/components/PatientHeader";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import type { SlipProductSnapshot, VirtualSlipInitialState } from "@/components/case-design-center/types";
-import { buildAddStageSubmissionPayloadAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
+import { buildAddStageSubmissionPayloadsAsync } from "@/components/case-design-center/utils/addStageSubmissionPayload";
 import { resolveVirtualSlipPath } from "@/components/case-design-center/utils/caseCompletionDestination";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
 import { fetchCaseDesignProductDetails } from "@/components/case-design-center/utils/caseDesignProductDetails";
@@ -253,23 +253,38 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     setSubmissionState("submitting");
 
     try {
-      const payload = await buildAddStageSubmissionPayloadAsync({
+      const payloads = await buildAddStageSubmissionPayloadsAsync({
         snapshots,
         sourceSlipLocationId: locationId,
         labCustomerId: labCustomerId ?? undefined,
         caseSummaryNotes: caseSummaryNotesRef.current,
       });
-      const res = await postAddStageToSlip(sourceSlipId, payload);
-      if (!res.success) {
-        throw new Error(res.message || "Could not create new stage slip.");
+
+      if (payloads.length === 0) {
+        throw new Error("No products to submit for the new stage slip.");
       }
 
-      const newSlipId =
-        (res.data as { id?: number })?.id ??
-        (res.data as { slip_id?: number })?.slip_id;
+      let firstNewSlipId: number | undefined;
+      let lastMessage: string | undefined;
+
+      for (const payload of payloads) {
+        const res = await postAddStageToSlip(sourceSlipId, payload);
+        if (!res.success) {
+          throw new Error(res.message || "Could not create new stage slip.");
+        }
+        lastMessage = res.message || lastMessage;
+
+        const newSlipId =
+          (res.data as { id?: number })?.id ??
+          (res.data as { slip_id?: number })?.slip_id;
+        if (typeof newSlipId === "number" && newSlipId > 0 && firstNewSlipId === undefined) {
+          firstNewSlipId = newSlipId;
+        }
+      }
+
       const redirectPath =
-        typeof newSlipId === "number" && newSlipId > 0
-          ? `/virtual-slip-v2/${newSlipId}`
+        typeof firstNewSlipId === "number" && firstNewSlipId > 0
+          ? `/virtual-slip-v2/${firstNewSlipId}`
           : resolveVirtualSlipPath({
               kind: "single-slip",
               slipId: sourceSlipId,
@@ -280,7 +295,11 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
       setSubmissionState("success-transition");
       toast({
         title: "New stage created",
-        description: res.message || "The new stage slip was created successfully.",
+        description:
+          lastMessage ||
+          (payloads.length > 1
+            ? `${payloads.length} new stage slips were created successfully.`
+            : "The new stage slip was created successfully."),
       });
       setTimeout(() => router.push(redirectPath), 2000);
     } catch (err) {

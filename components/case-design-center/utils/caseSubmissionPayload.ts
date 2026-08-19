@@ -680,8 +680,9 @@ export async function buildCaseSubmissionPayloadAsync(
   );
 
   const slipProductGroups = groupProductsIntoSlips(products);
+  const totalSlips = slipProductGroups.length;
   const orderedProducts = slipProductGroups.flat();
-  clearProductNotesWhenUsingCaseSummary(orderedProducts, caseSummaryNotes);
+  clearProductNotesWhenUsingCaseSummary(orderedProducts, caseSummaryNotes, totalSlips);
 
   const multipartFiles: SlipCreationMultipartFile[] = [];
   orderedProducts.forEach((product, productIndex) => {
@@ -704,7 +705,7 @@ export async function buildCaseSubmissionPayloadAsync(
   const slips = slipProductGroups.map((slipProducts, slipIndex) => ({
     status: "In Progress" as const,
     products: slipProducts,
-    notes: buildSlipLevelNotes(slipProducts, caseSummaryNotes, slipIndex),
+    notes: buildSlipLevelNotes(slipProducts, caseSummaryNotes, slipIndex, totalSlips),
   }));
 
   if (process.env.NODE_ENV === "development") {
@@ -741,11 +742,12 @@ export function buildCaseSubmissionPayload(
   );
   const products = filteredSnapshots.map((snap) => snapshotToProduct(snap));
   const slipProductGroups = groupProductsIntoSlips(products);
+  const totalSlips = slipProductGroups.length;
   const labId = params.role === "lab_admin" ? params.customerId : params.completedLabId ?? 0;
   const officeId =
     params.role === "lab_admin" ? params.completedLabId ?? 0 : params.customerId;
   const orderedProducts = slipProductGroups.flat();
-  clearProductNotesWhenUsingCaseSummary(orderedProducts, params.caseSummaryNotes);
+  clearProductNotesWhenUsingCaseSummary(orderedProducts, params.caseSummaryNotes, totalSlips);
 
   return {
     case: {
@@ -760,7 +762,7 @@ export function buildCaseSubmissionPayload(
     slips: slipProductGroups.map((slipProducts, slipIndex) => ({
       status: "In Progress",
       products: slipProducts,
-      notes: buildSlipLevelNotes(slipProducts, params.caseSummaryNotes, slipIndex),
+      notes: buildSlipLevelNotes(slipProducts, params.caseSummaryNotes, slipIndex, totalSlips),
     })),
   };
 }

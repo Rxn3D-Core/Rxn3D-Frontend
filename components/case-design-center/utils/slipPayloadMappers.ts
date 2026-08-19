@@ -65,47 +65,51 @@ export function normalizeRush(rush: RushUiState): SlipCreationRush {
 }
 
 /**
- * Group slip products into `slips[]` entries: same `product_id` on Upper and Lower
- * share one slip; otherwise each arch product is its own slip.
+ * Group slip products into `slips[]` entries (create / add-stage):
+ * - Exactly one Upper and one Lower → one slip (even when product_id differs).
+ * - Otherwise pair same product_id across arches first, then pair remaining by order,
+ *   then emit single-arch orphan slips.
+ * - Output order: product_id pairs, order pairs, orphans.
  */
 export function groupProductsIntoSlips(
   products: SlipCreationProduct[]
 ): SlipCreationProduct[][] {
   const uppers = products.filter((p) => p.type === "Upper");
   const lowers = products.filter((p) => p.type === "Lower");
-  const lowersByProductId = new Map<number, SlipCreationProduct[]>();
 
-  for (const lower of lowers) {
-    const list = lowersByProductId.get(lower.product_id) ?? [];
-    list.push(lower);
-    lowersByProductId.set(lower.product_id, list);
+  if (uppers.length === 1 && lowers.length === 1) {
+    return [[uppers[0], lowers[0]]];
   }
 
-  const slips: SlipCreationProduct[][] = [];
-  const unpairedUppers: SlipCreationProduct[] = [];
+  let remainingUppers = [...uppers];
+  let remainingLowers = [...lowers];
+  const matchedSlips: SlipCreationProduct[][] = [];
+  const orderPairedSlips: SlipCreationProduct[][] = [];
 
   for (const upper of uppers) {
-    const lowerQueue = lowersByProductId.get(upper.product_id);
-    if (lowerQueue && lowerQueue.length > 0) {
-      slips.push([upper, lowerQueue.shift()!]);
-    } else {
-      unpairedUppers.push(upper);
-    }
+    const upperIdx = remainingUppers.indexOf(upper);
+    if (upperIdx === -1) continue;
+
+    const lowerIdx = remainingLowers.findIndex(
+      (lower) => lower.product_id === upper.product_id
+    );
+    if (lowerIdx === -1) continue;
+
+    matchedSlips.push([upper, remainingLowers[lowerIdx]]);
+    remainingUppers.splice(upperIdx, 1);
+    remainingLowers.splice(lowerIdx, 1);
   }
 
-  const unpairedLowers: SlipCreationProduct[] = [];
-  for (const queue of lowersByProductId.values()) {
-    unpairedLowers.push(...queue);
+  while (remainingUppers.length > 0 && remainingLowers.length > 0) {
+    orderPairedSlips.push([remainingUppers.shift()!, remainingLowers.shift()!]);
   }
 
-  for (const upper of unpairedUppers) {
-    slips.push([upper]);
-  }
-  for (const lower of unpairedLowers) {
-    slips.push([lower]);
-  }
+  const orphanSlips: SlipCreationProduct[][] = [
+    ...remainingUppers.map((upper) => [upper]),
+    ...remainingLowers.map((lower) => [lower]),
+  ];
 
-  return slips;
+  return [...matchedSlips, ...orderPairedSlips, ...orphanSlips];
 }
 
 function resolveExtractionId(row: { extraction_id?: number; id?: number } | undefined): number {
