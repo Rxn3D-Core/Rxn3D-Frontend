@@ -1,3 +1,4 @@
+import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { buildOpposingArchVM } from "./virtual-slip-extraction-display.ts";
 import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates.ts";
 import {
@@ -985,18 +986,6 @@ function formatDate(iso: string | null | undefined): string {
   return `${month}/${day}/${year.slice(2)}`;
 }
 
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const match = /T(\d{2}):(\d{2})/.exec(iso) ?? /^(\d{1,2}):(\d{2})/.exec(iso);
-  if (!match) return "";
-  const hours = Number.parseInt(match[1], 10);
-  const minutes = Number.parseInt(match[2], 10);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return "";
-  const ampm = hours >= 12 ? "PM" : "AM";
-  const hour = hours % 12 || 12;
-  return `${hour}:${String(minutes).padStart(2, "0")} ${ampm}`;
-}
-
 function joinAddress(parts: unknown[]): string {
   return parts
     .map((part) => firstStr(part))
@@ -1011,7 +1000,10 @@ function collectNotes(rawNotes: unknown): string[] {
     .filter(Boolean);
 }
 
-export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
+export function buildPaperSlipPrintSlipVM(
+  data: any,
+  options?: { defaultDeliveryTime?: string | null },
+): PaperSlipPrintableSlipVM {
   const caseData = data?.case ?? {};
   const lab = caseData?.lab ?? data?.lab ?? {};
   const office = caseData?.office ?? data?.office ?? {};
@@ -1022,7 +1014,10 @@ export function buildPaperSlipPrintSlipVM(data: any): PaperSlipPrintableSlipVM {
   const relatedSlips = Array.isArray(caseData?.slips)
     ? caseData.slips.map((slip: any) => firstStr(slip?.slip_number)).filter(Boolean)
     : [];
-  const dueTime = formatTime(delivery?.delivery_time);
+  const dueTime = resolveSlipDeliveryTimeDisplay(
+    delivery?.delivery_time,
+    options?.defaultDeliveryTime,
+  );
   const dueDate =
     deliveryDates.dueDate && dueTime
       ? `${deliveryDates.dueDate} @ ${dueTime}`

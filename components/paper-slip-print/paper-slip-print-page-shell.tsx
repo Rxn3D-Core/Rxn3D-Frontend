@@ -5,6 +5,10 @@ import { buildPaperSlipSectionModels } from "@/app/paper-slip/print/page-helpers
 import { PaperSlipPrintDocument } from "@/components/paper-slip-print/paper-slip-print-document";
 import { waitForImageLikes } from "@/lib/paper-slip-image-readiness";
 import { buildPaperSlipPrintSlipVM, type PaperSlipPrintableSlipVM } from "@/lib/paper-slip-print-view-model";
+import {
+  defaultDeliveryTimeForSlipDetails,
+  fetchDefaultDeliveryTimeByLabId,
+} from "@/lib/slip-default-delivery-time";
 
 function PaperSlipStateCard({
   title,
@@ -31,8 +35,15 @@ function PaperSlipStateCard({
   );
 }
 
-function mapSlipPrintRecords(records: unknown[]): PaperSlipPrintableSlipVM[] {
-  return records.map((record) => buildPaperSlipPrintSlipVM(record));
+function mapSlipPrintRecords(
+  records: unknown[],
+  defaultTimeByLab: Map<number, string>,
+): PaperSlipPrintableSlipVM[] {
+  return records.map((record) =>
+    buildPaperSlipPrintSlipVM(record, {
+      defaultDeliveryTime: defaultDeliveryTimeForSlipDetails(record, defaultTimeByLab),
+    }),
+  );
 }
 
 export function PaperSlipPrintPageShell({
@@ -100,9 +111,11 @@ export function PaperSlipPrintPageShell({
 
         return json?.data ?? [];
       })
-      .then((data) => {
+      .then(async (data) => {
         if (!data) return;
-        setSlips(mapSlipPrintRecords(Array.isArray(data) ? data : []));
+        const records = Array.isArray(data) ? data : [];
+        const defaultTimeByLab = await fetchDefaultDeliveryTimeByLabId(records);
+        setSlips(mapSlipPrintRecords(records, defaultTimeByLab));
         setFetchError(null);
       })
       .catch((fetchFailure) => {

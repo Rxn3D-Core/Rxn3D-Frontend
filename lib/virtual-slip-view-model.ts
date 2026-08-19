@@ -1,4 +1,5 @@
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
 import { resolveArchProductImage } from "@/components/case-design-center/utils/variationHelpers";
 import {
@@ -275,22 +276,10 @@ export function isoDateFromApiTimestamp(iso: string | null | undefined): string 
   return m ? m[1] : "";
 }
 
-/**
- * Format a time to "h:mm AM/PM". Reads the hour/minute directly from the ISO
- * string's time portion (the stored UTC value, not the viewer's local time).
- * Accepts full ISO datetimes ("...T13:30:00.000000Z") or bare "HH:mm[:ss]".
- */
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const m = /T(\d{2}):(\d{2})/.exec(iso) ?? /^(\d{1,2}):(\d{2})/.exec(iso);
-  if (!m) return "";
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  if (isNaN(h) || isNaN(min)) return "";
-  const ampm = h >= 12 ? "PM" : "AM";
-  const hour = h % 12 || 12;
-  return `${hour}:${String(min).padStart(2, "0")} ${ampm}`;
-}
+export type VirtualSlipVMOptions = {
+  /** Lab `case_schedule.default_delivery_time` from GET /business-settings. */
+  defaultDeliveryTime?: string | null;
+};
 
 /** Format an impressions array into "1x Clean impression, 1x STL". */
 function formatImpressions(impressions: unknown): string {
@@ -797,7 +786,7 @@ function buildArch(arch: "maxillary" | "mandibular", allProducts: any[]): ArchVM
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export function buildVirtualSlipVM(d: any): VirtualSlipVM {
+export function buildVirtualSlipVM(d: any, options?: VirtualSlipVMOptions): VirtualSlipVM {
   const safe = d ?? {};
   const caseObj = safe.case ?? {};
   const products: any[] = Array.isArray(safe.products)
@@ -848,7 +837,10 @@ export function buildVirtualSlipVM(d: any): VirtualSlipVM {
           : typeof safe.location_id === "number"
             ? safe.location_id
             : undefined,
-    deliveryTime: formatTime(safe.delivery?.delivery_time),
+    deliveryTime: resolveSlipDeliveryTimeDisplay(
+      safe.delivery?.delivery_time,
+      options?.defaultDeliveryTime
+    ),
     dueDate: deliveryDates.dueDate,
     pickupDate: formatDate(safe.delivery?.pickup_date),
     isRush: deliveryDates.isRush,

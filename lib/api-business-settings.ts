@@ -61,6 +61,33 @@ export async function getBusinessSettings(customerId: number): Promise<any> {
   return result
 }
 
+export type UnwrappedBusinessSettings = {
+  case_schedule: CaseSchedule | null
+  business_hours: BusinessHour[] | null
+}
+
+/** GET `/business-settings` may be `{ case_schedule }` or `{ data: { case_schedule } }`. */
+export function unwrapBusinessSettingsPayload(result: unknown): UnwrappedBusinessSettings {
+  if (!result || typeof result !== "object") {
+    return { case_schedule: null, business_hours: null }
+  }
+  const root = result as Record<string, unknown>
+  const nested =
+    root.data && typeof root.data === "object" ? (root.data as Record<string, unknown>) : null
+  const body =
+    nested && (nested.case_schedule != null || nested.business_hours != null) ? nested : root
+  return {
+    case_schedule: (body.case_schedule as CaseSchedule) ?? null,
+    business_hours: Array.isArray(body.business_hours)
+      ? (body.business_hours as BusinessHour[])
+      : null,
+  }
+}
+
+export function defaultDeliveryTimeFromBusinessSettings(result: unknown): string {
+  return unwrapBusinessSettingsPayload(result).case_schedule?.default_delivery_time ?? ""
+}
+
 /**
  * Update business settings (business hours and case schedule)
  * This function merges current settings with updates and sends only what's needed
