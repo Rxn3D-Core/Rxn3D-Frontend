@@ -1,4 +1,5 @@
 import { buildVirtualSlipVM, type VirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import { resolveLatestSlipNoteText } from "@/lib/paper-slip-notes-display";
 
 /**
  * Paper Slip v2 view model.
@@ -88,12 +89,18 @@ export function buildPaperSlipPrintV2SlipVM(
   extras: PaperSlipPrintV2Extras,
   options?: { defaultDeliveryTime?: string | null },
 ): PaperSlipPrintV2SlipVM {
+  const vm = buildVirtualSlipVM(details, {
+    defaultDeliveryTime: options?.defaultDeliveryTime,
+  });
+  const latestSlipNote = resolveLatestSlipNoteText(details?.notes);
+
   return {
     slipId: extras.slipId,
     extras,
-    vm: buildVirtualSlipVM(details, {
-      defaultDeliveryTime: options?.defaultDeliveryTime,
-    }),
+    vm: {
+      ...vm,
+      notes: latestSlipNote || vm.notes,
+    },
   };
 }
 

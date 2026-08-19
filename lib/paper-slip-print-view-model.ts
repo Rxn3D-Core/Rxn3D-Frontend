@@ -1,3 +1,4 @@
+import { resolveLatestSlipNoteText } from "@/lib/paper-slip-notes-display";
 import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 import { buildOpposingArchVM } from "./virtual-slip-extraction-display.ts";
 import { resolveSlipDeliveryDates } from "./virtual-slip-rush-dates.ts";
@@ -994,10 +995,8 @@ function joinAddress(parts: unknown[]): string {
 }
 
 function collectNotes(rawNotes: unknown): string[] {
-  if (!Array.isArray(rawNotes)) return [];
-  return rawNotes
-    .map((note: any) => firstStr(typeof note === "string" ? note : note?.note))
-    .filter(Boolean);
+  const latest = resolveLatestSlipNoteText(rawNotes);
+  return latest ? [latest] : [];
 }
 
 export function buildPaperSlipPrintSlipVM(
