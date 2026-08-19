@@ -7,6 +7,79 @@ export const DEFAULT_DELIVERY_TIME_12 = "04:00 PM"
 /** Las Vegas and Los Angeles share America/Los_Angeles (Pacific). */
 export const DEFAULT_DISPLAY_TIMEZONE = "Pacific Time (Las Vegas / Los Angeles)"
 
+type ClockParts = { hours: number; minutes: number }
+
+/** Parse ISO (`...T16:00:00Z`), `HH:mm[:ss]`, or `h:mm AM/PM` into 24h clock parts. */
+export function parseClockParts(raw: string | null | undefined): ClockParts | null {
+  if (raw == null || String(raw).trim() === "") return null
+  const str = String(raw).trim()
+
+  const iso = /T(\d{2}):(\d{2})/.exec(str)
+  if (iso) {
+    const hours = Number.parseInt(iso[1], 10)
+    const minutes = Number.parseInt(iso[2], 10)
+    return Number.isFinite(hours) && Number.isFinite(minutes) ? { hours, minutes } : null
+  }
+
+  const twelve = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(str)
+  if (twelve) {
+    let hours = Number.parseInt(twelve[1], 10)
+    const minutes = Number.parseInt(twelve[2], 10)
+    const pm = twelve[3].toUpperCase() === "PM"
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+    if (pm && hours < 12) hours += 12
+    if (!pm && hours === 12) hours = 0
+    return { hours, minutes }
+  }
+
+  const hms = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(str)
+  if (hms) {
+    const hours = Number.parseInt(hms[1], 10)
+    const minutes = Number.parseInt(hms[2], 10)
+    return Number.isFinite(hours) && Number.isFinite(minutes) ? { hours, minutes } : null
+  }
+
+  return null
+}
+
+/** True when the value is missing or midnight — slip APIs often store a date-only placeholder. */
+export function isPlaceholderDeliveryTime(raw: string | null | undefined): boolean {
+  const parts = parseClockParts(raw)
+  if (!parts) return true
+  return parts.hours === 0 && parts.minutes === 0
+}
+
+/** Format clock parts as "4:00 PM" (virtual / paper slip header style). */
+export function formatClockTo12HourDisplay(hours: number, minutes: number): string {
+  const ampm = hours >= 12 ? "PM" : "AM"
+  const hour = hours % 12 || 12
+  return `${hour}:${String(minutes).padStart(2, "0")} ${ampm}`
+}
+
+/**
+ * Slip `delivery_time` when it is a real clock; otherwise lab
+ * `case_schedule.default_delivery_time`; otherwise 4:00 PM.
+ */
+export function resolveSlipDeliveryTimeDisplay(
+  slipDeliveryTime: string | null | undefined,
+  defaultDeliveryTime?: string | null
+): string {
+  if (!isPlaceholderDeliveryTime(slipDeliveryTime)) {
+    const parts = parseClockParts(slipDeliveryTime)
+    if (parts) return formatClockTo12HourDisplay(parts.hours, parts.minutes)
+  }
+
+  const fromSettings = parseClockParts(defaultDeliveryTime)
+  if (fromSettings && !(fromSettings.hours === 0 && fromSettings.minutes === 0)) {
+    return formatClockTo12HourDisplay(fromSettings.hours, fromSettings.minutes)
+  }
+
+  const fallback = parseClockParts(DEFAULT_DELIVERY_TIME_12)
+  return fallback
+    ? formatClockTo12HourDisplay(fallback.hours, fallback.minutes)
+    : "4:00 PM"
+}
+
 /**
  * Turn API hour values (`09:00`, `09:00:00`, ISO, or 12-hour) into TimePicker format.
  * Returns `fallback` when the value is empty or unparseable.

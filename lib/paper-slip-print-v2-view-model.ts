@@ -86,11 +86,14 @@ export function extractPaperSlipPrintV2Extras(record: any): PaperSlipPrintV2Extr
 export function buildPaperSlipPrintV2SlipVM(
   details: any,
   extras: PaperSlipPrintV2Extras,
+  options?: { defaultDeliveryTime?: string | null },
 ): PaperSlipPrintV2SlipVM {
   return {
     slipId: extras.slipId,
     extras,
-    vm: buildVirtualSlipVM(details),
+    vm: buildVirtualSlipVM(details, {
+      defaultDeliveryTime: options?.defaultDeliveryTime,
+    }),
   };
 }
 

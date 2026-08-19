@@ -9,6 +9,10 @@ import {
   extractPaperSlipPrintV2Extras,
   type PaperSlipPrintV2SlipVM,
 } from "@/lib/paper-slip-print-v2-view-model";
+import {
+  defaultDeliveryTimeForSlipDetails,
+  fetchDefaultDeliveryTimeByLabId,
+} from "@/lib/slip-default-delivery-time";
 
 function PaperSlipStateCard({
   title,
@@ -179,10 +183,21 @@ export function PaperSlipPrintV2PageShell({
         }),
       );
 
+      const defaultTimeByLab = await fetchDefaultDeliveryTimeByLabId(
+        detailsList.filter((details) => details != null),
+      );
+
       // 3. Merge: skip any slip whose details failed to load (fail-soft).
       const combined = extrasList
         .map((extras, index) =>
-          detailsList[index] ? buildPaperSlipPrintV2SlipVM(detailsList[index], extras) : null,
+          detailsList[index]
+            ? buildPaperSlipPrintV2SlipVM(detailsList[index], extras, {
+                defaultDeliveryTime: defaultDeliveryTimeForSlipDetails(
+                  detailsList[index],
+                  defaultTimeByLab,
+                ),
+              })
+            : null,
         )
         .filter((slip): slip is PaperSlipPrintV2SlipVM => slip !== null);
 

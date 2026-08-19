@@ -411,6 +411,7 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
                 <HeaderRow label="Location:" value={header.location || ""} labelWidthClass="min-w-[92px]" />
                 <HeaderRow label="Pick up date:" value={header.pickupDate || ""} labelWidthClass="min-w-[92px]" />
                 <HeaderRow label="Due date" value={header.dueDate || ""} labelWidthClass="min-w-[92px]" />
+                <HeaderRow label="Delivery time:" value={header.deliveryTime || ""} labelWidthClass="min-w-[92px]" />
               </div>
             </div>
           </div>

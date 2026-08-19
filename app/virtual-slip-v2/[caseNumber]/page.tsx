@@ -57,9 +57,10 @@ import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-
 import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
-import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings";
+import { useBusinessSettingsQuery } from "@/hooks/use-business-settings";
 import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
+import { isPlaceholderDeliveryTime } from "@/utils/time-utils";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
 
@@ -102,8 +103,13 @@ export default function VirtualSlipV2Page() {
   const [addStageEligible, setAddStageEligible] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
-  const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
+  const labCustomerId = useMemo(
+    () => resolveLibraryCustomerId(resolveLabIdFromSlipDetails(virtualSlipDetails)),
+    [virtualSlipDetails]
+  );
+  const { data: businessSettings } = useBusinessSettingsQuery(labCustomerId);
+  const rushCaseSchedule = businessSettings?.case_schedule ?? null;
+  const labBusinessHours = businessSettings?.business_hours ?? null;
 
   useEffect(() => {
     setUserRole(getStoredSlipUserRole());
@@ -123,21 +129,6 @@ export default function VirtualSlipV2Page() {
     setLoading(true);
     fetchVirtualSlipDetails(slipId).finally(() => setLoading(false));
   }, [slipId, fetchVirtualSlipDetails]);
-
-  useEffect(() => {
-    const labId = resolveLabIdFromSlipDetails(virtualSlipDetails);
-    const customerId = resolveLibraryCustomerId(labId);
-    if (!customerId) return;
-    getBusinessSettings(customerId)
-      .then((settings) => {
-        setRushCaseSchedule(settings?.case_schedule ?? null);
-        setLabBusinessHours(settings?.business_hours ?? null);
-      })
-      .catch(() => {
-        setRushCaseSchedule(null);
-        setLabBusinessHours(null);
-      });
-  }, [virtualSlipDetails]);
 
   const slipLocationRefForEligibility = useMemo(() => {
     const vmEarly = buildVirtualSlipVM(virtualSlipDetails);
@@ -169,7 +160,13 @@ export default function VirtualSlipV2Page() {
     };
   }, [slipId, slipLocationRefForEligibility]);
 
-  const vm = useMemo(() => buildVirtualSlipVM(virtualSlipDetails), [virtualSlipDetails]);
+  const vm = useMemo(
+    () =>
+      buildVirtualSlipVM(virtualSlipDetails, {
+        defaultDeliveryTime: rushCaseSchedule?.default_delivery_time,
+      }),
+    [virtualSlipDetails, rushCaseSchedule?.default_delivery_time]
+  );
 
   const caseId = useMemo(
     () => resolveVirtualSlipCaseId(virtualSlipDetails),
@@ -723,7 +720,9 @@ export default function VirtualSlipV2Page() {
           (() => {
             if (!virtualSlipDetails || typeof virtualSlipDetails !== "object") return undefined;
             const d = (virtualSlipDetails as Record<string, unknown>).delivery as Record<string, unknown> | undefined;
-            return typeof d?.delivery_time === "string" ? d.delivery_time : undefined;
+            const raw = typeof d?.delivery_time === "string" ? d.delivery_time : undefined;
+            if (!raw || isPlaceholderDeliveryTime(raw)) return undefined;
+            return raw;
           })()
         }
         slipId={slipId}
