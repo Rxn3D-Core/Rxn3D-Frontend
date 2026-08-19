@@ -55,13 +55,43 @@ test("groupProductsIntoSlips pairs same product_id on both arches", () => {
   assert.deepEqual(groups[1], [otherUpper]);
 });
 
-test("groupProductsIntoSlips splits different products into separate slips", () => {
+test("groupProductsIntoSlips keeps one upper and one lower on the same slip", () => {
   const upper = { type: "Upper", product_id: 101, stage_id: 2 };
   const lower = { type: "Lower", product_id: 102, stage_id: 2 };
   const groups = groupProductsIntoSlips([upper, lower]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0], [upper, lower]);
+});
+
+test("groupProductsIntoSlips pairs same product_id first when lower has two products", () => {
+  const upper = { type: "Upper", product_id: 101, stage_id: 2 };
+  const lowerMatch = { type: "Lower", product_id: 101, stage_id: 2 };
+  const lowerOther = { type: "Lower", product_id: 102, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upper, lowerOther, lowerMatch]);
   assert.equal(groups.length, 2);
-  assert.deepEqual(groups[0], [upper]);
-  assert.deepEqual(groups[1], [lower]);
+  assert.deepEqual(groups[0], [upper, lowerMatch]);
+  assert.deepEqual(groups[1], [lowerOther]);
+});
+
+test("groupProductsIntoSlips pairs remaining products by order on both arches", () => {
+  const upperFda = { type: "Upper", product_id: 101, stage_id: 2 };
+  const upperCrown = { type: "Upper", product_id: 103, stage_id: 2 };
+  const lowerIsp = { type: "Lower", product_id: 102, stage_id: 2 };
+  const lowerFda = { type: "Lower", product_id: 101, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upperFda, upperCrown, lowerIsp, lowerFda]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0], [upperFda, lowerFda]);
+  assert.deepEqual(groups[1], [upperCrown, lowerIsp]);
+});
+
+test("groupProductsIntoSlips pairs by order then leaves orphan lowers", () => {
+  const upper = { type: "Upper", product_id: 103, stage_id: 2 };
+  const lowerFirst = { type: "Lower", product_id: 102, stage_id: 2 };
+  const lowerSecond = { type: "Lower", product_id: 104, stage_id: 2 };
+  const groups = groupProductsIntoSlips([upper, lowerFirst, lowerSecond]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups[0], [upper, lowerFirst]);
+  assert.deepEqual(groups[1], [lowerSecond]);
 });
 
 test("buildProductExtractions groups teeth by extraction_id", () => {
