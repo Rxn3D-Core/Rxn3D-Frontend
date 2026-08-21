@@ -1,6 +1,7 @@
 import withBundleAnalyzer from '@next/bundle-analyzer';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { CSP_FRAME_SRC, CSP_SCRIPT_SRC } from './lib/content-security-policy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -142,7 +143,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https:; img-src 'self' blob: data: https:; font-src 'self' data: https:; connect-src 'self' blob: https:${_cspHttpConnect}; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; frame-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'${_cspUpgrade}`,
+            value: `default-src 'self'; script-src ${CSP_SCRIPT_SRC}; style-src 'self' 'unsafe-inline' https:; img-src 'self' blob: data: https:; font-src 'self' data: https:; connect-src 'self' blob: https:${_cspHttpConnect}; media-src 'self' blob: https:; worker-src 'self' blob:; object-src 'none'; frame-src ${CSP_FRAME_SRC}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'${_cspUpgrade}`,
           },
         ],
       },
