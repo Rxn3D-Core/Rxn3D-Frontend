@@ -7,6 +7,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandItem, CommandList, CommandEmpty } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
 type Country = { id: number | string; name: string }
 type State = { id: number | string; name: string }
@@ -37,6 +38,8 @@ type ProfileFormProps = {
   countries: Country[]
   states: State[]
   registrationType: string
+  /** Tighter layout for self-reg wizard (same visuals, less vertical space) */
+  dense?: boolean
 }
 
 export function ProfileForm({
@@ -48,6 +51,7 @@ export function ProfileForm({
   countries,
   states,
   registrationType,
+  dense = false,
 }: ProfileFormProps) {
   const profileTitle = registrationType === "Lab" ? "Lab Profile" : "Practice Profile"
   const namePlaceholder = registrationType === "Lab" ? "Lab Name*" : "Practice Name*"
@@ -91,11 +95,79 @@ export function ProfileForm({
     }
   }, [logoPreview])
 
+  const renderLogoUpload = (inline = false) => (
+    <div
+      className={cn(
+        inline
+          ? "flex h-full flex-col items-center justify-center gap-2"
+          : "flex items-center",
+        !inline && (dense ? "gap-4" : "flex-col items-center")
+      )}
+    >
+      {logoPreview ? (
+        <div className="relative shrink-0">
+          <img
+            src={logoPreview || "/placeholder.svg"}
+            alt="Logo Preview"
+            className={cn(
+              "rounded object-contain",
+              inline ? "h-16 w-16" : dense ? "mb-4 h-24 w-24" : "mb-4 h-40 w-40"
+            )}
+          />
+          <button
+            type="button"
+            onClick={handleRemoveLogo}
+            className="absolute -top-2 -right-2 rounded-full bg-red-500 p-1 text-white"
+            aria-label="Remove logo"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : !inline ? (
+        <div
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded border border-dashed border-gray-300",
+            dense ? "mb-4 h-24 w-24" : "mb-4 h-40 w-40"
+          )}
+        >
+          <span className="text-sm text-gray-400">Logo Preview</span>
+        </div>
+      ) : null}
+
+      <div className={cn(inline ? "flex w-full flex-col items-stretch gap-1.5 sm:items-center" : dense ? "flex min-w-0 flex-col items-start gap-2" : "flex flex-col items-center")}>
+        <label
+          className={`flex cursor-pointer items-center justify-center rounded bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] px-3 py-1.5 text-sm text-white sm:justify-start ${fileSizeError ? "opacity-90" : ""} ${inline ? "w-full sm:w-auto" : ""}`}
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          {logoPreview ? "Change logo" : "Upload logo"}
+          <input
+            type="file"
+            className="hidden"
+            accept="image/png,image/jpeg,image/svg+xml"
+            onChange={handleLogoUpload}
+          />
+        </label>
+        {!fileSizeError && !inline ? (
+          <div className={cn("text-[#a19d9d]", dense ? "text-xs text-left max-w-xs" : "text-sm text-center mt-2")}>
+            Note: Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).
+          </div>
+        ) : null}
+        {!fileSizeError && inline ? (
+          <p className="text-center text-[10px] leading-tight text-[#a19d9d] px-1">
+            PNG, SVG, or JPEG. Max 1MB.
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+
   return (
     <div>
-      <h2 className="text-lg font-medium mb-4">{profileTitle}</h2>
+      {!dense ? (
+        <h2 className="mb-4 text-lg font-medium">{profileTitle}</h2>
+      ) : null}
 
-      <div className="space-y-4">
+      <div className={cn(dense ? "space-y-3" : "space-y-4")}>
         <Input
           type="text"
           name="name"
@@ -119,19 +191,22 @@ export function ProfileForm({
           showValidIcon={false}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2", dense ? "gap-3" : "gap-4")}>
+          <div className="min-w-0">
             <Popover open={countryPopoverOpen} onOpenChange={setCountryPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
-                  className={`w-full justify-between h-11 ${validationErrors.country_id ? "border-red-500" : ""}`}
+                  className={`h-11 w-full justify-between text-left ${validationErrors.country_id ? "border-red-500" : ""}`}
                 >
-                  {selectedCountry?.name || "Select your country*"}
+                  <span className="truncate">{selectedCountry?.name || "Select your country*"}</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent style={{ width: '400px' }} className="p-0">
+              <PopoverContent
+                align="start"
+                className="w-[var(--radix-popover-trigger-width)] max-w-[min(400px,calc(100vw-2rem))] p-0"
+              >
                 <Command>
                   <CommandInput placeholder="Search country..." />
                   <CommandList>
@@ -154,18 +229,21 @@ export function ProfileForm({
             {validationErrors.country_id && <p className="text-red-500 text-xs mt-1">{validationErrors.country_id}</p>}
           </div>
 
-          <div>
+          <div className="min-w-0">
             <Popover open={statePopoverOpen} onOpenChange={setStatePopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
-                  className={`w-full justify-between h-11 ${validationErrors.state_id ? "border-red-500" : ""}`}
+                  className={`h-11 w-full justify-between text-left ${validationErrors.state_id ? "border-red-500" : ""}`}
                 >
-                  {selectedState?.name || "Select your state*"}
+                  <span className="truncate">{selectedState?.name || "Select your state*"}</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent style={{ width: '400px' }} className="p-0">
+              <PopoverContent
+                align="start"
+                className="w-[var(--radix-popover-trigger-width)] max-w-[min(400px,calc(100vw-2rem))] p-0"
+              >
                 <Command>
                   <CommandInput placeholder="Search state..." />
                   <CommandList>
@@ -209,68 +287,37 @@ export function ProfileForm({
             validationState={validationErrors.address ? "error" : registrationData.address ? "valid" : "default"}
             errorMessage={validationErrors.address}
           />
+
+          <Input
+            type="text"
+            name="postal_code"
+            label="Postal Code"
+            value={registrationData.postal_code}
+            onChange={handleProfileFormChange}
+            placeholder="Postal Code*"
+            validationState={validationErrors.postal_code ? "error" : registrationData.postal_code ? "valid" : "default"}
+            errorMessage={validationErrors.postal_code}
+          />
         </div>
 
-        <Input
-          type="text"
-          name="postal_code"
-          label="Postal Code"
-          value={registrationData.postal_code}
-          onChange={handleProfileFormChange}
-          placeholder="Postal Code*"
-          validationState={validationErrors.postal_code ? "error" : registrationData.postal_code ? "valid" : "default"}
-          errorMessage={validationErrors.postal_code}
-        />
-
-        <div className="flex justify-end mt-8">
-          <div className="flex flex-col items-center">
-            {logoPreview ? (
-              <div className="relative mb-4">
-                <img
-                  src={logoPreview || "/placeholder.svg"}
-                  alt="Logo Preview"
-                  className="w-40 h-40 object-contain border rounded p-2"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveLogo}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                  aria-label="Remove logo"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="w-40 h-40 border border-dashed border-gray-300 rounded flex items-center justify-center mb-4">
-                <span className="text-gray-400 text-sm">Logo Preview</span>
-              </div>
-            )}
-
-            <label
-              className={`bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-4 py-2 rounded flex items-center cursor-pointer ${fileSizeError ? "opacity-90" : ""}`}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              {logoPreview ? "Change logo" : "Upload logo"}
-              <input
-                type="file"
-                className="hidden"
-                accept="image/png,image/jpeg,image/svg+xml"
-                onChange={handleLogoUpload}
-              />
-            </label>
+        {dense ? (
+          <div className="flex justify-center border-t border-slate-100 pt-3 sm:justify-end sm:border-0 sm:pt-1">
+            {renderLogoUpload(true)}
           </div>
-        </div>
+        ) : (
+          <div className={cn("mt-6 flex justify-center sm:mt-8 sm:justify-end")}>{renderLogoUpload(false)}</div>
+        )}
 
         {fileSizeError ? (
           <div className="flex items-center text-red-500 text-sm mt-2">
             <AlertCircle className="h-4 w-4 mr-1" />
             {fileSizeError}
           </div>
-        ) : (
+        ) : !dense ? (
           <div className="text-sm text-[#a19d9d] text-center mt-2">
             Note: Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

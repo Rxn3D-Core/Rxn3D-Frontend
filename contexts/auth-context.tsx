@@ -690,10 +690,9 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
             return true
           }
         } else {
-          // No customer associated - redirect to onboarding as fallback
-          // Don't redirect to dashboard if we can't verify onboarding status
-          console.log('No primary customer found, redirecting to onboarding')
-          router.replace("/onboarding/business-hours")
+          // No customer associated — personal users go to get-started
+          console.log('No primary customer found, redirecting to get-started')
+          router.replace("/get-started")
           return true
         }
       } catch (navError) {

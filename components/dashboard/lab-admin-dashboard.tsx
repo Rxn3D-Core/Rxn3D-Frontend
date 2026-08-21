@@ -22,6 +22,7 @@ import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardOfficeInviteModal } from "./dashboard-office-invite-modal"
+import { LabProductLibrarySetupBanner } from "./lab-product-library-setup-banner"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 
 const getStatusBadgeClass = (status: string) => {
@@ -297,6 +298,8 @@ export function LabAdminDashboard() {
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Lab Dashboard</h1>
           <p className="text-sm sm:text-base text-gray-600">Monitor your lab operations and manage connections</p>
         </div>
+
+        {customerId ? <LabProductLibrarySetupBanner customerId={customerId} /> : null}
 
         {/* KPI Cards */}
         {isEnabled(WIDGET_IDS.KPI_CARDS) && (

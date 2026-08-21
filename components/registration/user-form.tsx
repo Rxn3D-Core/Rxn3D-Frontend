@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import SignatureCanvas from "react-signature-canvas"
+import { cn } from "@/lib/utils"
 
 type User = {
   [key: string]: any
@@ -30,6 +31,8 @@ interface UserFormProps {
   registrationType: RegistrationType
   isDoctor?: boolean
   isAdminForm?: boolean
+  allowAdminEmailEdit?: boolean
+  dense?: boolean
 }
 
 export function UserForm({
@@ -41,6 +44,8 @@ export function UserForm({
   registrationType,
   isDoctor = false,
   isAdminForm = false,
+  allowAdminEmailEdit = false,
+  dense = false,
 }: UserFormProps) {
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
   const [useSameDetailsChecked, setUseSameDetailsChecked] = useState(false)
@@ -216,7 +221,7 @@ export function UserForm({
 
   const renderInputField = (name: string, placeholder: string, type = "text") => {
     const isAdmin = user?.role?.includes("admin")
-    const shouldDisable = name === "email" && isAdmin
+    const shouldDisable = name === "email" && isAdmin && !allowAdminEmailEdit
     const fieldValue = user?.[name] || ""
 
     return (
@@ -236,7 +241,10 @@ export function UserForm({
   }
 
 
-  const renderSignatureSection = () => (
+  const renderSignatureSection = () => {
+    const signatureHeight = dense ? 112 : 160
+
+    return (
     <div className="space-y-2">
       <div className={`border ${userValidationErrors.signature ? "border-red-500" : "border-[#d9d9d9]"} rounded`}>
         <div className="p-2 border-b border-[#d9d9d9] bg-gray-50 flex justify-between items-center">
@@ -262,8 +270,8 @@ export function UserForm({
             ref={signatureRef}
             penColor="black"
             canvasProps={{
-              className: "w-full h-40 border border-dashed border-gray-300",
-              style: { width: "100%", height: "160px" },
+              className: `w-full border border-dashed border-gray-300 ${dense ? "h-28" : "h-40"}`,
+              style: { width: "100%", height: `${signatureHeight}px` },
             }}
             onEnd={handleSaveSignature}
           />
@@ -308,18 +316,19 @@ export function UserForm({
         </label>
       </div>
     </div>
-  )
+    )
+  }
 
   return (
-    <div className="space-y-4">
+    <div className={dense ? "space-y-3" : "space-y-4"}>
       {/* First & Last Name */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 sm:grid-cols-2", dense ? "gap-3" : "gap-4")}>
         {renderInputField("first_name", "First Name")}
         {renderInputField("last_name", "Last Name")}
       </div>
 
       {/* Role & Email */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 sm:grid-cols-2", dense ? "gap-3" : "gap-4")}>
         <div className="relative">
           <Select
             disabled={isAdmin && isAdminForm}
@@ -377,12 +386,12 @@ export function UserForm({
       </div>
 
       {/* Phone & Work Number */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className={cn("grid grid-cols-1 sm:grid-cols-2", dense ? "gap-3" : "gap-4")}>
         <div className="relative">{renderInputField("phone", "Phone Number")}</div>
         {renderInputField("work_number", "Work Number")}
 
         {registrationType === "Office" && isAdminForm && (
-          <div className="flex items-center space-x-2 mb-4 col-span-2">
+          <div className="col-span-full flex items-center space-x-2 mb-4">
             <Checkbox
               id="use-same-details"
               checked={useSameDetailsChecked}
@@ -402,7 +411,7 @@ export function UserForm({
 
       {/* Password & Confirm Password - Only for Admin */}
       {isAdminForm && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2", dense ? "gap-3" : "gap-4")}>
           {renderInputField("password", "Password", "password")}
           {renderInputField("password_confirmation", "Confirm Password", "password")}
         </div>
