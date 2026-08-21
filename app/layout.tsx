@@ -12,15 +12,21 @@ import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
 import { inter, islandMoments, windSong } from "@/lib/fonts"
+import { getSiteUrl } from "@/lib/site-url"
 
 // Force all pages to be dynamic (client-rendered) to avoid SSR issues with i18n and navigation hooks
 export const dynamic = 'force-dynamic'
 
+const siteUrl = getSiteUrl()
+const ogImageUrl = "/images/rxn3d-og.png"
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Rxn3D LMS",
   description: "RxN3D is a digital case management platform for dental labs and offices.",
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/images/rxn3d-favicon-16.png", sizes: "16x16", type: "image/png" },
       { url: "/images/rxn3d-favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/images/rxn3d-icon-192.png", sizes: "192x192", type: "image/png" },
@@ -32,6 +38,28 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "Rxn3D",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: siteUrl,
+    siteName: "RxN3D",
+    title: "RxN3D LMS",
+    description: "RxN3D is a digital case management platform for dental labs and offices.",
+    images: [
+      {
+        url: ogImageUrl,
+        width: 1200,
+        height: 630,
+        alt: "RxN3D",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "RxN3D LMS",
+    description: "RxN3D is a digital case management platform for dental labs and offices.",
+    images: [ogImageUrl],
   },
 }
 
