@@ -165,8 +165,18 @@ export default function LoginForm() {
         {/* Left Side - Login Form */}
         <div className="w-full lg:w-1/2 flex items-start lg:items-center justify-center px-5 pt-8 pb-6 sm:px-8 sm:pt-10 sm:pb-8 md:px-12 lg:px-8 lg:py-8 xl:px-16 overflow-y-auto">
           <div className="w-full max-w-[460px]">
-            {/* Welcome Section with better typography */}
+            {/* Logo + welcome */}
             <div className="mb-6 sm:mb-8 md:mb-10">
+              <Link href="/" className="inline-block mb-5 sm:mb-6">
+                <Image
+                  src="/images/rxn3d-logo.svg"
+                  alt="RXN3D"
+                  width={200}
+                  height={64}
+                  className="h-14 w-auto sm:h-16 md:h-[4.5rem]"
+                  priority
+                />
+              </Link>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800 mb-2 tracking-tight">
                 {t("login.welcome")}
               </h1>
@@ -245,17 +255,16 @@ export default function LoginForm() {
                 </button>
               </div>
 
-              {/* Enhanced links section */}
+              {/* Links: forgot password + create account */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 text-sm">
-                <Link 
-                  href="/forgot-password" 
+                <Link
+                  href="/forgot-password"
                   className="text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors"
                 >
                   {t("login.forgotPassword")}
                 </Link>
-                <div className="hidden sm:block w-px h-4 bg-slate-300"></div>
-                <Link 
-                  href="#" 
+                <Link
+                  href="/register"
                   className="text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors"
                 >
                   {t("login.createAccount")}
@@ -279,6 +288,13 @@ export default function LoginForm() {
                   t("Log In Now")
                 )}
               </Button>
+
+              <p className="text-center text-sm text-slate-600">
+                {t("login.dontHaveAccount")}{" "}
+                <Link href="/register" className="font-semibold text-[#1162A8] hover:underline">
+                  {t("login.signUp")}
+                </Link>
+              </p>
             </form>
 
             {/* Enhanced Recent Sessions Section */}

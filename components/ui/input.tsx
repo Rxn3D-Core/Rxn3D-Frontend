@@ -152,14 +152,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     }
 
     return (
-      <div className="w-full">
+      <div className="w-full pt-2">
         <div
           style={{ borderColor: getBorderColorValue() }}
           className={cn(
-            "border-2 rounded-lg px-4 relative h-14 flex items-center min-w-0 transition-all duration-200 bg-white cursor-text",
+            "relative flex h-14 min-w-0 cursor-text items-center rounded-lg border-2 bg-white px-4 transition-all duration-200",
             getRingEffect(),
             !disabled && !isFocused && "hover:shadow-[0_0_8px_rgba(17,98,168,0.2)]",
-            (disabled || validationState === "disabled") && "opacity-40 cursor-not-allowed bg-gray-50",
+            (disabled || validationState === "disabled") && "cursor-not-allowed bg-gray-50 opacity-40",
             className
           )}
           onClick={() => {
@@ -171,8 +171,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             htmlFor={props.id}
             style={{ color: getLabelColorValue() }}
             className={cn(
-              "absolute left-4 transition-all duration-200 pointer-events-none",
-              "-top-2.5 text-xs bg-white px-1"
+              "pointer-events-none absolute left-3 z-10 max-w-[calc(100%-1.5rem)] truncate bg-white px-1.5 text-xs leading-none transition-all duration-200",
+              "-top-2.5"
             )}
           >
             {label}
