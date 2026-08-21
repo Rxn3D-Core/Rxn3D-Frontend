@@ -34,6 +34,18 @@ export async function sendRegistrationOtp(params: {
 
   const data = await response.json().catch(() => ({}))
   if (!response.ok) {
+    if (data.error === "email_send_failed") {
+      throw new Error(
+        data.message ||
+          "We couldn't send the verification email. Please try again in a moment or contact support."
+      )
+    }
+    if (data.error === "turnstile_failed") {
+      throw new Error(data.message || "Security verification failed. Please try again.")
+    }
+    if (data.error === "rate_limited") {
+      throw new Error(data.message || "Too many code requests. Please wait and try again.")
+    }
     throw new Error(data.message || "Failed to send verification code.")
   }
 }

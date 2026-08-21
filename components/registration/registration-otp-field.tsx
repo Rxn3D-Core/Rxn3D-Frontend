@@ -42,8 +42,7 @@ export function RegistrationOtpField({
 }: RegistrationOtpFieldProps) {
   const turnstileRef = useRef<TurnstileInstance>(null)
   const otpSentToEmailRef = useRef<string | null>(null)
-  const autoSendInFlightRef = useRef(false)
-  const verifyRequestIdRef = useRef(0)
+  const autoSendAttemptedRef = useRef(false)
 
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const [codeSent, setCodeSent] = useState(false)
@@ -52,14 +51,14 @@ export function RegistrationOtpField({
   const [isVerified, setIsVerified] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [sendFailed, setSendFailed] = useState(false)
 
   const displayError = error ?? localError
   const trimmedEmail = email.trim()
   const normalizedEmail = trimmedEmail.toLowerCase()
-  const canAutoSend =
+  const canSend =
     !disabled &&
     !!trimmedEmail &&
-    !codeSent &&
     !isSending &&
     (!isTurnstileEnabled || !!turnstileToken)
 
@@ -71,7 +70,6 @@ export function RegistrationOtpField({
   const resetVerificationState = useCallback(() => {
     setIsVerified(false)
     onVerifiedChange?.(false)
-    verifyRequestIdRef.current += 1
   }, [onVerifiedChange])
 
   useEffect(() => {
@@ -99,17 +97,18 @@ export function RegistrationOtpField({
         window.sessionStorage.removeItem(otpSessionKey(purpose, sentTo))
       }
       otpSentToEmailRef.current = null
-      autoSendInFlightRef.current = false
+      autoSendAttemptedRef.current = false
       setCodeSent(false)
+      setSendFailed(false)
       setResendCooldown(0)
       onOtpChange("")
       resetVerificationState()
       setTurnstileToken(null)
       turnstileRef.current?.reset()
-      setLocalError("Email address changed. A new verification code will be sent.")
+      setLocalError("Email address changed. Request a new verification code.")
       onError?.(null)
     }
-  }, [normalizedEmail, onError, onOtpChange, resetVerificationState])
+  }, [normalizedEmail, onError, onOtpChange, purpose, resetVerificationState])
 
   const handleSendOtp = useCallback(
     async (isResend = false) => {
@@ -142,6 +141,7 @@ export function RegistrationOtpField({
           window.sessionStorage.setItem(otpSessionKey(purpose, normalizedEmail), "1")
         }
         setCodeSent(true)
+        setSendFailed(false)
         onOtpChange("")
         resetVerificationState()
         setResendCooldown(RESEND_COOLDOWN_SECONDS)
@@ -149,6 +149,7 @@ export function RegistrationOtpField({
         setTurnstileToken(null)
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to send verification code."
+        setSendFailed(true)
         setLocalError(message)
         onError?.(message)
         if (!isResend) {
@@ -158,7 +159,6 @@ export function RegistrationOtpField({
         setTurnstileToken(null)
       } finally {
         setIsSending(false)
-        autoSendInFlightRef.current = false
       }
     },
     [
@@ -175,12 +175,13 @@ export function RegistrationOtpField({
   )
 
   useEffect(() => {
-    if (!canAutoSend || autoSendInFlightRef.current) return
+    if (!canSend || codeSent || sendFailed || autoSendAttemptedRef.current) return
     if (otpSentToEmailRef.current === normalizedEmail) return
+    if (isTurnstileEnabled && !turnstileToken) return
 
-    autoSendInFlightRef.current = true
+    autoSendAttemptedRef.current = true
     void handleSendOtp(false)
-  }, [canAutoSend, handleSendOtp, normalizedEmail])
+  }, [canSend, codeSent, handleSendOtp, isTurnstileEnabled, normalizedEmail, sendFailed, turnstileToken])
 
   useEffect(() => {
     if (!codeSent || otp.length !== 6) {
@@ -190,7 +191,7 @@ export function RegistrationOtpField({
       return
     }
 
-    const requestId = ++verifyRequestIdRef.current
+    let cancelled = false
     setIsVerifying(true)
     clearErrors()
 
@@ -202,13 +203,13 @@ export function RegistrationOtpField({
           otp,
         })
 
-        if (requestId !== verifyRequestIdRef.current) return
+        if (cancelled) return
 
         setIsVerified(true)
         onVerifiedChange?.(true)
         clearErrors()
       } catch (err) {
-        if (requestId !== verifyRequestIdRef.current) return
+        if (cancelled) return
 
         const message = err instanceof Error ? err.message : "Invalid verification code."
         setIsVerified(false)
@@ -216,13 +217,16 @@ export function RegistrationOtpField({
         setLocalError(message)
         onError?.(message)
       } finally {
-        if (requestId === verifyRequestIdRef.current) {
+        if (!cancelled) {
           setIsVerifying(false)
         }
       }
     }, 400)
 
-    return () => window.clearTimeout(timer)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
   }, [
     clearErrors,
     codeSent,
@@ -241,6 +245,7 @@ export function RegistrationOtpField({
   }
 
   const showOtpEntry = codeSent || isSending
+  const showSendButton = !codeSent && !isSending && (sendFailed || !isTurnstileEnabled || !!turnstileToken)
 
   return (
     <div
@@ -268,8 +273,6 @@ export function RegistrationOtpField({
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : isVerified ? (
             <CheckCircle2 className="h-5 w-5" />
-          ) : showOtpEntry ? (
-            <Mail className="h-5 w-5" />
           ) : (
             <Mail className="h-5 w-5" />
           )}
@@ -284,21 +287,26 @@ export function RegistrationOtpField({
                 ? "Sending verification code..."
                 : showOtpEntry
                   ? "Check your inbox"
-                  : isTurnstileEnabled
-                    ? "Complete security check"
-                    : "Sending verification code..."}
+                  : sendFailed
+                    ? "Email could not be sent"
+                    : isTurnstileEnabled
+                      ? "Complete security check"
+                      : "Send verification code"}
           </h3>
           <p className="text-xs leading-relaxed text-slate-600 sm:text-sm">
             {isVerified ? (
               <>Your email is verified. You can create your account now.</>
             ) : showOtpEntry ? (
+              <>We sent a 6-digit code to this address. Enter it below, then submit the form.</>
+            ) : sendFailed ? (
               <>
-                We sent a 6-digit code to this address. Enter it below, then submit the form.
+                We couldn&apos;t deliver the email. Complete the security check again and use the
+                button below to retry.
               </>
             ) : isTurnstileEnabled ? (
-              <>Complete the security check below and we&apos;ll email you a one-time code.</>
+              <>Complete the security check below, then send your one-time code.</>
             ) : (
-              <>We&apos;re sending a one-time code to confirm you own this email.</>
+              <>Click below and we&apos;ll email you a one-time code to confirm you own this address.</>
             )}
           </p>
         </div>
@@ -320,6 +328,17 @@ export function RegistrationOtpField({
               onError={() => setTurnstileToken(null)}
             />
           </div>
+        ) : null}
+
+        {showSendButton ? (
+          <button
+            type="button"
+            className="w-full rounded-lg bg-[#1162A8] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0d4f87] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => void handleSendOtp(false)}
+            disabled={!canSend}
+          >
+            {sendFailed ? "Try sending code again" : "Send verification code"}
+          </button>
         ) : null}
 
         {showOtpEntry ? (
