@@ -69,6 +69,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   retentionOptionsCatalogQueryKey,
   useRetentionOptionsCatalogForProductModal,
+  useSyncProductFormRetentionOptionsToCatalog,
 } from "@/hooks/use-retention-options-catalog"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -485,6 +486,14 @@ export function AddProductModal({
     mode: "onChange",
     reValidateMode: "onBlur",
     shouldFocusError: true,
+  })
+
+  useSyncProductFormRetentionOptionsToCatalog({
+    enabled: isOpen,
+    productKey: editingProduct?.id ?? null,
+    catalog: retentionOptionsCatalog,
+    control,
+    setValue,
   })
 
   const watchedIsTeethBased = useWatch({ control, name: "is_teeth_based_price" })
@@ -1634,7 +1643,10 @@ export function AddProductModal({
       if (!sections.addOns) payload.addons = []
       // Preserve linked retention types + options when section is off; backend uses has_retention only.
       payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
-      payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(
+        data.retention_options ?? [],
+        retentionOptionsCatalog.items,
+      )
       // Preserve linked advance field IDs when section is off; backend uses has_advance_field only.
       payload.advance_fields = serializeAdvanceFieldsForApi(
         (data.advance_fields || []) as Parameters<typeof serializeAdvanceFieldsForApi>[0],
@@ -1705,7 +1717,10 @@ export function AddProductModal({
       if (!sections.material) payload.materials = []
       if (!sections.addOns) payload.addons = []
       payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
-      payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(
+        data.retention_options ?? [],
+        retentionOptionsCatalog.items,
+      )
       payload.advance_fields = serializeAdvanceFieldsForApi(
         (payload.advance_fields ?? data.advance_fields ?? []) as Parameters<
           typeof serializeAdvanceFieldsForApi

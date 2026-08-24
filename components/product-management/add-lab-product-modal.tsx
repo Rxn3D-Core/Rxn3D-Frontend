@@ -56,6 +56,7 @@ import {
   hydrateRetentionOptionsFromProduct,
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
+  type ProductRetentionOptionLinkFormRow,
 } from "@/lib/product-retention-links-form"
 import {
   applyDefaultToothChartToPayload,
@@ -68,6 +69,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import {
   retentionOptionsCatalogQueryKey,
   useRetentionOptionsCatalogForProductModal,
+  useSyncProductFormRetentionOptionsToCatalog,
 } from "@/hooks/use-retention-options-catalog"
 import { CreateRetentionOptionModal } from "@/components/product-management/create-retention-option-modal"
 import { ExtractionsApi } from "@/lib/api-service"
@@ -553,6 +555,19 @@ export function AddLabProductModal({
     mode: "onChange",
     reValidateMode: "onChange",
     shouldFocusError: false,
+  })
+
+  const handleRetentionOptionsCatalogSynced = useCallback((rows: ProductRetentionOptionLinkFormRow[]) => {
+    setInitialFormValues((prev) => (prev ? { ...prev, retention_options: rows } : prev))
+  }, [])
+
+  useSyncProductFormRetentionOptionsToCatalog({
+    enabled: isOpen,
+    productKey: editingProduct?.id ?? null,
+    catalog: retentionOptionsCatalog,
+    control,
+    setValue,
+    onSynced: handleRetentionOptionsCatalogSynced,
   })
 
   // Watch required fields for current step
@@ -2330,7 +2345,10 @@ export function AddLabProductModal({
     if (!sections.material) payload.materials = []
     if (!sections.addOns) payload.addons = []
     payload.retentions = serializeRetentionsForProductApi(data.retentions ?? [])
-    payload.retention_options = serializeRetentionOptionsForApi(data.retention_options ?? [])
+    payload.retention_options = serializeRetentionOptionsForApi(
+      data.retention_options ?? [],
+      retentionOptionsCatalog.items,
+    )
 
     const allocationError = validateStageAllocationPercents(payload.stages ?? data.stages, {
       isTeethBased: data.is_teeth_based_price === "Yes",
@@ -3127,7 +3145,10 @@ export function AddLabProductModal({
       if (!sections.material) payload.materials = []
       if (!sections.addOns) payload.addons = []
       payload.retentions = serializeRetentionsForProductApi(formData.retentions ?? [])
-      payload.retention_options = serializeRetentionOptionsForApi(formData.retention_options ?? [])
+      payload.retention_options = serializeRetentionOptionsForApi(
+        formData.retention_options ?? [],
+        retentionOptionsCatalog.items,
+      )
 
       // Use the updateProduct prop function
       try {

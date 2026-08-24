@@ -11,13 +11,116 @@ export type ProductRetentionOptionLinkFormRow = {
   code?: string
 }
 
+/** Catalog row used to remap product-link IDs onto library_retention_options.id. */
+export type RetentionOptionCatalogMatchRow = {
+  id: number
+  name?: string | null
+  code?: string | null
+  global_relationship_id?: number | null
+}
+
+type RetentionOptionLinkInput = Partial<ProductRetentionOptionLinkFormRow> & {
+  retention_option_id?: number
+  status?: string
+  name?: string
+  code?: string
+}
+
+function parsePositiveId(value: unknown): number | undefined {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? parseInt(value.trim(), 10)
+        : NaN
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return n
+}
+
+function normalizeName(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : ""
+}
+
+/**
+ * Map a hydrated product-link row onto the catalog id the product modal checkboxes use.
+ * Matches exact catalog id, then global_relationship_id, then name, then code.
+ */
+export function resolveRetentionOptionCatalogId(
+  row: RetentionOptionLinkInput,
+  catalog: RetentionOptionCatalogMatchRow[],
+): number | undefined {
+  const rowId = parsePositiveId(row.retention_option_id)
+  if (rowId != null) {
+    const exact = catalog.find((item) => Number(item.id) === rowId)
+    if (exact) return Number(exact.id)
+    const byGlobal = catalog.find((item) => parsePositiveId(item.global_relationship_id) === rowId)
+    if (byGlobal) return Number(byGlobal.id)
+  }
+
+  const rowName = normalizeName(row.name)
+  if (rowName) {
+    const byName = catalog.find((item) => normalizeName(item.name) === rowName)
+    if (byName) return Number(byName.id)
+  }
+
+  const rowCode = normalizeName(row.code)
+  if (rowCode) {
+    const byCode = catalog.find((item) => normalizeName(item.code) === rowCode)
+    if (byCode) return Number(byCode.id)
+  }
+
+  return rowId
+}
+
+export function retentionOptionLinkIdsEqual(
+  left: Array<{ retention_option_id?: number }>,
+  right: Array<{ retention_option_id?: number }>,
+): boolean {
+  if (left.length !== right.length) return false
+  return left.every(
+    (row, index) => Number(row.retention_option_id) === Number(right[index]?.retention_option_id),
+  )
+}
+
+/** Rewrite form rows so retention_option_id is the catalog (library_retention_options) id. */
+export function remapRetentionOptionsToCatalog(
+  rows: RetentionOptionLinkInput[] | undefined,
+  catalog: RetentionOptionCatalogMatchRow[] | undefined,
+): ProductRetentionOptionLinkFormRow[] {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+
+  const out: ProductRetentionOptionLinkFormRow[] = []
+  const seen = new Set<number>()
+
+  for (const row of rows) {
+    const id =
+      Array.isArray(catalog) && catalog.length > 0
+        ? resolveRetentionOptionCatalogId(row, catalog)
+        : parsePositiveId(row.retention_option_id)
+    if (id == null || seen.has(id)) continue
+    seen.add(id)
+    out.push({
+      retention_option_id: id,
+      sequence: typeof row.sequence === "number" ? row.sequence : out.length + 1,
+      status: row.status === "Inactive" ? "Inactive" : "Active",
+      ...(row.name ? { name: row.name } : {}),
+      ...(row.code ? { code: row.code } : {}),
+    })
+  }
+
+  return out.map((row, index) => ({ ...row, sequence: index + 1 }))
+}
+
 export function serializeRetentionOptionsForApi(
   rows:
     | Array<Partial<ProductRetentionOptionLinkFormRow> & { retention_option_id?: number; status?: string }>
     | undefined,
+  catalog?: RetentionOptionCatalogMatchRow[],
 ): ProductRetentionOptionLinkFormRow[] {
-  if (!Array.isArray(rows)) return []
-  return rows
+  const source =
+    Array.isArray(catalog) && catalog.length > 0 ? remapRetentionOptionsToCatalog(rows, catalog) : rows
+  if (!Array.isArray(source)) return []
+  return source
     .filter((r) => typeof r.retention_option_id === "number" && !Number.isNaN(r.retention_option_id))
     .map((r, idx) => ({
       retention_option_id: r.retention_option_id as number,
@@ -39,37 +142,17 @@ export function hydrateRetentionOptionsFromProduct(
   raw.forEach((entry: Record<string, unknown>, idx: number) => {
     if (!entry || typeof entry !== "object") return
 
-    let id: number | undefined =
-      typeof entry.retention_option_id === "number"
-        ? entry.retention_option_id
-        : typeof entry.retention_option_id === "string"
-          ? parseInt(String(entry.retention_option_id), 10)
-          : undefined
-    if (id != null && Number.isNaN(id)) id = undefined
-
     const lab = entry.lab_retention_option as { id?: number; name?: string; code?: string } | undefined
     const ro = entry.retention_option as { id?: number; name?: string; code?: string } | undefined
     const pivot = entry.pivot as { retention_option_id?: number | string } | undefined
 
-    if (id == null && typeof lab?.id === "number") id = lab.id
-    if (id == null && typeof ro?.id === "number") id = ro.id
-
-    if (id == null && pivot?.retention_option_id != null) {
-      const p = pivot.retention_option_id
-      if (typeof p === "number" && Number.isFinite(p)) {
-        id = p
-      } else {
-        const parsed = parseInt(String(p).trim(), 10)
-        if (!Number.isNaN(parsed)) id = parsed
-      }
-    }
-
-    /** Product detail payloads often embed the full retention option model as `{ id, name, ... }`. */
-    if ((id == null || Number.isNaN(id)) && typeof entry.id === "number") id = entry.id
-    if ((id == null || Number.isNaN(id)) && typeof entry.id === "string") {
-      const parsedId = parseInt(String(entry.id).trim(), 10)
-      if (!Number.isNaN(parsedId)) id = parsedId
-    }
+    // Prefer library_retention_options.id. `lab_retention_option.id` is lab_library_retention_options
+    // (a different table) and must not be sent as retention_option_id.
+    let id =
+      parsePositiveId(entry.retention_option_id) ??
+      parsePositiveId(entry.id) ??
+      parsePositiveId(ro?.id) ??
+      parsePositiveId(pivot?.retention_option_id)
 
     if (id == null || Number.isNaN(id)) return
 
