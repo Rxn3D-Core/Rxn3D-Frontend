@@ -53,6 +53,7 @@ import { buildRushArchSlots } from "../utils/rushModalContext";
 import { useRushSlotDeliveryDates } from "../hooks/useRushSlotDeliveryDates";
 import { productSupportsAddons } from "../utils/addonDisplayHelpers";
 import { canSkipExtractionToothSelection, getDefaultExtractionStrict } from "../utils/extractionHelpers";
+import { hasUserSelectedCard0TeethOnArch } from "../utils/card0ProductPanelVisibility";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
 import { getExtractionTypeColor } from "@/lib/extraction-type-colors";
 import {
@@ -262,6 +263,14 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       Object.keys(state.mandibularRetentionTypes || {}).some(
         (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
       ));
+
+  // Card-0 fixed fields: only reveal the product accordion after the user picks teeth on the chart.
+  const maxillaryFixedCard0HasTeeth = Object.keys(state.maxillaryRetentionTypes).some(
+    (tn) => state.getToothProductCard("maxillary", Number(tn)) === 0,
+  );
+  const mandibularFixedCard0HasTeeth = Object.keys(state.mandibularRetentionTypes || {}).some(
+    (tn) => state.getToothProductCard("mandibular", Number(tn)) === 0,
+  );
   // Both-arch slip creation: guided upper-first flow (one active chart at a time).
   // Disabled for preloaded states (add-new-stage / edit-slip) where teeth and fields are
   // already configured — both panels must be visible and interactive from the start.
@@ -292,16 +301,6 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     !!props.selectedProductId &&
     (props.initialArch === "mandibular" || props.initialArch === "both");
 
-  const maxillaryHasRemovablesTeeth =
-    maxillaryHasRemovables &&
-    (state.maxillaryTeeth.length > 0 ||
-      (maxillaryHasRemovablesCard0 && card0ExtractionSelectionOptional));
-
-  const mandibularHasRemovablesTeeth =
-    mandibularHasRemovables &&
-    (state.mandibularTeeth.length > 0 ||
-      (mandibularHasRemovablesCard0 && card0ExtractionSelectionOptional));
-
   // Count teeth with real extraction codes (not TIM) — mirrors the red-label condition in the panels.
   // Used to disable the + Product buttons when the user hasn't selected any teeth yet.
   const MAXILLARY_ALL_TEETH_CDC = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
@@ -312,6 +311,18 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const mandibularRemovableTeethSelected = mandibularHasRemovablesCard0
     ? MANDIBULAR_ALL_TEETH_CDC.filter(tn => { const code = state.mandibularToothExtractionMap[tn]; return code && code !== "TIM"; }).length
     : 0;
+
+  const maxillaryHasRemovablesTeeth =
+    maxillaryHasRemovables &&
+    (state.maxillaryTeeth.length > 0 ||
+      maxillaryRemovableTeethSelected > 0 ||
+      (maxillaryHasRemovablesCard0 && card0ExtractionSelectionOptional));
+
+  const mandibularHasRemovablesTeeth =
+    mandibularHasRemovables &&
+    (state.mandibularTeeth.length > 0 ||
+      mandibularRemovableTeethSelected > 0 ||
+      (mandibularHasRemovablesCard0 && card0ExtractionSelectionOptional));
 
   // Check removable teeth impression completion.
   // For Removables, fields (grade, stage, shade, impression) are stored under the representative
@@ -1253,15 +1264,40 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     props.onIncompleteFieldChange?.(incompleteFieldLabel);
   }, [incompleteFieldLabel]);
 
+  const card0PanelBypass =
+    !!props.caseSubmitted || !!props.preloadInitialSlipState;
+
+  const maxillaryCard0ProductPanelVisible = hasUserSelectedCard0TeethOnArch({
+    arch: "maxillary",
+    allArchTeeth: MAXILLARY_ALL_TEETH_CDC,
+    selectedTeeth: state.maxillaryTeeth,
+    extractionMap: state.maxillaryToothExtractionMap,
+    retentionTypesByTooth: state.maxillaryRetentionTypes,
+    getToothProductCard: state.getToothProductCard,
+    bypassGate: card0PanelBypass,
+  });
+
+  const mandibularCard0ProductPanelVisible = hasUserSelectedCard0TeethOnArch({
+    arch: "mandibular",
+    allArchTeeth: MANDIBULAR_ALL_TEETH_CDC,
+    selectedTeeth: state.mandibularTeeth ?? [],
+    extractionMap: state.mandibularToothExtractionMap ?? {},
+    retentionTypesByTooth: state.mandibularRetentionTypes ?? {},
+    getToothProductCard: state.getToothProductCard,
+    bypassGate: card0PanelBypass,
+  });
+
+  // Product accordions stay hidden until the user picks at least one tooth for card 0.
+  // Sentinel tooth assignment alone does not count as a user selection.
   const productFieldsVisible =
     maxillaryHasImpression ||
     mandibularHasImpression ||
-    maxillaryHasRemovables ||
-    mandibularHasRemovables ||
+    ((maxillaryHasRemovablesCard0 || maxillaryHasFixedCard0) &&
+      maxillaryCard0ProductPanelVisible) ||
+    ((mandibularHasRemovablesCard0 || mandibularHasFixedCard0) &&
+      mandibularCard0ProductPanelVisible) ||
     maxillaryHasFixedAdded ||
     mandibularHasFixedAdded ||
-    maxillaryHasFixedCard0 ||
-    mandibularHasFixedCard0 ||
     (initialProductHasOppositeSection &&
       props.initialArch === "mandibular" &&
       mandibularTeethSelected) ||
@@ -1504,6 +1540,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             }
             setShowMaxillary={state.setShowMaxillary}
             showDetails={showProductDetails}
+          card0ProductPanelVisible={maxillaryCard0ProductPanelVisible}
           caseSubmitted={props.caseSubmitted}
           preloadInitialSlipState={props.preloadInitialSlipState}
           disabled={!props.caseSubmitted && isAddingMandibularProduct}
@@ -1663,6 +1700,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           }
           setShowMandibular={handleSetShowMandibular}
           showDetails={showProductDetails}
+          card0ProductPanelVisible={mandibularCard0ProductPanelVisible}
           preloadInitialSlipState={props.preloadInitialSlipState}
           caseSubmitted={props.caseSubmitted}
           disabled={

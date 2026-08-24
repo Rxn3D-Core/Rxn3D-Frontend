@@ -5,6 +5,7 @@ import NewCaseWizard from "@/components/new-case-wizard";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import type { SlipProductSnapshot } from "./types";
 import { PatientHeader } from "./components/PatientHeader";
+import { PatientDemographicModal } from "./components/PatientDemographicModal";
 import { CaseDesignCenter } from "./components/CaseDesignCenter";
 import { useSlipCreation } from "@/contexts/slip-creation-context";
 import { useToast } from "@/hooks/use-toast";
@@ -71,6 +72,10 @@ export default function Page() {
     handleDoctorEditSelect,
     handleEditDone,
     canEditDoctor,
+    demographicModalOpen,
+    pendingDemographicDetails,
+    handleDemographicConfirm,
+    handleDemographicCancel,
   } = useCaseWizardSession({
     fetchProductDetails: fetchCaseDesignProductDetails,
   });
@@ -232,6 +237,16 @@ export default function Page() {
       )}
 
       <CaseSubmissionOverlays submissionState={submissionState} />
+
+      <PatientDemographicModal
+        open={demographicModalOpen}
+        product={pendingDemographicDetails}
+        productName={pendingDemographicDetails?.name}
+        initialGender={completedGender}
+        initialAge={completedAge}
+        onConfirm={handleDemographicConfirm}
+        onCancel={handleDemographicCancel}
+      />
 
       <DoctorEditModal
         open={doctorEditModalOpen}

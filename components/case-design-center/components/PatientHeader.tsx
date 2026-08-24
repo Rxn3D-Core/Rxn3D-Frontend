@@ -156,8 +156,10 @@ export function PatientHeader({
     .toUpperCase();
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
-  const displayGender = gender && gender.trim() !== "" ? gender : (isEditable ? "" : DEFAULT_GENDER);
+  const displayGender = gender && gender.trim() !== "" ? gender : "";
   const displayAge = age !== undefined && age !== null && String(age).trim() !== "" ? String(age) : "";
+  const showGenderInHeader = Boolean(displayGender);
+  const showAgeInHeader = Boolean(displayAge);
 
   const firstSlip = slipResponseData?.slips?.[0];
 
@@ -326,31 +328,35 @@ export function PatientHeader({
                   className="min-w-0 flex-1 max-w-[360px]"
                   smartPatientLabel
                 />
-                {onGenderChange ? (
-                  <SelectField
-                    label="Gender"
-                    value={displayGender}
-                    options={["Male", "Female"]}
-                    onChange={onGenderChange}
-                    caseSubmitted={false}
-                    className="w-[140px] shrink-0"
-                  />
-                ) : (
+                {showGenderInHeader && (
+                  onGenderChange ? (
+                    <SelectField
+                      label="Gender"
+                      value={displayGender}
+                      options={["Male", "Female"]}
+                      onChange={onGenderChange}
+                      caseSubmitted={false}
+                      className="w-[140px] shrink-0"
+                    />
+                  ) : (
+                    <FieldInput
+                      label="Gender"
+                      value={displayGender}
+                      submitted={false}
+                      className="w-[140px] shrink-0"
+                    />
+                  )
+                )}
+                {showAgeInHeader && (
                   <FieldInput
-                    label="Gender"
-                    value={displayGender}
+                    label="Age"
+                    value={displayAge}
                     submitted={false}
-                    className="w-[140px] shrink-0"
+                    onChange={onAgeChange}
+                    className="w-[90px] shrink-0"
+                    type="number"
                   />
                 )}
-                <FieldInput
-                  label="Age"
-                  value={displayAge}
-                  submitted={false}
-                  onChange={onAgeChange}
-                  className="w-[90px] shrink-0"
-                  type="number"
-                />
               </div>
             ) : (
               <div className="flex w-full flex-col gap-3">

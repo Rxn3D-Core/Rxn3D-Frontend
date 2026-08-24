@@ -446,11 +446,9 @@ const PatientInfoSection = ({
 
   const { showGender, genderRequired, showAge, ageRequired } = fieldSettings
   const onInteraction = editablePatientData?.onInteraction
-
-  // Fields reveal once the name is far enough along AND the slip setting allows it.
-  const nameProgressed = shouldShowPatientGenderField(name)
-  const showGenderField = showGender && nameProgressed
-  const showAgeField = showAge && nameProgressed
+  const ageValue = editablePatientData?.age ?? patientData?.age
+  const showGenderField = Boolean(gender?.trim())
+  const showAgeField = Boolean(ageValue !== undefined && ageValue !== null && String(ageValue).trim() !== "")
   const showSecondRow = showGenderField || showAgeField
 
   // Handle patient name change with auto-open logic

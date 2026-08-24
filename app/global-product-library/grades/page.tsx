@@ -138,6 +138,9 @@ export default function GradesPage() {
             <Skeleton className="h-4 w-1/4" />
           </TableCell>
           <TableCell>
+            <Skeleton className="h-5 w-5 rounded" />
+          </TableCell>
+          <TableCell>
             <Skeleton className="h-6 w-20 rounded-full" />
           </TableCell>
         </TableRow>
@@ -289,6 +292,9 @@ export default function GradesPage() {
                   >
                     Sequence {renderSortIndicator("sequence")}
                   </TableHead>
+                  <TableHead className="font-semibold text-gray-900">
+                    Color
+                  </TableHead>
                   <TableHead
                     className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors"
                     onClick={() => handleSort("status")}
@@ -321,6 +327,20 @@ export default function GradesPage() {
                         {grade.sequence}
                       </TableCell>
                       <TableCell>
+                        {grade.color ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="inline-block h-5 w-5 rounded border border-gray-200"
+                              style={{ backgroundColor: grade.color }}
+                              title={grade.color}
+                            />
+                            <span className="text-xs font-mono text-gray-500">{grade.color}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">Default</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <span
                           className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             grade.status === "Active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
@@ -351,7 +371,7 @@ export default function GradesPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />

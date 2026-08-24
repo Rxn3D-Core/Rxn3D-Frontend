@@ -12,6 +12,8 @@ export interface CaseDesignProductDetails {
   image_url: string | null;
   category_name: string;
   subcategory_name: string;
+  gender_required?: string | boolean | null;
+  age_required?: string | boolean | null;
   retention_options?: unknown[];
   extractions?: unknown[];
   has_retention?: string | boolean | null;
@@ -73,6 +75,8 @@ function mapProductDetails(data: any): CaseDesignProductDetails | null {
     image_url: data.image_url || null,
     category_name: data.subcategory?.category?.name || "",
     subcategory_name: data.subcategory?.name || "",
+    gender_required: data.gender_required ?? "No",
+    age_required: data.age_required ?? "No",
     retention_options: data.retention_options,
     extractions: data.extractions,
     has_retention: data.has_retention,

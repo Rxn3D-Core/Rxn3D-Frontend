@@ -220,14 +220,13 @@ export function SlipSettingsPage() {
           <div className="lg:col-span-2">
             <Card>
               <CardContent className="p-4">
-                <Tabs defaultValue="header">
+                <Tabs defaultValue="signature">
                   <TabsList>
-                    <TabsTrigger value="header">Slip Header Fields</TabsTrigger>
                     <TabsTrigger value="signature">Signature Requirements</TabsTrigger>
                   </TabsList>
 
-                  {/* ---------------------- Slip Header Fields ---------------------- */}
-                  <TabsContent value="header" className="mt-4">
+                  {/* Slip Header Fields tab hidden — gender/age are now product-level settings. */}
+                  <TabsContent value="header" className="hidden mt-4">
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <CardDescription className="flex-1">
                         Toggle which fields appear on the slip header. For gender and age, choose whether they are optional or required on the create-slip form (only when shown).

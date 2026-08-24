@@ -505,6 +505,7 @@ export interface ProductGrade {
   is_default: string;
   status: string;
   price: string;
+  color?: string | null;
   created_at?: string;
   updated_at?: string;
 }

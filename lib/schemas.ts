@@ -19,7 +19,9 @@ const SubCategorySchema = BaseEntitySchema.extend({
   category: CategorySchema.optional(),
 })
 
-const GradeSchema = BaseEntitySchema.extend({})
+const GradeSchema = BaseEntitySchema.extend({
+  color: z.string().nullable().optional(),
+})
 const StageSchema = BaseEntitySchema.extend({
   is_common: z.enum(["Yes", "No"]).optional(),
   days_to_pickup: z.number().optional(),
@@ -577,6 +579,8 @@ export const ProductCreateFormSchema = z
       .optional(),
     is_single_stage: z.enum(["Yes", "No"]).default("No"),
     is_splinted: z.enum(["Yes", "No"]).default("No"),
+    gender_required: z.enum(["Yes", "No"]).default("No"),
+    age_required: z.enum(["Yes", "No"]).default("No"),
     link_all_addons: z.enum(["Yes", "No"]).default("No"),
     apply_retention_mechanism: z.enum(["Yes", "No"]).default("No"),
     has_implant: z.enum(["Yes", "No"]).default("No"),

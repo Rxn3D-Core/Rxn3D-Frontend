@@ -159,6 +159,7 @@ import {
 import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExtractionHelpers";
 import { RetentionProductFields } from "./FixedRestorationFields";
 import { SelectionProductFields, GradeHoverSelector } from "./RemovableRestorationFields";
+import { getCard0UserSelectedTeeth } from "../utils/card0ProductPanelVisibility";
 import { ProductAccordionCard } from "./ProductAccordionCard";
 import { RestorationAccordionHeader } from "./RestorationAccordionHeader";
 import { OpposingRemovableAccordion } from "./OpposingRemovableAccordion";
@@ -617,6 +618,8 @@ interface MandibularPanelProps {
   showMandibular: boolean;
   setShowMandibular: (v: boolean) => void;
   showDetails: boolean;
+  /** Card-0 product accordion: only after the user selects at least one tooth on the chart. */
+  card0ProductPanelVisible?: boolean;
   caseSubmitted?: boolean;
   /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
   preloadInitialSlipState?: boolean;
@@ -838,6 +841,7 @@ export function MandibularPanel({
   showMandibular,
   setShowMandibular,
   showDetails,
+  card0ProductPanelVisible = false,
   caseSubmitted = false,
   preloadInitialSlipState = false,
   disabled = false,
@@ -2442,26 +2446,27 @@ export function MandibularPanel({
                     setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
                     setToothStatusPopoverTooth(null);
                   }}
-                  toothHoverTooltip={
-                    activeProductIsRemovables && isCardActiveForToothStatus(activeProductCardId)
-                      ? activeExtractionCode
-                        ? `Click tooth to mark as ${toothStatusPopoverExtractions.find(e => e.code === activeExtractionCode)?.name ?? activeExtractionCode}`
-                        : `Click a tooth to add it to ${
-                            activeProductCardId !== 0
-                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
-                              : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
-                          }`
-                      : !useRemovableToothChartPath &&
-                        ownArchToothChartEnabled &&
-                        (!opposingProductData || useScopedRetentionMode) &&
-                        isCardActiveForToothStatus(activeProductCardId)
-                        ? `Click a tooth to add it to ${
-                            activeProductCardId !== 0
-                              ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
-                              : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
-                          }`
-                        : undefined
-                  }
+                  // Temporarily hidden: floating cursor tooltip was too distracting for users
+                  // toothHoverTooltip={
+                  //   activeProductIsRemovables && isCardActiveForToothStatus(activeProductCardId)
+                  //     ? activeExtractionCode
+                  //       ? `Click tooth to mark as ${toothStatusPopoverExtractions.find(e => e.code === activeExtractionCode)?.name ?? activeExtractionCode}`
+                  //       : `Click a tooth to add it to ${
+                  //           activeProductCardId !== 0
+                  //             ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
+                  //             : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
+                  //         }`
+                  //     : !useRemovableToothChartPath &&
+                  //       ownArchToothChartEnabled &&
+                  //       (!opposingProductData || useScopedRetentionMode) &&
+                  //       isCardActiveForToothStatus(activeProductCardId)
+                  //       ? `Click a tooth to add it to ${
+                  //           activeProductCardId !== 0
+                  //             ? (addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product?.name ?? "the product")
+                  //             : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? (getToothProduct("mandibular", t)?.name ?? "the product") : "the product"; })())
+                  //         }`
+                  //       : undefined
+                  // }
                 />
               );
             })()}
@@ -3283,7 +3288,7 @@ export function MandibularPanel({
             )}
 
             {/* Progressive field cards for Prep/Pontic teeth — grouped by product (card 0 only) */}
-            {showDetails && mandibularHasFixedCard0 && (() => {
+            {showDetails && mandibularHasFixedCard0 && card0ProductPanelVisible && (() => {
               // Get all mandibular teeth with retention types
               const allTeeth = Object.entries(mandibularRetentionTypes)
                 .filter(([toothNum, types]) =>
@@ -3734,13 +3739,24 @@ export function MandibularPanel({
             })()}
 
             {/* Initial Removables product accordion — show fields when card 0 product is Removable/Ortho AND teeth are assigned to it */}
-            {showDetails && mandibularHasRemovablesCard0 && (() => {
-              // Use all arch teeth (not just selected) so the accordion stays visible when all teeth are marked missing
-              const realCardTeeth = MANDIBULAR_ALL_TEETH.filter(tn => getToothProduct("mandibular", tn) && getToothProductCard("mandibular", tn) === 0);
-              // Fallback to the sentinel tooth + initial product details so the card renders
-              // immediately for TIM-default removable/ortho products: they select no teeth, and
-              // the async per-tooth product assignment may not have landed yet.
-              const cardTeeth = realCardTeeth.length > 0 ? realCardTeeth : (card0InitialProduct ? [MANDIBULAR_ALL_TEETH[0]] : []);
+            {showDetails && mandibularHasRemovablesCard0 && card0ProductPanelVisible && (() => {
+              const card0UserSelectedTeeth = getCard0UserSelectedTeeth({
+                arch: "mandibular",
+                allArchTeeth: MANDIBULAR_ALL_TEETH,
+                selectedTeeth: mandibularTeeth,
+                extractionMap: mandibularToothExtractionMap,
+                getToothProductCard,
+              });
+              const cardTeeth =
+                card0UserSelectedTeeth.length > 0
+                  ? card0UserSelectedTeeth
+                  : caseSubmitted || preloadInitialSlipState
+                    ? MANDIBULAR_ALL_TEETH.filter(
+                        (tn) =>
+                          getToothProduct("mandibular", tn) &&
+                          getToothProductCard("mandibular", tn) === 0
+                      )
+                    : [];
               if (cardTeeth.length === 0) return null;
               const getCardToothProduct = (tn: number) => getToothProduct("mandibular", tn) ?? card0InitialProduct;
               const card0Extractions = cardTeeth.flatMap((tn) => getCardToothProduct(tn)?.extractions ?? []);

@@ -18,6 +18,15 @@ import { useGrades, type GradePayload, type Grade } from "@/contexts/product-gra
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { generateCodeFromName } from "@/lib/utils"
 
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/
+const DEFAULT_GRADE_COLOR = "#9CA3AF"
+
+function toOptionalHexColor(value?: string | null): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  return HEX_COLOR_PATTERN.test(trimmed) ? trimmed.toUpperCase() : undefined
+}
+
 interface CreateGradeModalProps {
   isOpen: boolean
   onClose: () => void
@@ -36,6 +45,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
     code: "",
     sequence: "",
     status: "Active",
+    color: "",
   }
 
   const [formData, setFormData] = useState(defaultFormData)
@@ -83,6 +93,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
               code: gradeData.code || "",
               sequence: gradeData.sequence?.toString() || "",
               status: (gradeDetail as any).status || gradeData.status || "Active",
+              color: gradeData.color || "",
             }
             // Set form data
             setFormData(newFormData)
@@ -122,12 +133,14 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         code: uniqueCode,
         sequence: editingGrade.sequence?.toString() || "",
         status: editingGrade.status || "Active",
+        color: editingGrade.color || "",
       })
       setInitialFormData({
         name: editingGrade.name ? `${editingGrade.name} (Copy)` : "",
         code: uniqueCode,
         sequence: editingGrade.sequence?.toString() || "",
         status: editingGrade.status || "Active",
+        color: editingGrade.color || "",
       })
       // Set image if available
       if (editingGrade.image_url) {
@@ -147,12 +160,14 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         code: editingGrade.code || "",
         sequence: editingGrade.sequence?.toString() || "",
         status: editingGrade.status || "Active",
+        color: editingGrade.color || "",
       })
       setInitialFormData({
         name: editingGrade.name || "",
         code: editingGrade.code || "",
         sequence: editingGrade.sequence?.toString() || "",
         status: editingGrade.status || "Active",
+        color: editingGrade.color || "",
       })
       // Set image if available
       if (editingGrade.image_url) {
@@ -305,6 +320,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         sequence: Number.parseInt(formData.sequence),
         status: formData.status as "Active" | "Inactive",
         ...(imageBase64 && { image: imageBase64 }),
+        color: toOptionalHexColor(formData.color) ?? null,
       }
 
       // If copying, always create a new grade (not update)
@@ -496,6 +512,41 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
                       required
                       disabled={shouldDisableFields || isDetailLoading}
                     />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Grade Color</label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={toOptionalHexColor(formData.color) || DEFAULT_GRADE_COLOR}
+                          onChange={(e) => handleInputChange("color", e.target.value.toUpperCase())}
+                          className="h-10 w-10 shrink-0 cursor-pointer rounded border border-gray-200 bg-white p-0.5"
+                          aria-label="Pick grade color"
+                          disabled={shouldDisableFields || isDetailLoading}
+                        />
+                        <Input
+                          label="Hex Color"
+                          value={formData.color}
+                          onChange={(e) => handleInputChange("color", e.target.value)}
+                          placeholder="#9CA3AF"
+                          disabled={shouldDisableFields || isDetailLoading}
+                        />
+                        {formData.color && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => handleInputChange("color", "")}
+                            disabled={shouldDisableFields || isDetailLoading}
+                            className="shrink-0"
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Optional. Used for grade diamonds in slip creation when selecting a grade.
+                      </p>
+                    </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Status</label>
                       <Select

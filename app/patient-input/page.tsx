@@ -36,20 +36,13 @@ export default function PatientInputPage() {
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null)
   const [createdBy, setCreatedBy] = useState<string>("")
   const [patientName, setPatientName] = useState<string>("")
-  const [gender, setGender] = useState<string>("")
-  const [age, setAge] = useState<string>("")
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const allowNavigationRef = useRef<boolean>(false)
 
-  // Slip-settings-driven field visibility/requiredness for the create-slip form
-  const { showGender, genderRequired, showAge, ageRequired, isLoading: settingsLoading } =
-    usePatientFieldSettings()
+  // Slip-settings-driven field visibility (gender/age come from product config)
+  const { isLoading: settingsLoading } = usePatientFieldSettings()
 
-  // All shown + required fields satisfied (name is always required)
-  const requiredComplete =
-    isValidPatientName(patientName) &&
-    (!genderRequired || Boolean(gender)) &&
-    (!ageRequired || Boolean(age))
+  const requiredComplete = isValidPatientName(patientName)
 
   // Bumped on any field interaction so the auto-advance timer resets without
   // pulling the user out of an optional field they're still filling.
@@ -104,12 +97,10 @@ export default function PatientInputPage() {
   const navigateToDesignCenter = useCallback(() => {
     const patientData = {
       name: patientName.trim(),
-      ...(showGender && gender ? { gender } : {}),
-      ...(showAge && age ? { age } : {}),
     }
     localStorage.setItem("patientData", JSON.stringify(patientData))
     router.push("/case-design-center")
-  }, [patientName, gender, age, showGender, showAge, router])
+  }, [patientName, router])
 
   // Auto-navigate once all shown + required fields are satisfied. The timer
   // re-arms on every value change AND on any field interaction (interactionTick),
@@ -120,12 +111,12 @@ export default function PatientInputPage() {
       navigateToDesignCenter()
     }, 600)
     return () => clearTimeout(timer)
-  }, [patientName, gender, age, requiredComplete, settingsLoading, interactionTick, navigateToDesignCenter])
+  }, [patientName, requiredComplete, settingsLoading, interactionTick, navigateToDesignCenter])
 
   // Check if there's unsaved work (patient name or gender entered)
   const hasUnsavedWork = useMemo(() => {
-    return patientName.trim().length > 0 || gender.length > 0 || age.length > 0
-  }, [patientName, gender, age])
+    return patientName.trim().length > 0
+  }, [patientName])
 
   // Handle page refresh/navigation warning
   useEffect(() => {
@@ -176,24 +167,6 @@ export default function PatientInputPage() {
       return
     }
 
-    if (genderRequired && !gender) {
-      toast({
-        title: "Validation Error",
-        description: "Please select a gender",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (ageRequired && !age) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter an age",
-        variant: "destructive",
-      })
-      return
-    }
-
     navigateToDesignCenter()
   }
 
@@ -206,14 +179,10 @@ export default function PatientInputPage() {
         doctor={selectedDoctor}
         editablePatientData={{
           name: patientName,
-          gender: gender,
-          age: age,
           onNameChange: setPatientName,
-          onGenderChange: setGender,
-          onAgeChange: setAge,
           onInteraction: handleFieldInteraction,
         }}
-        patientFieldSettings={{ showGender, genderRequired, showAge, ageRequired }}
+        patientFieldSettings={{ showGender: false, genderRequired: false, showAge: false, ageRequired: false }}
       />
 
       <div className="container mx-auto px-6 py-4 max-w-[1600px]">
