@@ -7,6 +7,32 @@ export function truncateTextToMaxLines(text: string, maxLines = 4): string {
   return `${lines.slice(0, maxLines).join("\n")}\n...`;
 }
 
+/** Limit printable notes to `maxWords` words, appending `...` when truncated. */
+export function truncateTextToMaxWords(text: string, maxWords = 100): string {
+  const normalized = text.replace(/\r\n/g, "\n").trimEnd();
+  if (!normalized) return "";
+
+  // Split on whitespace but keep the separators so newlines/indentation survive.
+  const tokens = normalized.split(/(\s+)/);
+  let words = 0;
+  let lastKeptToken = -1;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token || /^\s+$/.test(token)) continue;
+    words += 1;
+    if (words === maxWords) {
+      lastKeptToken = index;
+      break;
+    }
+  }
+
+  if (lastKeptToken === -1) return normalized;
+
+  const kept = tokens.slice(0, lastKeptToken + 1).join("");
+  return kept.length === normalized.length ? normalized : `${kept}...`;
+}
+
 type SlipNoteLike = {
   id?: number;
   note?: unknown;
