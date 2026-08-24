@@ -1,10 +1,11 @@
 "use client"
 
+import type React from "react"
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
-import { Search, Filter } from "lucide-react"
+import { Search, Filter, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -25,6 +26,12 @@ import { useDebounce } from "@/lib/performance-utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
+import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal"
+import {
+  canUploadDoctorPhoto,
+  readDoctorPhotoActor,
+  type DoctorPhotoActor,
+} from "@/utils/doctor-photo-permissions"
 
 interface Doctor {
   id: number
@@ -64,6 +71,8 @@ export default function ChooseDoctorPage() {
   const [showRefreshWarningModal, setShowRefreshWarningModal] = useState(false)
   const [sortPopoverOpen, setSortPopoverOpen] = useState(false)
   const [hasAutoSelected, setHasAutoSelected] = useState(false)
+  const [photoActor, setPhotoActor] = useState<DoctorPhotoActor>({ roles: [], currentUserId: null })
+  const [photoTargetDoctor, setPhotoTargetDoctor] = useState<Doctor | null>(null)
   const allowNavigationRef = useRef<boolean>(false)
   const isModalOperationRef = useRef<boolean>(false)
 
@@ -80,6 +89,11 @@ export default function ChooseDoctorPage() {
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ["doctors"] })
   }, [queryClient])
+
+  // Role and identity drive who may add a missing doctor photo
+  useEffect(() => {
+    setPhotoActor(readDoctorPhotoActor())
+  }, [])
 
   // Get lab and doctor from URL or localStorage
   useEffect(() => {
@@ -400,6 +414,18 @@ export default function ChooseDoctorPage() {
     setShowAddDoctorModal(true)
   }
 
+  // Opening the photo picker must never count as choosing the doctor
+  const handleAddPhotoClick = useCallback((event: React.MouseEvent, doctor: Doctor) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setPhotoTargetDoctor(doctor)
+  }, [])
+
+  const handlePhotoUploaded = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["doctors"] })
+    queryClient.invalidateQueries({ queryKey: ["doctors-total"] })
+  }, [queryClient])
+
   const handleDoctorSelect = useCallback((doctor: Doctor) => {
     // Store selected doctor in localStorage for the next step
     localStorage.setItem("selectedDoctor", JSON.stringify(doctor))
@@ -449,12 +475,13 @@ export default function ChooseDoctorPage() {
       !hasAutoSelected && 
       doctors.length > 0 &&
       !showAddDoctorModal && // Don't auto-select when modal is open
+      !photoTargetDoctor && // Don't navigate away while a photo is being added
       !isModalOperationRef.current // Don't auto-select during/after modal operations
     ) {
       setHasAutoSelected(true)
       handleDoctorSelect(doctors[0])
     }
-  }, [isLoading, totalDoctorsCount, searchQuery, debouncedSearchQuery, hasAutoSelected, doctors, handleDoctorSelect, showAddDoctorModal])
+  }, [isLoading, totalDoctorsCount, searchQuery, debouncedSearchQuery, hasAutoSelected, doctors, handleDoctorSelect, showAddDoctorModal, photoTargetDoctor])
 
   // Check if there's unsaved work (selected lab or doctor)
   const hasUnsavedWork = useMemo(() => {
@@ -621,17 +648,45 @@ export default function ChooseDoctorPage() {
                   className="flex flex-col items-center justify-center gap-4 cursor-pointer group"
                   onClick={() => handleDoctorSelect(doctor)}
                 >
-                  <div className="relative w-40 h-40 rounded-full overflow-hidden border-2 border-gray-200 group-hover:border-[#1162a8] transition-colors flex items-center justify-center">
-                    <Avatar className="w-full h-full">
-                      <AvatarImage
-                        src={doctor.image || undefined}
-                        alt={`${doctor.first_name} ${doctor.last_name}`}
-                        className="object-cover"
-                      />
-                      <AvatarFallback className="bg-[#1162a8] text-white text-3xl font-semibold">
-                        {getInitials(doctor.first_name, doctor.last_name)}
-                      </AvatarFallback>
-                    </Avatar>
+                  {/* Wrapper is unclipped so the photo badge can straddle the ring */}
+                  <div className="relative w-40 h-40 flex-shrink-0">
+                    <div className="w-full h-full rounded-full overflow-hidden border-2 border-gray-200 group-hover:border-[#1162a8] transition-colors flex items-center justify-center">
+                      <Avatar className="w-full h-full">
+                        <AvatarImage
+                          src={doctor.image || undefined}
+                          alt={`${doctor.first_name} ${doctor.last_name}`}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="bg-[#1162a8] text-white text-3xl font-semibold">
+                          {getInitials(doctor.first_name, doctor.last_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+
+                    {/* Optional photo upload, only when the doctor has none and
+                        the signed-in user is allowed to add it. Centred on the
+                        ring at the upper right, away from where the pointer
+                        lands when selecting. 14.6% = (1 - 1/√2)/2, the circle's
+                        edge at 45°. */}
+                    {!doctor.image && canUploadDoctorPhoto(doctor.id, photoActor) && (
+                      <button
+                        type="button"
+                        onClick={(event) => handleAddPhotoClick(event, doctor)}
+                        className="absolute top-[14.6%] right-[14.6%] translate-x-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1162a8] shadow-md ring-1 ring-gray-200 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]"
+                        title={
+                          photoActor.currentUserId === doctor.id
+                            ? "Add your photo"
+                            : `Add photo for ${doctor.first_name} ${doctor.last_name}`
+                        }
+                        aria-label={
+                          photoActor.currentUserId === doctor.id
+                            ? "Add your photo"
+                            : `Add photo for ${doctor.first_name} ${doctor.last_name}`
+                        }
+                      >
+                        <Camera className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm font-semibold text-gray-900 text-center">
                     {doctor.first_name} {doctor.last_name}, DDS
@@ -735,6 +790,23 @@ export default function ChooseDoctorPage() {
             })
           }
         }}
+      />
+
+      {/* Optional doctor photo upload */}
+      <DoctorPhotoUploadModal
+        isOpen={photoTargetDoctor !== null}
+        onClose={() => setPhotoTargetDoctor(null)}
+        doctor={
+          photoTargetDoctor
+            ? {
+                id: photoTargetDoctor.id,
+                name: `${photoTargetDoctor.first_name} ${photoTargetDoctor.last_name}`.trim(),
+              }
+            : null
+        }
+        customerId={typeof window !== "undefined" ? localStorage.getItem("customerId") : null}
+        isSelf={photoTargetDoctor?.id === photoActor.currentUserId}
+        onUploaded={handlePhotoUploaded}
       />
 
       {/* Refresh Warning Modal */}

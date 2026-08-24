@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Filter, Plus, Search, ChevronDown } from "lucide-react";
+import { Filter, Plus, Search, ChevronDown, Camera, Pencil } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer";
 import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices";
@@ -34,6 +34,16 @@ import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
 import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName } from "@/utils/avatar-utils";
+import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal";
+import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
+import { PatientDemographicModal } from "@/components/case-design-center/components/PatientDemographicModal";
+import { fetchCaseDesignProductDetails } from "@/components/case-design-center/utils/caseDesignProductDetails";
+import { hasPendingDemographics } from "@/lib/product-demographics";
+import {
+  canUploadDoctorPhoto,
+  readDoctorPhotoActor,
+  type DoctorPhotoActor,
+} from "@/utils/doctor-photo-permissions";
 
 /** Slip-settings-driven patient field flags shared across wizard steps. */
 interface WizardPatientFieldSettings {
@@ -44,9 +54,9 @@ interface WizardPatientFieldSettings {
 }
 
 const DEFAULT_WIZARD_FIELD_SETTINGS: WizardPatientFieldSettings = {
-  showGender: true,
-  genderRequired: true,
-  showAge: true,
+  showGender: false,
+  genderRequired: false,
+  showAge: false,
   ageRequired: false,
 };
 
@@ -244,6 +254,57 @@ function BackToProductsIcon({ gradientId }: { gradientId: string }) {
         </linearGradient>
       </defs>
     </svg>
+  );
+}
+
+function DoctorEditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="absolute bottom-0 right-0 z-10 p-1 rounded-full bg-white shadow border border-[#d9d9d9] hover:bg-[#e5e7eb] transition-colors text-[#7f7f7f] hover:text-[#1d1d1b]"
+      aria-label="Change doctor"
+      title="Change doctor"
+    >
+      <Pencil size={12} />
+    </button>
+  );
+}
+
+/** Step title with an optional back chevron on the left; the title stays centred whether or not the chevron is shown. */
+function WizardStepHeader({
+  title,
+  onBack,
+  backLabel,
+  className,
+}: {
+  title: string;
+  onBack?: () => void;
+  backLabel?: string;
+  className?: string;
+}) {
+  const gradientId = React.useId().replace(/:/g, "");
+
+  return (
+    <div className={cn("grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 min-h-[34px]", className)}>
+      <div className="flex items-center justify-start min-w-[27px]">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-0.5 hover:opacity-80 transition-opacity"
+            aria-label={backLabel ?? "Go back"}
+            title={backLabel ?? "Go back"}
+          >
+            <BackToProductsIcon gradientId={gradientId} />
+          </button>
+        ) : null}
+      </div>
+
+      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center">{title}</h2>
+
+      <div />
+    </div>
   );
 }
 
@@ -540,6 +601,10 @@ function StepDoctor({
   isLoading,
   error,
   onAddNew,
+  photoActor,
+  onAddPhoto,
+  onBack,
+  backLabel,
 }: {
   doctors: WizardDoctorShape[];
   selected: number | null;
@@ -547,14 +612,23 @@ function StepDoctor({
   isLoading?: boolean;
   error?: Error | null;
   onAddNew?: () => void;
+  /** Role/identity deciding who may add a missing doctor photo. */
+  photoActor?: DoctorPhotoActor;
+  onAddPhoto?: (doctor: WizardDoctorShape) => void;
+  /** When set, a back chevron returns to the previous wizard step. */
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   if (error) {
     return (
-      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
-        <p className="text-[#7f7f7f] text-center mb-4">
-          Unable to load doctors. Please try again.
-        </p>
-        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      <div className="flex-1 flex flex-col px-6 py-6">
+        <WizardStepHeader title="Choose a Doctor" onBack={onBack} backLabel={backLabel} className="mb-6" />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <p className="text-[#7f7f7f] text-center mb-4">
+            Unable to load doctors. Please try again.
+          </p>
+          <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+        </div>
       </div>
     );
   }
@@ -562,9 +636,7 @@ function StepDoctor({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6">
-        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-          Choose a Doctor
-        </h2>
+        <WizardStepHeader title="Choose a Doctor" onBack={onBack} backLabel={backLabel} className="mb-6" />
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="w-full max-w-[219.68px] aspect-square rounded-full" />
@@ -576,9 +648,7 @@ function StepDoctor({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-        Choose a Doctor
-      </h2>
+      <WizardStepHeader title="Choose a Doctor" onBack={onBack} backLabel={backLabel} className="mb-6" />
 
       <div className="flex items-center justify-between mb-2">
         <button className="p-2 hover:bg-[#eef1f4] rounded transition-colors">
@@ -599,29 +669,71 @@ function StepDoctor({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 sm:gap-6 justify-items-center max-w-[1600px] mx-auto w-full">
         {doctors.map((doc) => (
-          <button
+          // Rendered as a div, not a button, so the optional photo badge below
+          // can be a real button without nesting interactive controls.
+          <div
             key={doc.id}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(doc.id)}
-            className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px]"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(doc.id);
+              }
+            }}
+            className="group flex flex-col items-center gap-3 p-2 sm:p-4 transition-all w-full max-w-[250px] cursor-pointer"
           >
-            <div
-              className={`relative flex items-center justify-center w-full aspect-square max-w-[219.68px] rounded-full overflow-hidden flex-shrink-0 transition-all bg-[#eef1f4] ${selected === doc.id
-                ? "border-[4px] border-[#1162A8]"
-                : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
-                }`}
-            >
-              <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-[#1162a8]">
-                {getInitials(doc.name) || "?"}
-              </span>
-              {doc.img && (
-                <img
-                  src={doc.img}
-                  alt={doc.name}
-                  className="relative w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.remove();
+            {/* Wrapper is unclipped so the photo badge can straddle the ring */}
+            <div className="relative w-full aspect-square max-w-[219.68px] flex-shrink-0">
+              <div
+                className={`relative flex items-center justify-center w-full h-full rounded-full overflow-hidden transition-all bg-[#eef1f4] ${selected === doc.id
+                  ? "border-[4px] border-[#1162A8]"
+                  : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
+                  }`}
+              >
+                <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-[#1162a8]">
+                  {getInitials(doc.name) || "?"}
+                </span>
+                {doc.img && (
+                  <img
+                    src={doc.img}
+                    alt={doc.name}
+                    className="relative w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.remove();
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Optional photo upload, only when this doctor has none and the
+                  signed-in user may add it. Centred on the ring at the upper
+                  right, away from where the pointer lands when selecting.
+                  14.6% = (1 - 1/√2)/2, the circle's edge at 45°, so the badge
+                  stays on the ring at any diameter or badge size. */}
+              {!doc.img && photoActor && canUploadDoctorPhoto(doc.id, photoActor) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onAddPhoto?.(doc);
                   }}
-                />
+                  className="absolute top-[14.6%] right-[14.6%] translate-x-1/2 -translate-y-1/2 z-10 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white text-[#1162a8] shadow-md ring-1 ring-[#d9d9d9] transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162a8]"
+                  title={
+                    photoActor.currentUserId === doc.id
+                      ? "Add your photo"
+                      : `Add photo for ${doc.name}`
+                  }
+                  aria-label={
+                    photoActor.currentUserId === doc.id
+                      ? "Add your photo"
+                      : `Add photo for ${doc.name}`
+                  }
+                >
+                  <Camera size={16} />
+                </button>
               )}
             </div>
             <span className="text-[14px] font-weight-700 font-bold text-[#1d1d1b] text-center">
@@ -635,7 +747,7 @@ function StepDoctor({
             >
               Click and select
             </span>
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -654,6 +766,8 @@ function StepLab({
   stepTitle,
   entityLabel = "lab",
   onAddNew,
+  onBack,
+  backLabel,
 }: {
   labs: WizardLabShape[];
   selected: number | null;
@@ -663,6 +777,9 @@ function StepLab({
   stepTitle: string;
   entityLabel?: "lab" | "office";
   onAddNew?: () => void;
+  /** When set, a back chevron returns to the previous wizard step. */
+  onBack?: () => void;
+  backLabel?: string;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const entityPlural = entityLabel === "office" ? "offices" : "labs";
@@ -683,11 +800,14 @@ function StepLab({
 
   if (error) {
     return (
-      <div className="flex-1 flex flex-col px-6 py-6 items-center justify-center">
-        <p className="text-[#7f7f7f] text-center mb-4">
-          {loadErrorMsg}
-        </p>
-        <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+      <div className="flex-1 flex flex-col px-6 py-6">
+        <WizardStepHeader title={stepTitle} onBack={onBack} backLabel={backLabel} className="mb-6" />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <p className="text-[#7f7f7f] text-center mb-4">
+            {loadErrorMsg}
+          </p>
+          <p className="text-sm text-[#b4b0b0]">{error.message}</p>
+        </div>
       </div>
     );
   }
@@ -695,9 +815,7 @@ function StepLab({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-6">
-        <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-6">
-          {stepTitle}
-        </h2>
+        <WizardStepHeader title={stepTitle} onBack={onBack} backLabel={backLabel} className="mb-6" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1400px] mx-auto mb-6 px-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton
@@ -713,9 +831,7 @@ function StepLab({
 
   return (
     <div className="flex-1 flex flex-col px-6 py-6">
-      <h2 className="text-[16px] font-bold text-[#1d1d1b] text-center mb-4">
-        {stepTitle}
-      </h2>
+      <WizardStepHeader title={stepTitle} onBack={onBack} backLabel={backLabel} className="mb-4" />
 
       {/* Centered search — same density as product search */}
       <div className="flex justify-center mb-4">
@@ -828,6 +944,8 @@ function StepPatientInfo({
   setGender,
   onComplete,
   fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
+  canEditDoctor = false,
+  onEditDoctorClick,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -836,6 +954,8 @@ function StepPatientInfo({
   setGender: (v: string) => void;
   onComplete?: () => void;
   fieldSettings?: WizardPatientFieldSettings;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 }) {
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isGenderFocused, setIsGenderFocused] = useState(false);
@@ -848,6 +968,7 @@ function StepPatientInfo({
   const genderKeyboardActiveRef = useRef(false);
   const highlightedGenderIndexRef = useRef(-1);
   const genderOptions = ["Male", "Female"] as const;
+  const [nameInteractionTick, setNameInteractionTick] = useState(0);
 
   /** Focus whichever patient name input is currently visible */
   const focusPatientInput = () => {
@@ -887,6 +1008,15 @@ function StepPatientInfo({
     }
   }, [isGenderFocused]);
 
+  // Auto-advance to category selection once the patient name is valid.
+  useEffect(() => {
+    if (!isValidPatientName(patientName)) return;
+    const timer = setTimeout(() => {
+      onComplete?.();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [patientName, nameInteractionTick, onComplete]);
+
   const getGenderDisplay = (g?: string) => {
     if (g === "Male" || g === "male") return "Male";
     if (g === "Female" || g === "female") return "Female";
@@ -895,10 +1025,11 @@ function StepPatientInfo({
 
   const { showGender, genderRequired } = fieldSettings;
   const name = patientName ?? "";
-  const showGenderField = showGender && shouldShowPatientGenderField(name);
+  const showGenderField = false;
 
   const handleNameChange = (value: string) => {
     setPatientName(value);
+    setNameInteractionTick((t) => t + 1);
     if (refocusTimerRef.current) {
       clearTimeout(refocusTimerRef.current);
     }
@@ -1106,19 +1237,24 @@ function StepPatientInfo({
         <div className="flex flex-row items-start gap-5">
           {doctor && (
             <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
-              <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-                <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
-                  {getInitials(doctor.name) || "?"}
-                </span>
-                {doctor.img && (
-                  <img
-                    src={doctor.img}
-                    alt={doctor.name}
-                    className="relative w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.remove();
-                    }}
-                  />
+              <div className="relative flex-shrink-0">
+                <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+                  <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
+                    {getInitials(doctor.name) || "?"}
+                  </span>
+                  {doctor.img && (
+                    <img
+                      src={doctor.img}
+                      alt={doctor.name}
+                      className="relative w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.remove();
+                      }}
+                    />
+                  )}
+                </div>
+                {canEditDoctor && onEditDoctorClick && (
+                  <DoctorEditButton onClick={onEditDoctorClick} />
                 )}
               </div>
               <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -1235,19 +1371,24 @@ function StepPatientInfo({
         {/* Row 1: Doctor avatar + name */}
         {doctor && (
           <div className="flex flex-col items-center gap-0">
-            <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
-              <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
-                {getInitials(doctor.name) || "?"}
-              </span>
-              {doctor.img && (
-                <img
-                  src={doctor.img}
-                  alt={doctor.name}
-                  className="relative w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.remove();
-                  }}
-                />
+            <div className="relative flex-shrink-0">
+              <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
+                  {getInitials(doctor.name) || "?"}
+                </span>
+                {doctor.img && (
+                  <img
+                    src={doctor.img}
+                    alt={doctor.name}
+                    className="relative w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.remove();
+                    }}
+                  />
+                )}
+              </div>
+              {canEditDoctor && onEditDoctorClick && (
+                <DoctorEditButton onClick={onEditDoctorClick} />
               )}
             </div>
             <fieldset className="border border-[#b4b0b0] rounded px-3 pb-1 pt-0 relative">
@@ -1388,6 +1529,8 @@ function StepCategory({
   isSearchingProducts,
   onSearchProductSelect,
   forceArch,
+  canEditDoctor,
+  onEditDoctorClick,
 }: {
   categories: { id: number; name: string; img: string }[];
   selected: number | null;
@@ -1404,6 +1547,8 @@ function StepCategory({
   fieldSettings?: WizardPatientFieldSettings;
   /** When false, category selection is blocked until required patient fields are filled. */
   patientInfoComplete?: boolean;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
   if (error) {
     return (
@@ -1416,7 +1561,7 @@ function StepCategory({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} canEditDoctor={canEditDoctor} onEditDoctorClick={onEditDoctorClick} />
         <CaseDesignCenterToolbar
           productSearch={productSearch}
           onProductSearchChange={onProductSearchChange}
@@ -1441,6 +1586,8 @@ function StepCategory({
         onGenderChange={onGenderChange}
         onAgeChange={onAgeChange}
         fieldSettings={fieldSettings}
+        canEditDoctor={canEditDoctor}
+        onEditDoctorClick={onEditDoctorClick}
       />
 
       {/* Case design center is revealed only once required patient details are filled */}
@@ -1509,6 +1656,8 @@ function StepSubProduct({
   isSearchingProducts,
   onSearchProductSelect,
   forceArch,
+  canEditDoctor,
+  onEditDoctorClick,
 }: {
   categoryId: number;
   subProducts: { id: number; name: string; img: string }[];
@@ -1530,6 +1679,8 @@ function StepSubProduct({
   subcategoryProductCounts?: Record<number, number | undefined>;
   subcategoryProducts?: Record<number, LibraryProductApi[] | undefined>;
   onArchPickForSingle?: (subcatId: number, arch: "maxillary" | "mandibular" | "both") => void;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
   const [activeSubLabelHeight, setActiveSubLabelHeight] = useState(0);
   const subCardRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -1583,6 +1734,8 @@ function StepSubProduct({
         onGenderChange={onGenderChange}
         onAgeChange={onAgeChange}
         fieldSettings={fieldSettings}
+        canEditDoctor={canEditDoctor}
+        onEditDoctorClick={onEditDoctorClick}
       />
 
       <CaseDesignCenterToolbar
@@ -1721,6 +1874,8 @@ function StepMaterial({
   searchResults,
   isSearchingProducts,
   onSearchProductSelect,
+  canEditDoctor,
+  onEditDoctorClick,
 }: {
   subProductName: string;
   products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null }; show_jaw_photo?: boolean; jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } }[];
@@ -1739,6 +1894,8 @@ function StepMaterial({
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 } & ProductSearchProps) {
   const [archPopoverProductId, setArchPopoverProductId] = useState<string | null>(null);
   const [activeProductLabelHeight, setActiveProductLabelHeight] = useState(0);
@@ -1819,7 +1976,7 @@ function StepMaterial({
   if (isLoading) {
     return (
       <div className="flex-1 flex flex-col px-6 py-4">
-        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} />
+        <PatientMiniHeader doctor={doctor} patientName={patientName} gender={gender} age={age} onPatientNameChange={onPatientNameChange} onGenderChange={onGenderChange} onAgeChange={onAgeChange} fieldSettings={fieldSettings} canEditDoctor={canEditDoctor} onEditDoctorClick={onEditDoctorClick} />
         <CaseDesignCenterToolbar
           onBack={onBack}
           productSearch={productSearch}
@@ -1846,6 +2003,8 @@ function StepMaterial({
         onGenderChange={onGenderChange}
         onAgeChange={onAgeChange}
         fieldSettings={fieldSettings}
+        canEditDoctor={canEditDoctor}
+        onEditDoctorClick={onEditDoctorClick}
       />
 
       <CaseDesignCenterToolbar
@@ -1989,6 +2148,8 @@ function PatientMiniHeader({
   onGenderChange,
   onAgeChange,
   fieldSettings = DEFAULT_WIZARD_FIELD_SETTINGS,
+  canEditDoctor = false,
+  onEditDoctorClick,
 }: {
   doctor: WizardDoctorShape | undefined;
   patientName: string;
@@ -1998,18 +2159,22 @@ function PatientMiniHeader({
   onGenderChange?: (value: string) => void;
   onAgeChange?: (value: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
+  canEditDoctor?: boolean;
+  onEditDoctorClick?: () => void;
 }) {
   const { showGender, showAge, genderRequired, ageRequired } = fieldSettings;
+  const showGenderField = Boolean(gender?.trim());
+  const showAgeField = Boolean(age?.toString().trim());
   const { createdByName, createdByImageUrl: createdByImage } = useCreatedByUser();
   const ageInputRef = useRef<HTMLInputElement>(null);
 
   // After gender is selected (or on entry with gender already set), move focus
   // to the age field when age is shown and still empty.
   const focusAge = useCallback(() => {
-    if (showAge) {
+    if (showAgeField) {
       setTimeout(() => ageInputRef.current?.focus(), 50);
     }
-  }, [showAge]);
+  }, [showAgeField]);
 
   const handleGenderChange = useCallback(
     (value: string) => {
@@ -2020,7 +2185,7 @@ function PatientMiniHeader({
   );
 
   useEffect(() => {
-    if (showAge && gender && !(age ?? "").trim()) {
+    if (showAgeField && gender && !(age ?? "").trim()) {
       focusAge();
     }
     // Only on mount — auto-focus age when arriving with gender already chosen.
@@ -2033,19 +2198,24 @@ function PatientMiniHeader({
         {/* Doctor photo + name */}
         {doctor && (
           <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
-            <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-              <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
-                {getInitials(doctor.name) || "?"}
-              </span>
-              {doctor.img && (
-                <img
-                  src={doctor.img}
-                  alt={doctor.name}
-                  className="relative w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.remove();
-                  }}
-                />
+            <div className="relative flex-shrink-0">
+              <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
+                <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
+                  {getInitials(doctor.name) || "?"}
+                </span>
+                {doctor.img && (
+                  <img
+                    src={doctor.img}
+                    alt={doctor.name}
+                    className="relative w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.remove();
+                    }}
+                  />
+                )}
+              </div>
+              {canEditDoctor && onEditDoctorClick && (
+                <DoctorEditButton onClick={onEditDoctorClick} />
               )}
             </div>
             <fieldset className="w-auto sm:w-[170px] h-[34px] sm:h-[38px] border border-[#7f7f7f] rounded-[7px] bg-white px-2 sm:px-[11.2px] py-0 flex items-center">
@@ -2060,9 +2230,9 @@ function PatientMiniHeader({
           <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start">
             <FieldInput label="Patient name" value={patientName} onChange={onPatientNameChange} className="w-[330px]" smartPatientLabel />
           </div>
-          {(showGender || showAge) && (
+          {(showGenderField || showAgeField) && (
             <div className="flex gap-3 sm:gap-4 items-start justify-center lg:justify-start w-[330px]">
-              {showGender && (
+              {showGenderField && (
                 onGenderChange ? (
                   <SelectField
                     label="Gender"
@@ -2077,7 +2247,7 @@ function PatientMiniHeader({
                   <FieldInput label="Gender" value={gender} submitted={false} className="flex-1" />
                 )
               )}
-              {showAge && (
+              {showAgeField && (
                 <FieldInput
                   label="Age"
                   value={age ?? ""}
@@ -2174,11 +2344,37 @@ export default function NewCaseWizard({
   const [shouldAutoAdvanceProducts, setShouldAutoAdvanceProducts] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const debouncedProductSearch = useDebounce(productSearch, 300);
+  const [demographicModalOpen, setDemographicModalOpen] = useState(false);
+  const [pendingFinalize, setPendingFinalize] = useState<{
+    materialId: string;
+    arch?: "maxillary" | "mandibular" | "both";
+    fromSearch?: {
+      categoryId?: number;
+      categoryName?: string;
+      subcategoryId?: number;
+      materialName?: string;
+    };
+  } | null>(null);
+  const [pendingProductDetails, setPendingProductDetails] = useState<{
+    name?: string;
+    gender_required?: string;
+    age_required?: string;
+  } | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
   const [showAddLabModal, setShowAddLabModal] = useState(false);
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [doctorEditModalOpen, setDoctorEditModalOpen] = useState(false);
+  const [photoActor, setPhotoActor] = useState<DoctorPhotoActor>({ roles: [], currentUserId: null });
+  const [photoTargetDoctor, setPhotoTargetDoctor] = useState<WizardDoctorShape | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Read from localStorage after mount; useWizardRole only distinguishes office
+  // vs lab context, so it cannot tell a doctor apart from an office_admin.
+  useEffect(() => {
+    setPhotoActor(readDoctorPhotoActor());
+  }, []);
 
   const { role, customerId, isOfficeAdmin, isLabAdmin } = useWizardRole();
   const { officesAsLabs, isLoading: labsLoading, error: labsError, refetch } = useConnectedOfficesOrLabs(role);
@@ -2197,10 +2393,7 @@ export default function NewCaseWizard({
   // All shown + required patient fields satisfied. Age (when required) is only
   // collected in the mini header on the category step, so it gates category
   // selection rather than the step-3 Next button.
-  const patientInfoComplete =
-    isValidPatientName(patientName) &&
-    (!patientFieldSettings.genderRequired || Boolean(gender)) &&
-    (!patientFieldSettings.ageRequired || Boolean(age));
+  const patientInfoComplete = isValidPatientName(patientName);
 
   const {
     categoriesAsWizard,
@@ -2274,8 +2467,19 @@ export default function NewCaseWizard({
   );
 
   const doctor = doctorsForWizard.find((d) => d.id === selectedDoctor) ?? initialDoctor;
+  const canEditDoctor = doctorsSuccess && doctorsForWizard.length > 1;
 
-  const finalizeSelection = useCallback(
+  const handleEditDoctorClick = useCallback(() => {
+    if (!canEditDoctor) return;
+    setDoctorEditModalOpen(true);
+  }, [canEditDoctor]);
+
+  const handleDoctorEditSelect = useCallback((nextDoctor: WizardDoctorShape) => {
+    setSelectedDoctor(nextDoctor.id);
+    setDoctorEditModalOpen(false);
+  }, []);
+
+  const runFinalizeSelection = useCallback(
     (
       materialId: string,
       arch?: "maxillary" | "mandibular" | "both",
@@ -2285,7 +2489,10 @@ export default function NewCaseWizard({
         subcategoryId?: number;
         materialName?: string;
       },
+      demographicOverride?: { gender: string; age: string },
     ) => {
+      const resolvedGender = demographicOverride?.gender ?? gender;
+      const resolvedAge = demographicOverride?.age ?? age;
       const categoryId = fromSearch?.categoryId ?? selectedCategory;
       const subcategoryId = fromSearch?.subcategoryId ?? selectedSubProduct;
       const selectedCategoryName =
@@ -2308,8 +2515,8 @@ export default function NewCaseWizard({
         doctor: doctor ?? { id: 0, name: "", img: "" },
         lab: lab ?? { id: 0, name: "", location: "", logo: null },
         patientName,
-        gender,
-        age,
+        gender: resolvedGender,
+        age: resolvedAge,
         category: String(categoryId ?? ""),
         categoryName: selectedCategoryName,
         product: String(subcategoryId ?? ""),
@@ -2339,6 +2546,47 @@ export default function NewCaseWizard({
       mode,
       onComplete,
     ]
+  );
+
+  const finalizeSelection = useCallback(
+    async (
+      materialId: string,
+      arch?: "maxillary" | "mandibular" | "both",
+      fromSearch?: {
+        categoryId?: number;
+        categoryName?: string;
+        subcategoryId?: number;
+        materialName?: string;
+      },
+    ) => {
+      const details = await fetchCaseDesignProductDetails(
+        Number(materialId),
+        customerIdForCategories ?? null,
+      );
+      if (hasPendingDemographics(details, gender, age)) {
+        setPendingProductDetails(details);
+        setPendingFinalize({ materialId, arch, fromSearch });
+        setDemographicModalOpen(true);
+        return;
+      }
+      runFinalizeSelection(materialId, arch, fromSearch);
+    },
+    [customerIdForCategories, gender, age, runFinalizeSelection],
+  );
+
+  const handleDemographicConfirm = useCallback(
+    (values: { gender: string; age: string }) => {
+      setGender(values.gender);
+      setAge(values.age);
+      setDemographicModalOpen(false);
+      const pending = pendingFinalize;
+      setPendingFinalize(null);
+      setPendingProductDetails(null);
+      if (pending) {
+        runFinalizeSelection(pending.materialId, pending.arch, pending.fromSearch, values);
+      }
+    },
+    [pendingFinalize, runFinalizeSelection],
   );
 
   const handleSearchProductSelect = useCallback(
@@ -2418,6 +2666,16 @@ export default function NewCaseWizard({
   const isStepDoctor = (s: number) => (s === 1 && role === "office_admin") || (s === 2 && role !== "office_admin");
   const isStepLab = (s: number) => (s === 1 && role !== "office_admin") || (s === 2 && role === "office_admin");
 
+  // Step 2 offers a way back to step 1 so a wrong doctor/lab can be re-picked.
+  // Single-step edit mode opens straight onto its own step, so there is nothing to go back to.
+  const stepOneBackLabel = isStepDoctor(1)
+    ? "Back to doctor selection"
+    : role === "office_admin"
+      ? "Back to lab selection"
+      : "Back to office selection";
+  const handleBackToStepOne =
+    !editTarget && startStep < 2 ? () => setStep(1) : undefined;
+
   // When there is only one doctor, auto-select and proceed to next step
   const didAutoAdvanceDoctorRef = useRef(false);
   useEffect(() => {
@@ -2450,10 +2708,7 @@ export default function NewCaseWizard({
       case 2:
         return isStepDoctor(2) ? selectedDoctor !== null : selectedLab !== null;
       case 3:
-        return (
-          isValidPatientName(patientName) &&
-          (!patientFieldSettings.genderRequired || Boolean(gender))
-        );
+        return isValidPatientName(patientName);
       case 4:
         return selectedCategory !== null;
       case 5:
@@ -2533,6 +2788,8 @@ export default function NewCaseWizard({
             isLoading={doctorsLoading}
             error={doctorsError}
             onAddNew={() => setShowAddDoctorModal(true)}
+            photoActor={photoActor}
+            onAddPhoto={setPhotoTargetDoctor}
           />
         )}
         {step === 1 && role !== null && isStepLab(1) && (
@@ -2571,6 +2828,10 @@ export default function NewCaseWizard({
             isLoading={doctorsLoading}
             error={doctorsError}
             onAddNew={() => setShowAddDoctorModal(true)}
+            photoActor={photoActor}
+            onAddPhoto={setPhotoTargetDoctor}
+            onBack={handleBackToStepOne}
+            backLabel={stepOneBackLabel}
           />
         )}
         {step === 2 && role !== null && isStepLab(2) && (
@@ -2592,6 +2853,8 @@ export default function NewCaseWizard({
             stepTitle={role === "office_admin" ? "Choose a Lab" : "Choose an Office"}
             entityLabel={role === "office_admin" ? "lab" : "office"}
             onAddNew={() => setShowAddLabModal(true)}
+            onBack={handleBackToStepOne}
+            backLabel={stepOneBackLabel}
           />
         )}
         {step === 3 && (
@@ -2603,6 +2866,8 @@ export default function NewCaseWizard({
             setGender={setGender}
             onComplete={() => setStep(4)}
             fieldSettings={patientFieldSettings}
+            canEditDoctor={canEditDoctor}
+            onEditDoctorClick={handleEditDoctorClick}
           />
         )}
         {step === 4 && (
@@ -2626,6 +2891,8 @@ export default function NewCaseWizard({
             onAgeChange={setAge}
             fieldSettings={patientFieldSettings}
             patientInfoComplete={patientInfoComplete}
+            canEditDoctor={canEditDoctor}
+            onEditDoctorClick={handleEditDoctorClick}
             {...productSearchProps}
             forceArch={forceArch}
           />
@@ -2671,6 +2938,8 @@ export default function NewCaseWizard({
               setShouldAutoAdvanceProducts(false);
               finalizeSelection(String(only.id), arch);
             }}
+            canEditDoctor={canEditDoctor}
+            onEditDoctorClick={handleEditDoctorClick}
             {...productSearchProps}
           />
         )}
@@ -2698,40 +2967,9 @@ export default function NewCaseWizard({
               onSelect={(id, arch) => {
                 setSelectedMaterial(id);
                 if (arch) setSelectedArch(arch);
-                const materialName = productsAsWizard.find((p) => String(p.id) === String(id))?.name ?? "";
-                if (mode === "addProduct") {
-                  setTimeout(() => {
-                    onComplete({
-                      doctor: doctor ?? { id: 0, name: "", img: "" },
-                      lab: lab ?? { id: 0, name: "", location: "", logo: null },
-                      patientName,
-                      gender,
-                      age,
-                      category: String(selectedCategory),
-                      categoryName: selectedCategoryName,
-                      product: String(selectedSubProduct),
-                      material: id,
-                      materialName,
-                      arch,
-                    });
-                  }, 300);
-                } else if (doctor && lab) {
-                  setTimeout(() => {
-                    onComplete({
-                      doctor,
-                      lab,
-                      patientName,
-                      gender,
-                      age,
-                      category: String(selectedCategory),
-                      categoryName: selectedCategoryName,
-                      product: String(selectedSubProduct),
-                      material: id,
-                      materialName,
-                      arch,
-                    });
-                  }, 300);
-                }
+                setTimeout(() => {
+                  void finalizeSelection(id, arch);
+                }, 300);
               }}
               doctor={doctor}
               patientName={patientName}
@@ -2741,6 +2979,8 @@ export default function NewCaseWizard({
               onGenderChange={setGender}
               onAgeChange={setAge}
               fieldSettings={patientFieldSettings}
+              canEditDoctor={canEditDoctor}
+              onEditDoctorClick={handleEditDoctorClick}
               {...productSearchProps}
               forceArch={forceArch ?? selectedArch}
             />
@@ -2831,6 +3071,21 @@ export default function NewCaseWizard({
         />
       )}
 
+      {/* Patient demographic modal — shown when selected product requires gender/age */}
+      <PatientDemographicModal
+        open={demographicModalOpen}
+        product={pendingProductDetails}
+        productName={pendingProductDetails?.name}
+        initialGender={gender}
+        initialAge={age}
+        onConfirm={handleDemographicConfirm}
+        onCancel={() => {
+          setDemographicModalOpen(false);
+          setPendingFinalize(null);
+          setPendingProductDetails(null);
+        }}
+      />
+
       {/* Cancel slip creation modal (steps 1–3) */}
       <CancelSlipCreationModal
         open={showCancelModal}
@@ -2882,6 +3137,27 @@ export default function NewCaseWizard({
             })
           }
         }}
+      />
+
+      {/* Optional doctor photo upload */}
+      <DoctorPhotoUploadModal
+        isOpen={photoTargetDoctor !== null}
+        onClose={() => setPhotoTargetDoctor(null)}
+        doctor={photoTargetDoctor}
+        customerId={officeIdForDoctors ?? customerId}
+        isSelf={photoTargetDoctor?.id === photoActor.currentUserId}
+        onUploaded={() => refetchDoctors()}
+      />
+
+      {/* Change doctor from patient info and later wizard steps */}
+      <DoctorEditModal
+        open={doctorEditModalOpen}
+        onClose={() => setDoctorEditModalOpen(false)}
+        doctors={doctorsForWizard}
+        selectedDoctorId={selectedDoctor}
+        isLoading={doctorsLoading}
+        error={doctorsError}
+        onSelect={handleDoctorEditSelect}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -61,6 +61,8 @@ const roles = [
   { value: "office_user", label: "Office User" },
   { value: "doctor", label: "Doctor" },
 ]
+
+const LAB_ROLE_VALUES = ["lab_user", "lab_admin"]
 
 
 export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalProps) {
@@ -129,6 +131,19 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   }, [isOpen, selectedRole])
   const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
   const isLabCustomer = customerType === "lab"
+  const isOfficeCustomer = customerType === "office"
+
+  const availableRoles = useMemo(
+    () => (isOfficeCustomer ? roles.filter((role) => !LAB_ROLE_VALUES.includes(role.value)) : roles),
+    [isOfficeCustomer],
+  )
+
+  // Drop a lab role that is no longer selectable in an office context
+  useEffect(() => {
+    if (selectedRole && !availableRoles.some((role) => role.value === selectedRole)) {
+      form.setValue("role", "", { shouldValidate: true })
+    }
+  }, [availableRoles, selectedRole, form])
 
   // Validate doctor fields and clear errors when both have values
   useEffect(() => {
@@ -725,7 +740,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <SelectTrigger className={cn(
                             "h-12 border-2 text-sm",
                             !field.value ? "border-[#CF0202]" : "border-[#119933]"
@@ -733,7 +748,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                             <SelectValue placeholder="Select a role" />
                           </SelectTrigger>
                           <SelectContent>
-                            {roles.map((role) => (
+                            {availableRoles.map((role) => (
                               <SelectItem key={role.value} value={role.value}>
                                 {role.label}
                               </SelectItem>

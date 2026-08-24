@@ -68,6 +68,55 @@ export function gradeLevelPalette(level: number): GradeDiamondPalette {
   return GRADE_LEVEL_PALETTES[Math.min(level, GRADE_LEVEL_PALETTES.length) - 1];
 }
 
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const match = HEX_COLOR_PATTERN.exec(hex.trim());
+  if (!match) return null;
+  const n = parseInt(hex.trim().slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return (
+    "#" +
+    [r, g, b]
+      .map((c) => Math.max(0, Math.min(255, Math.round(c))).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase()
+  );
+}
+
+function shadeHex(hex: string, amount: number): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+  const adjust = (c: number) => (amount >= 0 ? c + (255 - c) * amount : c * (1 + amount));
+  return rgbToHex(adjust(rgb.r), adjust(rgb.g), adjust(rgb.b));
+}
+
+/** Build a 4-stop diamond palette from a single hex grade color. */
+export function paletteFromHex(hex: string): GradeDiamondPalette {
+  const normalized = hex.trim().toUpperCase();
+  return {
+    a: normalized,
+    b: shadeHex(normalized, -0.15),
+    c: shadeHex(normalized, 0.25),
+    d: shadeHex(normalized, -0.3),
+  };
+}
+
+/** Use grade.color when set; otherwise fall back to level-based defaults. */
+export function resolveGradePalette(
+  grade?: Pick<ProductGrade, "color"> | null,
+  level = 1
+): GradeDiamondPalette {
+  const hex = grade?.color?.trim();
+  if (hex && HEX_COLOR_PATTERN.test(hex)) {
+    return paletteFromHex(hex);
+  }
+  return gradeLevelPalette(level);
+}
+
 function Diamond({ filled, palette }: { filled: boolean; palette?: GradeDiamondPalette }) {
   const c = filled ? (palette ?? GRADE_LEVEL_PALETTES[4]) : GRADE_UNFILLED_PALETTE;
   return (
@@ -166,7 +215,7 @@ export function GradeSelectionModal({
             const level = idx + 1;
             const isSelected =
               grade.name === selectedGradeName || grade.code === selectedGradeName;
-            const palette = gradeLevelPalette(level);
+            const palette = resolveGradePalette(grade, level);
             return (
               <button
                 key={grade.grade_id ?? grade.name}
@@ -252,7 +301,8 @@ export function GradeHoverSelector({
     (g) => g.name === currentGradeName || g.code === currentGradeName
   );
   const currentCount = currentIndex >= 0 ? currentIndex + 1 : getGradeDiamondCount(currentGradeName, grades);
-  const palette = gradeLevelPalette(currentCount);
+  const selectedGrade = currentIndex >= 0 ? sortedGrades[currentIndex] : undefined;
+  const palette = resolveGradePalette(selectedGrade, currentCount);
 
   // Single grade → auto-select it; don't ask the user to pick.
   const autoSelectSigRef = useRef<string | null>(null);
