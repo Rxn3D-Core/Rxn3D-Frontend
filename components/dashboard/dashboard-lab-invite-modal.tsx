@@ -22,9 +22,14 @@ export function DashboardLabInviteModal({
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
+    const hasExistingLabs = labsCount > 0 || invitationsCount > 0
+    if (hasExistingLabs) {
+      setShowModal(false)
+      return
+    }
     if (isOpen) {
       const hasSeen = localStorage.getItem("has_seen_lab_invite_modal")
-      if (!hasSeen && labsCount === 0 && invitationsCount === 0) {
+      if (!hasSeen) {
         setShowModal(true)
       }
     }

@@ -75,6 +75,9 @@ export function OfficeAdminDashboard() {
   const [activeTabLabs, setActiveTabLabs] = useState("connected")
   const [showUserForm, setShowUserForm] = useState(false)
   const [hasCheckedInvitePopup, setHasCheckedInvitePopup] = useState(false)
+  // Connections/invitations start empty with isLoading=false, so the invite popup must wait
+  // for the initial fetch to resolve before deciding the office has no labs.
+  const [hasLoadedLabData, setHasLoadedLabData] = useState(false)
   const [isLabInviteModalOpen, setIsLabInviteModalOpen] = useState(false)
   const [isDoctorInviteModalOpen, setIsDoctorInviteModalOpen] = useState(false)
 
@@ -102,9 +105,10 @@ export function OfficeAdminDashboard() {
 
   useEffect(() => {
     if (invitedBy && !hasFetchedRef.current) {
-      fetchConnections()
-      fetchAllInvitations(invitedBy)
       hasFetchedRef.current = true
+      Promise.all([fetchConnections(), fetchAllInvitations(invitedBy)]).finally(() =>
+        setHasLoadedLabData(true),
+      )
     }
   }, [invitedBy, fetchConnections, fetchAllInvitations])
 
@@ -148,13 +152,25 @@ export function OfficeAdminDashboard() {
 
   const users = useMemo(() => transformUsers(), [transformUsers])
 
+  // Any existing lab connection (regardless of status) or lab invitation in either
+  // direction means the office is already linked up and needs no onboarding prompt.
+  const labConnectionsCount = labs.length
+  const labInvitationsCount = useMemo(
+    () =>
+      [...(sent?.data || []), ...(received?.data || [])].filter((l) => l.type === "Lab").length,
+    [sent, received],
+  )
+
   // Check for invite popups
   useEffect(() => {
-    if (!isLoading && !isLoadingUsers && !isLoadingInvitations && !hasCheckedInvitePopup) {
-      const activeLabsCount = labs.filter(l => l.status?.toLowerCase() === "active").length
-      const sentLabInvitationsCount = (sent?.data || []).filter(l => l.type === "Lab").length
-      
-      const doctorsCount = users.filter(u => 
+    if (
+      hasLoadedLabData &&
+      !isLoading &&
+      !isLoadingUsers &&
+      !isLoadingInvitations &&
+      !hasCheckedInvitePopup
+    ) {
+      const doctorsCount = users.filter(u =>
         u.role?.toLowerCase().includes("doctor")
       ).length
       
@@ -163,13 +179,22 @@ export function OfficeAdminDashboard() {
         setIsDoctorInviteModalOpen(true)
       } 
       // Then check for labs if no doctors needed
-      else if (activeLabsCount === 0 && sentLabInvitationsCount === 0) {
+      else if (labConnectionsCount === 0 && labInvitationsCount === 0) {
         setIsLabInviteModalOpen(true)
       }
       
       setHasCheckedInvitePopup(true)
     }
-  }, [isLoading, isLoadingUsers, isLoadingInvitations, hasCheckedInvitePopup, labs, sent, users])
+  }, [
+    hasLoadedLabData,
+    isLoading,
+    isLoadingUsers,
+    isLoadingInvitations,
+    hasCheckedInvitePopup,
+    labConnectionsCount,
+    labInvitationsCount,
+    users,
+  ])
 
   // Note: We don't need a query cache subscription here since we're already
   // invalidating queries in the onSuccess callback of the invitation form
@@ -927,8 +952,8 @@ export function OfficeAdminDashboard() {
 
       {/* Lab Invite Modal */}
       <DashboardLabInviteModal
-        labsCount={labs.filter(l => l.status?.toLowerCase() === "active").length}
-        invitationsCount={(sent?.data || []).filter(l => l.type === "Lab").length}
+        labsCount={labConnectionsCount}
+        invitationsCount={labInvitationsCount}
         isOpen={isLabInviteModalOpen}
         onClose={() => setIsLabInviteModalOpen(false)}
       />
