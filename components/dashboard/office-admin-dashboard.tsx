@@ -367,25 +367,27 @@ export function OfficeAdminDashboard() {
           <p className="text-sm sm:text-base text-gray-600">Manage your practice operations and lab connections</p>
         </div>
 
+        {/* Analytics cards hidden for office profiles until the numbers are backed by real data.
+            Kept here so they can be switched back on later. */}
         {/* KPI Cards */}
-        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
+        {/* {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           <KpiCard title="Total Case Spend" value="$0.00" change="0%" isPositive={true} icon="dollar" />
           <KpiCard title="Outstanding Balance" value="$0.00" change="0%" isPositive={true} icon="document" />
           <KpiCard title="Total Cases" value="0" change="0%" isPositive={true} icon="dollar" />
           <KpiCard title="Case approval rate" value="0%" change="0%" isPositive={true} icon="dollar" />
         </div>
-        )}
+        )} */}
 
         {/* Status Cards — New Stage notes hidden for office profiles while case notes work is in progress */}
-        {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
+        {/* {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <StatusCard title="Rush Cases" count={0} color="text-red-500" />
           <StatusCard title="On Hold Cases" count={0} color="text-red-500" />
           <StatusCard title="Due Today" count={0} color="text-green-500" />
           <StatusCard title="Late Cases" count={0} color="text-black" />
         </div>
-        )}
+        )} */}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
