@@ -163,6 +163,8 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     !isOfficeSideUser &&
     (isSuperAdmin ||
       hasAnyPermission(["manage_office", "edit_office", "view_office"]))
+  // Scanning is a lab-side workflow; office profiles never handle physical case codes.
+  const canScanCode = !isSuperAdmin && !isOfficeSideUser && !isOfficeCustomerContext()
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -929,7 +931,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                   <span>{t("header.newLab", "New Lab")}</span>
                 </Button>
               )}
-              {!isSuperAdmin && (
+              {canScanCode && (
                 <Button
                   variant="ghost"
                   className={`${SCAN_CODE_BUTTON_CLASS} hidden sm:inline-flex`}
@@ -1167,41 +1169,43 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                     <span>{t("header.newSlip", "+ New Slip")}</span>
                   </Button>
                 )}
-                <Button
-                  variant="ghost"
-                  className={`${SCAN_CODE_BUTTON_CLASS} flex-1 w-auto`}
-                  onClick={openScanner}
-                  aria-label={t("header.openScanner", "Open QR code scanner")}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-1.5">
-                    <defs>
-                      <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#C9539F" />
-                        <stop offset="51.11%" stopColor="#82298D" />
-                        <stop offset="100%" stopColor="#2AA6DE" />
-                      </linearGradient>
-                    </defs>
-                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
-                  </svg>
-                  <span style={{
-                    background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                    fontWeight: 700,
-                    fontSize: "16px",
-                    lineHeight: "21px",
-                    fontFamily: "Helvetica, sans-serif",
-                  }}>{t("header.scanCode", "Scan Code")}</span>
-                  {scanHistory.length > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
-                    >
-                      {scanHistory.length}
-                    </Badge>
-                  )}
-                </Button>
+                {canScanCode && (
+                  <Button
+                    variant="ghost"
+                    className={`${SCAN_CODE_BUTTON_CLASS} flex-1 w-auto`}
+                    onClick={openScanner}
+                    aria-label={t("header.openScanner", "Open QR code scanner")}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-1.5">
+                      <defs>
+                        <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#C9539F" />
+                          <stop offset="51.11%" stopColor="#82298D" />
+                          <stop offset="100%" stopColor="#2AA6DE" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
+                    </svg>
+                    <span style={{
+                      background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                      fontWeight: 700,
+                      fontSize: "16px",
+                      lineHeight: "21px",
+                      fontFamily: "Helvetica, sans-serif",
+                    }}>{t("header.scanCode", "Scan Code")}</span>
+                    {scanHistory.length > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
+                      >
+                        {scanHistory.length}
+                      </Badge>
+                    )}
+                  </Button>
+                )}
               </div>
             )}
             {/* Location Selector - Mobile */}
