@@ -103,18 +103,20 @@ export function DoctorDashboard() {
           <p className="text-sm sm:text-base text-gray-600">Manage your practice operations and case activity</p>
         </div>
 
+        {/* Analytics cards hidden for office profiles until the numbers are backed by real data.
+            Kept here so they can be switched back on later. */}
         {/* KPI Cards */}
-        {isEnabled(WIDGET_IDS.KPI_CARDS) && (
+        {/* {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
           <KpiCard title="Total Cases" value="142" change="12.5%" isPositive={true} icon="document" />
           <KpiCard title="Active Cases" value="28" change="5.2%" isPositive={true} icon="dollar" />
           <KpiCard title="Completed Cases" value="114" change="8.1%" isPositive={true} icon="dollar" />
           <KpiCard title="Approval Rate" value="94.5%" change="2.3%" isPositive={true} icon="dollar" />
         </div>
-        )}
+        )} */}
 
         {/* Status Cards */}
-        {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
+        {/* {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <StatusCard title="Pending Review" count={8} color="text-orange-500" />
           <StatusCard title="In Progress" count={15} color="text-blue-500" />
@@ -122,7 +124,7 @@ export function DoctorDashboard() {
           <StatusCard title="On Hold" count={3} color="text-yellow-500" />
           <StatusCard title="Rush Cases" count={2} color="text-red-500" />
         </div>
-        )}
+        )} */}
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
