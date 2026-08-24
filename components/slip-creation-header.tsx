@@ -443,10 +443,11 @@ const PatientInfoSection = ({
   const gender = editablePatientData?.gender ?? patientData?.gender ?? ""
   const onNameChange = editablePatientData?.onNameChange ?? (() => {})
   const onGenderChange = editablePatientData?.onGenderChange ?? (() => {})
+  const onAgeChange = editablePatientData?.onAgeChange ?? (() => {})
 
   const { showGender, genderRequired, showAge, ageRequired } = fieldSettings
   const onInteraction = editablePatientData?.onInteraction
-  const ageValue = editablePatientData?.age ?? patientData?.age
+  const ageValue = editablePatientData?.age ?? patientData?.age ?? ""
   const showGenderField = Boolean(gender?.trim())
   const showAgeField = Boolean(ageValue !== undefined && ageValue !== null && String(ageValue).trim() !== "")
   const showSecondRow = showGenderField || showAgeField
@@ -693,9 +694,6 @@ const PatientInfoSection = ({
     }
     return ""
   }
-
-  const ageValue = editablePatientData?.age ?? ""
-  const onAgeChange = editablePatientData?.onAgeChange ?? (() => {})
 
   const fieldHeight = 36.95
   const fieldGap = 10
