@@ -13,6 +13,7 @@ import {
   buildAddedProducts,
   buildWizardSeedFromSlipDetails,
   resolveLabIdFromSlipDetails,
+  resolveOfficeIdFromSlipDetails,
 } from "@/lib/add-stage/preload-state";
 import { buildAddStageInitFromProductApi } from "@/lib/add-stage/build-stage-selections";
 import {
@@ -205,6 +206,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           lab: seed.lab
             ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo }
             : null,
+          officeId: resolveOfficeIdFromSlipDetails(virtualSlipDetails),
           addedProducts: buildAddedProducts(apiProducts),
           initialArch: preload.initialArch,
         });

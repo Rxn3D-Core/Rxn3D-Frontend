@@ -13,6 +13,8 @@ type WizardMode = "initial" | "addProduct" | "backToProducts";
 export type CaseDesignBootstrap = {
   doctor: WizardDoctorShape | null;
   lab: WizardLabShape | null;
+  /** Office customer id for `/slip/office/{id}/doctors` (required when lab_admin preloads from a slip). */
+  officeId?: number | null;
   patientName: string;
   gender: string;
   age: string;
@@ -129,10 +131,14 @@ export function useCaseWizardSession({
   }, []);
 
   const officeIdForDoctors = useMemo(() => {
+    const bootstrapOfficeId = bootstrap?.officeId;
+    if (typeof bootstrapOfficeId === "number" && bootstrapOfficeId > 0) {
+      return bootstrapOfficeId;
+    }
     if (role === "office_admin" && customerId != null) return customerId;
     if (role === "lab_admin" && completedLab?.id != null) return completedLab.id;
     return undefined;
-  }, [role, customerId, completedLab?.id]);
+  }, [bootstrap?.officeId, role, customerId, completedLab?.id]);
 
   const { data: officeDoctorsRaw = [], isSuccess: doctorsLoaded, isLoading: doctorsLoading, error: doctorsError } = useOfficeDoctors(officeIdForDoctors);
   const canEditDoctor = doctorsLoaded && officeDoctorsRaw.length > 1;
