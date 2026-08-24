@@ -9,7 +9,10 @@ import type {
   PaperSlipPrintableSlipVM,
 } from "@/lib/paper-slip-print-view-model";
 import { getPaperSlipCalloutVisual } from "@/lib/paper-slip-callout-layout";
-import { truncateTextToMaxLines } from "@/lib/paper-slip-notes-display";
+import {
+  truncateTextToMaxLines,
+  truncateTextToMaxWords,
+} from "@/lib/paper-slip-notes-display";
 import { VirtualSlipToothChart } from "@/components/virtual-slip/VirtualSlipToothChart";
 
 // Canonical row order down the center column of the detail grid, matching the
@@ -331,7 +334,7 @@ function PaperSlipNotes({ slip }: { slip: PaperSlipPrintableSlipVM }) {
           key={`${slip.slipId}-note-${index}`}
           className={`whitespace-pre-line ${index > 0 ? "mt-1" : ""}`}
         >
-          {truncateTextToMaxLines(note, 4)}
+          {truncateTextToMaxLines(truncateTextToMaxWords(note, 100), 4)}
         </p>
       ))}
     </section>

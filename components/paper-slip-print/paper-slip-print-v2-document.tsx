@@ -10,7 +10,10 @@ import {
   formatImplantAccordionLabel,
   groupVirtualSlipImplants,
 } from "@/lib/virtual-slip-implant-groups";
-import { truncateTextToMaxLines } from "@/lib/paper-slip-notes-display";
+import {
+  truncateTextToMaxLines,
+  truncateTextToMaxWords,
+} from "@/lib/paper-slip-notes-display";
 import { VirtualSlipToothChart } from "@/components/virtual-slip/VirtualSlipToothChart";
 import { VirtualSlipExtractionStatusBoxes } from "@/components/virtual-slip/VirtualSlipExtractionStatusBoxes";
 import { VirtualSlipOpposingSection } from "@/components/virtual-slip/VirtualSlipOpposingSection";
@@ -249,7 +252,9 @@ function PaperSlipV2Notes({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
     <section
       className={`min-h-0 shrink overflow-hidden rounded-[14px] px-5 py-4 text-[14px] leading-6 text-[#2f3542] ${toneClass}`}
     >
-      <p className="whitespace-pre-line">{truncateTextToMaxLines(notes, 8)}</p>
+      <p className="whitespace-pre-line">
+        {truncateTextToMaxLines(truncateTextToMaxWords(notes, 100), 8)}
+      </p>
     </section>
   );
 }
