@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/auth-context'
 import { getAuthToken, redirectToLogin } from '@/lib/auth-utils'
 import { normalizeOppositeImpressionPayload } from '@/lib/library-product-api-mapping'
 import { resolveLibraryCustomerId, userHasLabLibraryRole } from '@/lib/customer-scope'
+import { applyReleasingStageFlagsToStages } from '@/lib/product-releasing-stages'
 
 type ApiErrorPayload = {
   message: string
@@ -53,15 +54,8 @@ export function useProductMutations() {
 
       normalizeOppositeImpressionPayload(finalPayload)
 
-      // Handle releasingStageIds - mark stages as releasing if needed
-      if (releasingStageIds.length > 0 && Array.isArray(finalPayload.stages)) {
-        finalPayload.stages = finalPayload.stages.map((stage: any) => {
-          const stageId = stage.stage_id || stage.id
-          if (releasingStageIds.includes(stageId)) {
-            return { ...stage, is_releasing_stage: "Yes" }
-          }
-          return stage
-        })
+      if (Array.isArray(finalPayload.stages)) {
+        finalPayload.stages = applyReleasingStageFlagsToStages(finalPayload.stages, releasingStageIds)
       }
 
       // Add customer_id for lab library roles (lab_admin, lab_user, lab_driver)
@@ -279,6 +273,10 @@ export function useProductMutations() {
       let finalPayload = { ...payload }
 
       normalizeOppositeImpressionPayload(finalPayload)
+
+      if (Array.isArray(finalPayload.stages)) {
+        finalPayload.stages = applyReleasingStageFlagsToStages(finalPayload.stages, releasingStageIds)
+      }
 
       // Add customer_id for lab library roles (lab_admin, lab_user, lab_driver)
       if (labCustomerId) {

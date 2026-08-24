@@ -16,6 +16,7 @@ import {
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
 import { applyDefaultToothChartToPayload } from "@/lib/product-default-tooth-chart"
+import { isStageMarkedReleasing } from "@/lib/product-releasing-stages"
 import { AlertCircle, CheckCircle, Package, Save, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLanguage } from "@/contexts/language-context"
@@ -265,9 +266,10 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
           stageData.days = Number(s.days)
         }
         
-        // Always include is_releasing_stage (default to "No" if not set)
-        const isReleasing = releasingStageIds.includes(s.stage_id) || s.is_releasing_stage === "Yes"
-        stageData.is_releasing_stage = isReleasing ? "Yes" : (s.is_releasing_stage ?? "No")
+        // Checkbox list is the source of truth — stale GET `is_releasing_stage: "Yes"` must not win.
+        stageData.is_releasing_stage = isStageMarkedReleasing(s.stage_id ?? s.id, releasingStageIds)
+          ? "Yes"
+          : "No"
         
         // Include is_default (default to "No" if not set)
         stageData.is_default = s.is_default === "Yes" ? "Yes" : "No"

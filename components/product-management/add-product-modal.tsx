@@ -64,6 +64,7 @@ import {
   serializeRetentionOptionsForApi,
   serializeRetentionsForProductApi,
 } from "@/lib/product-retention-links-form"
+import { applyReleasingStageFlagsToStages } from "@/lib/product-releasing-stages"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
 import { useQueryClient } from "@tanstack/react-query"
 import {
@@ -1671,6 +1672,9 @@ export function AddProductModal({
         variation: sections.variation,
       })
       applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
+      if (Array.isArray(payload.stages)) {
+        payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingStageIds)
+      }
 
       saveResult = await updateProduct(editingProduct.id, payload, releasingStageIds)
     } else {
@@ -1743,8 +1747,11 @@ export function AddProductModal({
         variation: sections.variation,
       })
       applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
+      if (Array.isArray(payload.stages)) {
+        payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingStageIds)
+      }
 
-      saveResult = await createProduct(payload)
+      saveResult = await createProduct(payload, releasingStageIds)
     }
     if (!saveResult.success) return
 
