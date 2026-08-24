@@ -58,10 +58,7 @@ import {
   serializeRetentionsForProductApi,
   type ProductRetentionOptionLinkFormRow,
 } from "@/lib/product-retention-links-form"
-import {
-  applyDefaultToothChartToPayload,
-  hydrateDefaultToothChartFromProduct,
-} from "@/lib/product-default-tooth-chart"
+import { applyReleasingStageFlagsToStages } from "@/lib/product-releasing-stages"
 import { useAdvanceFields, ADVANCE_FIELDS_PRODUCT_MODAL_PAGE_SIZE } from "@/lib/api/advance-mode-query"
 import { usePreferredGumShades } from "@/hooks/usePreferredGumShades"
 import { usePreferredTeethShades } from "@/hooks/usePreferredTeethShades"
@@ -2367,6 +2364,9 @@ export function AddLabProductModal({
       variation: sections.variation,
     })
     applyDefaultToothChartToPayload(payload as Record<string, unknown>, data)
+    if (Array.isArray(payload.stages)) {
+      payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingStageIds)
+    }
 
     let saveResult: ProductSaveResult = { success: false }
     try {
@@ -3149,6 +3149,9 @@ export function AddLabProductModal({
         formData.retention_options ?? [],
         retentionOptionsCatalog.items,
       )
+      if (Array.isArray(payload.stages)) {
+        payload.stages = applyReleasingStageFlagsToStages(payload.stages, releasingIds)
+      }
 
       // Use the updateProduct prop function
       try {
