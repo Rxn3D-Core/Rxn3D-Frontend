@@ -11,6 +11,7 @@ import {
   buildAddedProducts,
   buildWizardSeedFromSlipDetails,
   resolveLabIdFromSlipDetails,
+  resolveOfficeIdFromSlipDetails,
 } from "@/lib/add-stage/preload-state";
 import {
   SLIP_EDIT_REQUIRES_IN_LAB_MESSAGE,
@@ -196,6 +197,7 @@ export function EditSlipFlow({ slipId }: Props) {
         ? { id: seed.doctor.id, name: seed.doctor.name, img: seed.doctor.img }
         : null,
       lab: seed.lab ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo } : null,
+      officeId: resolveOfficeIdFromSlipDetails(virtualSlipDetails),
       addedProducts: buildAddedProducts(apiProducts),
       initialArch: determineInitialArch(apiProducts),
     });

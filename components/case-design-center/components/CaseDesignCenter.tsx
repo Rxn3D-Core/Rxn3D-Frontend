@@ -1289,6 +1289,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   // Product accordions stay hidden until the user picks at least one tooth for card 0.
   // Sentinel tooth assignment alone does not count as a user selection.
+  // Preloaded slips (add-new-stage / edit-slip) use addedProducts instead of selectedProductId.
+  // Removable added products must reveal fields even though card-0 removables flags stay false.
+  const preloadHasAddedRemovables =
+    !!props.preloadInitialSlipState &&
+    (hasSelectionOnlyProductForArch("maxillary") ||
+      hasSelectionOnlyProductForArch("mandibular"));
+
   const productFieldsVisible =
     maxillaryHasImpression ||
     mandibularHasImpression ||
@@ -1298,6 +1305,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       mandibularCard0ProductPanelVisible) ||
     maxillaryHasFixedAdded ||
     mandibularHasFixedAdded ||
+    preloadHasAddedRemovables ||
     (initialProductHasOppositeSection &&
       props.initialArch === "mandibular" &&
       mandibularTeethSelected) ||
