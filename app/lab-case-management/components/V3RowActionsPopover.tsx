@@ -13,6 +13,7 @@ interface Props {
   canPrintStatement: boolean
   canSendBack: boolean
   canEditSlip?: boolean
+  canCancelCase?: boolean
   canDeleteCase?: boolean
   allowDriverActions?: boolean
   /** Office profiles may see rush status on the row but cannot submit rush from listing. */
@@ -27,7 +28,7 @@ interface Props {
 }
 
 export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
-  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, onClose, variant },
+  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canCancelCase = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, onClose, variant },
   ref,
 ) {
   const [kebabOpen, setKebabOpen] = useState(false)
@@ -40,11 +41,12 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
         status: row.status,
         canPrintStatement,
         canEditSlip,
+        canCancelCase,
         canDeleteCase,
         allowRush,
         allowDriverActions,
       }),
-    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canDeleteCase, allowRush, allowDriverActions]
+    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canCancelCase, canDeleteCase, allowRush, allowDriverActions]
   )
 
   function act(fn: () => void) {
@@ -67,6 +69,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     visibility.rush ? { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) } : null,
     visibility.hold ? { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onHold(row)) } : null,
     visibility.cancel ? { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)) } : null,
+    visibility.restoreSlip ? { label: "Restore", icon: `/icons/virtual-slip-actions/resume.svg`, onClick: act(() => actions.onRestore(row)) } : null,
     visibility.sendBack && canSendBack ? { label: "Send Back", icon: `${VS}/send-back-to-office.svg`, onClick: act(() => actions.onSendBack(row)) } : null,
     visibility.print ? { label: "Print", icon: `/icons/virtual-slip-actions/printer.svg`, onClick: act(() => actions.onPrintPaperSlip(row)) } : null,
     visibility.invoice ? { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)) } : null,
@@ -79,7 +82,8 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   const visibleBtns = btns
 
   const kebabItems = [
-    visibility.editSlip ? { label: "Edit Slip", fn: () => actions.onOpen(row) } : null,
+    visibility.restoreSlip ? { label: "Restore to In Progress", fn: () => actions.onRestore(row) } : null,
+    visibility.deleteSlip ? { label: "Delete Slip", fn: () => actions.onDelete(row) } : null,
     visibility.printDriverLabel ? { label: "Print Driver Label", fn: () => actions.onPrintDriverLabel(row) } : null,
     visibility.printStatement ? { label: "Print Statement", fn: () => actions.onPrintStatement(row) } : null,
   ].filter((item): item is { label: string; fn: () => void } => item != null)

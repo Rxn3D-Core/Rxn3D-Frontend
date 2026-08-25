@@ -287,6 +287,14 @@ export function V3FilterBar({
           >
             <StatusAssetIcon active={statusActive("Finished")} src="/icons/check.svg" />
           </ActionIcon>
+          <ActionIcon
+            active={statusActive("Deleted")}
+            aria-label="Deleted"
+            title="Deleted"
+            onClick={() => onStatusChange("Deleted")}
+          >
+            <DeletedActionIcon active={statusActive("Deleted")} />
+          </ActionIcon>
           <button
             type="button"
             disabled={!hasQuickFilters}
@@ -418,10 +426,34 @@ function CancelActionIcon({ active }: { active: boolean }) {
   )
 }
 
+function DeletedActionIcon({ active }: { active: boolean }) {
+  const inactiveFill = "#6B7280"
+
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 20 20">
+      <defs>
+        <linearGradient id="v3TrashBody" x1="4" y1="4" x2="16" y2="18" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#6B7280" />
+          <stop offset="1" stopColor="#374151" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M7.5 3.5h5M4.5 5.5h11M6.5 5.5l.7 10.2a1.2 1.2 0 0 0 1.2 1.1h3.2a1.2 1.2 0 0 0 1.2-1.1L13.5 5.5M8.5 8.2v5.6M11.5 8.2v5.6"
+        stroke={active ? "url(#v3TrashBody)" : inactiveFill}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={active ? 1 : 0.65}
+      />
+    </svg>
+  )
+}
+
 function normalizeStatus(status: string) {
   const value = status.trim().toLowerCase()
   if (value === "on hold" || value === "on-hold") return "on hold"
   if (value === "cancelled" || value === "canceled") return "cancelled"
+  if (value === "deleted") return "deleted"
   return value
 }
 

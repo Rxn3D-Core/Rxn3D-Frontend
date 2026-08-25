@@ -154,7 +154,12 @@ type OfficeSlipContextType = {
     current_page: number;
     last_page: number;
   } | null;
-  fetchOfficeSlips: (customerId: number, page?: number, perPage?: number) => Promise<void>;
+  fetchOfficeSlips: (
+    customerId: number,
+    page?: number,
+    perPage?: number,
+    options?: { statuses?: string[] }
+  ) => Promise<void>;
   refreshSlips: () => Promise<void>;
 };
 
@@ -218,7 +223,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       officeCode: apiCase.lab?.name || "",
       patient: apiCase.patient_name || "",
       product: formatSlipListingProducts(slip.products),
-      status: slip.status || "",
+      status: (slip as any).deleted_at ? "Deleted" : (slip.status || ""),
       rush: slip.is_rush || false,
       location: slip.location?.name || "",
       locationId: typeof slip.location?.id === "number" ? slip.location.id : undefined,
@@ -235,7 +240,12 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  const fetchOfficeSlips = useCallback(async (customerId: number, page: number = 1, perPage: number = SLIP_LISTING_DEFAULT_PER_PAGE) => {
+  const fetchOfficeSlips = useCallback(async (
+    customerId: number,
+    page: number = 1,
+    perPage: number = SLIP_LISTING_DEFAULT_PER_PAGE,
+    options?: { statuses?: string[] }
+  ) => {
     setLoading(true);
     setError(null);
     setCurrentCustomerId(customerId);
@@ -246,6 +256,9 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       url.searchParams.append("customer_id", customerId.toString());
       url.searchParams.append("page", page.toString());
       url.searchParams.append("per_page", perPage.toString());
+      options?.statuses?.filter(Boolean).forEach((status) => {
+        url.searchParams.append("statuses[]", status);
+      });
 
       const res = await fetch(url.toString(), {
         headers: {

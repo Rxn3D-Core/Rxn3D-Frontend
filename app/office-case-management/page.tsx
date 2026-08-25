@@ -14,6 +14,7 @@ import { format } from "date-fns"
 import { useOfficeSlipContext, type UISlip } from "@/contexts/office-slip-context"
 import { SlipProvider, useSlipContext } from "@/app/lab-case-management/SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
 import SlipAttachmentBrowserDialog from "@/components/slip-attachment-browser-dialog"
 import DriverHistoryModal from "@/components/driver-history-modal"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
@@ -128,6 +129,7 @@ function normalizeStatusFilterValue(status: string): string {
   const value = status.trim().toLowerCase()
   if (value === "on hold" || value === "on-hold") return "on hold"
   if (value === "cancelled" || value === "canceled") return "cancelled"
+  if (value === "deleted") return "deleted"
   return value
 }
 
@@ -179,6 +181,12 @@ function OfficeCaseManagementPage() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
+  const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<V2CaseRowData | null>(null)
+  const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
+  const [restoreSlipModalOpen, setRestoreSlipModalOpen] = useState(false)
+  const [selectedSlipForRestore, setSelectedSlipForRestore] = useState<V2CaseRowData | null>(null)
+  const [restoreSlipSubmitting, setRestoreSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
@@ -187,7 +195,8 @@ function OfficeCaseManagementPage() {
 
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { fetchDriverPrintData, readyToSend } = useSlipContext()
-  const { fetchProductAddons, cancelSlip, holdSlip } = useSlipCreation()
+  const { fetchProductAddons, cancelSlip, softDeleteSlip, restoreSlip, holdSlip } = useSlipCreation()
+  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
   const [advancedBillingSearch] = useAdvancedBillingSearchMutation()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
@@ -198,8 +207,10 @@ function OfficeCaseManagementPage() {
   useEffect(() => {
     const customerId = resolveListingCustomerId()
     if (!customerId) return
-    void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
-  }, [fetchOfficeSlips, currentPage, itemsPerPage])
+    void fetchOfficeSlips(customerId, currentPage, itemsPerPage, {
+      statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    })
+  }, [fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
 
   const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode).filter(Boolean))), [slips])
   const allStatuses = useMemo(() => Array.from(new Set(slips.map((s) => s.status).filter(Boolean))), [slips])
@@ -250,11 +261,18 @@ function OfficeCaseManagementPage() {
   }
 
   const handleStatusFilterChange = (status: string) => {
-    setSelectedStatuses((current) => (
-      current.some((item) => normalizeStatusFilterValue(item) === normalizeStatusFilterValue(status))
-        ? current.filter((item) => normalizeStatusFilterValue(item) !== normalizeStatusFilterValue(status))
-        : [...current, status]
-    ))
+    const normalized = normalizeStatusFilterValue(status)
+    setSelectedStatuses((current) => {
+      if (normalized === "deleted") {
+        return current.some((item) => normalizeStatusFilterValue(item) === "deleted")
+          ? []
+          : ["Deleted"]
+      }
+      const withoutDeleted = current.filter((item) => normalizeStatusFilterValue(item) !== "deleted")
+      return withoutDeleted.some((item) => normalizeStatusFilterValue(item) === normalized)
+        ? withoutDeleted.filter((item) => normalizeStatusFilterValue(item) !== normalized)
+        : [...withoutDeleted, status]
+    })
   }
 
   const handleClearQuickFilters = () => {
@@ -290,8 +308,10 @@ function OfficeCaseManagementPage() {
   const refreshCurrentListing = useCallback(() => {
     const customerId = resolveListingCustomerId()
     if (!customerId) return
-    void fetchOfficeSlips(customerId, currentPage, itemsPerPage)
-  }, [fetchOfficeSlips, currentPage, itemsPerPage])
+    void fetchOfficeSlips(customerId, currentPage, itemsPerPage, {
+      statuses: selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    })
+  }, [fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
 
   const loadAddonInputsForSlip = useCallback(async (slipId: number) => {
     setAddonInputs(null)
@@ -399,6 +419,34 @@ function OfficeCaseManagementPage() {
       toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setCancelSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmDeleteSlip = async (reason: string) => {
+    if (!selectedSlipForDelete?.id || !reason.trim()) return
+    setDeleteSlipSubmitting(true)
+    try {
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim())
+      toast({ title: "Slip deleted", description: res?.message ?? "The slip was deleted successfully.", duration: 3000 })
+      setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to delete slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setDeleteSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmRestoreSlip = async (reason: string) => {
+    if (!selectedSlipForRestore?.id) return
+    setRestoreSlipSubmitting(true)
+    try {
+      const res = await restoreSlip(selectedSlipForRestore.id, reason.trim() || undefined)
+      toast({ title: "Slip restored", description: res?.message ?? "The slip was restored to In Progress.", duration: 3000 })
+      setRestoreSlipModalOpen(false); setSelectedSlipForRestore(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to restore slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setRestoreSlipSubmitting(false)
     }
   }
 
@@ -708,9 +756,13 @@ function OfficeCaseManagementPage() {
             onSendBack: () => {},
             onRush: () => {},
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
+            onDelete: (slip) => { setSelectedSlipForDelete(slip); setDeleteSlipModalOpen(true) },
+            onRestore: (slip) => { setSelectedSlipForRestore(slip); setRestoreSlipModalOpen(true) },
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={() => false}
+          canCancelCase={canCancelCase}
+          canDeleteCase={canDeleteCase}
           officeProfile
           onBulkPrintDriverLabel={() => void handleBulkDriverPrint()}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
@@ -783,6 +835,37 @@ function OfficeCaseManagementPage() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+        />
+
+        <CaseActionModal
+          open={deleteSlipModalOpen}
+          onClose={() => { if (deleteSlipSubmitting) return; setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null) }}
+          onSubmit={handleConfirmDeleteSlip}
+          actionType="delete"
+          title="Delete Slip"
+          description="You are soft-deleting this slip. It will be hidden from active listings and can be viewed with the Deleted filter."
+          icon={<X />}
+          iconBgColor="#f3f4f6"
+          iconColor="#374151"
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Delete Slip"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for deleting this slip."
+          warning="Soft-deleted slips stay recoverable via the Deleted filter."
+        />
+
+        <CaseActionModal
+          open={restoreSlipModalOpen}
+          onClose={() => { if (restoreSlipSubmitting) return; setRestoreSlipModalOpen(false); setSelectedSlipForRestore(null) }}
+          onSubmit={handleConfirmRestoreSlip}
+          actionType="restore"
+          title="Restore Slip"
+          description="You are restoring this deleted slip back to In Progress."
+          icon={<X />}
+          iconBgColor="#E8F5E9"
+          iconColor="#43A047"
+          buttonText={restoreSlipSubmitting ? "Restoring..." : "Restore to In Progress"}
+          buttonColor="success"
+          reasonPlaceholder="Optional reason for restoring this slip."
         />
 
         <CaseActionModal
