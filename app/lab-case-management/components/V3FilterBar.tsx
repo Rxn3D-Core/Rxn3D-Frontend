@@ -20,6 +20,7 @@ const COLUMN_KEYS = [
   "office",
   "caseNo",
   "timestamp",
+  "attachments",
 ] as const
 
 export type ColumnKey = typeof COLUMN_KEYS[number]
@@ -32,14 +33,15 @@ type ColumnDefinition = {
 }
 
 export const ALL_COLUMNS: readonly ColumnDefinition[] = [
-  { key: "patient",    label: "Patient / Slip", default: true, required: true },
-  { key: "panProduct", label: "Pan / Product",  default: true, required: true },
-  { key: "location",   label: "Location",       default: true },
-  { key: "dueDate",    label: "Due date",       default: true },
-  { key: "status",     label: "Status",         default: true, required: true },
-  { key: "office",     label: "Office",         default: false },
-  { key: "caseNo",     label: "Case #",         default: false },
-  { key: "timestamp",  label: "Time stamp",     default: false },
+  { key: "patient",     label: "Patient / Slip", default: true, required: true },
+  { key: "panProduct",  label: "Pan / Product",  default: true, required: true },
+  { key: "location",    label: "Location",       default: true },
+  { key: "attachments", label: "Attachments",    default: true },
+  { key: "dueDate",     label: "Due date",       default: true },
+  { key: "status",      label: "Status",         default: true, required: true },
+  { key: "office",      label: "Office",         default: false },
+  { key: "caseNo",      label: "Case #",         default: false },
+  { key: "timestamp",   label: "Time stamp",     default: false },
 ]
 
 // "timestamp" starts visible but is not marked `default: true`, which would

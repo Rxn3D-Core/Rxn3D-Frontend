@@ -79,6 +79,7 @@ const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
   { key: "patient", label: "Patient / Slip", width: 260 },
   { key: "panProduct", label: "Pan / Product", width: 180 },
   { key: "location", label: "Location", width: 150 },
+  { key: "attachments", label: "Attachments", width: 120 },
   { key: "status", label: "Status", width: 150 },
   { key: "caseNo", label: "Case #", width: 130 },
   { key: "dueDate", label: "Due Date", width: 150 },
@@ -259,6 +260,14 @@ export function V3CaseTable(props: Props) {
                         )}
                       </div>
                     </div>
+
+                    {/* DIGITAL IMPRESSIONS (Attachments) */}
+                    {props.visibleColumns.has("attachments") && !!row.digitalImpressions?.length && (
+                      <div>
+                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">ATTACHMENTS</div>
+                        <DigitalImpressionLabels impressions={row.digitalImpressions} />
+                      </div>
+                    )}
 
                     {/* LOCATION */}
                     {row.location && (() => {
@@ -687,12 +696,58 @@ function DesktopCell({
     )
   }
 
+  if (column.key === "attachments") {
+    return (
+      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
+        <div className="flex h-[65px] items-center justify-center" style={{ padding: "5px 10px" }}>
+          <DigitalImpressionLabels impressions={row.digitalImpressions} />
+        </div>
+      </td>
+    )
+  }
+
   return (
     <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
       <div className="flex h-[65px] items-center" style={{ padding: "5px 15px" }}>
         <span style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.createdAt || "—"}</span>
       </div>
     </td>
+  )
+}
+
+function DigitalImpressionLabels({
+  impressions,
+}: {
+  impressions?: Array<{ id: number; name: string; url?: string | null }>
+}) {
+  if (!impressions?.length) return null
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-0.5">
+      {impressions.map((impression) =>
+        impression.url ? (
+          <a
+            key={impression.id}
+            href={impression.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+            style={{ fontSize: 16, lineHeight: "18px", fontWeight: 600, color: "#1162A8" }}
+            title={`Open ${impression.name}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {impression.name}
+          </a>
+        ) : (
+          <span
+            key={impression.id}
+            style={{ fontSize: 16, lineHeight: "18px", fontWeight: 600, color: "#1162A8" }}
+          >
+            {impression.name}
+          </span>
+        )
+      )}
+    </div>
   )
 }
 

@@ -308,7 +308,7 @@ export default function ImpressionPage() {
                     <span>Code</span>
                     {sortColumn === "code" && renderSortIndicator("code")}
                   </TableHead>
-                  <TableHead className="font-semibold text-gray-900">Opposing warning</TableHead>
+                  <TableHead className="font-semibold text-gray-900">Digital impression</TableHead>
                   <TableHead className="font-semibold text-gray-900">URL</TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
                     <span>Status</span>

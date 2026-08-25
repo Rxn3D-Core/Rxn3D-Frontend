@@ -94,6 +94,8 @@ function getSortValue(row: V2CaseRowData, key: ColumnKey): string | number {
       return (row.caseNumber || "").toLowerCase()
     case "timestamp":
       return new Date(row.createdAt).getTime() || 0
+    case "attachments":
+      return (row.digitalImpressions?.[0]?.name || "").toLowerCase()
     case "dueDate": {
       if (!row.dueDate) return Number.POSITIVE_INFINITY
       const time = new Date(row.dueDate).getTime()
