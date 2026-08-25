@@ -34,6 +34,7 @@ import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-mod
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
+import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
@@ -139,6 +140,7 @@ function normalizeStatusFilterValue(status: string): string {
   const value = status.trim().toLowerCase()
   if (value === "on hold" || value === "on-hold") return "on hold"
   if (value === "cancelled" || value === "canceled") return "cancelled"
+  if (value === "deleted") return "deleted"
   return value
 }
 
@@ -200,6 +202,9 @@ export default function LabSlipV3Page() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<V2CaseRowData | null>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
+  const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<V2CaseRowData | null>(null)
+  const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
@@ -211,7 +216,8 @@ export default function LabSlipV3Page() {
     createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates,
     readyToSend, labListingPagination, updateSlipAttachmentState, rushCasePanColor,
   } = useSlipContext()
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
+  const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
   const router = useRouter()
 
@@ -337,11 +343,18 @@ export default function LabSlipV3Page() {
   }
 
   const handleStatusFilterChange = (status: string) => {
-    setSelectedStatuses((current) => (
-      current.some((item) => normalizeStatusFilterValue(item) === normalizeStatusFilterValue(status))
-        ? current.filter((item) => normalizeStatusFilterValue(item) !== normalizeStatusFilterValue(status))
-        : [...current, status]
-    ))
+    const normalized = normalizeStatusFilterValue(status)
+    setSelectedStatuses((current) => {
+      if (normalized === "deleted") {
+        return current.some((item) => normalizeStatusFilterValue(item) === "deleted")
+          ? []
+          : ["Deleted"]
+      }
+      const withoutDeleted = current.filter((item) => normalizeStatusFilterValue(item) !== "deleted")
+      return withoutDeleted.some((item) => normalizeStatusFilterValue(item) === normalized)
+        ? withoutDeleted.filter((item) => normalizeStatusFilterValue(item) !== normalized)
+        : [...withoutDeleted, status]
+    })
   }
 
   const handleClearQuickFilters = () => {
@@ -550,6 +563,20 @@ export default function LabSlipV3Page() {
       toast({ title: "Unable to cancel case", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
     } finally {
       setCancelSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmDeleteSlip = async (reason: string) => {
+    if (!selectedSlipForDelete?.id || !reason.trim()) return
+    setDeleteSlipSubmitting(true)
+    try {
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim())
+      toast({ title: "Slip deleted", description: res?.message ?? "The slip was deleted successfully.", duration: 3000 })
+      setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null); refreshCurrentListing()
+    } catch (error) {
+      toast({ title: "Unable to delete slip", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive", duration: 5000 })
+    } finally {
+      setDeleteSlipSubmitting(false)
     }
   }
 
@@ -855,9 +882,12 @@ export default function LabSlipV3Page() {
             onSendBack: (slip) => { setSelectedSlipForSendBackToOffice(slip); setShowSendBackToOfficeModal(true) },
             onRush: handleOpenRushCase,
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
+            onDelete: (slip) => { setSelectedSlipForDelete(slip); setDeleteSlipModalOpen(true) },
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
+          canCancelCase={canCancelCase}
+          canDeleteCase={canDeleteCase}
           onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
           printMenuRow={printDropdownOpen}
@@ -986,6 +1016,22 @@ export default function LabSlipV3Page() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+        />
+
+        <CaseActionModal
+          open={deleteSlipModalOpen}
+          onClose={() => { if (deleteSlipSubmitting) return; setDeleteSlipModalOpen(false); setSelectedSlipForDelete(null) }}
+          onSubmit={handleConfirmDeleteSlip}
+          actionType="delete"
+          title="Delete Slip"
+          description="You are soft-deleting this slip. It will be hidden from active listings and can be viewed with the Deleted filter."
+          icon={<X />}
+          iconBgColor="#f3f4f6"
+          iconColor="#374151"
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Delete Slip"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for deleting this slip."
+          warning="Soft-deleted slips stay recoverable via the Deleted filter."
         />
 
         <CaseActionModal

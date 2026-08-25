@@ -40,6 +40,8 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  canCancelCase?: boolean
+  canDeleteCase?: boolean
   /**
    * Office profile listing: the counterparty column reads "Lab", driver
    * actions are withheld, and rush rows lose the amber highlight (a
@@ -215,6 +217,8 @@ export function V3CaseTable(props: Props) {
                           actions={props.rowActions}
                           canPrintStatement={props.canPrintStatement(row)}
                           canSendBack={!officeProfile && props.canSendBack(row)}
+                          canCancelCase={props.canCancelCase}
+                          canDeleteCase={props.canDeleteCase}
                           allowDriverActions={!officeProfile}
                           allowRush={!officeProfile}
                           onClose={() => setPopoverRow(null)}
@@ -477,6 +481,8 @@ export function V3CaseTable(props: Props) {
                         actions={props.rowActions}
                         canPrintStatement={props.canPrintStatement(row)}
                         canSendBack={!officeProfile && props.canSendBack(row)}
+                        canCancelCase={props.canCancelCase}
+                        canDeleteCase={props.canDeleteCase}
                         allowDriverActions={!officeProfile}
                         allowRush={!officeProfile}
                         onClose={() => setPopoverRow(null)}
@@ -695,6 +701,7 @@ function StatusPill({ status }: { status: string }) {
   if (status === "On hold" || status === "On Hold") return <SlipListingStatusBadge tone="on-hold">On Hold</SlipListingStatusBadge>
   if (isSlipCaseCancelled(status)) return <SlipListingStatusBadge tone="cancelled">Cancelled</SlipListingStatusBadge>
   if (isSlipCaseFinished(status)) return <SlipListingStatusBadge tone="finished">Done</SlipListingStatusBadge>
+  if (status.trim().toLowerCase() === "deleted") return <SlipListingStatusBadge tone="deleted">Deleted</SlipListingStatusBadge>
   return <SlipListingStatusBadge tone="draft">{status || "Unknown"}</SlipListingStatusBadge>
 }
 

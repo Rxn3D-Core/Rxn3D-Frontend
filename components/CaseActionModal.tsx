@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X } from "lucide-react";
 import clsx from "clsx";
 
-type CaseActionType = "hold" | "resume" | "cancel" | "cancelled";
+type CaseActionType = "hold" | "resume" | "cancel" | "cancelled" | "delete";
 
 interface CaseActionModalProps {
   open: boolean;

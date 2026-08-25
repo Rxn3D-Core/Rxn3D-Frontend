@@ -22,6 +22,7 @@ import {
   postSlipHold,
   postSlipResume,
   postSlipSendBackToOffice,
+  postSlipSoftDelete,
 } from "@/lib/api/slip-case-actions"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import { getSlipLabIdForCurrentProfile } from "@/lib/customer-lab-scope"
@@ -254,6 +255,7 @@ interface SlipCreationContextType {
   holdSlip: (slipId: number, reason: string) => Promise<any>
   resumeSlip: (slipId: number, reason: string) => Promise<any>
   cancelSlip: (slipId: number, reason: string) => Promise<any>
+  softDeleteSlip: (slipId: number, reason: string) => Promise<any>
   sendBackToOfficeSlip: (slipId: number, reason: string) => Promise<any>
 
   // Generate paper slips
@@ -869,6 +871,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const softDeleteSlip = useCallback(
+    async (slipId: number, reason: string) => postSlipSoftDelete(slipId, reason),
+    []
+  );
+
   const sendBackToOfficeSlip = useCallback(
     async (slipId: number, reason: string) =>
       postSlipSendBackToOffice(slipId, reason),
@@ -986,6 +993,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
         holdSlip,
         resumeSlip,
         cancelSlip,
+        softDeleteSlip,
         sendBackToOfficeSlip,
         generatePaperSlips,
         requestSlipRush,

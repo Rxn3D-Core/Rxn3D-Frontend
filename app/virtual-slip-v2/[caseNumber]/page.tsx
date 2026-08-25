@@ -75,7 +75,7 @@ export default function VirtualSlipV2Page() {
   const slipId = Number(params.caseNumber);
 
   const { toast } = useToast();
-  const { canEditSlip, canDeleteCase } = usePermissionCapabilities();
+  const { canEditSlip, canCancelCase, canDeleteCase } = usePermissionCapabilities();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation();
   const {
     fetchVirtualSlipDetails,
@@ -562,7 +562,7 @@ export default function VirtualSlipV2Page() {
                   caseCancelled ? undefined : () => setCaseStatusModal("resume")
                 }
                 onCancel={
-                  caseCancelled || slipInOffice || !canDeleteCase
+                  caseCancelled || slipInOffice || !canCancelCase
                     ? undefined
                     : () => setCaseStatusModal("cancel")
                 }
@@ -648,7 +648,7 @@ export default function VirtualSlipV2Page() {
           }
           canPutOnHold={canPutOnHold}
           onCancel={
-            caseBlocked || slipInOffice || !canDeleteCase
+            caseBlocked || slipInOffice || !canCancelCase
               ? undefined
               : () => setCaseStatusModal("cancel")
           }

@@ -143,6 +143,9 @@ export default function LabSlipPage() {
   const [cancelSlipModalOpen, setCancelSlipModalOpen] = useState(false)
   const [selectedSlipForCancel, setSelectedSlipForCancel] = useState<any>(null)
   const [cancelSlipSubmitting, setCancelSlipSubmitting] = useState(false)
+  const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
+  const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<any>(null)
+  const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<any>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
@@ -162,7 +165,7 @@ export default function LabSlipPage() {
     labListingPagination,
     updateSlipAttachmentState,
   } = useSlipContext();
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -490,6 +493,11 @@ export default function LabSlipPage() {
     setCancelSlipModalOpen(true)
   }
 
+  const handleOpenDeleteCase = (slip: any) => {
+    setSelectedSlipForDelete(slip)
+    setDeleteSlipModalOpen(true)
+  }
+
   const handleOpenHoldCase = (slip: any) => {
     if (!slipCanHold({ locationId: slip.locationId, location: slip.location })) {
       toast({
@@ -583,6 +591,32 @@ export default function LabSlipPage() {
       })
     } finally {
       setCancelSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmDeleteSlip = async (reason: string) => {
+    if (!selectedSlipForDelete?.id || !reason.trim()) return
+
+    setDeleteSlipSubmitting(true)
+    try {
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim())
+      toast({
+        title: "Slip deleted",
+        description: res?.message ?? "The slip was deleted successfully.",
+        duration: 3000,
+      })
+      setDeleteSlipModalOpen(false)
+      setSelectedSlipForDelete(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to delete slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setDeleteSlipSubmitting(false)
     }
   }
 
@@ -1079,6 +1113,7 @@ export default function LabSlipPage() {
             onSendBack: handleOpenSendBackToOffice,
             onRush: handleOpenRushCase,
             onCancel: handleOpenCancelCase,
+            onDelete: handleOpenDeleteCase,
           }}
           rows={slipsPage}
           search={search}
@@ -1243,6 +1278,26 @@ export default function LabSlipPage() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+        />
+
+        <CaseActionModal
+          open={deleteSlipModalOpen}
+          onClose={() => {
+            if (deleteSlipSubmitting) return
+            setDeleteSlipModalOpen(false)
+            setSelectedSlipForDelete(null)
+          }}
+          onSubmit={handleConfirmDeleteSlip}
+          actionType="delete"
+          title="Delete Slip"
+          description="You are soft-deleting this slip. It will be hidden from active listings and can be viewed with the Deleted filter."
+          icon={<X />}
+          iconBgColor="#f3f4f6"
+          iconColor="#374151"
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Delete Slip"}
+          buttonColor="error"
+          reasonPlaceholder="Please provide a reason for deleting this slip."
+          warning="Soft-deleted slips stay recoverable via the Deleted filter."
         />
 
         <CaseActionModal

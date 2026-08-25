@@ -31,6 +31,8 @@ interface Props {
   rowActions: V2RowActions
   canPrintStatement: (row: V2CaseRowData) => boolean
   canSendBack: (row: V2CaseRowData) => boolean
+  canCancelCase?: boolean
+  canDeleteCase?: boolean
   /**
    * Office profile listing: counterparty column reads "Lab", driver actions and
    * rush-submit icons are withheld (rush status bolt still shows), and rush rows
@@ -114,6 +116,8 @@ export function V3CaseWidget(props: Props) {
         rowActions={props.rowActions}
         canPrintStatement={props.canPrintStatement}
         canSendBack={props.canSendBack}
+        canCancelCase={props.canCancelCase}
+        canDeleteCase={props.canDeleteCase}
         officeProfile={props.officeProfile}
         printMenuRow={props.printMenuRow}
         moreMenuRow={props.moreMenuRow}
