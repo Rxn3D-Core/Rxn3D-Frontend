@@ -1974,6 +1974,14 @@ export function MandibularPanel({
       const fixedProduct = activeProductCardId !== 0
         ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product
         : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? getToothProduct("mandibular", t) : undefined; })() ?? card0InitialProduct);
+      const fixedAckCardId = activeProductCardId !== 0 ? activeProductCardId : 0;
+      // Hide once the user clicks Done on the fixed retention tooth chart (same as removaables).
+      if (
+        hasRetentionOptions(fixedProduct) &&
+        isFixedRetentionSetupComplete(fixedProduct, caseSubmitted, fixedAckCardId)
+      ) {
+        return null;
+      }
       const fixedProductName = (fixedProduct?.name ?? "") || initialProductName || "";
       const fixedCustomLabel = resolveProductCustomLabel(fixedProduct);
       return { kind: "replace", text: fixedCustomLabel ?? `Select teeth to replace${fixedProductName ? ` with ${fixedProductName}` : ""}`, className: "text-center font-bold text-sm mb-1 text-orange-500 uppercase" };

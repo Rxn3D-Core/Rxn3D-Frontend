@@ -27,6 +27,8 @@ type Slip = {
   rush: boolean;
   location: string;
   attachment: boolean;
+  /** Digital impressions (is_digital_impression = Yes) for Attachments column. */
+  digitalImpressions?: Array<{ id: number; name: string; url?: string | null }>;
   newStageEligible?: boolean;
   dueDate: string;
   overdue: boolean;
@@ -196,6 +198,16 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     rush: !!apiSlip.is_rush,
     location: apiSlip.location?.current?.name || "",
     attachment: !!apiSlip.attachments?.has_attachments,
+    digitalImpressions: Array.isArray(apiSlip.attachments?.digital_impressions)
+      ? apiSlip.attachments.digital_impressions
+          .filter((item: any) => item && (item.name || item.code))
+          .map((item: any) => ({
+            id: Number(item.id),
+            name: String(item.name || item.code || "").trim(),
+            url: item.url ? String(item.url) : null,
+          }))
+          .filter((item: { name: string }) => item.name.length > 0)
+      : [],
     newStageEligible:
       typeof apiSlip.new_stage_eligible === "string"
         ? apiSlip.new_stage_eligible.trim().toLowerCase() === "yes"

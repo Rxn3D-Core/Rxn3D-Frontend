@@ -18,6 +18,8 @@ export interface V2CaseRowData {
   locationId?: number
   newStageEligible?: boolean
   attachment: boolean
+  /** Digital impressions connected to the slip (listing Attachments column). */
+  digitalImpressions?: Array<{ id: number; name: string; url?: string | null }>
   dueDate: string
   doctor?: string
   user?: string

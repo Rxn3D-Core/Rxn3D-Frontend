@@ -28,7 +28,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   const [impressionName, setImpressionName] = useState("")
   const [impressionCode, setImpressionCode] = useState("")
   const [impressionUrl, setImpressionUrl] = useState("")
-  const [showOpposingWarning, setShowOpposingWarning] = useState("yes")
+  const [isDigitalImpression, setIsDigitalImpression] = useState("yes")
   const [status, setStatus] = useState("Active")
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToGroupOpen, setLinkToGroupOpen] = useState(false)
@@ -54,7 +54,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
     setImpressionUrl(imp.url || "")
     setSelectedImage(imp.image_url || null)
     setImpressionDetailsEnabled(true)
-    setShowOpposingWarning(imp.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
+    setIsDigitalImpression(imp.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
     setStatus(imp.status || "Active")
   }, [])
 
@@ -101,7 +101,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       setImpressionUrl(impression.url || "")
       setSelectedImage(impression.image_url || null)
       setImpressionDetailsEnabled(true)
-      setShowOpposingWarning(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
+      setIsDigitalImpression(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
       setStatus(impression.status || "Active")
       setImageFile(null)
       setLinkToProductsOpen(false)
@@ -135,7 +135,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
     setImpressionUrl("")
     setSelectedImage(null)
     setImpressionDetailsEnabled(true)
-    setShowOpposingWarning("yes")
+    setIsDigitalImpression("yes")
     setStatus("Active")
     setImageFile(null)
     setLinkToProductsOpen(false)
@@ -146,7 +146,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   // Validate URL field on blur - required only after user explicitly sets opposing to "Yes"
   const validateUrlField = useCallback(() => {
     if (urlRequired && !impressionUrl.trim()) {
-      setErrors((prev) => ({ ...prev, impressionUrl: "URL is required when 'Show opposing warning scan?' is Yes" }))
+      setErrors((prev) => ({ ...prev, impressionUrl: "URL is required when 'Is digital impression?' is Yes" }))
     } else if (impressionUrl.trim()) {
       const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
       if (!urlPattern.test(impressionUrl.trim())) {
@@ -169,9 +169,9 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
 
   // Track whether user has explicitly interacted with the opposing toggle
   const hasInteractedRef = useRef(false);
-  const prevOpposingRef = useRef(showOpposingWarning);
+  const prevDigitalImpressionRef = useRef(isDigitalImpression);
   useEffect(() => {
-    if (isOpen && hasInteractedRef.current && prevOpposingRef.current !== showOpposingWarning) {
+    if (isOpen && hasInteractedRef.current && prevDigitalImpressionRef.current !== isDigitalImpression) {
       // Clear URL error when toggling — it will re-validate on blur or submit
       setErrors((prev) => {
         const newErrors = { ...prev }
@@ -179,8 +179,8 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
         return newErrors
       })
     }
-    prevOpposingRef.current = showOpposingWarning
-  }, [showOpposingWarning, isOpen])
+    prevDigitalImpressionRef.current = isDigitalImpression
+  }, [isDigitalImpression, isOpen])
 
   // Clear the interaction flag when modal opens/closes
   useEffect(() => {
@@ -317,7 +317,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
 
     // URL validation - required only after user explicitly sets opposing to "Yes"
     if (urlRequired && !impressionUrl.trim()) {
-      newErrors.impressionUrl = "URL is required when 'Show opposing warning scan?' is Yes"
+      newErrors.impressionUrl = "URL is required when 'Is digital impression?' is Yes"
     } else if (impressionUrl.trim()) {
       const urlPattern = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}(\/\S*)?$/i
       if (!urlPattern.test(impressionUrl.trim())) {
@@ -362,7 +362,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       code: impressionCode.trim(),
       sequence: 1,
       url: impressionUrl.trim() || undefined,
-      is_digital_impression: showOpposingWarning === "yes" ? "Yes" : "No",
+      is_digital_impression: isDigitalImpression === "yes" ? "Yes" : "No",
       status: status,
       ...(imageToSend !== undefined ? { image: imageToSend } : {}),
     }
@@ -655,19 +655,19 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                   </div>
 
                   <div>
-                    <p className="mb-2 text-sm font-medium">Show opposing warning scan?</p>
+                    <p className="mb-2 text-sm font-medium">Is digital impression?</p>
                     <div className="flex space-x-4">
                       <div className="flex items-center">
                         <div
                           className={`w-4 h-4 rounded-full border-2 ${
-                            showOpposingWarning === "yes" ? "border-[#1162a8]" : "border-gray-300"
+                            isDigitalImpression === "yes" ? "border-[#1162a8]" : "border-gray-300"
                           } flex items-center justify-center cursor-pointer`}
                           onClick={() => {
                             hasInteractedRef.current = true;
-                            setShowOpposingWarning("yes")
+                            setIsDigitalImpression("yes")
                           }}
                         >
-                          {showOpposingWarning === "yes" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
+                          {isDigitalImpression === "yes" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
                         </div>
                         <span className="ml-2 text-sm">Yes</span>
                       </div>
@@ -675,14 +675,14 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                       <div className="flex items-center">
                         <div
                           className={`w-4 h-4 rounded-full border-2 ${
-                            showOpposingWarning === "no" ? "border-[#1162a8]" : "border-gray-300"
+                            isDigitalImpression === "no" ? "border-[#1162a8]" : "border-gray-300"
                           } flex items-center justify-center cursor-pointer`}
                           onClick={() => {
                             hasInteractedRef.current = true;
-                            setShowOpposingWarning("no")
+                            setIsDigitalImpression("no")
                           }}
                         >
-                          {showOpposingWarning === "no" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
+                          {isDigitalImpression === "no" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
                         </div>
                         <span className="ml-2 text-sm">No</span>
                       </div>
