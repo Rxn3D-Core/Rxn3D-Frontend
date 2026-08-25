@@ -1274,6 +1274,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     extractionMap: state.maxillaryToothExtractionMap,
     retentionTypesByTooth: state.maxillaryRetentionTypes,
     getToothProductCard: state.getToothProductCard,
+    claspTeeth: state.maxillaryClaspTeeth ?? [],
     bypassGate: card0PanelBypass,
   });
 
@@ -1284,6 +1285,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     extractionMap: state.mandibularToothExtractionMap ?? {},
     retentionTypesByTooth: state.mandibularRetentionTypes ?? {},
     getToothProductCard: state.getToothProductCard,
+    claspTeeth: state.mandibularClaspTeeth ?? [],
     bypassGate: card0PanelBypass,
   });
 

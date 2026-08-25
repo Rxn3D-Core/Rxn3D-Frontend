@@ -18,6 +18,12 @@ import {
  */
 export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
   const [acknowledgedByCard, setAcknowledgedByCard] = useState<Record<string, boolean>>({});
+  /**
+   * Sticky unlock for grade/stage/shade/impression. Once the user clicks Done the
+   * first time, fields stay visible even if Done is later reset so they can edit
+   * teeth — avoids remounting and re-prompting already-selected values.
+   */
+  const [fieldsUnlockedByCard, setFieldsUnlockedByCard] = useState<Record<string, boolean>>({});
 
   const isExtractionsSetupComplete = useCallback(
     (
@@ -33,12 +39,28 @@ export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
     [arch, acknowledgedByCard, preloaded]
   );
 
+  const areRemovableFieldsUnlocked = useCallback(
+    (cardId: number) => {
+      if (preloaded) return true;
+      return fieldsUnlockedByCard[removableCardAckKey(arch, cardId)] === true;
+    },
+    [arch, fieldsUnlockedByCard, preloaded]
+  );
+
   const setExtractionsSetupComplete = useCallback(
     (cardId: number, value: boolean) => {
+      const key = removableCardAckKey(arch, cardId);
       setAcknowledgedByCard((prev) => ({
         ...prev,
-        [removableCardAckKey(arch, cardId)]: value,
+        [key]: value,
       }));
+      // First Done unlocks fields permanently for this card (tooth re-edits may
+      // clear acknowledgement to show Done again, but must not re-ask for fields).
+      if (value) {
+        setFieldsUnlockedByCard((prev) =>
+          prev[key] === true ? prev : { ...prev, [key]: true }
+        );
+      }
     },
     [arch]
   );
@@ -70,6 +92,7 @@ export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
   return {
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
+    areRemovableFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   };

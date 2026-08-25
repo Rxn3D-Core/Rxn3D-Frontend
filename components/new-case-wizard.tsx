@@ -308,7 +308,7 @@ function WizardStepHeader({
   );
 }
 
-/** Single-row toolbar: back (left) · title (center) · search (right). */
+/** Title row (back left · title center) with search centered below. */
 function CaseDesignCenterToolbar({
   onBack,
   productSearch,
@@ -323,37 +323,42 @@ function CaseDesignCenterToolbar({
   const gradientId = React.useId().replace(/:/g, "");
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 mb-4 min-h-[34px]">
-      <div className="flex items-center justify-start min-w-[27px]">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="p-0.5 hover:opacity-80 transition-opacity"
-            aria-label="Back to products"
-          >
-            <BackToProductsIcon gradientId={gradientId} />
-          </button>
-        ) : null}
+    <div className="mb-4">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 min-h-[34px]">
+        <div className="flex items-center justify-start min-w-[27px]">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="p-0.5 hover:opacity-80 transition-opacity"
+              aria-label="Back to products"
+            >
+              <BackToProductsIcon gradientId={gradientId} />
+            </button>
+          ) : null}
+        </div>
+
+        <h2
+          className="text-center text-[18px] sm:text-[20px] font-bold text-[#1d1d1b] tracking-wide whitespace-nowrap px-1"
+          style={{ fontFamily: "Verdana, sans-serif" }}
+        >
+          CASE DESIGN CENTER
+        </h2>
+
+        <div />
       </div>
 
-      <h2
-        className="text-center text-[18px] sm:text-[20px] font-bold text-[#1d1d1b] tracking-wide whitespace-nowrap px-1"
-        style={{ fontFamily: "Verdana, sans-serif" }}
-      >
-        CASE DESIGN CENTER
-      </h2>
-
-      <div className="flex items-center justify-end min-w-0">
-        {showSearch ? (
-          <ProductSearchBar
-            inline
-            value={productSearch}
-            onChange={onProductSearchChange}
-            className="w-full max-w-[200px] sm:max-w-[280px] md:max-w-[373px]"
-          />
-        ) : null}
-      </div>
+      {showSearch ? (
+        <div className="flex justify-center mt-2">
+          <div className="w-full max-w-[373px]">
+            <ProductSearchBar
+              inline
+              value={productSearch}
+              onChange={onProductSearchChange}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2193,7 +2198,7 @@ function PatientMiniHeader({
   }, []);
 
   return (
-    <div className="bg-white border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-4">
+    <div className="bg-white border-b border-[#d9d9d9] px-4 sm:px-6 py-1 -mx-6 -mt-4 mb-1">
       <div className="flex flex-col lg:flex-row items-center gap-2 lg:gap-4">
         {/* Doctor photo + name */}
         {doctor && (
