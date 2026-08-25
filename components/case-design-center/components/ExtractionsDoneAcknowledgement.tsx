@@ -11,7 +11,8 @@ interface ExtractionsDoneAcknowledgementProps {
 
 /**
  * Compact Done control for multi-extraction removable cards.
- * Done → green check; toggling check off hides grade / shade / impression again.
+ * Done → green check; toggling check off shows Done again for tooth edits.
+ * Grade/stage/shade fields stay unlocked after the first Done so values are not re-asked.
  */
 export function ExtractionsDoneAcknowledgement({
   acknowledged,

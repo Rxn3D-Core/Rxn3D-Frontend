@@ -55,3 +55,16 @@ test("adds a tooth to product selection when no removable status box is active",
     true
   );
 });
+
+test("does not add clasp/overlay status to product selection", () => {
+  assert.equal(
+    shouldAddToProductSelectionOnRemovableClick({
+      activeProductIsRemovables: true,
+      activeExtractionCode: "CLASP_L1_G6",
+      extractions: [
+        { code: "CLASP_L1_G6", name: "Clasps", overlay: "Yes", status: "Active" },
+      ],
+    }),
+    false
+  );
+});

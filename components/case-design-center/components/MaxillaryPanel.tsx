@@ -1064,6 +1064,7 @@ export function MaxillaryPanel({
   const {
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
+    areRemovableFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   } = useExtractionsAcknowledged("maxillary", preloadInitialSlipState);
@@ -1972,6 +1973,13 @@ export function MaxillaryPanel({
       const hintCustomLabel = resolveProductCustomLabel(
         hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
       );
+      // Hide selection hints once the user clicks Done on the tooth-status boxes.
+      if (
+        requiresExtractionsAcknowledgement(hintExtractions) &&
+        isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)
+      ) {
+        return null;
+      }
       if (
         isFlipperOrStayplateProduct(baseProductName) &&
         isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
@@ -1982,9 +1990,6 @@ export function MaxillaryPanel({
           isSelectionModeActive,
         })
       ) {
-        if (requiresExtractionsAcknowledgement(hintExtractions) && isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) {
-          return null;
-        }
         return { kind: "flipper", text: FLIPPER_STAYPLATE_SELECTION_HINT, className: "text-center font-bold text-sm mb-1 text-red-600" };
       }
       if (activeExtractionCode === null) {
@@ -2150,6 +2155,7 @@ export function MaxillaryPanel({
                           shouldAddToProductSelectionOnRemovableClick({
                             activeProductIsRemovables: true,
                             activeExtractionCode,
+                            extractions: activeExtractions,
                           })
                         ) {
                           handleMaxillaryToothClick(toothNumber);
@@ -2260,7 +2266,11 @@ export function MaxillaryPanel({
                         handleSelectRetentionType("maxillary", toothNumber, currentRetention[0]);
                       }
                       if (!maxillaryTeeth.includes(toothNumber)) {
-                        handleMaxillaryToothClick(toothNumber);
+                        if (
+                          !isOverlayExtractionCode(activeExtractionCode, activeExtractions)
+                        ) {
+                          handleMaxillaryToothClick(toothNumber);
+                        }
                       }
                       handleToothExtractionToggle("maxillary", toothNumber, activeExtractionCode, activeExtractions);
                       setMaxillaryNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
@@ -2466,7 +2476,10 @@ export function MaxillaryPanel({
                       setToothStatusPopoverTooth(null);
                       return;
                     }
-                    selectAllMaxillaryTeeth([toothNumber]);
+                    // Clasps/overlays are not product selection — do not add to orange-header teeth.
+                    if (!isOverlayExtractionCode(code, toothStatusPopoverExtractions)) {
+                      selectAllMaxillaryTeeth([toothNumber]);
+                    }
                     if (
                       shouldApplyExtractionOnPopoverSelect(
                         maxillaryToothExtractionMap[toothNumber],
@@ -3049,12 +3062,13 @@ export function MaxillaryPanel({
                       if (isCardRemovables) {
                         const productKey = `maxillary_prep_${repTn}`;
                         const apShowRemovableFields = useMaxillaryArchSharedRemovable
-                          ? maxillaryArchExtractionsReady
+                          ? maxillaryArchExtractionsReady ||
+                            areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
                           : isExtractionsSetupComplete(
                               removableCardExtractions,
                               ap.id,
                               caseSubmitted
-                            );
+                            ) || areRemovableFieldsUnlocked(ap.id);
                         if (
                           !apShowRemovableFields &&
                           !useMaxillaryArchSharedRemovable &&
@@ -3755,12 +3769,13 @@ export function MaxillaryPanel({
                         noOpposingNeeded={noOpposingNeeded}
                         showProgressiveFields={
                           useMaxillaryArchSharedRemovable
-                            ? maxillaryArchExtractionsReady
+                            ? maxillaryArchExtractionsReady ||
+                              areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
                             : isExtractionsSetupComplete(
                                 selectedProduct?.extractions ?? [],
                                 0,
                                 caseSubmitted
-                              )
+                              ) || areRemovableFieldsUnlocked(0)
                         }
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
@@ -3785,6 +3800,7 @@ export function MaxillaryPanel({
                 selectedTeeth: maxillaryTeeth,
                 extractionMap: maxillaryToothExtractionMap,
                 getToothProductCard,
+                claspTeeth: maxillaryClaspTeeth,
               });
               const cardTeeth =
                 card0UserSelectedTeeth.length > 0
@@ -4131,9 +4147,11 @@ export function MaxillaryPanel({
                       implantDetailCompleteByTooth
                     );
                     const card0ShowRemovableFields = useMaxillaryArchSharedRemovable
-                      ? maxillaryArchExtractionsReady
+                      ? maxillaryArchExtractionsReady ||
+                        areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
                       : card0SkipsLegacyDefaults ||
-                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted) ||
+                        areRemovableFieldsUnlocked(0);
                     // Guided both-arch flow: suppress card-0 field content until this arch's
                     // fields phase (chart + teeth selection above remain visible).
                     if (guidedHideCard0Fields) {

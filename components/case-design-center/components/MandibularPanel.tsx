@@ -1048,6 +1048,7 @@ export function MandibularPanel({
   const {
     isExtractionsSetupComplete,
     setExtractionsSetupComplete,
+    areRemovableFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
   } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState);
@@ -1933,6 +1934,13 @@ export function MandibularPanel({
       const hintCustomLabel = resolveProductCustomLabel(
         hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
       );
+      // Hide selection hints once the user clicks Done on the tooth-status boxes.
+      if (
+        requiresExtractionsAcknowledgement(hintExtractions) &&
+        isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)
+      ) {
+        return null;
+      }
       if (
         isFlipperOrStayplateProduct(baseProductName) &&
         isRemovableToothStatusPopoverEligible(hintExtractions, activeExtractionCode) &&
@@ -1943,9 +1951,6 @@ export function MandibularPanel({
           isSelectionModeActive,
         })
       ) {
-        if (requiresExtractionsAcknowledgement(hintExtractions) && isExtractionsSetupComplete(hintExtractions, hintAckCardId, caseSubmitted)) {
-          return null;
-        }
         return { kind: "flipper", text: FLIPPER_STAYPLATE_SELECTION_HINT, className: "text-center font-bold text-sm mb-1 text-red-600" };
       }
       if (activeExtractionCode === null) {
@@ -2102,6 +2107,7 @@ export function MandibularPanel({
                           shouldAddToProductSelectionOnRemovableClick({
                             activeProductIsRemovables: true,
                             activeExtractionCode,
+                            extractions: activeExtractions,
                           })
                         ) {
                           selectAllMandibularTeeth([toothNumber]);
@@ -2211,7 +2217,11 @@ export function MandibularPanel({
                         handleSelectRetentionType("mandibular", toothNumber, currentRetention[0]);
                       }
                       if (!mandibularTeeth.includes(toothNumber)) {
-                        handleMandibularToothClick(toothNumber);
+                        if (
+                          !isOverlayExtractionCode(activeExtractionCode, activeExtractions)
+                        ) {
+                          handleMandibularToothClick(toothNumber);
+                        }
                       }
                       handleToothExtractionToggle("mandibular", toothNumber, activeExtractionCode, activeExtractions);
                       setMandibularNoActiveBoxTeeth?.((prev) => prev.filter((t) => t !== toothNumber));
@@ -2404,7 +2414,10 @@ export function MandibularPanel({
                       setToothStatusPopoverTooth(null);
                       return;
                     }
-                    selectAllMandibularTeeth([toothNumber]);
+                    // Clasps/overlays are not product selection — do not add to orange-header teeth.
+                    if (!isOverlayExtractionCode(code, toothStatusPopoverExtractions)) {
+                      selectAllMandibularTeeth([toothNumber]);
+                    }
                     if (
                       shouldApplyExtractionOnPopoverSelect(
                         mandibularToothExtractionMap[toothNumber],
@@ -3015,12 +3028,13 @@ export function MandibularPanel({
                       if (isCardRemovables) {
                         const productKey = `mandibular_prep_${repTn}`;
                         const apShowRemovableFields = useMandibularArchSharedRemovable
-                          ? mandibularArchExtractionsReady
+                          ? mandibularArchExtractionsReady ||
+                            areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
                           : isExtractionsSetupComplete(
                               removableCardExtractions,
                               ap.id,
                               caseSubmitted
-                            );
+                            ) || areRemovableFieldsUnlocked(ap.id);
                         if (
                           !apShowRemovableFields &&
                           !useMandibularArchSharedRemovable &&
@@ -3717,12 +3731,13 @@ export function MandibularPanel({
                         noOpposingNeeded={noOpposingNeeded}
                         showProgressiveFields={
                           useMandibularArchSharedRemovable
-                            ? mandibularArchExtractionsReady
+                            ? mandibularArchExtractionsReady ||
+                              areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
                             : isExtractionsSetupComplete(
                                 selectedProduct?.extractions ?? [],
                                 0,
                                 caseSubmitted
-                              )
+                              ) || areRemovableFieldsUnlocked(0)
                         }
                         peerImplantDetailByTooth={peerImplantDetailByTooth}
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
@@ -3746,6 +3761,7 @@ export function MandibularPanel({
                 selectedTeeth: mandibularTeeth,
                 extractionMap: mandibularToothExtractionMap,
                 getToothProductCard,
+                claspTeeth: mandibularClaspTeeth,
               });
               const cardTeeth =
                 card0UserSelectedTeeth.length > 0
@@ -4094,9 +4110,11 @@ export function MandibularPanel({
                       implantDetailCompleteByTooth
                     );
                     const card0ShowRemovableFields = useMandibularArchSharedRemovable
-                      ? mandibularArchExtractionsReady
+                      ? mandibularArchExtractionsReady ||
+                        areRemovableFieldsUnlocked(ARCH_SHARED_REMOVABLE_ACK_CARD_ID)
                       : card0SkipsLegacyDefaults ||
-                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted);
+                        isExtractionsSetupComplete(cardExtractions, 0, caseSubmitted) ||
+                        areRemovableFieldsUnlocked(0);
                     // Guided both-arch flow: suppress card-0 field content until this arch's
                     // fields phase (chart + teeth selection above remain visible).
                     if (guidedHideCard0Fields) {

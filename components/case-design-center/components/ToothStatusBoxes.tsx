@@ -436,8 +436,12 @@ export function ToothStatusBoxes({
         })}
       </div>
 
-      {/* Done button — only show when at least one tooth is assigned to any product box */}
-      {!acknowledged && onAcknowledgedChange && activeExtractions.some((e) => getTeethForBox(e).length > 0) && (
+      {/* Done — only when a non-overlay (non-clasp) status has teeth; clasps alone are not product selection */}
+      {!acknowledged &&
+        onAcknowledgedChange &&
+        activeExtractions.some(
+          (e) => !isClaspExtraction(e) && getTeethForBox(e).length > 0
+        ) && (
         <div className="w-full flex justify-center py-1 overflow-visible">
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
