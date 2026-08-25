@@ -223,7 +223,7 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       officeCode: apiCase.lab?.name || "",
       patient: apiCase.patient_name || "",
       product: formatSlipListingProducts(slip.products),
-      status: slip.status || "",
+      status: (slip as any).deleted_at ? "Deleted" : (slip.status || ""),
       rush: slip.is_rush || false,
       location: slip.location?.name || "",
       locationId: typeof slip.location?.id === "number" ? slip.location.id : undefined,

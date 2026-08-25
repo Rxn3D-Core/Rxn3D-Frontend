@@ -146,6 +146,9 @@ export default function LabSlipPage() {
   const [deleteSlipModalOpen, setDeleteSlipModalOpen] = useState(false)
   const [selectedSlipForDelete, setSelectedSlipForDelete] = useState<any>(null)
   const [deleteSlipSubmitting, setDeleteSlipSubmitting] = useState(false)
+  const [restoreSlipModalOpen, setRestoreSlipModalOpen] = useState(false)
+  const [selectedSlipForRestore, setSelectedSlipForRestore] = useState<any>(null)
+  const [restoreSlipSubmitting, setRestoreSlipSubmitting] = useState(false)
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<any>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
@@ -165,7 +168,7 @@ export default function LabSlipPage() {
     labListingPagination,
     updateSlipAttachmentState,
   } = useSlipContext();
-  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
+  const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation();
   const [generateVirtualStatement] = useGenerateVirtualStatementMutation()
 
   const dateRangeKey = useMemo(
@@ -498,6 +501,11 @@ export default function LabSlipPage() {
     setDeleteSlipModalOpen(true)
   }
 
+  const handleOpenRestoreCase = (slip: any) => {
+    setSelectedSlipForRestore(slip)
+    setRestoreSlipModalOpen(true)
+  }
+
   const handleOpenHoldCase = (slip: any) => {
     if (!slipCanHold({ locationId: slip.locationId, location: slip.location })) {
       toast({
@@ -617,6 +625,32 @@ export default function LabSlipPage() {
       })
     } finally {
       setDeleteSlipSubmitting(false)
+    }
+  }
+
+  const handleConfirmRestoreSlip = async (reason: string) => {
+    if (!selectedSlipForRestore?.id) return
+
+    setRestoreSlipSubmitting(true)
+    try {
+      const res = await restoreSlip(selectedSlipForRestore.id, reason.trim() || undefined)
+      toast({
+        title: "Slip restored",
+        description: res?.message ?? "The slip was restored to In Progress.",
+        duration: 3000,
+      })
+      setRestoreSlipModalOpen(false)
+      setSelectedSlipForRestore(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to restore slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setRestoreSlipSubmitting(false)
     }
   }
 
@@ -1114,6 +1148,7 @@ export default function LabSlipPage() {
             onRush: handleOpenRushCase,
             onCancel: handleOpenCancelCase,
             onDelete: handleOpenDeleteCase,
+            onRestore: handleOpenRestoreCase,
           }}
           rows={slipsPage}
           search={search}
@@ -1298,6 +1333,25 @@ export default function LabSlipPage() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for deleting this slip."
           warning="Soft-deleted slips stay recoverable via the Deleted filter."
+        />
+
+        <CaseActionModal
+          open={restoreSlipModalOpen}
+          onClose={() => {
+            if (restoreSlipSubmitting) return
+            setRestoreSlipModalOpen(false)
+            setSelectedSlipForRestore(null)
+          }}
+          onSubmit={handleConfirmRestoreSlip}
+          actionType="restore"
+          title="Restore Slip"
+          description="You are restoring this deleted slip back to In Progress."
+          icon={<X />}
+          iconBgColor="#E8F5E9"
+          iconColor="#43A047"
+          buttonText={restoreSlipSubmitting ? "Restoring..." : "Restore to In Progress"}
+          buttonColor="success"
+          reasonPlaceholder="Optional reason for restoring this slip."
         />
 
         <CaseActionModal

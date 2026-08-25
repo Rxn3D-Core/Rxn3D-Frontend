@@ -28,6 +28,7 @@ export type SlipRowActionKey =
   | "attach"
   | "editSlip"
   | "deleteSlip"
+  | "restoreSlip"
   | "printDriverLabel"
   | "printStatement";
 
@@ -99,6 +100,7 @@ export function resolveSlipRowActionVisibility(
     attach: !caseDeleted,
     editSlip: slipInLab && !caseCancelled && !caseDeleted && canEditSlip,
     deleteSlip: !caseDeleted && canDeleteCase,
+    restoreSlip: caseDeleted && canDeleteCase,
     printDriverLabel: !caseCancelled && !caseDeleted,
     printStatement: canPrintStatement && !caseCancelled && !caseDeleted,
   };

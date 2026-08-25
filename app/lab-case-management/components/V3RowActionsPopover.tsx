@@ -69,6 +69,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     visibility.rush ? { label: "Rush", icon: `${VS}/rush.svg`, onClick: act(() => actions.onRush(row)) } : null,
     visibility.hold ? { label: "Pause", icon: `/icons/virtual-slip-actions/on-hold.png`, onClick: act(() => actions.onHold(row)) } : null,
     visibility.cancel ? { label: "Cancel", icon: `${VS}/cancel.svg`, onClick: act(() => actions.onCancel(row)) } : null,
+    visibility.restoreSlip ? { label: "Restore", icon: `/icons/virtual-slip-actions/resume.svg`, onClick: act(() => actions.onRestore(row)) } : null,
     visibility.sendBack && canSendBack ? { label: "Send Back", icon: `${VS}/send-back-to-office.svg`, onClick: act(() => actions.onSendBack(row)) } : null,
     visibility.print ? { label: "Print", icon: `/icons/virtual-slip-actions/printer.svg`, onClick: act(() => actions.onPrintPaperSlip(row)) } : null,
     visibility.invoice ? { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)) } : null,
@@ -81,6 +82,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   const visibleBtns = btns
 
   const kebabItems = [
+    visibility.restoreSlip ? { label: "Restore to In Progress", fn: () => actions.onRestore(row) } : null,
     visibility.deleteSlip ? { label: "Delete Slip", fn: () => actions.onDelete(row) } : null,
     visibility.printDriverLabel ? { label: "Print Driver Label", fn: () => actions.onPrintDriverLabel(row) } : null,
     visibility.printStatement ? { label: "Print Statement", fn: () => actions.onPrintStatement(row) } : null,

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { X } from "lucide-react";
 import clsx from "clsx";
 
-type CaseActionType = "hold" | "resume" | "cancel" | "cancelled" | "delete";
+type CaseActionType = "hold" | "resume" | "cancel" | "cancelled" | "delete" | "restore";
 
 interface CaseActionModalProps {
   open: boolean;
@@ -156,7 +156,7 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
                 borderColor: buttonColor ? buttonClassMap[buttonColor].bg : '#6B7280'
               }}
               onClick={handleSubmit}
-              disabled={!reason.trim()}
+              disabled={actionType !== "restore" && !reason.trim()}
             >
               {buttonText}
             </Button>

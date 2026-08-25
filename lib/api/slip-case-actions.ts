@@ -22,7 +22,7 @@ function getAuthHeaders(): HeadersInit {
 
 async function postSlipCaseAction(
   slipId: number,
-  action: "hold" | "resume" | "cancel" | "soft-delete",
+  action: "hold" | "resume" | "cancel" | "soft-delete" | "restore",
   reason: string
 ): Promise<SlipCaseActionResponse> {
   const res = await fetch(buildApiUrl(`/slip/action/${slipId}/${action}`), {
@@ -64,6 +64,10 @@ export function postSlipCancel(slipId: number, reason: string) {
 
 export function postSlipSoftDelete(slipId: number, reason: string) {
   return postSlipCaseAction(slipId, "soft-delete", reason);
+}
+
+export function postSlipRestore(slipId: number, reason: string = "Restored to In Progress") {
+  return postSlipCaseAction(slipId, "restore", reason);
 }
 
 /**

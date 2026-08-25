@@ -80,4 +80,5 @@ export interface V2RowActions {
   onRush: (row: V2CaseRowData) => void
   onCancel: (row: V2CaseRowData) => void
   onDelete: (row: V2CaseRowData) => void
+  onRestore: (row: V2CaseRowData) => void
 }
