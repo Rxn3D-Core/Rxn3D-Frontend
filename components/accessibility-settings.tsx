@@ -84,6 +84,9 @@ function useDraggable(fallbackX: number, fallbackY: number) {
   return { pos, onMouseDown, didDrag }
 }
 
+/** Set to `false` to show the floating accessibility icon again. */
+const HIDE_ACCESSIBILITY_WIDGET = true
+
 export function AccessibilitySettings() {
   const { textSize, setTextSize, isSettingsOpen, setIsSettingsOpen } = useAccessibility()
   const { pos: btnPos, onMouseDown: btnMouseDown, didDrag: btnDidDrag } = useDraggable(0, 0)
@@ -95,7 +98,8 @@ export function AccessibilitySettings() {
     { value: "extra-large" as const, label: "Extra Large", description: "Maximum text size for accessibility" },
   ]
 
-  if (!btnPos) return null
+  // Temporarily hidden — component and provider remain in place
+  if (HIDE_ACCESSIBILITY_WIDGET || !btnPos) return null
 
   const PANEL_WIDTH = 320
   const PANEL_HEIGHT = 420

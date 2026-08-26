@@ -25,7 +25,7 @@ import { SlipCreationStepFooter } from "@/components/slip-creation-step-footer"
 import { useDebounce } from "@/lib/performance-utils"
 import { Dialog, DialogContent, DialogOverlay, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { resolveDoctorImageUrl } from "@/utils/avatar-utils"
+import { resolveDoctorImageUrl, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils"
 import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal"
 import {
   canUploadDoctorPhoto,
@@ -527,12 +527,6 @@ export default function ChooseDoctorPage() {
   }, [hasUnsavedWork])
 
 
-  const getInitials = (firstName: string, lastName: string) => {
-    const first = firstName?.charAt(0) || ""
-    const last = lastName?.charAt(0) || ""
-    return `${first}${last}`.toUpperCase()
-  }
-
   return (
     <div className="min-h-screen bg-white">
       <SlipCreationHeader 
@@ -653,12 +647,22 @@ export default function ChooseDoctorPage() {
                     <div className="w-full h-full rounded-full overflow-hidden border-2 border-gray-200 group-hover:border-[#1162a8] transition-colors flex items-center justify-center">
                       <Avatar className="w-full h-full">
                         <AvatarImage
-                          src={doctor.image || undefined}
+                          src={doctorDisplayImageUrl(doctor.image)}
                           alt={`${doctor.first_name} ${doctor.last_name}`}
                           className="object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget
+                            if (target.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return
+                            target.src = DOCTOR_PLACEHOLDER_IMAGE
+                          }}
                         />
-                        <AvatarFallback className="bg-[#1162a8] text-white text-3xl font-semibold">
-                          {getInitials(doctor.first_name, doctor.last_name)}
+                        <AvatarFallback className="bg-transparent p-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={DOCTOR_PLACEHOLDER_IMAGE}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
                         </AvatarFallback>
                       </Avatar>
                     </div>

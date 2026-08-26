@@ -12,7 +12,7 @@ import { Search, Plus, CheckCircle, X, ChevronDown, Loader2, AlertCircle } from 
 import { useToast } from "@/hooks/use-toast"
 import { useInvitation } from "@/contexts/invitation-context"
 import { userInvitationService } from "@/services/user-invitation-service"
-import { resolveDoctorImageUrl, getInitials } from "@/utils/avatar-utils"
+import { resolveDoctorImageUrl, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils"
 
 interface Doctor {
   id: string
@@ -411,19 +411,15 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                         >
                           <div className="flex items-center gap-3">
                             <div className="relative w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
-                              <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-[#1162a8]">
-                                {getInitials(doctor.name) || "?"}
-                              </span>
-                              {resolveDoctorImageUrl(doctor) && (
-                                <img
-                                  src={resolveDoctorImageUrl(doctor)}
-                                  alt={doctor.name}
-                                  className="relative w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.remove()
-                                  }}
-                                />
-                              )}
+                              <img
+                                src={doctorDisplayImageUrl(resolveDoctorImageUrl(doctor))}
+                                alt={doctor.name}
+                                className="relative w-full h-full object-cover"
+                                onError={(e) => {
+                                  if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return
+                                  e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE
+                                }}
+                              />
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -546,19 +542,15 @@ export function AddDoctorModal({ isOpen, onClose, onDoctorConnect }: AddDoctorMo
                   onClick={() => handleDoctorSelect(doctor)}
                 >
                   <div className="relative w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
-                    <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
-                      {getInitials(doctor.name) || "?"}
-                    </span>
-                    {resolveDoctorImageUrl(doctor) && (
-                      <img
-                        src={resolveDoctorImageUrl(doctor)}
-                        alt={doctor.name}
-                        className="relative w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.remove()
-                        }}
-                      />
-                    )}
+                    <img
+                      src={doctorDisplayImageUrl(resolveDoctorImageUrl(doctor))}
+                      alt={doctor.name}
+                      className="relative w-full h-full object-cover"
+                      onError={(e) => {
+                        if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return
+                        e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE
+                      }}
+                    />
                   </div>
                   <h3 className="font-medium text-base mb-1">{doctor.name}, {doctor.title}</h3>
                   <p className="text-sm text-gray-500 mb-4">{doctor.email}</p>

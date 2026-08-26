@@ -108,8 +108,14 @@ export function formatDoctorDisplayName(
 }
 
 /**
+ * Shared illustration shown when a doctor has no uploaded photo.
+ * Keep this out of resolveDoctorImageUrl so "missing photo" / upload UI still works.
+ */
+export const DOCTOR_PLACEHOLDER_IMAGE = "/images/doctor-placeholder.png"
+
+/**
  * Compute up-to-two-letter initials from a full name (or first/last parts).
- * Used as the ONLY fallback for doctor/user avatars — no placeholder images.
+ * Prefer doctorDisplayImageUrl for doctor avatars; initials remain for non-doctor users.
  */
 export function getInitials(...parts: Array<string | null | undefined>): string {
   const source = parts
@@ -129,8 +135,20 @@ export function getInitials(...parts: Array<string | null | undefined>): string 
 }
 
 /**
+ * Prefer a real doctor photo URL; otherwise the shared placeholder illustration.
+ * Use only for the Doctor avatar slot at render time — never for Created By
+ * (Created By should show their own photo when present, else initials).
+ */
+export function doctorDisplayImageUrl(url?: string | null): string {
+  if (typeof url !== "string") return DOCTOR_PLACEHOLDER_IMAGE
+  const trimmed = url.trim()
+  return trimmed || DOCTOR_PLACEHOLDER_IMAGE
+}
+
+/**
  * Resolve a doctor photo from slip/office doctor API fields.
  * Checks profile photo fields first, then nested `user`, then legacy `signature_url`.
+ * Returns "" when no real photo exists (callers can pass that through doctorDisplayImageUrl).
  */
 export function resolveDoctorImageUrl(doctor?: DoctorImageSource | null): string {
   if (!doctor) return ""

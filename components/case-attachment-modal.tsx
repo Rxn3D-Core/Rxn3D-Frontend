@@ -11,6 +11,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import {
@@ -191,11 +192,11 @@ export default function CaseAttachmentModal({
             </span>
             <button
               type="button"
-              className="ml-auto p-0 hover:text-red-500"
-              title="Delete"
+              className="ml-auto p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+              title="Delete attachment"
               onClick={() => void handleDelete(attachment.id)}
             >
-              <X className="w-2.5 h-2.5" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

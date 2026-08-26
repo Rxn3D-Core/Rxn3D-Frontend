@@ -95,6 +95,12 @@ export default function OfficeProfile() {
     logo_url: customerProfile.logo_url || "",
     unique_code: customerProfile.unique_code || "",
     code: customerProfile.code || "",
+    city: customerProfile.city || "",
+    postal_code: customerProfile.postal_code || "",
+    stateName: customerProfile.state?.name || "",
+    stateId: customerProfile.state?.id ?? null,
+    countryName: customerProfile.country?.name || "",
+    countryId: customerProfile.country?.id ?? null,
   } : null
 
   // Transform business hours data

@@ -5,6 +5,7 @@ import type { SlipCreationResponse } from "@/services/slip-creation-service";
 import { caseDesignInter } from "../case-design-inter-font";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { isLabCustomerContext } from "@/lib/role-utils";
+import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -144,16 +145,8 @@ export function PatientHeader({
   createdByName: createdByNameProp,
   createdByImageUrl: createdByImageUrlProp,
 }: PatientHeaderProps = {}) {
-  const hasDoctorImage = Boolean(doctorImageUrl && doctorImageUrl.trim() !== "");
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
-  const doctorInitials = displayName
-    .replace(/,?\s*DDS$/i, "")
-    .split(/\s+/)
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
   const displayGender = gender && gender.trim() !== "" ? gender : "";
@@ -266,18 +259,16 @@ export function PatientHeader({
         <div className={`flex ${AVATAR_COLUMN_WIDTH} shrink-0 flex-col items-center justify-center gap-1 self-stretch`}>
           <div className="relative">
             <div className={`${AVATAR_SIZE} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center`}>
-              <span className="absolute inset-0 flex items-center justify-center font-bold text-gray-500 text-lg">{doctorInitials || "?"}</span>
-              {hasDoctorImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={doctorImageUrl!}
-                  onError={(e) => {
-                    e.currentTarget.remove();
-                  }}
-                  alt="Doctor"
-                  className="relative w-full h-full object-cover"
-                />
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={doctorImgSrc}
+                onError={(e) => {
+                  if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                  e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                }}
+                alt="Doctor"
+                className="relative w-full h-full object-cover"
+              />
             </div>
             {!caseSubmitted && canEditDoctor && onEditDoctorClick && (
               <button

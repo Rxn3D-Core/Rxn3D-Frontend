@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { EditCustomerProfileModal } from "@/components/lab-office-management/edit-customer-profile-modal"
 
 interface OverviewTabProps {
   officeData: {
@@ -26,6 +27,12 @@ interface OverviewTabProps {
     logo_url?: string
     unique_code?: string
     code?: string
+    city?: string
+    postal_code?: string
+    stateName?: string
+    stateId?: number | null
+    countryName?: string
+    countryId?: number | null
   }
   onLogoUpdate?: (logoUrl: string) => void
   onProfileUpdate?: () => void
@@ -34,6 +41,7 @@ interface OverviewTabProps {
 export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate }: OverviewTabProps) {
   const [logoUrl, setLogoUrl] = useState<string>(officeData.logo_url || "")
   const [isUploading, setIsUploading] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { setCustomerLogo, setCurrentCustomerLogo } = useCustomerLogoStore()
@@ -159,7 +167,14 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             Office Info
-            <Edit className="h-4 w-4 text-gray-400" />
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              title="Edit Office Info"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -292,6 +307,34 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
           </div>
         </CardContent>
       </Card>
+
+      <EditCustomerProfileModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        customerType="office"
+        customer={{
+          id: Number(officeData.id),
+          name: officeData.name,
+          email: officeData.email,
+          website: officeData.website,
+          address: officeData.address,
+          city: officeData.city,
+          postal_code: officeData.postal_code,
+          stateName: officeData.stateName,
+          stateId: officeData.stateId,
+          countryName: officeData.countryName,
+          countryId: officeData.countryId,
+          code: officeData.code,
+          logo_url: logoUrl || officeData.logo_url,
+        }}
+        onSuccess={(updated) => {
+          if (updated.logo_url) {
+            setLogoUrl(updated.logo_url)
+            onLogoUpdate?.(updated.logo_url)
+          }
+          onProfileUpdate?.()
+        }}
+      />
     </div>
   )
 }

@@ -15,6 +15,7 @@ import {
   FolderOpen,
   Eye,
   Paperclip,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -77,11 +78,17 @@ function FileCard({
   selected,
   onSelect,
   onDownload,
+  onDelete,
+  canDelete = true,
+  deleting = false,
 }: {
   record: SlipAttachmentRecord
   selected: boolean
   onSelect: (r: SlipAttachmentRecord) => void
   onDownload: (r: SlipAttachmentRecord) => void
+  onDelete?: (r: SlipAttachmentRecord) => void
+  canDelete?: boolean
+  deleting?: boolean
 }) {
   const isImage = record.is_image || isImageFile(record.file_name)
   const isStl = record.is_stl || isStlFile(record.file_name)
@@ -222,8 +229,22 @@ function FileCard({
             Uploaded by {record.uploaded_by.name}
           </div>
         )}
-        <div className="flex items-center justify-between">
-          <span className="text-[8px] text-gray-400">{uploadedAt}</span>
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[8px] text-gray-400 truncate">{uploadedAt}</span>
+          {canDelete && onDelete && (
+            <button
+              type="button"
+              className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+              title="Delete attachment"
+              disabled={deleting}
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(record)
+              }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -572,6 +593,7 @@ export default function SlipAttachmentBrowserDialog({
 
   // ── Preview state ───────────────────────────────────────────────────────────
   const [selectedForPreview, setSelectedForPreview] = useState<SlipAttachmentRecord[]>([])
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<number | null>(null)
   const showPreview = selectedForPreview.length > 0
 
   // ── Fullscreen (My Studio) ──────────────────────────────────────────────────
@@ -757,6 +779,31 @@ export default function SlipAttachmentBrowserDialog({
     a.download = record.file_name
     a.click()
   }, [])
+
+  const handleDelete = useCallback(
+    async (record: SlipAttachmentRecord) => {
+      if (isCaseSubmitted) return
+      const confirmed = window.confirm(
+        `Permanently delete "${record.file_name}"? This removes the file from storage and cannot be undone.`
+      )
+      if (!confirmed) return
+
+      setDeletingAttachmentId(record.id)
+      setUploadError(null)
+      try {
+        const res = await SlipAttachmentsService.deleteAttachment(record.id)
+        if (!res.success) throw new Error(res.message || "Failed to delete attachment")
+        setSelectedForPreview((prev) => prev.filter((r) => r.id !== record.id))
+        await fetchData()
+        onAttached?.()
+      } catch (e) {
+        setUploadError(e instanceof Error ? e.message : "Failed to delete attachment")
+      } finally {
+        setDeletingAttachmentId(null)
+      }
+    },
+    [fetchData, isCaseSubmitted, onAttached]
+  )
 
   const toggleSlip = useCallback((slipId: number) => {
     setExpandedSlips((prev) => {
@@ -1042,6 +1089,9 @@ export default function SlipAttachmentBrowserDialog({
                                     selected={selectedForPreview.some((r) => r.id === record.id)}
                                     onSelect={handleSelectForPreview}
                                     onDownload={handleDownload}
+                                    onDelete={handleDelete}
+                                    canDelete={!isCaseSubmitted}
+                                    deleting={deletingAttachmentId === record.id}
                                   />
                                 ))}
                               </div>

@@ -9,7 +9,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { WizardDoctorShape } from "@/components/new-case-wizard";
-import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName, type DoctorImageSource } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, formatDoctorDisplayName, type DoctorImageSource, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils";
 
 export function mapOfficeDoctorsToWizardShape(
   raw: (DoctorImageSource & { id: number; first_name?: string; last_name?: string })[]
@@ -85,19 +85,15 @@ export function DoctorEditModal({
                           isSelected ? "border-[#1162A8]" : "border-[#d9d9d9] group-hover:border-[#1162A8]"
                         )}
                       >
-                        <span className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#1162a8]">
-                          {getInitials(doc.name) || "?"}
-                        </span>
-                        {doc.img && (
-                          <img
-                            src={doc.img}
-                            alt={doc.name}
-                            className="relative w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.remove();
-                            }}
-                          />
-                        )}
+                        <img
+                          src={doctorDisplayImageUrl(doc.img)}
+                          alt={doc.name}
+                          className="relative w-full h-full object-cover"
+                          onError={(e) => {
+                            if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                            e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                          }}
+                        />
                       </div>
                       <span className="text-[13px] font-bold text-[#1d1d1b] text-center leading-tight">
                         {doc.name}
