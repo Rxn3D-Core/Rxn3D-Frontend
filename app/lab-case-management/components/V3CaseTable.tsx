@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
@@ -8,6 +9,7 @@ import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
 import { slipIsInOffice, slipShowsPickupDropoff } from "@/lib/slip-location"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
+import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
 import { V3RowActionsPopover } from "./V3RowActionsPopover"
@@ -18,6 +20,9 @@ const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
 const monoFilter = ""
+/** Fallback width while the hover action strip mounts / is measured. */
+const ROW_ACTIONS_SHIFT_FALLBACK_PX = 360
+const ROW_ACTIONS_RESERVE_TRANSITION = "width 450ms cubic-bezier(0.22, 1, 0.36, 1)"
 
 const KEBAB_SVG = (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -75,14 +80,14 @@ type DesktopColumn = {
 }
 
 const DESKTOP_COLUMN_DEFS: readonly DesktopColumn[] = [
-  { key: "office", label: "Office", width: 200 },
-  { key: "patient", label: "Patient / Slip", width: 260 },
-  { key: "panProduct", label: "Pan / Product", width: 180 },
-  { key: "location", label: "Location", width: 150 },
-  { key: "attachments", label: "Attachments", width: 120 },
-  { key: "status", label: "Status", width: 150 },
-  { key: "caseNo", label: "Case #", width: 130 },
-  { key: "dueDate", label: "Due Date", width: 150 },
+  { key: "office", label: "Office", width: 160 },
+  { key: "patient", label: "Patient / Slip", width: 220 },
+  { key: "panProduct", label: "Pan / Product", width: 150 },
+  { key: "location", label: "Location", width: 220 },
+  { key: "attachments", label: "Attachments", width: 150 },
+  { key: "status", label: "Status", width: 120 },
+  { key: "caseNo", label: "Case #", width: 110 },
+  { key: "dueDate", label: "Due Date", width: 140 },
 ]
 
 function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: boolean): DesktopColumn[] {
@@ -97,6 +102,8 @@ function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: bool
 
 export function V3CaseTable(props: Props) {
   const [popoverRow, setPopoverRow] = useState<number | null>(null)
+  // Pixels to slide row content left so Due Date clears the hover action strip.
+  const [actionsShiftPx, setActionsShiftPx] = useState(0)
   // Separate refs: the mobile card list and desktop table both render for
   // every row (one hidden via CSS per breakpoint), so both a mobile and a
   // desktop V3RowActionsPopover mount at once for the same popoverRow. A
@@ -104,14 +111,18 @@ export function V3CaseTable(props: Props) {
   // outside-click check test the wrong (hidden) node and close the visible
   // one on every tap inside it.
   const mobilePopoverRef = useRef<HTMLDivElement>(null)
-  const desktopPopoverRef = useRef<HTMLTableRowElement>(null)
+  const desktopPopoverRef = useRef<HTMLDivElement>(null)
   const officeProfile =
     props.officeProfile === true || isOfficeCustomerContext()
   // Lab listings tint rush rows amber; office profiles (admin / doctor / user)
   // keep the rush bolt only — no yellow row adaptation.
   const highlightRushRows = !officeProfile
   const desktopColumns = buildDesktopColumns(props.visibleColumns, officeProfile)
-  const columnCount = desktopColumns.length + 2
+  // checkbox + data columns + hover actions spacer + kebab
+  const columnCount = desktopColumns.length + 3
+  // When any row is hovered, reserve strip width so Due Date stays in-layout
+  // under its header (not painted under the wrong column via translateX).
+  const actionsReservePx = popoverRow !== null ? actionsShiftPx : 0
 
   useEffect(() => {
     if (popoverRow === null) return
@@ -125,6 +136,19 @@ export function V3CaseTable(props: Props) {
     }
     document.addEventListener("pointerdown", onPointerDown)
     return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [popoverRow])
+
+  useLayoutEffect(() => {
+    if (popoverRow === null) {
+      setActionsShiftPx(0)
+      return
+    }
+    setActionsShiftPx(ROW_ACTIONS_SHIFT_FALLBACK_PX)
+    const frame = requestAnimationFrame(() => {
+      const width = desktopPopoverRef.current?.offsetWidth ?? 0
+      if (width > 0) setActionsShiftPx(width + 8)
+    })
+    return () => cancelAnimationFrame(frame)
   }, [popoverRow])
 
   return (
@@ -156,15 +180,24 @@ export function V3CaseTable(props: Props) {
               // The amber rush highlight is a lab-visibility cue — office
               // profiles keep the rush bolt icon but not the tinted row.
               const cardBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
+              const virtualSlipHref = buildVirtualSlipV2Path(row.id)
+              const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
               return (
                 <div
                   key={row.id}
                   style={{ backgroundColor: cardBg, border: "1px solid #C8C8C8", borderBottom: "3px solid #C8C8C8" }}
-                  className="px-4 pt-3 pb-4 relative mb-2 rounded-lg"
+                  className="relative px-4 pt-3 pb-4 mb-2 rounded-lg"
                 >
+                  {/* Full-card link: tap opens slip; long-press / open in new tab works. */}
+                  <Link
+                    href={virtualSlipHref}
+                    aria-label={openSlipLabel}
+                    className="absolute inset-0 z-[1] rounded-lg"
+                  />
+
                   {/* Header: checkbox + patient name + rush + kebab */}
-                  <div className="flex items-start gap-2">
+                  <div className="relative z-[2] flex items-start gap-2">
                     <div
                       className="shrink-0 mt-0.5"
                       onClick={(e) => e.stopPropagation()}
@@ -177,11 +210,7 @@ export function V3CaseTable(props: Props) {
                       />
                     </div>
 
-                    <button
-                      type="button"
-                      className="flex-1 text-left min-w-0"
-                      onClick={() => props.rowActions.onOpen(row)}
-                    >
+                    <div className="flex-1 text-left min-w-0 pointer-events-none">
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-[15px] text-black leading-snug">
                           {row.patient || "Unnamed patient"}
@@ -198,7 +227,7 @@ export function V3CaseTable(props: Props) {
                           {formatCreatedAt(row.createdAt)}
                         </div>
                       )}
-                    </button>
+                    </div>
 
                     {/* Kebab */}
                     <div className="relative shrink-0">
@@ -229,21 +258,21 @@ export function V3CaseTable(props: Props) {
                   </div>
 
                   {/* Divider */}
-                  <div className="mt-3 mb-3 border-t border-[#E2E4E8]" />
+                  <div className="relative z-[2] mt-3 mb-3 border-t border-[#E2E4E8] pointer-events-none" />
 
                   {/* Body */}
-                  <div className="space-y-3">
+                  <div className="relative z-[2] space-y-3">
                     {/* OFFICE + DUE DATE */}
                     <div className="flex items-end justify-between gap-2">
-                      <div>
+                      <div className="pointer-events-none">
                         <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">{officeProfile ? "LAB" : "OFFICE"}</div>
                         <div className="text-[14px] font-bold text-black">{row.officeCode || "—"}</div>
                         {row.doctor && <div className="text-[12px] text-[#575757]">{row.doctor}</div>}
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">DUE DATE</div>
+                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1 pointer-events-none">DUE DATE</div>
                         {officeProfile ? (
-                          <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
+                          <span className="text-[14px] font-semibold pointer-events-none" style={{ color: dueDateColor }}>
                             {formatDueDate(row)}
                           </span>
                         ) : (
@@ -355,11 +384,21 @@ export function V3CaseTable(props: Props) {
 
       {/* ── Desktop table (≥ md) ── */}
       <div className="hidden md:block px-[15px] py-[5px]" style={{ overflowX: "auto", overflowY: "visible" }}>
-      <table className="w-full text-left" style={{ fontFamily: "Helvetica, Arial, sans-serif", borderCollapse: "separate", borderSpacing: 0 }}>
+      <table
+        className="w-full text-left"
+        style={{
+          fontFamily: "Helvetica, Arial, sans-serif",
+          borderCollapse: "separate",
+          borderSpacing: 0,
+          // Fixed layout so the hover actions spacer steals width from data
+          // columns (Due Date stays under its header instead of sliding away).
+          tableLayout: "fixed",
+        }}
+      >
         <thead>
           {/* Figma: bg #F2F2F2, border #C8C8C8, border-radius 7px 7px 0 0, height 41px */}
           <tr style={{ background: "#F2F2F2", border: "1px solid #C8C8C8", borderRadius: "7px 7px 0 0" }}>
-            <th className="w-[34px] px-0 py-0" style={{ height: 41 }}>
+            <th className="w-[34px] px-0 py-0" style={{ height: 41, width: 34 }}>
               <div className="flex items-center justify-center" style={{ width: 34, height: 41 }}>
                 <Checkbox
                   aria-label="Select all cases on this page"
@@ -372,9 +411,10 @@ export function V3CaseTable(props: Props) {
             {desktopColumns.map((column) => (
               <th
                 key={column.key}
-                className="px-[10px] py-0 text-left select-none cursor-pointer"
+                className="px-[10px] py-0 text-left select-none cursor-pointer overflow-hidden"
                 style={{
                   width: column.width,
+                  maxWidth: column.width,
                   height: 41,
                   fontWeight: 700,
                   fontSize: 18,
@@ -384,15 +424,27 @@ export function V3CaseTable(props: Props) {
                 onClick={() => props.onSortChange(column.key)}
                 aria-sort={props.sortKey === column.key ? (props.sortDirection === "asc" ? "ascending" : "descending") : "none"}
               >
-                <span className="inline-flex items-center gap-1">
-                  {column.label}
-                  <span style={{ fontSize: 12, color: props.sortKey === column.key ? "#000" : "#9ca3af" }}>
+                <span className="inline-flex max-w-full items-center gap-1 min-w-0">
+                  <span className="truncate">{column.label}</span>
+                  <span className="shrink-0" style={{ fontSize: 12, color: props.sortKey === column.key ? "#000" : "#9ca3af" }}>
                     {props.sortKey === column.key ? (props.sortDirection === "asc" ? "▲" : "▼") : "↕"}
                   </span>
                 </span>
               </th>
             ))}
-            <th className="w-[40px] px-[10px] py-0" style={{ height: 41 }} aria-hidden="true" />
+            {/* Reserves room for the hover action strip so data columns compress in place. */}
+            <th
+              aria-hidden="true"
+              className="px-0 py-0"
+              style={{
+                width: actionsReservePx,
+                minWidth: actionsReservePx,
+                height: 41,
+                transition: ROW_ACTIONS_RESERVE_TRANSITION,
+                padding: 0,
+              }}
+            />
+            <th className="px-0 py-0" style={{ height: 41, width: 40 }} aria-hidden="true" />
           </tr>
         </thead>
         <tbody>
@@ -418,11 +470,13 @@ export function V3CaseTable(props: Props) {
               // Only lab rush rows lock hover (amber stays put). Office rush rows
               // use normal zebra + hover like every other row.
               const isLocked = !!row.rush && highlightRushRows
+              const virtualSlipHref = buildVirtualSlipV2Path(row.id)
+              const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
               return (
                 <tr
                   key={row.id}
-                  ref={popoverRow === row.id ? desktopPopoverRef : undefined}
+                  className="relative cursor-pointer"
                   style={{
                     backgroundColor: rowBg,
                     borderLeft: "1px solid #C8C8C8",
@@ -441,9 +495,15 @@ export function V3CaseTable(props: Props) {
                     setPopoverRow((cur) => (cur === row.id ? null : cur))
                   }}
                 >
-                  {/* Checkbox */}
-                  <td className="px-0 py-0 align-middle" style={{ backgroundColor: rowBg }} onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center" style={{ width: 34, height: 65 }}>
+                  {/* Checkbox + full-row virtual-slip link (right-click → open in new tab).
+                      Link sits at z-0; interactive controls use relative z-[1]+ so they stay clickable. */}
+                  <td className="px-0 py-0 align-middle" style={{ backgroundColor: rowBg, width: 34 }} onClick={(e) => e.stopPropagation()}>
+                    <Link
+                      href={virtualSlipHref}
+                      aria-label={openSlipLabel}
+                      className="absolute inset-0 z-0"
+                    />
+                    <div className="relative z-[1] flex items-center justify-center" style={{ width: 34, height: 65 }}>
                       <Checkbox
                         aria-label={`Select ${row.patient || row.slipNumber || row.id}`}
                         checked={props.selected.includes(row.id)}
@@ -468,8 +528,21 @@ export function V3CaseTable(props: Props) {
                     />
                   ))}
 
-                  {/* Kebab — opens V3 horizontal popover */}
-                  <td className="px-0 py-0 align-middle" style={{ width: 40, backgroundColor: rowBg, position: "relative", overflow: "visible" }}>
+                  {/* Spacer: compresses data columns so the whole row (incl. Due Date) stays visible left of actions. */}
+                  <td
+                    aria-hidden="true"
+                    className="px-0 py-0"
+                    style={{
+                      width: actionsReservePx,
+                      minWidth: actionsReservePx,
+                      backgroundColor: rowBg,
+                      transition: ROW_ACTIONS_RESERVE_TRANSITION,
+                      padding: 0,
+                    }}
+                  />
+
+                  {/* Kebab + hover action strip (above the row link) */}
+                  <td className="relative z-[1] px-0 py-0 align-middle" style={{ width: 40, backgroundColor: rowBg, overflow: "visible" }}>
                     <div className="flex items-center justify-center" style={{ width: 40, height: 65 }}>
                       <button
                         aria-label="Row actions"
@@ -530,19 +603,16 @@ function DesktopCell({
   rowBg: string
   rushCasePanColor: string | null
 }) {
+  // Non-interactive cells: pointer-events-none so clicks hit the row virtual-slip <Link>.
+  // Interactive controls: relative z-[1] so they sit above that link and stay clickable.
   if (column.key === "patient") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <button
-          className="flex h-full w-full flex-col items-start justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
-          style={{ padding: "10px 15px", gap: 2, height: 65 }}
-          type="button"
-          onClick={() => rowActions.onOpen(row)}
-        >
-          <div className="flex items-center min-w-0" style={{ gap: 5 }}>
+      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="flex h-full w-full min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "10px 15px", gap: 2, height: 65 }}>
+          <div className="flex items-center min-w-0 w-full" style={{ gap: 5 }}>
             <span
-              className="truncate"
-              style={{ fontSize: 18, lineHeight: "21px", color: "#000000", fontWeight: 400, maxWidth: column.width - 40 }}
+              className="truncate min-w-0"
+              style={{ fontSize: 18, lineHeight: "21px", color: "#000000", fontWeight: 400 }}
             >
               {row.patient || "Unnamed patient"}
             </span>
@@ -550,25 +620,26 @@ function DesktopCell({
               <img src="/icons/rush-bolt.svg" alt="Rush" aria-label="Rush" style={{ width: 14, height: 24, flexShrink: 0 }} />
             )}
           </div>
-          <span className="truncate" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af", maxWidth: column.width - 30 }}>
+          <span className="truncate w-full" style={{ fontSize: 12, lineHeight: "14px", color: "#9ca3af" }}>
             {row.slipNumber || `#${row.id}`}
             {showTimestamp && row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
           </span>
-        </button>
+        </div>
       </td>
     )
   }
 
   if (column.key === "panProduct") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
+      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
           <div
             className="flex items-center justify-center"
             style={{
               background: PAN_BG,
               borderRadius: 6,
               width: 94,
+              maxWidth: "100%",
               height: 24,
               gap: 10,
               ...row.panColorStyle,
@@ -581,7 +652,7 @@ function DesktopCell({
               {row.pan || "—"}
             </span>
           </div>
-          <div style={{ fontSize: 14, lineHeight: "16px", color: "#575757", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div className="w-full truncate" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>
             {row.product || "—"}
           </div>
         </div>
@@ -602,13 +673,18 @@ function DesktopCell({
             : null
         : null
 
+    const locationLabel = row.location || "Unknown"
+
     if (!locationAction) {
       return (
-        <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-          <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
-            {locationIcon(row)}
-            <span className="whitespace-nowrap" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>
-              {row.location || "Unknown"}
+        <td
+          className="pointer-events-none px-0 py-0 align-middle overflow-hidden"
+          style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}
+        >
+          <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
+            <span className="shrink-0">{locationIcon(row)}</span>
+            <span className="min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }} title={locationLabel}>
+              {locationLabel}
             </span>
           </div>
         </td>
@@ -616,14 +692,18 @@ function DesktopCell({
     }
 
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
+      <td
+        className="px-0 py-0 align-middle overflow-hidden"
+        style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}
+      >
+        <div className="relative z-[1] flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
           <button
-            className="inline-flex items-center gap-2.5 whitespace-nowrap text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+            className="flex w-full min-w-0 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-95"
             style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", padding: 0 }}
             title={locationAction === "addStage" ? "Add stage" : locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
             type="button"
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               locationAction === "addStage"
                 ? rowActions.onAddStage(row)
@@ -632,8 +712,8 @@ function DesktopCell({
                 : rowActions.onDriverHistory(row)
             }}
           >
-            {locationIcon(row)}
-            <span>{row.location || "Unknown"}</span>
+            <span className="shrink-0">{locationIcon(row)}</span>
+            <span className="min-w-0 truncate">{locationLabel}</span>
           </button>
         </div>
       </td>
@@ -642,21 +722,21 @@ function DesktopCell({
 
   if (column.key === "dueDate") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-row items-center" style={{ padding: "5px 15px", gap: 10, height: 65 }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="relative z-[1] flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
           {allowDriverActions ? (
             <button
-              className="inline-flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.03] active:scale-95"
+              className="flex w-full min-w-0 items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-95"
               style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}
               type="button"
               title="Change due date"
-              onClick={(e) => { e.stopPropagation(); rowActions.onChangeDueDate(row) }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); rowActions.onChangeDueDate(row) }}
             >
               <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
-              <span>{formatDueDate(row)}</span>
+              <span className="min-w-0 truncate">{formatDueDate(row)}</span>
             </button>
           ) : (
-            <span style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
+            <span className="pointer-events-none min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
               {formatDueDate(row)}
             </span>
           )}
@@ -667,8 +747,8 @@ function DesktopCell({
 
   if (column.key === "status") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
+      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="flex flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 10px", gap: 3, height: 65 }}>
           <StatusPill status={row.status} />
         </div>
       </td>
@@ -677,10 +757,10 @@ function DesktopCell({
 
   if (column.key === "office") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex flex-col items-start justify-center" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
-          <div style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>{row.officeCode || "—"}</div>
-          {row.doctor && <div style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.doctor}</div>}
+      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
+          <div className="truncate w-full" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>{row.officeCode || "—"}</div>
+          {row.doctor && <div className="truncate w-full" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.doctor}</div>}
         </div>
       </td>
     )
@@ -688,9 +768,9 @@ function DesktopCell({
 
   if (column.key === "caseNo") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex h-[65px] items-center" style={{ padding: "5px 15px" }}>
-          <span style={{ fontSize: 16, lineHeight: "18px", color: "#575757" }}>{row.caseNumber || "—"}</span>
+      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="flex h-[65px] min-w-0 items-center overflow-hidden" style={{ padding: "5px 15px" }}>
+          <span className="truncate" style={{ fontSize: 16, lineHeight: "18px", color: "#575757" }}>{row.caseNumber || "—"}</span>
         </div>
       </td>
     )
@@ -698,8 +778,8 @@ function DesktopCell({
 
   if (column.key === "attachments") {
     return (
-      <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-        <div className="flex h-[65px] items-center justify-center" style={{ padding: "5px 10px" }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+        <div className="relative z-[1] flex h-[65px] items-center justify-center overflow-hidden" style={{ padding: "5px 8px" }}>
           <DigitalImpressionLabels impressions={row.digitalImpressions} />
         </div>
       </td>
@@ -707,9 +787,9 @@ function DesktopCell({
   }
 
   return (
-    <td className="px-0 py-0 align-middle" style={{ width: column.width, backgroundColor: rowBg }}>
-      <div className="flex h-[65px] items-center" style={{ padding: "5px 15px" }}>
-        <span style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.createdAt || "—"}</span>
+    <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: column.width, maxWidth: column.width, backgroundColor: rowBg }}>
+      <div className="flex h-[65px] min-w-0 items-center overflow-hidden" style={{ padding: "5px 15px" }}>
+        <span className="truncate" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.createdAt || "—"}</span>
       </div>
     </td>
   )
@@ -735,7 +815,7 @@ function DigitalImpressionLabels({
             href={impression.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
+            className="pointer-events-auto relative z-[2] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
             style={{ fontSize: 16, lineHeight: "18px", fontWeight: 600, color: "#1162A8" }}
             title={`Open ${title}`}
             onClick={(e) => e.stopPropagation()}

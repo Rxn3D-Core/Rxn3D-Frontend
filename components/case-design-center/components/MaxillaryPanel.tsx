@@ -65,6 +65,11 @@ import {
   isGradeStepCompleteForDisplay,
   isGradeFieldValueSkipped,
 } from "../utils/gradeHelpers";
+import {
+  findShadeCatalogMatch,
+  formatRemovableShadeFieldLabel,
+  SHADE_FIELD_LABEL_CLASS,
+} from "../utils/shadeFieldDisplay";
 import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
 import {
   FLIPPER_STAYPLATE_SELECTION_HINT,
@@ -3149,6 +3154,7 @@ export function MaxillaryPanel({
                               onExpandedImplantToothChange={setExpandedImplantTooth}
                               productAddOns={productAddOns}
                               selectedAddonsByTooth={selectedAddonsByTooth}
+                              selectedShadeGuide={selectedShadeGuide}
                             />
                           </>
                         );
@@ -3791,6 +3797,7 @@ export function MaxillaryPanel({
                         onExpandedImplantToothChange={setExpandedImplantTooth}
                         productAddOns={productAddOns}
                         selectedAddonsByTooth={selectedAddonsByTooth}
+                        selectedShadeGuide={selectedShadeGuide}
                       />
                     ) : null}
                     <ScrollToBottom />
@@ -4291,19 +4298,24 @@ export function MaxillaryPanel({
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   {isF("teeth_shade") && (
                                     <fieldset
-                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                       onClick={() => handleShadeFieldClick("maxillary", "tooth_shade", shadeProductId)}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${isFComplete("teeth_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("teeth_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Teeth shade</legend>
-                                      <div className="flex items-center gap-2 w-full">
-                                        <span className="text-[14px] sm:text-lg text-[#000000]">{(() => { const r = fVal("teeth_shade"); try { return JSON.parse(r).name ?? r; } catch { return r; } })()}</span>
-                                        {isFComplete("teeth_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] ml-auto" />}
+                                      <div className="flex items-center gap-2 w-full min-w-0">
+                                        <span
+                                          className={SHADE_FIELD_LABEL_CLASS}
+                                          title={formatRemovableShadeFieldLabel(fVal("teeth_shade"), toothProduct?.teeth_shades, selectedShadeGuide) || undefined}
+                                        >
+                                          {formatRemovableShadeFieldLabel(fVal("teeth_shade"), toothProduct?.teeth_shades, selectedShadeGuide)}
+                                        </span>
+                                        {isFComplete("teeth_shade") && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                                       </div>
                                     </fieldset>
                                   )}
                                   {isF("gum_shade") && (
                                     <fieldset
-                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                                      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                                       onClick={() => {
                                         if (!caseSubmitted) {
                                           const currentGumShade = fVal("gum_shade");
@@ -4314,19 +4326,17 @@ export function MaxillaryPanel({
                                       }}
                                     >
                                       <legend className={`text-sm px-1 leading-none ${isFComplete("gum_shade") && !caseSubmitted ? "text-[#34a853]" : isFComplete("gum_shade") ? "text-[#7f7f7f]" : "text-[#CF0202]"}`}>Gum Shade</legend>
-                                      <div className="flex items-center gap-2 w-full">
+                                      <div className="flex items-center gap-2 w-full min-w-0">
                                         {isFComplete("gum_shade") ? (() => {
                                           const raw = fVal("gum_shade");
-                                          let displayName = raw;
-                                          let color: string | null = null;
-                                          try { const p = JSON.parse(raw); displayName = p.name ?? raw; } catch { }
-                                          const matchedShade = displayGumShades.find((s) => s.name === displayName);
-                                          if (matchedShade) color = matchedShade.color_code_middle;
+                                          const matchedShade = findShadeCatalogMatch(raw, displayGumShades);
+                                          const color = matchedShade?.color_code_middle ?? null;
+                                          const displayName = formatRemovableShadeFieldLabel(raw, displayGumShades);
                                           return (
                                             <>
-                                              <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                              <span className={SHADE_FIELD_LABEL_CLASS} title={displayName || undefined}>{displayName}</span>
                                               {color && (
-                                                <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                                                <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                                                   <rect width="28.0391" height="28.0391" rx="6" fill={color} />
                                                 </svg>
                                               )}

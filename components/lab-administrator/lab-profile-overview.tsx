@@ -476,84 +476,79 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
   }
 
   const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      if (!originalFormData) {
+    const name = formData.name.trim()
+    const email = formData.email.trim()
+    const website = formData.website.trim()
+    const code = formData.code.trim()
+    const address = formData.address.trim()
+    const city = formData.city.trim()
+    const postalCode = formData.postal_code.trim()
+
+    const requiredChecks: Array<[boolean, string]> = [
+      [!name, "Lab name is required."],
+      [!email, "Email is required."],
+      [!code, "Lab code is required."],
+      [!website, "Website is required."],
+      [!address, "Street address is required."],
+      [!city, "City is required."],
+      [!postalCode, "Postal code is required."],
+      [!formData.country_id, "Country is required."],
+      [!formData.state_id, "State / Province is required."],
+    ]
+
+    for (const [failed, message] of requiredChecks) {
+      if (failed) {
         toast({
-          title: "Error",
-          description: "Original data not found. Please try again.",
+          title: "Validation failed",
+          description: message,
           variant: "destructive",
         })
-        setIsSaving(false)
         return
       }
+    }
 
-      const updateData: any = {}
+    if (website.length > 255) {
+      toast({
+        title: "Validation failed",
+        description: "Website must not exceed 255 characters.",
+        variant: "destructive",
+      })
+      return
+    }
 
-      // Only include fields that have changed
-      if (formData.name !== originalFormData.name) {
-        updateData.name = formData.name
+    if (
+      formData.release_casepan &&
+      !["After Stage", "After Product"].includes(formData.release_casepan)
+    ) {
+      toast({
+        title: "Validation failed",
+        description: 'Release casepan must be "After Stage" or "After Product".',
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const updateData: Record<string, unknown> = {
+        name,
+        email,
+        website,
+        address,
+        city,
+        postal_code: postalCode,
+        country_id: formData.country_id,
+        state_id: formData.state_id,
+        code,
+      }
+      if (formData.release_casepan) {
+        updateData.release_casepan = formData.release_casepan
       }
 
-      if (formData.email !== originalFormData.email) {
-        updateData.email = formData.email
-      }
+      const result = await updateCustomerProfile(Number(labData.id), updateData as any)
 
-      if (formData.website !== originalFormData.website) {
-        updateData.website = formData.website
-      }
-
-      if (formData.address !== originalFormData.address) {
-        updateData.address = formData.address
-      }
-
-      if (formData.city !== originalFormData.city) {
-        updateData.city = formData.city
-      }
-
-      if (formData.postal_code !== originalFormData.postal_code) {
-        updateData.postal_code = formData.postal_code
-      }
-
-      // Compare country_id
-      if (formData.country_id !== originalFormData.country_id) {
-        updateData.country_id = formData.country_id
-      }
-
-      // Compare state_id
-      if (formData.state_id !== originalFormData.state_id) {
-        updateData.state_id = formData.state_id
-      }
-
-      // Compare release_casepan
-      if (formData.release_casepan !== originalFormData.release_casepan) {
-        // Only include if it has a value
-        if (formData.release_casepan && formData.release_casepan !== "") {
-          updateData.release_casepan = formData.release_casepan
-        }
-      }
-
-      // Compare code
-      if (formData.code !== originalFormData.code) {
-        updateData.code = formData.code
-      }
-
-      // If no fields have changed, show a message and return
-      if (Object.keys(updateData).length === 0) {
-        toast({
-          title: "No changes",
-          description: "No fields have been modified.",
-        })
-        setIsSaving(false)
-        return
-      }
-
-      console.log("Update payload (only changed fields):", JSON.stringify(updateData, null, 2)) // Debug log
-
-      const result = await updateCustomerProfile(Number(labData.id), updateData)
-      
       if (result) {
-        setOriginalFormData(null) // Reset original data
+        setOriginalFormData(null)
         setIsEditModalOpen(false)
         if (onProfileUpdate) {
           onProfileUpdate()
@@ -775,7 +770,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                 <Label htmlFor="website">Website</Label>
                 <Input
                   id="website"
-                  type="url"
+                  type="text"
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   placeholder="https://example.com"
@@ -922,7 +917,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving || isLoadingProfile || !formData.name || !formData.email}
+                disabled={isSaving || isLoadingProfile}
                 className="bg-blue-600 text-white hover:bg-blue-700"
               >
                 {isSaving ? (

@@ -337,11 +337,10 @@ export function LabAdminDashboard() {
 
         {/* Plan Statistics */}
         {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <PlanCard title="Rush Cases" count={status?.rush_cases ?? 0} color="text-red-500" />
           <PlanCard title="On Hold Cases" count={status?.on_hold_cases ?? 0} color="text-red-500" />
           <PlanCard title="Due Today" count={status?.due_today ?? 0} color="text-green-500" />
-          <PlanCard title="New Stage notes" count={status?.new_stage_notes ?? 0} color="text-black" />
           <PlanCard title="Late Cases" count={status?.late_cases ?? 0} color="text-black" />
         </div>
         )}

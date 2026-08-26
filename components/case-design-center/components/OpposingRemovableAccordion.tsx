@@ -29,6 +29,11 @@ import {
   isGradeStepCompleteForDisplay,
 } from "../utils/gradeHelpers";
 import {
+  findShadeCatalogMatch,
+  formatRemovableShadeFieldLabel,
+  SHADE_FIELD_LABEL_CLASS,
+} from "../utils/shadeFieldDisplay";
+import {
   archHasOpposingImpressionSelections,
   resolveOpposingImpressionProductId,
 } from "../utils/opposingImpressionReadiness";
@@ -593,7 +598,7 @@ export function OpposingRemovableAccordion({
                   <PanelDiv className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {isF("teeth_shade") && isFComplete("teeth_shade") && (
                       <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${isFComplete("teeth_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("teeth_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                         onClick={() =>
                           handleShadeFieldClick(fieldArch, "tooth_shade", `prep_${fieldRepTn}`)
                         }
@@ -603,26 +608,28 @@ export function OpposingRemovableAccordion({
                         >
                           Teeth shade
                         </legend>
-                        <PanelDiv className="flex items-center gap-2 w-full">
-                          <span className="text-[14px] sm:text-lg text-[#000000]">
-                            {(() => {
-                              const r = fVal("teeth_shade");
-                              try {
-                                return JSON.parse(r).name ?? r;
-                              } catch {
-                                return r;
-                              }
-                            })()}
+                        <PanelDiv className="flex items-center gap-2 w-full min-w-0">
+                          <span
+                            className={SHADE_FIELD_LABEL_CLASS}
+                            title={formatRemovableShadeFieldLabel(
+                              fVal("teeth_shade"),
+                              opposingProductData.teeth_shades
+                            ) || undefined}
+                          >
+                            {formatRemovableShadeFieldLabel(
+                              fVal("teeth_shade"),
+                              opposingProductData.teeth_shades
+                            )}
                           </span>
                           {isFComplete("teeth_shade") && !caseSubmitted && (
-                            <Check size={16} className="text-[#34a853] ml-auto" />
+                            <Check size={16} className="text-[#34a853] flex-shrink-0" />
                           )}
                         </PanelDiv>
                       </fieldset>
                     )}
                     {isF("gum_shade") && isFComplete("teeth_shade") && (
                       <fieldset
-                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
+                        className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${isFComplete("gum_shade") && !caseSubmitted ? "border-[#34a853]" : isFComplete("gum_shade") ? "border-[#b4b0b0]" : "border-[#CF0202]"}`}
                         onClick={() => {
                           if (!caseSubmitted) {
                             const currentGumShade = fVal("gum_shade");
@@ -647,25 +654,22 @@ export function OpposingRemovableAccordion({
                         >
                           Gum Shade
                         </legend>
-                        <PanelDiv className="flex items-center gap-2 w-full">
+                        <PanelDiv className="flex items-center gap-2 w-full min-w-0">
                           {isFComplete("gum_shade") ? (
                             (() => {
                               const raw = fVal("gum_shade");
-                              let displayName = raw;
-                              let color: string | null = null;
-                              try {
-                                const p = JSON.parse(raw);
-                                displayName = p.name ?? raw;
-                              } catch {
-                                /* plain */
-                              }
-                              const matchedShade = opposingProductData.gum_shades?.find(
-                                (s) => s.name === displayName
+                              const matchedShade = findShadeCatalogMatch(
+                                raw,
+                                opposingProductData.gum_shades
                               );
-                              if (matchedShade) color = matchedShade.color_code_middle;
+                              const color = matchedShade?.color_code_middle ?? null;
+                              const displayName = formatRemovableShadeFieldLabel(
+                                raw,
+                                opposingProductData.gum_shades
+                              );
                               return (
                                 <>
-                                  <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                                  <span className={SHADE_FIELD_LABEL_CLASS} title={displayName || undefined}>{displayName}</span>
                                   {color && (
                                     <svg
                                       width="29"
@@ -673,7 +677,7 @@ export function OpposingRemovableAccordion({
                                       viewBox="0 0 29 29"
                                       fill="none"
                                       xmlns="http://www.w3.org/2000/svg"
-                                      className="flex-shrink-0 ml-auto"
+                                      className="flex-shrink-0"
                                     >
                                       <rect width="28.0391" height="28.0391" rx="6" fill={color} />
                                     </svg>

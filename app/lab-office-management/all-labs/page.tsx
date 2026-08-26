@@ -10,7 +10,7 @@ import { StaffUserDetail } from "@/components/lab-administrator/staff-user-detai
 import { AddUserForm } from "@/components/lab-administrator/add-user-form"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCustomer } from "@/contexts/customer-context"
 import ReactDOM from "react-dom"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -22,6 +22,7 @@ import {
   parseBusinessHourTime,
   resolveDisplayTimezone,
 } from "@/utils/time-utils"
+import { getUserProfileImageUrl } from "@/utils/avatar-utils"
 import {
   EditCustomerProfileModal,
   type EditCustomerProfileData,
@@ -627,7 +628,17 @@ export default function AllLabs() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <Avatar className={getAvatarColor(lab.id)}>
+                        <Avatar className={lab.logo_url ? "bg-white border border-gray-200" : getAvatarColor(lab.id)}>
+                          {lab.logo_url ? (
+                            <AvatarImage
+                              src={getUserProfileImageUrl({ image: lab.logo_url })}
+                              alt={`${lab.name} logo`}
+                              className="object-contain p-0.5"
+                            />
+                          ) : null}
+                          <AvatarFallback className={`${getAvatarColor(lab.id)} text-white text-xs font-semibold`}>
+                            {getAvatarFallback(lab.name)}
+                          </AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{lab.name}</span>
                       </div>

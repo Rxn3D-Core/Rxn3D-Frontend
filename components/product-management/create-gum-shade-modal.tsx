@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { X, ChevronDown, Trash2, Info } from "lucide-react"
+import { X, ChevronDown, Trash2, Info, Plus } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -167,6 +167,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
   const [isCreatingCustomShade, setIsCreatingCustomShade] = useState(false)
   const canPersistCustomShadeToApi = Boolean(editingGumShade?.id && !isCopying)
   const [listOfShadesOpen, setListOfShadesOpen] = useState(true)
+  const [showAddShadeForm, setShowAddShadeForm] = useState(false)
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToExistingGroupOpen, setLinkToExistingGroupOpen] = useState(false)
   const [visibilityManagementOpen, setVisibilityManagementOpen] = useState(false)
@@ -217,6 +218,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
       setNewCustomShade(defaultNewCustomShade)
       setGumShadeDetailsEnabled(true)
       setListOfShadesOpen(true)
+      setShowAddShadeForm(false)
       setLinkToProductsOpen(false)
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
@@ -254,9 +256,23 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
     setFormData((prev) => ({ ...prev, status }))
   }
 
-  const resolveGumShadeColors = (shadeId: number, shadeName: string) => {
-    const fromBrand = editingGumShade?.shades?.find((s: GumShade) => s.id === shadeId || s.name === shadeName)
-    const fromAvailable = availableShades.find((s) => s.id === shadeId || s.name === shadeName)
+  const matchesFormShade = (
+    formShade: FormShade,
+    shade: { id?: number; name: string },
+  ) => {
+    if (isPersistedShadeId(formShade.id) && isPersistedShadeId(shade.id)) {
+      return formShade.id === shade.id
+    }
+    return formShade.name === shade.name
+  }
+
+  const resolveGumShadeColors = (shadeId: number | undefined, shadeName: string) => {
+    const fromBrand = editingGumShade?.shades?.find(
+      (s: GumShade) => (shadeId != null && s.id === shadeId) || s.name === shadeName,
+    )
+    const fromAvailable = availableShades.find(
+      (s) => (shadeId != null && s.id === shadeId) || s.name === shadeName,
+    )
     const source = fromBrand ?? fromAvailable
     return {
       color_code_top: source?.color_code_top ?? "",
@@ -274,7 +290,16 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
     setFormData((prev) => ({
       ...prev,
       shades: prev.shades.map((s) =>
-        (shadeId != null && s.id === shadeId) || s.name === shadeName ? { ...s, [field]: value } : s,
+        matchesFormShade(s, { id: shadeId, name: shadeName }) ? { ...s, [field]: value } : s,
+      ),
+    }))
+  }
+
+  const updateShadeName = (shadeId: number | undefined, currentName: string, nextName: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      shades: prev.shades.map((s) =>
+        matchesFormShade(s, { id: shadeId, name: currentName }) ? { ...s, name: nextName } : s,
       ),
     }))
   }
@@ -303,21 +328,37 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
 
   const isEditPersistMode = Boolean(editingGumShade && !isCopying)
 
-  const setGumShadeActive = (shadeId: number, active: boolean) => {
-    const shade =
-      filteredShades.find((s) => s.id === shadeId) ||
-      availableShades.find((s) => s.id === shadeId) ||
-      formData.shades.find((s) => s.id === shadeId)
-    if (!shade) return
+  const shadesForTable = useMemo(() => {
+    if (isEditPersistMode) {
+      return formData.shades
+    }
+    const fromCatalog = filteredShades
+    const extras = formData.shades.filter(
+      (shade) =>
+        !fromCatalog.some(
+          (as) =>
+            (isPersistedShadeId(shade.id) && as.id === shade.id) || as.name === shade.name,
+        ),
+    )
+    return [...fromCatalog, ...extras]
+  }, [isEditPersistMode, formData.shades, filteredShades])
+
+  const setGumShadeActive = (shade: { id?: number; name: string; sequence: number; status: string }, active: boolean) => {
+    const catalogShade =
+      filteredShades.find((s) => (shade.id != null && s.id === shade.id) || s.name === shade.name) ||
+      availableShades.find((s) => (shade.id != null && s.id === shade.id) || s.name === shade.name) ||
+      formData.shades.find((s) => matchesFormShade(s, shade))
+
+    if (!catalogShade && !isEditPersistMode) return
 
     setFormData((prev) => {
-      const existing = prev.shades.find((s) => s.id === shadeId)
+      const existing = prev.shades.find((s) => matchesFormShade(s, shade))
 
       if (isEditPersistMode && existing) {
         return {
           ...prev,
           shades: prev.shades.map((s) =>
-            s.id === shadeId
+            matchesFormShade(s, shade)
               ? { ...s, enabled: active, status: active ? "Active" : "Inactive" }
               : s,
           ),
@@ -329,17 +370,28 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
           return {
             ...prev,
             shades: prev.shades.map((s) =>
-              s.id === shadeId ? { ...s, enabled: true, status: "Active" } : s,
+              matchesFormShade(s, shade) ? { ...s, enabled: true, status: "Active" } : s,
             ),
           }
         }
+        const source = catalogShade ?? shade
         return {
           ...prev,
           shades: [
             ...prev.shades,
             {
-              ...mapGumShadeToForm({ ...shade, enabled: true, status: "Active" }),
-              ...resolveGumShadeColors(shade.id, shade.name),
+              ...mapGumShadeToForm({
+                ...(source as GumShade),
+                id: typeof source.id === "number" ? source.id : undefined,
+                name: source.name,
+                sequence: source.sequence,
+                status: "Active",
+                enabled: true,
+              } as GumShade & { enabled?: boolean }),
+              ...resolveGumShadeColors(
+                typeof source.id === "number" ? source.id : undefined,
+                source.name,
+              ),
             },
           ],
         }
@@ -347,16 +399,16 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
 
       return {
         ...prev,
-        shades: prev.shades.filter((s) => s.id !== shadeId),
+        shades: prev.shades.filter((s) => !matchesFormShade(s, shade)),
       }
     })
   }
 
-  // Remove shade from form
-  const removeShadeFromForm = (shadeId: number) => {
+  // Remove shade from form (persists as soft-delete on brand update when editing)
+  const removeShadeFromForm = (shade: { id?: number; name: string }) => {
     setFormData((prev) => ({
       ...prev,
-      shades: prev.shades.filter((shade) => shade.id !== shadeId),
+      shades: prev.shades.filter((s) => !matchesFormShade(s, shade)),
     }))
   }
 
@@ -489,7 +541,18 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
 
   // Handle save (create or update)
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.shades.some((s) => s.enabled)) return
+    if (
+      !formData.name.trim() ||
+      !formData.shades.some((s) => s.enabled) ||
+      formData.shades.some((s) => !s.name.trim())
+    ) {
+      toast({
+        title: "Validation",
+        description: "Brand name is required, every shade needs a name, and at least one shade must be active.",
+        variant: "destructive",
+      })
+      return
+    }
 
     const payload = {
       name: formData.name.trim(),
@@ -499,6 +562,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
       shades: formData.shades.map((shade, index) => {
         const built = buildGumShadePayload({
           ...shade,
+          name: shade.name.trim(),
           sequence: shade.sequence || index + 1,
         })
         if (!editingGumShade || isCopying) {
@@ -523,6 +587,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
       setNewCustomShade(defaultNewCustomShade)
       setGumShadeDetailsEnabled(true)
       setListOfShadesOpen(true)
+      setShowAddShadeForm(false)
       setLinkToProductsOpen(false)
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
@@ -531,9 +596,9 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
     }
   }
 
-  const isShadeActive = (shadeId: number) => {
-    const shade = formData.shades.find((s) => s.id === shadeId)
-    return shade?.enabled ?? false
+  const isShadeActive = (shade: { id?: number; name: string }) => {
+    const formShade = formData.shades.find((s) => matchesFormShade(s, shade))
+    return formShade?.enabled ?? false
   }
 
   return (
@@ -600,202 +665,211 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
 
             {/* List of Shades Section */}
             <Collapsible open={listOfShadesOpen} onOpenChange={setListOfShadesOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3 border-t border-b py-3">
+                <CollapsibleTrigger className="flex items-center gap-2 min-w-0 flex-1 text-left py-1">
                   <span className="font-medium">List of Shades</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${listOfShadesOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
+                  <Info className="h-4 w-4 text-gray-400 shrink-0" />
+                  <ChevronDown
+                    className={`h-5 w-5 ml-auto shrink-0 transition-transform ${listOfShadesOpen ? "rotate-180" : ""}`}
+                  />
+                </CollapsibleTrigger>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setListOfShadesOpen(true)
+                    setShowAddShadeForm((prev) => !prev)
+                  }}
+                  className="shrink-0 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  {showAddShadeForm ? "Hide form" : "Add shade"}
+                </Button>
+              </div>
               <CollapsibleContent className="pt-4">
+                {showAddShadeForm && (
+                  <AddCustomShadePanel
+                    className="mb-4"
+                    idPrefix="new-gum-shade"
+                    name={newCustomShade.name}
+                    onNameChange={(value) =>
+                      setNewCustomShade((prev) => ({ ...prev, name: value }))
+                    }
+                    namePlaceholder="e.g. G-Custom"
+                    enabled={newCustomShade.enabled}
+                    onEnabledChange={(checked) =>
+                      setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
+                    }
+                    persistHint={
+                      canPersistCustomShadeToApi
+                        ? "Saves to the library immediately and links the shade to this brand."
+                        : "Adds the shade to this form; save the brand to persist it to the library."
+                    }
+                    colorFields={[
+                      {
+                        id: "new-gum-shade-top",
+                        label: "Top",
+                        value: newCustomShade.color_code_top,
+                        defaultHex: "#FFB6C1",
+                        onChange: (color) =>
+                          setNewCustomShade((prev) => ({ ...prev, color_code_top: color })),
+                      },
+                      {
+                        id: "new-gum-shade-middle",
+                        label: "Middle",
+                        value: newCustomShade.color_code_middle,
+                        defaultHex: "#FF69B4",
+                        onChange: (color) =>
+                          setNewCustomShade((prev) => ({ ...prev, color_code_middle: color })),
+                      },
+                      {
+                        id: "new-gum-shade-bottom",
+                        label: "Bottom",
+                        value: newCustomShade.color_code_bottom,
+                        defaultHex: "#C71585",
+                        onChange: (color) =>
+                          setNewCustomShade((prev) => ({ ...prev, color_code_bottom: color })),
+                      },
+                    ]}
+                    onAdd={handleAddCustomShade}
+                    isValid={isNewCustomShadeValid}
+                    isSubmitting={isCreatingCustomShade}
+                  />
+                )}
+
                 {isAvailableShadesLoading ? (
                   <div className="text-center py-4">Loading available shades...</div>
                 ) : (
                   <div className="border rounded-md overflow-x-auto mb-4">
-                    <Table className="min-w-[960px]">
+                    <Table className="min-w-[1020px]">
                       <TableHeader>
                         <TableRow className="bg-gray-50">
-                          <TableHead className="text-center min-w-[100px] sticky left-0 z-10 bg-gray-50">
+                          <TableHead className="text-center min-w-[140px] sticky left-0 z-10 bg-gray-50">
                             Shade
                           </TableHead>
                           <TableHead className="text-center w-[88px]">Status</TableHead>
                           <TableHead className="text-center min-w-[140px]">Top</TableHead>
                           <TableHead className="text-center min-w-[140px]">Middle</TableHead>
                           <TableHead className="text-center min-w-[140px]">Bottom</TableHead>
-                          <TableHead className="w-10" />
+                          <TableHead className="w-12 text-center">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredShades.map((shade) => {
-                          const formShade = formData.shades.find(
-                            (s) => s.id === shade.id || s.name === shade.name,
-                          )
-                          const active = isShadeActive(shade.id)
-                          return (
-                            <TableRow key={shade.id}>
-                              <TableCell className="text-center sticky left-0 z-[1] bg-white font-medium">
-                                {shade.name}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Switch
-                                  checked={active}
-                                  onCheckedChange={(checked) => setGumShadeActive(shade.id, checked)}
-                                  className="data-[state=checked]:bg-[#1162a8]"
-                                />
-                              </TableCell>
-                              <TableCell className="align-middle">
-                                <CompactGumColorField
-                                  value={formShade?.color_code_top}
-                                  defaultHex="#FFB6C1"
-                                  disabled={!active}
-                                  onChange={(color) => updateShadeColor(shade.id, shade.name, "color_code_top", color)}
-                                />
-                              </TableCell>
-                              <TableCell className="align-middle">
-                                <CompactGumColorField
-                                  value={formShade?.color_code_middle}
-                                  defaultHex="#FF69B4"
-                                  disabled={!active}
-                                  onChange={(color) =>
-                                    updateShadeColor(shade.id, shade.name, "color_code_middle", color)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell className="align-middle">
-                                <CompactGumColorField
-                                  value={formShade?.color_code_bottom}
-                                  defaultHex="#C71585"
-                                  disabled={!active}
-                                  onChange={(color) =>
-                                    updateShadeColor(shade.id, shade.name, "color_code_bottom", color)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {active && !isEditPersistMode && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeShadeFromForm(shade.id)}
-                                    className="h-8 w-8 text-red-500"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                        {formData.shades
-                          .filter((shade) => !filteredShades.some((as) => as.id === shade.id))
-                          .map((shade) => (
-                            <TableRow key={shade.id}>
-                              <TableCell className="text-center sticky left-0 z-[1] bg-white font-medium">
-                                {shade.name}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Switch
-                                  checked={shade.enabled}
-                                  onCheckedChange={(checked) =>
-                                    shade.id && setGumShadeActive(shade.id, checked)
-                                  }
-                                  className="data-[state=checked]:bg-[#1162a8]"
-                                />
-                              </TableCell>
-                              <TableCell className="align-middle">
-                                <CompactGumColorField
-                                  value={shade.color_code_top}
-                                  defaultHex="#FFB6C1"
-                                  disabled={!shade.enabled}
-                                  onChange={(color) => updateShadeColor(shade.id, shade.name, "color_code_top", color)}
-                                />
-                              </TableCell>
-                              <TableCell className="align-middle">
-                                <CompactGumColorField
-                                  value={shade.color_code_middle}
-                                  defaultHex="#FF69B4"
-                                  disabled={!shade.enabled}
-                                  onChange={(color) =>
-                                    updateShadeColor(shade.id, shade.name, "color_code_middle", color)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell className="align-middle">
-                                <CompactGumColorField
-                                  value={shade.color_code_bottom}
-                                  defaultHex="#C71585"
-                                  disabled={!shade.enabled}
-                                  onChange={(color) =>
-                                    updateShadeColor(shade.id, shade.name, "color_code_bottom", color)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {shade.enabled && !isEditPersistMode && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => shade.id && removeShadeFromForm(shade.id)}
-                                    className="h-8 w-8 text-red-500"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                        {shadesForTable.length > 0 ? (
+                          shadesForTable.map((shade) => {
+                            const formShade = isEditPersistMode
+                              ? (shade as FormShade)
+                              : formData.shades.find((s) =>
+                                  matchesFormShade(s, {
+                                    id: typeof shade.id === "number" ? shade.id : undefined,
+                                    name: shade.name,
+                                  }),
+                                )
+                            const displayName = formShade?.name ?? shade.name
+                            const shadeId =
+                              typeof shade.id === "number"
+                                ? shade.id
+                                : typeof formShade?.id === "number"
+                                  ? formShade.id
+                                  : undefined
+                            const active = isEditPersistMode
+                              ? Boolean(formShade?.enabled)
+                              : isShadeActive({ id: shadeId, name: displayName })
+                            const rowKey =
+                              shadeId != null
+                                ? `gum-shade-${shadeId}`
+                                : `gum-shade-${shade.name}-${shade.sequence}`
+
+                            return (
+                              <TableRow key={rowKey}>
+                                <TableCell className="text-center sticky left-0 z-[1] bg-white">
+                                  <Input
+                                    value={displayName}
+                                    onChange={(e) =>
+                                      updateShadeName(shadeId, formShade?.name ?? shade.name, e.target.value)
+                                    }
+                                    disabled={!isEditPersistMode && !formShade}
+                                    className="h-8 w-[8.5rem] px-2 text-sm font-medium mx-auto"
+                                    aria-label="Shade name"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Switch
+                                    checked={active}
+                                    onCheckedChange={(checked) =>
+                                      setGumShadeActive(
+                                        {
+                                          id: shadeId,
+                                          name: displayName,
+                                          sequence: shade.sequence,
+                                          status: shade.status,
+                                        },
+                                        checked,
+                                      )
+                                    }
+                                    className="data-[state=checked]:bg-[#1162a8]"
+                                  />
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <CompactGumColorField
+                                    value={formShade?.color_code_top}
+                                    defaultHex="#FFB6C1"
+                                    disabled={!active}
+                                    onChange={(color) =>
+                                      updateShadeColor(shadeId, displayName, "color_code_top", color)
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <CompactGumColorField
+                                    value={formShade?.color_code_middle}
+                                    defaultHex="#FF69B4"
+                                    disabled={!active}
+                                    onChange={(color) =>
+                                      updateShadeColor(shadeId, displayName, "color_code_middle", color)
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <CompactGumColorField
+                                    value={formShade?.color_code_bottom}
+                                    defaultHex="#C71585"
+                                    disabled={!active}
+                                    onChange={(color) =>
+                                      updateShadeColor(shadeId, displayName, "color_code_bottom", color)
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {(isEditPersistMode || active) && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        removeShadeFromForm({ id: shadeId, name: displayName })
+                                      }
+                                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                      aria-label={`Delete shade ${displayName}`}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-gray-500 py-4">
+                              No shades available. Click &quot;Add shade&quot; above to get started.
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   </div>
                 )}
-
-                <AddCustomShadePanel
-                  className="mt-4"
-                  idPrefix="new-gum-shade"
-                  name={newCustomShade.name}
-                  onNameChange={(value) =>
-                    setNewCustomShade((prev) => ({ ...prev, name: value }))
-                  }
-                  namePlaceholder="e.g. G-Custom"
-                  enabled={newCustomShade.enabled}
-                  onEnabledChange={(checked) =>
-                    setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
-                  }
-                  persistHint={
-                    canPersistCustomShadeToApi
-                      ? "Saves to the library immediately and links the shade to this brand."
-                      : "Adds the shade to this form; save the brand to persist it to the library."
-                  }
-                  colorFields={[
-                    {
-                      id: "new-gum-shade-top",
-                      label: "Top",
-                      value: newCustomShade.color_code_top,
-                      defaultHex: "#FFB6C1",
-                      onChange: (color) =>
-                        setNewCustomShade((prev) => ({ ...prev, color_code_top: color })),
-                    },
-                    {
-                      id: "new-gum-shade-middle",
-                      label: "Middle",
-                      value: newCustomShade.color_code_middle,
-                      defaultHex: "#FF69B4",
-                      onChange: (color) =>
-                        setNewCustomShade((prev) => ({ ...prev, color_code_middle: color })),
-                    },
-                    {
-                      id: "new-gum-shade-bottom",
-                      label: "Bottom",
-                      value: newCustomShade.color_code_bottom,
-                      defaultHex: "#C71585",
-                      onChange: (color) =>
-                        setNewCustomShade((prev) => ({ ...prev, color_code_bottom: color })),
-                    },
-                  ]}
-                  onAdd={handleAddCustomShade}
-                  isValid={isNewCustomShadeValid}
-                  isSubmitting={isCreatingCustomShade}
-                />
               </CollapsibleContent>
             </Collapsible>
           </div>
@@ -812,7 +886,11 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
             <Button 
               onClick={handleSave} 
               className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 w-full sm:w-auto" 
-              disabled={!formData.name.trim() || !formData.shades.some((s) => s.enabled)}
+              disabled={
+                !formData.name.trim() ||
+                !formData.shades.some((s) => s.enabled) ||
+                formData.shades.some((s) => !s.name.trim())
+              }
             >
               {isLoading ? (isCopying ? "Copying..." : editingGumShade ? "Updating..." : "Creating...") : (isCopying ? "Copy Gum Shade" : editingGumShade ? "Update Gum Shade" : "Save Gum Shade")}
             </Button>

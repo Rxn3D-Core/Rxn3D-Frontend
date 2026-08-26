@@ -5,7 +5,7 @@ import { Check } from "@/components/ui/custom-check";
 import { ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
 import type { Arch, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
-import { getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
+import { getTeethShadesForSelectedGuide, getBrandColorForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
 
 interface FixedAccordionShadePickerProps {
   arch: Arch;
@@ -75,6 +75,11 @@ export function FixedAccordionShadePicker({
 
   const guideShades = useMemo(
     () => getTeethShadesForSelectedGuide(productForShades, selectedShadeGuide),
+    [productForShades, selectedShadeGuide]
+  );
+
+  const guideBrandColor = useMemo(
+    () => getBrandColorForSelectedGuide(productForShades, selectedShadeGuide),
     [productForShades, selectedShadeGuide]
   );
 
@@ -160,6 +165,7 @@ export function FixedAccordionShadePicker({
           onShadeClick={onShadeSelect}
           shades={guideShades}
           guideLabel={selectedShadeGuide}
+          brandColor={guideBrandColor}
           className="w-full"
         />
       )}

@@ -11,10 +11,11 @@ import { StaffUserDetail } from "@/components/lab-administrator/staff-user-detai
 import { AddUserForm } from "@/components/lab-administrator/add-user-form"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useCustomer } from "@/contexts/customer-context"
 import ReactDOM from "react-dom"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { getUserProfileImageUrl } from "@/utils/avatar-utils"
 import {
   EditCustomerProfileModal,
   type EditCustomerProfileData,
@@ -513,7 +514,12 @@ export default function AllOffice() {
                   </td>
                 </tr>
               ) : (
-                paginatedUsers.map((lab) => (
+                paginatedUsers.map((lab) => {
+                  const avatarFallback = getAvatarFallback(lab.name)
+                  const logoSrc = lab.logo_url
+                    ? getUserProfileImageUrl({ image: lab.logo_url })
+                    : ""
+                  return (
                   <tr key={lab.id} className="hover:bg-blue-50">
                     <td className="px-4 py-4">
                       <Checkbox
@@ -524,7 +530,25 @@ export default function AllOffice() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <Avatar className={getAvatarFallback(lab.name).color}>
+                        <Avatar
+                          className={
+                            logoSrc
+                              ? "bg-white border border-gray-200"
+                              : avatarFallback.color
+                          }
+                        >
+                          {logoSrc ? (
+                            <AvatarImage
+                              src={logoSrc}
+                              alt={`${lab.name} logo`}
+                              className="object-contain p-0.5"
+                            />
+                          ) : null}
+                          <AvatarFallback
+                            className={`${avatarFallback.color} text-white text-xs font-semibold`}
+                          >
+                            {avatarFallback.initials}
+                          </AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{lab.name}</span>
                       </div>
@@ -595,7 +619,8 @@ export default function AllOffice() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>

@@ -2,15 +2,16 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Check } from "@/components/ui/custom-check";
-
-function formatShadeGuideName(raw: string): string {
-  if (!raw) return raw;
-  return raw.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
 import {
   FieldInput,
   ShadeField,
 } from "./fields";
+import {
+  findShadeCatalogMatch,
+  formatShadeFieldLabel,
+  SHADE_FIELD_LABEL_CLASS,
+  type ShadeCatalogRow,
+} from "../utils/shadeFieldDisplay";
 import {
   Select,
   SelectContent,
@@ -1177,6 +1178,7 @@ export function RetentionProductFields({
             isAccordionShadePickerActive ? shadeSelectionState?.advanceFieldId ?? null : null
           }
           selectedShadeGuide={selectedShadeGuide}
+          product={selectedProduct}
         />
       )}
 
@@ -1283,15 +1285,24 @@ export function RetentionProductFields({
                 gumShadeName =
                   getSelectedShade(fixedShadeProductId, arch, "stump_shade") || null;
               }
-              const matchedGumShade = selectedProduct?.gum_shades?.find((s) => s.name === gumShadeName);
+              const gumLabelSource = isRealShadeDisplayValue(gumShadeValue)
+                ? gumShadeValue
+                : gumShadeName;
+              const matchedGumShade =
+                findShadeCatalogMatch(gumLabelSource, selectedProduct?.gum_shades) ??
+                selectedProduct?.gum_shades?.find((s) => s.name === gumShadeName) ??
+                null;
               const gumShadeColor = matchedGumShade?.color_code_middle ?? null;
+              const gumDisplayLabel = gumShadeName
+                ? formatShadeFieldLabel(gumLabelSource, selectedProduct?.gum_shades)
+                : "";
               const isGumComplete = !!gumShadeName;
               const borderColor = isGumComplete && !caseSubmitted ? "border-[#34a853]" : isGumComplete ? "border-[#b4b0b0]" : "border-[#CF0202]";
               const legendColor = isGumComplete && !caseSubmitted ? "text-[#34a853]" : isGumComplete ? "text-[#7f7f7f]" : "text-[#CF0202]";
               return (
                 <fieldset
                   key={label}
-                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
+                  className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${borderColor}`}
                   onClick={() => {
                     if (caseSubmitted) return;
                     setShadeSelectionState?.({
@@ -1306,14 +1317,16 @@ export function RetentionProductFields({
                   }}
                 >
                   <legend className={`text-sm px-1 leading-none ${legendColor}`}>{label}</legend>
-                  <div className="flex items-center gap-2 w-full">
-                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{gumShadeName ?? ""}</span>
+                  <div className="flex items-center gap-2 w-full min-w-0">
+                    <span className={SHADE_FIELD_LABEL_CLASS} title={gumDisplayLabel || undefined}>
+                      {gumDisplayLabel}
+                    </span>
                     {gumShadeColor && (
-                      <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                      <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                         <rect width="28.0391" height="28.0391" rx="6" fill={gumShadeColor} />
                       </svg>
                     )}
-                    {isGumComplete && !caseSubmitted && <Check size={16} className={`text-[#34a853] flex-shrink-0 ${gumShadeColor ? "" : "ml-auto"}`} />}
+                    {isGumComplete && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                   </div>
                 </fieldset>
               );
@@ -1327,6 +1340,14 @@ export function RetentionProductFields({
               teethFromField ||
               getSelectedShade(fixedShadeProductId, arch, shadeType) ||
               "";
+            const teethLabelSource = isRealShadeDisplayValue(teethRaw) ? teethRaw : shadeCode;
+            const teethDisplayLabel = shadeCode
+              ? formatShadeFieldLabel(
+                  teethLabelSource,
+                  selectedProduct?.teeth_shades as ShadeCatalogRow[] | undefined,
+                  selectedShadeGuide
+                )
+              : "";
             const isTeethComplete = !!shadeCode;
             const teethBorder =
               isTeethComplete && !caseSubmitted
@@ -1343,7 +1364,7 @@ export function RetentionProductFields({
             return (
               <fieldset
                 key={label}
-                className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${teethBorder}`}
+                className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${teethBorder}`}
                 onClick={() => {
                   if (caseSubmitted) return;
                   setInlineGumPickerOpen(false);
@@ -1353,12 +1374,12 @@ export function RetentionProductFields({
                 }}
               >
                 <legend className={`text-sm px-1 leading-none ${teethLegend}`}>{label}</legend>
-                <div className="flex items-center gap-2 w-full">
-                  <span className="text-[14px] sm:text-lg text-[#000000]">
-                    {shadeCode ? formatShadeGuideName(selectedShadeGuide || shadeCode) : ""}
+                <div className="flex items-center gap-2 w-full min-w-0">
+                  <span className={SHADE_FIELD_LABEL_CLASS} title={teethDisplayLabel || undefined}>
+                    {teethDisplayLabel}
                   </span>
                   {isTeethComplete && !caseSubmitted && (
-                    <Check size={16} className="text-[#34a853] ml-auto" />
+                    <Check size={16} className="text-[#34a853] flex-shrink-0" />
                   )}
                 </div>
               </fieldset>
@@ -1416,11 +1437,18 @@ export function RetentionProductFields({
           <div className="grid grid-cols-2 gap-3">
             {trioFields.map(({ name }, idx) => {
               const trioCode = getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+              const trioLabel = trioCode
+                ? formatShadeFieldLabel(
+                    trioCode,
+                    selectedProduct?.teeth_shades as ShadeCatalogRow[] | undefined,
+                    selectedShadeGuide
+                  )
+                : "";
               return (
               <ShadeField
                 key={name}
                 label={name}
-                value={trioCode ? formatShadeGuideName(selectedShadeGuide || trioCode) : ""}
+                value={trioLabel}
                 shade={trioCode}
                 onClick={() => {
                   handleShadeFieldClick(arch, "tooth_shade", fixedShadeProductId);
