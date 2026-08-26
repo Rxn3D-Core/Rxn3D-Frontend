@@ -143,7 +143,7 @@ function drawSticker(
 
   // Top band: lab name + patient.
   doc.setTextColor(20);
-  doc.setFont("helvetica", "bold");
+  doc.setFont("Inter, sans-serif", "bold");
   doc.setFontSize(nameFont);
   let cy = innerY + nameFont / 72;
   doc.text(fitText(doc, slip.lab_name || "", topTextW), innerX, cy);
@@ -171,12 +171,12 @@ function drawSticker(
   doc.setTextColor(40);
   rows.forEach((row, i) => {
     const baseY = bodyTop + bandH * (i + 0.5) + (bodyFont / 72) * 0.35;
-    doc.setFont("helvetica", "bold");
+    doc.setFont("Inter, sans-serif", "bold");
     doc.setFontSize(bodyFont);
     const keyText = `${row.k}  `;
     doc.text(keyText, innerX, baseY);
     const keyW = doc.getTextWidth(keyText);
-    doc.setFont("helvetica", "normal");
+    doc.setFont("Inter, sans-serif", "normal");
     doc.text(fitText(doc, row.v, Math.max(0.2, innerW - keyW)), innerX + keyW, baseY);
   });
 }

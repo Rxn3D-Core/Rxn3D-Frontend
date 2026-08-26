@@ -98,7 +98,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
       className="hidden md:flex"
       style={{
           position: "absolute",
-          right: 0,
+          right: 20,
           top: "50%",
           transform: "translateY(-50%)",
           zIndex: 50,
@@ -111,8 +111,8 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
           flexDirection: "row",
           justifyContent: "flex-start",
           alignItems: "center",
-          padding: "10px 15px",
-          gap: 18,
+          padding: "10px 10px",
+          gap: 15,
         }}
         onClick={(e) => e.stopPropagation()}
       >

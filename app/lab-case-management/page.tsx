@@ -52,6 +52,12 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import {
+  loadSlipListingLocationFilters,
+  loadSlipListingStatusFilters,
+  saveSlipListingLocationFilters,
+  saveSlipListingStatusFilters,
+} from "@/lib/slip-listing-preferences"
 import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
@@ -151,10 +157,18 @@ export default function LabSlipV3Page() {
   const searchParams = useSearchParams()
   const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
+  const urlLocationParam = searchParams.get("location")
 
   const [search, setSearch] = useState("")
-  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => initialLocation === "All" ? ["3"] : [initialLocation])
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["In Progress"])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(() => {
+    if (urlLocationParam) {
+      return initialLocation === "All" ? [] : [initialLocation]
+    }
+    return loadSlipListingLocationFilters("lab") ?? (initialLocation === "All" ? ["3"] : [initialLocation])
+  })
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(
+    () => loadSlipListingStatusFilters("lab") ?? ["In Progress"],
+  )
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
@@ -244,6 +258,14 @@ export default function LabSlipV3Page() {
     [debouncedSearch, selectedLocations, selectedStatuses, officeFilter, productType, dateRangeKey, showWithAttachments]
   )
   const prevFilterSigRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    saveSlipListingLocationFilters("lab", selectedLocations)
+  }, [selectedLocations])
+
+  useEffect(() => {
+    saveSlipListingStatusFilters("lab", selectedStatuses)
+  }, [selectedStatuses])
 
   useEffect(() => {
     const customerId = getLabCustomerId()
@@ -862,6 +884,7 @@ export default function LabSlipV3Page() {
 
       <main className="w-full px-4 pb-8">
         <V3CaseWidget
+          listingProfile="lab"
           search={search}
           onSearchChange={setSearch}
           onSearchEnter={() => {
