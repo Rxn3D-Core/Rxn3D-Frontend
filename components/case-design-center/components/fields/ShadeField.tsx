@@ -51,8 +51,8 @@ export function ShadeField({
       <legend className={`text-sm px-1 leading-none ${legendColor}`}>
         {isActive ? `${label} — selecting` : label}
       </legend>
-      <div className="flex items-center gap-2 w-full">
-        <span className={`text-lg leading-tight truncate flex-1 min-w-0 ${isActive ? "text-[#1162A8] font-medium" : "text-[#000000]"}`}>
+      <div className="flex items-center gap-2 w-full min-w-0">
+        <span className={`text-lg leading-tight truncate flex-1 min-w-0 ${isActive ? "text-[#1162A8] font-medium" : "text-[#000000]"}`} title={value || undefined}>
           {value}
         </span>
         <svg width="38" height="37" viewBox="0 5 38 37" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">

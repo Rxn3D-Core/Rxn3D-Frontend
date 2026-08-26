@@ -79,7 +79,7 @@ export function EditCustomerProfileModal({
   const [states, setStates] = useState<LocationOption[]>([])
   const [isCountryLoading, setIsCountryLoading] = useState(false)
   const [isStateLoading, setIsStateLoading] = useState(false)
-  const [originalFormData, setOriginalFormData] = useState<any>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formData, setFormData] = useState({
     name: "",
     website: "",
@@ -95,6 +95,86 @@ export function EditCustomerProfileModal({
   })
 
   const entityLabel = customerType === "lab" ? "Lab" : "Office"
+
+  const clearFieldError = (field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {}
+    const name = formData.name.trim()
+    const website = formData.website.trim()
+    const code = formData.code.trim()
+    const address = formData.address.trim()
+    const city = formData.city.trim()
+    const postalCode = formData.postal_code.trim()
+
+    if (!name) {
+      errors.name = `${entityLabel} name is required.`
+    } else if (name.length > 255) {
+      errors.name = `${entityLabel} name must not exceed 255 characters.`
+    }
+
+    if (!code) {
+      errors.code = `${entityLabel} code is required.`
+    } else if (code.length > 50) {
+      errors.code = `${entityLabel} code must not exceed 50 characters.`
+    }
+
+    if (!website) {
+      errors.website = "Website is required."
+    } else if (website.length > 255) {
+      errors.website = "Website must not exceed 255 characters."
+    }
+
+    if (customerType === "lab" && formData.release_casepan) {
+      if (!["After Stage", "After Product"].includes(formData.release_casepan)) {
+        errors.release_casepan = 'Release casepan must be "After Stage" or "After Product".'
+      }
+    }
+
+    if (!address) {
+      errors.address = "Street address is required."
+    } else if (address.length > 255) {
+      errors.address = "Street address must not exceed 255 characters."
+    }
+
+    if (!city) {
+      errors.city = "City is required."
+    } else if (city.length > 255) {
+      errors.city = "City must not exceed 255 characters."
+    }
+
+    if (!postalCode) {
+      errors.postal_code = "Postal code is required."
+    } else if (postalCode.length > 20) {
+      errors.postal_code = "Postal code must not exceed 20 characters."
+    }
+
+    if (!formData.country_id) {
+      errors.country = "Country is required."
+    }
+
+    if (!formData.state_id) {
+      errors.state = "State / Province is required."
+    }
+
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      toast({
+        title: "Validation failed",
+        description: Object.values(errors)[0],
+        variant: "destructive",
+      })
+      return false
+    }
+    return true
+  }
 
   useEffect(() => {
     if (!open || !customer) return
@@ -113,7 +193,7 @@ export function EditCustomerProfileModal({
       code: customer.code || "",
     }
     setFormData(initial)
-    setOriginalFormData({ ...initial })
+    setFieldErrors({})
     setLogoUrl(customer.logo_url || "")
 
     const loadLatest = async () => {
@@ -136,7 +216,6 @@ export function EditCustomerProfileModal({
           code: profileData.code || "",
         }
         setFormData(next)
-        setOriginalFormData({ ...next })
         if (profileData.logo_url) setLogoUrl(profileData.logo_url)
       } catch (error) {
         console.error("Failed to load customer profile for edit:", error)
@@ -201,6 +280,8 @@ export function EditCustomerProfileModal({
   }, [formData.country_id])
 
   const handleCountrySelect = (value: string) => {
+    clearFieldError("country")
+    clearFieldError("state")
     const countryId = Number(value)
     if (!value || Number.isNaN(countryId)) {
       setFormData((prev) => ({
@@ -223,6 +304,7 @@ export function EditCustomerProfileModal({
   }
 
   const handleStateSelect = (value: string) => {
+    clearFieldError("state")
     const stateId = Number(value)
     if (!value || Number.isNaN(stateId)) {
       setFormData((prev) => ({ ...prev, state: "", state_id: null }))
@@ -288,49 +370,40 @@ export function EditCustomerProfileModal({
   }
 
   const handleSave = async () => {
-    if (!customer || !originalFormData) return
+    if (!customer) return
+    if (!validateForm()) return
+
     setIsSaving(true)
     try {
-      const updateData: Record<string, unknown> = {}
-      if (formData.name !== originalFormData.name) updateData.name = formData.name
-      if (formData.website !== originalFormData.website) updateData.website = formData.website || null
-      if (formData.address !== originalFormData.address) updateData.address = formData.address
-      if (formData.city !== originalFormData.city) updateData.city = formData.city
-      if (formData.postal_code !== originalFormData.postal_code) updateData.postal_code = formData.postal_code
-      if (formData.country_id !== originalFormData.country_id) updateData.country_id = formData.country_id
-      if (formData.state_id !== originalFormData.state_id) updateData.state_id = formData.state_id
-      if (formData.code !== originalFormData.code) updateData.code = formData.code
-      if (
-        customerType === "lab" &&
-        formData.release_casepan !== originalFormData.release_casepan &&
-        formData.release_casepan
-      ) {
-        updateData.release_casepan = formData.release_casepan
+      // Always submit the full editable payload so backend validation runs on all fields
+      const updateData: Record<string, unknown> = {
+        name: formData.name.trim(),
+        code: formData.code.trim(),
+        website: formData.website.trim(),
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        postal_code: formData.postal_code.trim(),
+        country_id: formData.country_id,
+        state_id: formData.state_id,
       }
-
-      if (Object.keys(updateData).length === 0) {
-        toast({
-          title: "No changes",
-          description: "No fields have been modified.",
-        })
-        setIsSaving(false)
-        return
+      if (customerType === "lab" && formData.release_casepan) {
+        updateData.release_casepan = formData.release_casepan
       }
 
       const result = await updateCustomerProfile(customer.id, updateData as any)
       if (result) {
         onSuccess?.({
-          name: formData.name,
-          website: formData.website,
-          address: formData.address,
-          city: formData.city,
-          postal_code: formData.postal_code,
+          name: formData.name.trim(),
+          website: formData.website.trim(),
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          postal_code: formData.postal_code.trim(),
           stateName: formData.state,
           stateId: formData.state_id,
           countryName: formData.country,
           countryId: formData.country_id,
           release_casepan: formData.release_casepan,
-          code: formData.code,
+          code: formData.code.trim(),
           logo_url: logoUrl,
         })
         onOpenChange(false)
@@ -347,7 +420,7 @@ export function EditCustomerProfileModal({
       open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen)
-        if (!nextOpen) setOriginalFormData(null)
+        if (!nextOpen) setFieldErrors({})
       }}
     >
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
@@ -423,41 +496,65 @@ export function EditCustomerProfileModal({
                 <Input
                   id="edit-customer-name"
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("name")
+                    setFormData({ ...formData, name: e.target.value })
+                  }}
                   placeholder={`Enter ${entityLabel.toLowerCase()} name`}
                   disabled={isLoadingProfile}
+                  aria-invalid={!!fieldErrors.name}
                 />
+                {fieldErrors.name && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.name}</p>
+                )}
               </div>
               <div>
-                <Label htmlFor="edit-customer-code">{entityLabel} Code</Label>
+                <Label htmlFor="edit-customer-code">{entityLabel} Code *</Label>
                 <Input
                   id="edit-customer-code"
                   value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("code")
+                    setFormData({ ...formData, code: e.target.value })
+                  }}
                   placeholder={`Enter ${entityLabel.toLowerCase()} code`}
                   disabled={isLoadingProfile}
+                  aria-invalid={!!fieldErrors.code}
                 />
+                {fieldErrors.code && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.code}</p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
-                <Label htmlFor="edit-customer-website">Website</Label>
+                <Label htmlFor="edit-customer-website">Website *</Label>
                 <Input
                   id="edit-customer-website"
-                  type="url"
+                  type="text"
                   value={formData.website}
-                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("website")
+                    setFormData({ ...formData, website: e.target.value })
+                  }}
                   placeholder="https://example.com"
                   disabled={isLoadingProfile}
+                  aria-invalid={!!fieldErrors.website}
                 />
+                {fieldErrors.website && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.website}</p>
+                )}
               </div>
               {customerType === "lab" && (
                 <div>
                   <Label htmlFor="edit-release-casepan">Release Casepan</Label>
                   <Select
                     value={formData.release_casepan}
-                    onValueChange={(value) => setFormData({ ...formData, release_casepan: value })}
+                    onValueChange={(value) => {
+                      clearFieldError("release_casepan")
+                      setFormData({ ...formData, release_casepan: value })
+                    }}
                     disabled={isLoadingProfile}
                   >
                     <SelectTrigger id="edit-release-casepan" className="w-full h-11">
@@ -468,47 +565,71 @@ export function EditCustomerProfileModal({
                       <SelectItem value="After Product">After Product</SelectItem>
                     </SelectContent>
                   </Select>
+                  {fieldErrors.release_casepan && (
+                    <p className="text-sm text-destructive mt-1">{fieldErrors.release_casepan}</p>
+                  )}
                 </div>
               )}
             </div>
 
             <div className="mt-4">
-              <Label htmlFor="edit-customer-address">Street Address</Label>
+              <Label htmlFor="edit-customer-address">Street Address *</Label>
               <Input
                 id="edit-customer-address"
                 value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                onChange={(e) => {
+                  clearFieldError("address")
+                  setFormData({ ...formData, address: e.target.value })
+                }}
                 placeholder="Enter street address"
                 disabled={isLoadingProfile}
+                aria-invalid={!!fieldErrors.address}
               />
+              {fieldErrors.address && (
+                <p className="text-sm text-destructive mt-1">{fieldErrors.address}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-6 mt-4">
               <div>
-                <Label htmlFor="edit-customer-city">City</Label>
+                <Label htmlFor="edit-customer-city">City *</Label>
                 <Input
                   id="edit-customer-city"
                   value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("city")
+                    setFormData({ ...formData, city: e.target.value })
+                  }}
                   placeholder="Enter city"
                   disabled={isLoadingProfile}
+                  aria-invalid={!!fieldErrors.city}
                 />
+                {fieldErrors.city && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.city}</p>
+                )}
               </div>
               <div>
-                <Label htmlFor="edit-customer-postal">Postal Code</Label>
+                <Label htmlFor="edit-customer-postal">Postal Code *</Label>
                 <Input
                   id="edit-customer-postal"
                   value={formData.postal_code}
-                  onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                  onChange={(e) => {
+                    clearFieldError("postal_code")
+                    setFormData({ ...formData, postal_code: e.target.value })
+                  }}
                   placeholder="Enter postal code"
                   disabled={isLoadingProfile}
+                  aria-invalid={!!fieldErrors.postal_code}
                 />
+                {fieldErrors.postal_code && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.postal_code}</p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-6 mt-4">
               <div>
-                <Label htmlFor="edit-customer-country">Country</Label>
+                <Label htmlFor="edit-customer-country">Country *</Label>
                 <Select
                   value={formData.country_id ? formData.country_id.toString() : ""}
                   onValueChange={handleCountrySelect}
@@ -535,9 +656,12 @@ export function EditCustomerProfileModal({
                     )}
                   </SelectContent>
                 </Select>
+                {fieldErrors.country && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.country}</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-customer-state">State / Province</Label>
+                <Label htmlFor="edit-customer-state">State / Province *</Label>
                 <SearchableSelect
                   value={formData.state_id ? formData.state_id.toString() : ""}
                   onValueChange={handleStateSelect}
@@ -555,6 +679,9 @@ export function EditCustomerProfileModal({
                   emptyMessage={!formData.country_id ? "Select a country first" : "No states available"}
                   searchPlaceholder="Search states..."
                 />
+                {fieldErrors.state && (
+                  <p className="text-sm text-destructive mt-1">{fieldErrors.state}</p>
+                )}
               </div>
             </div>
           </div>
@@ -569,7 +696,7 @@ export function EditCustomerProfileModal({
             </Button>
             <Button
               onClick={handleSave}
-              disabled={isSaving || isLoadingProfile || !formData.name}
+              disabled={isSaving || isLoadingProfile}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
               {isSaving ? (

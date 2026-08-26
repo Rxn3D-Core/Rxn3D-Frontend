@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { X, ChevronDown, Info } from "lucide-react"
+import { X, ChevronDown, Info, Trash2, Plus } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -180,6 +180,7 @@ export function CreateTeethShadeModal({
 
   const [teethShadeDetailsEnabled, setTeethShadeDetailsEnabled] = useState(true)
   const [listOfShadesOpen, setListOfShadesOpen] = useState(true)
+  const [showAddShadeForm, setShowAddShadeForm] = useState(false)
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToExistingGroupOpen, setLinkToExistingGroupOpen] = useState(false)
   const [visibilityManagementOpen, setVisibilityManagementOpen] = useState(false)
@@ -271,6 +272,7 @@ export function CreateTeethShadeModal({
       if (onHasChangesChange) onHasChangesChange(false)
       setTeethShadeDetailsEnabled(true)
       setListOfShadesOpen(true)
+      setShowAddShadeForm(false)
       setLinkToProductsOpen(false)
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
@@ -372,9 +374,27 @@ export function CreateTeethShadeModal({
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const resolveShadeColors = (shadeName: string) => {
-    const fromBrand = teethShadeBrand?.shades?.find((s: Shade) => s.name === shadeName)
-    const fromAvailable = availableShades.find((s) => s.name === shadeName)
+  const matchesFormShade = (
+    formShade: FormTeethShade,
+    shade: { id?: number | string; name: string },
+  ) => {
+    if (isPersistedShadeId(formShade.id) && typeof shade.id === "number" && isPersistedShadeId(shade.id)) {
+      return formShade.id === shade.id
+    }
+    return formShade.name === shade.name
+  }
+
+  const resolveShadeColors = (shade: { id?: number | string; name: string }) => {
+    const fromBrand = teethShadeBrand?.shades?.find(
+      (s: Shade) =>
+        (isPersistedShadeId(s.id) && typeof shade.id === "number" && s.id === shade.id) ||
+        s.name === shade.name,
+    )
+    const fromAvailable = availableShades.find(
+      (s) =>
+        (isPersistedShadeId(s.id) && typeof shade.id === "number" && s.id === shade.id) ||
+        s.name === shade.name,
+    )
     const source = fromBrand ?? fromAvailable
     return {
       color_code_incisal: source?.color_code_incisal ?? "",
@@ -384,30 +404,64 @@ export function CreateTeethShadeModal({
   }
 
   const updateShadeColor = (
-    shadeName: string,
+    shade: { id?: number | string; name: string },
     field: "color_code_incisal" | "color_code_body" | "color_code_cervical",
     value: string,
   ) => {
     setFormData((prev) => ({
       ...prev,
-      shades: prev.shades.map((s) => (s.name === shadeName ? { ...s, [field]: value } : s)),
+      shades: prev.shades.map((s) => (matchesFormShade(s, shade) ? { ...s, [field]: value } : s)),
     }))
   }
 
+  const updateShadeName = (shade: { id?: number | string; name: string }, nextName: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      shades: prev.shades.map((s) => (matchesFormShade(s, shade) ? { ...s, name: nextName } : s)),
+    }))
+    setAvailableShades((prev) =>
+      prev.map((s) =>
+        (isPersistedShadeId(s.id) && typeof shade.id === "number" && s.id === shade.id) ||
+        s.name === shade.name
+          ? { ...s, name: nextName }
+          : s,
+      ),
+    )
+  }
+
   const isEditPersistMode = Boolean(isEditing && !isCopying)
+
+  const removeShadeRow = (shade: { id?: number | string; name: string }) => {
+    setFormData((prev) => ({
+      ...prev,
+      shades: prev.shades.filter((s) => !matchesFormShade(s, shade)),
+    }))
+    // In edit mode the table is driven by formData; also drop from the brand shade cache.
+    if (isEditPersistMode) {
+      setAvailableShades((prev) =>
+        prev.filter(
+          (s) =>
+            !(
+              (isPersistedShadeId(s.id) && typeof shade.id === "number" && s.id === shade.id) ||
+              s.name === shade.name
+            ),
+        ),
+      )
+    }
+  }
 
   const setShadeActive = (
     shade: Shade & { isCustom?: boolean },
     active: boolean,
   ) => {
     setFormData((prev) => {
-      const existing = prev.shades.find((s) => s.name === shade.name)
+      const existing = prev.shades.find((s) => matchesFormShade(s, shade))
 
       if (isEditPersistMode && existing) {
         return {
           ...prev,
           shades: prev.shades.map((s) =>
-            s.name === shade.name
+            matchesFormShade(s, shade)
               ? { ...s, enabled: active, status: active ? "Active" : "Inactive" }
               : s,
           ),
@@ -419,7 +473,7 @@ export function CreateTeethShadeModal({
           return {
             ...prev,
             shades: prev.shades.map((s) =>
-              s.name === shade.name
+              matchesFormShade(s, shade)
                 ? { ...s, enabled: true, status: "Active" }
                 : s,
             ),
@@ -435,7 +489,7 @@ export function CreateTeethShadeModal({
               sequence: shade.sequence,
               status: "Active",
               enabled: true,
-              ...resolveShadeColors(shade.name),
+              ...resolveShadeColors(shade),
             },
           ],
         }
@@ -443,7 +497,7 @@ export function CreateTeethShadeModal({
 
       return {
         ...prev,
-        shades: prev.shades.filter((s) => s.name !== shade.name),
+        shades: prev.shades.filter((s) => !matchesFormShade(s, shade)),
       }
     })
   }
@@ -738,154 +792,243 @@ export function CreateTeethShadeModal({
 
             {/* List of Shades Section */}
             <Collapsible open={listOfShadesOpen} onOpenChange={setListOfShadesOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3 border-t border-b py-3">
+                <CollapsibleTrigger className="flex items-center gap-2 min-w-0 flex-1 text-left py-1">
                   <span className="font-medium">List of Shades</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                        <Info className="h-4 w-4 text-gray-400 cursor-help shrink-0" />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[300px]">
-                        <p>Toggle status (Active/Inactive) per shade and edit incisal / body / cervical hex colors when active.</p>
+                        <p>Edit shade names, toggle status, set colors, and delete shades. Deletes apply when you save.</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${listOfShadesOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
+                  <ChevronDown
+                    className={`h-5 w-5 ml-auto shrink-0 transition-transform ${listOfShadesOpen ? "rotate-180" : ""}`}
+                  />
+                </CollapsibleTrigger>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setListOfShadesOpen(true)
+                    setShowAddShadeForm((prev) => !prev)
+                  }}
+                  className="shrink-0 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  {showAddShadeForm ? "Hide form" : "Add shade"}
+                </Button>
+              </div>
               <CollapsibleContent className="pt-4">
+                {showAddShadeForm && (
+                  <AddCustomShadePanel
+                    className="mb-4"
+                    idPrefix="new-teeth-shade"
+                    name={newCustomShade.name}
+                    onNameChange={(value) =>
+                      setNewCustomShade((prev) => ({ ...prev, name: value }))
+                    }
+                    namePlaceholder="e.g. A2"
+                    enabled={newCustomShade.enabled}
+                    onEnabledChange={(checked) =>
+                      setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
+                    }
+                    persistHint={
+                      canPersistCustomShadeToApi
+                        ? "Saves to the library immediately and links the shade to this brand."
+                        : "Adds the shade to this form; save the brand to persist it to the library."
+                    }
+                    colorFields={[
+                      {
+                        id: "new-teeth-shade-incisal",
+                        label: "Incisal",
+                        value: newCustomShade.color_code_incisal,
+                        defaultHex: "#FFFFFF",
+                        onChange: (color) =>
+                          setNewCustomShade((prev) => ({ ...prev, color_code_incisal: color })),
+                      },
+                      {
+                        id: "new-teeth-shade-body",
+                        label: "Body",
+                        value: newCustomShade.color_code_body,
+                        defaultHex: "#F5F5DC",
+                        onChange: (color) =>
+                          setNewCustomShade((prev) => ({ ...prev, color_code_body: color })),
+                      },
+                      {
+                        id: "new-teeth-shade-cervical",
+                        label: "Cervical",
+                        value: newCustomShade.color_code_cervical,
+                        defaultHex: "#E8E8E8",
+                        onChange: (color) =>
+                          setNewCustomShade((prev) => ({ ...prev, color_code_cervical: color })),
+                      },
+                    ]}
+                    onAdd={handleAddCustomShade}
+                    isValid={isNewCustomShadeValid}
+                    isSubmitting={addingCustomShade}
+                  />
+                )}
+
                 {loadingShades ? (
                   <div className="text-center py-4">Loading available shades...</div>
                 ) : (
-                  <>
-                    <div className="border rounded-md overflow-x-auto mb-4">
-                      <Table className="min-w-[900px]">
-                        <TableHeader>
-                          <TableRow className="bg-gray-50">
-                            <TableHead className="text-center min-w-[100px] sticky left-0 z-10 bg-gray-50">
-                              Shade
-                            </TableHead>
-                            <TableHead className="text-center w-[88px]">Status</TableHead>
-                            <TableHead className="text-center min-w-[140px]">Incisal</TableHead>
-                            <TableHead className="text-center min-w-[140px]">Body</TableHead>
-                            <TableHead className="text-center min-w-[140px]">Cervical</TableHead>
+                  <div className="border rounded-md overflow-x-auto mb-4">
+                    <Table className="min-w-[980px]">
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="text-center min-w-[140px] sticky left-0 z-10 bg-gray-50">
+                            Shade
+                          </TableHead>
+                          <TableHead className="text-center w-[88px]">Status</TableHead>
+                          <TableHead className="text-center min-w-[140px]">Incisal</TableHead>
+                          <TableHead className="text-center min-w-[140px]">Body</TableHead>
+                          <TableHead className="text-center min-w-[140px]">Cervical</TableHead>
+                          <TableHead className="w-12 text-center">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(isEditPersistMode ? formData.shades : allShadesToDisplay).length > 0 ? (
+                          (isEditPersistMode ? formData.shades : allShadesToDisplay).map((shade) => {
+                            const formShade = isEditPersistMode
+                              ? (shade as FormTeethShade)
+                              : formData.shades.find((s) => matchesFormShade(s, shade as Shade))
+                            const displayName = formShade?.name ?? shade.name
+                            const isActive = formShade?.enabled ?? false
+                            const isCustom =
+                              (shade as { isCustom?: boolean }).isCustom ||
+                              (!isEditPersistMode &&
+                                !availableShades.some(
+                                  (as) =>
+                                    (isPersistedShadeId(as.id) &&
+                                      typeof shade.id === "number" &&
+                                      as.id === shade.id) ||
+                                    as.name === shade.name,
+                                ))
+                            const rowKey =
+                              typeof shade.id === "number"
+                                ? `shade-${shade.id}`
+                                : `shade-${shade.name}-${shade.sequence}`
+
+                            return (
+                              <TableRow key={rowKey}>
+                                <TableCell className="text-center sticky left-0 z-[1] bg-white">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <Input
+                                      value={displayName}
+                                      onChange={(e) =>
+                                        updateShadeName(
+                                          {
+                                            id: shade.id,
+                                            name: formShade?.name ?? shade.name,
+                                          },
+                                          e.target.value,
+                                        )
+                                      }
+                                      disabled={!isEditPersistMode && !formShade}
+                                      className="h-8 w-[7.5rem] px-2 text-sm font-medium"
+                                      aria-label="Shade name"
+                                    />
+                                    {isCustom && (
+                                      <span className="text-xs text-[#1162a8] bg-blue-50 px-2 py-0.5 rounded">
+                                        Custom
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Switch
+                                    checked={isActive}
+                                    onCheckedChange={(checked) =>
+                                      setShadeActive(
+                                        isEditPersistMode
+                                          ? ({
+                                              id: (shade as FormTeethShade).id,
+                                              name: displayName,
+                                              sequence: shade.sequence,
+                                              status: shade.status,
+                                            } as Shade)
+                                          : (shade as Shade),
+                                        checked,
+                                      )
+                                    }
+                                    className="data-[state=checked]:bg-[#1162a8]"
+                                  />
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <CompactShadeColorField
+                                    value={formShade?.color_code_incisal}
+                                    defaultHex="#F5F5DC"
+                                    disabled={!isActive}
+                                    onChange={(color) =>
+                                      updateShadeColor(
+                                        { id: shade.id, name: displayName },
+                                        "color_code_incisal",
+                                        color,
+                                      )
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <CompactShadeColorField
+                                    value={formShade?.color_code_body}
+                                    defaultHex="#E8DCC8"
+                                    disabled={!isActive}
+                                    onChange={(color) =>
+                                      updateShadeColor(
+                                        { id: shade.id, name: displayName },
+                                        "color_code_body",
+                                        color,
+                                      )
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="align-middle">
+                                  <CompactShadeColorField
+                                    value={formShade?.color_code_cervical}
+                                    defaultHex="#D4C4A8"
+                                    disabled={!isActive}
+                                    onChange={(color) =>
+                                      updateShadeColor(
+                                        { id: shade.id, name: displayName },
+                                        "color_code_cervical",
+                                        color,
+                                      )
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {(isEditPersistMode || isActive || isCustom) && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        removeShadeRow({ id: shade.id, name: displayName })
+                                      }
+                                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                      aria-label={`Delete shade ${displayName}`}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-gray-500 py-4">
+                              No shades available. Click &quot;Add shade&quot; above to get started.
+                            </TableCell>
                           </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {allShadesToDisplay.length > 0 ? (
-                            allShadesToDisplay.map((shade) => {
-                              const formShade = formData.shades.find((s) => s.name === shade.name)
-                              const isActive = formShade?.enabled ?? false
-                              const isCustom = (shade as any).isCustom || false
-
-                              return (
-                                <TableRow key={shade.id || shade.name}>
-                                  <TableCell className="text-center sticky left-0 z-[1] bg-white">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <span className="font-medium">{shade.name}</span>
-                                      {isCustom && (
-                                        <span className="text-xs text-[#1162a8] bg-blue-50 px-2 py-0.5 rounded">
-                                          Custom
-                                        </span>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <Switch
-                                      checked={isActive}
-                                      onCheckedChange={(checked) => setShadeActive(shade as Shade, checked)}
-                                      className="data-[state=checked]:bg-[#1162a8]"
-                                    />
-                                  </TableCell>
-                                  <TableCell className="align-middle">
-                                    <CompactShadeColorField
-                                      value={formShade?.color_code_incisal}
-                                      defaultHex="#F5F5DC"
-                                      disabled={!isActive}
-                                      onChange={(color) => updateShadeColor(shade.name, "color_code_incisal", color)}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="align-middle">
-                                    <CompactShadeColorField
-                                      value={formShade?.color_code_body}
-                                      defaultHex="#E8DCC8"
-                                      disabled={!isActive}
-                                      onChange={(color) => updateShadeColor(shade.name, "color_code_body", color)}
-                                    />
-                                  </TableCell>
-                                  <TableCell className="align-middle">
-                                    <CompactShadeColorField
-                                      value={formShade?.color_code_cervical}
-                                      defaultHex="#D4C4A8"
-                                      disabled={!isActive}
-                                      onChange={(color) => updateShadeColor(shade.name, "color_code_cervical", color)}
-                                    />
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            })
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-gray-500 py-4">
-                                {isEditing || isCopying 
-                                  ? "No shades available. Add a custom shade below to get started." 
-                                  : "No shades available. Add a custom shade below to get started."}
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-
-                    <AddCustomShadePanel
-                      className="mb-4"
-                      idPrefix="new-teeth-shade"
-                      name={newCustomShade.name}
-                      onNameChange={(value) =>
-                        setNewCustomShade((prev) => ({ ...prev, name: value }))
-                      }
-                      namePlaceholder="e.g. A2"
-                      enabled={newCustomShade.enabled}
-                      onEnabledChange={(checked) =>
-                        setNewCustomShade((prev) => ({ ...prev, enabled: checked }))
-                      }
-                      persistHint={
-                        canPersistCustomShadeToApi
-                          ? "Saves to the library immediately and links the shade to this brand."
-                          : "Adds the shade to this form; save the brand to persist it to the library."
-                      }
-                      colorFields={[
-                        {
-                          id: "new-teeth-shade-incisal",
-                          label: "Incisal",
-                          value: newCustomShade.color_code_incisal,
-                          defaultHex: "#FFFFFF",
-                          onChange: (color) =>
-                            setNewCustomShade((prev) => ({ ...prev, color_code_incisal: color })),
-                        },
-                        {
-                          id: "new-teeth-shade-body",
-                          label: "Body",
-                          value: newCustomShade.color_code_body,
-                          defaultHex: "#F5F5DC",
-                          onChange: (color) =>
-                            setNewCustomShade((prev) => ({ ...prev, color_code_body: color })),
-                        },
-                        {
-                          id: "new-teeth-shade-cervical",
-                          label: "Cervical",
-                          value: newCustomShade.color_code_cervical,
-                          defaultHex: "#E8E8E8",
-                          onChange: (color) =>
-                            setNewCustomShade((prev) => ({ ...prev, color_code_cervical: color })),
-                        },
-                      ]}
-                      onAdd={handleAddCustomShade}
-                      isValid={isNewCustomShadeValid}
-                      isSubmitting={addingCustomShade}
-                    />
-                  </>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CollapsibleContent>
             </Collapsible>

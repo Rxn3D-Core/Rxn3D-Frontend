@@ -379,7 +379,7 @@ export function OfficeAdminDashboard() {
         </div>
         )} */}
 
-        {/* Status Cards — New Stage notes hidden for office profiles while case notes work is in progress */}
+        {/* Status Cards */}
         {/* {isEnabled(WIDGET_IDS.STATUS_CARDS) && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <StatusCard title="Rush Cases" count={0} color="text-red-500" />

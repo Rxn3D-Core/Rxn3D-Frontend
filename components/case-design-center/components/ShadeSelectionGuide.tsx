@@ -5,17 +5,9 @@ import { ChevronDown } from "lucide-react";
 import { Check } from "@/components/ui/custom-check";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
 import type { Arch, ProductAdvanceField, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
-import { getShadeGuideAdvanceFields, getShadeFieldType, getTeethShadesForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
+import { getShadeGuideAdvanceFields, getShadeFieldType, getTeethShadesForSelectedGuide, getBrandColorForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
+import { formatShadeFieldLabel, formatShadeSystemName } from "../utils/shadeFieldDisplay";
 import { ShadeField } from "./fields/ShadeField";
-
-/** Format a raw shade guide key (e.g. "VITA_CLASSICAL") into a readable name ("Vita Classical"). */
-function formatShadeGuideName(raw: string): string {
-  if (!raw) return raw;
-  return raw
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 const EMPTY_SHADE_STATE: ShadeSelectionState = {
   arch: null,
@@ -245,6 +237,11 @@ export function ShadeSelectionGuide({
     [productForShades, selectedShadeGuide]
   );
 
+  const guideBrandColor = useMemo(
+    () => getBrandColorForSelectedGuide(productForShades, selectedShadeGuide),
+    [productForShades, selectedShadeGuide]
+  );
+
   const handleNamedFieldClick = useCallback(
     (field: ProductAdvanceField) => {
       const fieldType = getShadeFieldType(field);
@@ -269,7 +266,7 @@ export function ShadeSelectionGuide({
         key={field.id}
         label={field.name}
         // Show the formatted shade guide name as the main text; shade code goes on the tooth SVG
-        value={selectedShade ? formatShadeGuideName(selectedShadeGuide || selectedShade) : ""}
+        value={selectedShade ? formatShadeFieldLabel(selectedShade, productForShades?.teeth_shades, selectedShadeGuide) : ""}
         shade={selectedShade}
         isActive={isActive}
         onClick={() => handleNamedFieldClick(field)}
@@ -296,7 +293,7 @@ export function ShadeSelectionGuide({
                 onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
                 className="w-full flex items-center justify-between text-left"
               >
-                <span className="text-lg text-[#000000]">{selectedShadeGuide || ''}</span>
+                <span className="text-lg text-[#000000] truncate min-w-0">{formatShadeSystemName(selectedShadeGuide) || ''}</span>
                 <div className="flex items-center gap-2">
                   {selectedShadeGuide && <Check size={16} className="text-[#34a853]" />}
                   <ChevronDown size={16} className={`text-[#7f7f7f] transition-transform ${showShadeGuideDropdown ? 'rotate-180' : ''}`} />
@@ -352,7 +349,7 @@ export function ShadeSelectionGuide({
             ) : toothShadeOnly ? (
               <ShadeField
                 label={toothLabel ?? "Tooth Shade"}
-                value={toothShade ? formatShadeGuideName(selectedShadeGuide) : ""}
+                value={toothShade ? formatShadeFieldLabel(toothShade, productForShades?.teeth_shades, selectedShadeGuide) : ""}
                 shade={toothShade}
                 isActive={activeField === "tooth_shade"}
                 required
@@ -368,7 +365,7 @@ export function ShadeSelectionGuide({
               <>
                 <ShadeField
                   label={stumpLabel ?? "Stump Shade"}
-                  value={stumpShade ? formatShadeGuideName(selectedShadeGuide) : ""}
+                  value={stumpShade ? formatShadeFieldLabel(stumpShade, productForShades?.gum_shades ?? productForShades?.teeth_shades, selectedShadeGuide) : ""}
                   shade={stumpShade}
                   isActive={activeField === "stump_shade"}
                   required
@@ -384,7 +381,7 @@ export function ShadeSelectionGuide({
                 {stumpShade && toothLabel !== null && (
                   <ShadeField
                     label={toothLabel}
-                    value={toothShade ? formatShadeGuideName(selectedShadeGuide) : ""}
+                    value={toothShade ? formatShadeFieldLabel(toothShade, productForShades?.teeth_shades, selectedShadeGuide) : ""}
                     shade={toothShade}
                     isActive={activeField === "tooth_shade"}
                     required
@@ -410,6 +407,7 @@ export function ShadeSelectionGuide({
             onShadeClick={handleShadeSelectWithAdvance}
             shades={guideShades}
             guideLabel={selectedShadeGuide}
+            brandColor={guideBrandColor}
             className="w-full"
           />
         )}

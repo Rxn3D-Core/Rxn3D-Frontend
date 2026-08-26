@@ -42,6 +42,11 @@ import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
 } from "../utils/impressionFieldSync";
+import {
+  findShadeCatalogMatch,
+  formatRemovableShadeFieldLabel,
+  SHADE_FIELD_LABEL_CLASS,
+} from "../utils/shadeFieldDisplay";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -563,6 +568,8 @@ interface RemovableRestorationFieldsProps {
   productCardId?: number;
   /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
   labCustomerId?: number | null;
+  /** Active shade-guide system_name fallback when product shade rows lack brand.system_name. */
+  selectedShadeGuide?: string | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -603,6 +610,7 @@ export function SelectionProductFields({
   selectedAddonsByTooth = {},
   productCardId = 0,
   labCustomerId,
+  selectedShadeGuide,
 }: RemovableRestorationFieldsProps) {
   const removableChain = getSelectionFieldChain(selectedProduct);
   const implantTeeth = useMemo(
@@ -788,7 +796,7 @@ export function SelectionProductFields({
         />
         <div className={`grid grid-cols-1 ${showGumShade ? "sm:grid-cols-2" : ""} gap-3 mt-3`}>
           <fieldset
-            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+            className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${
               isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted
                 ? "border-[#34a853]"
                 : isFieldCompletedFn(arch, firstToothNumber, "teeth_shade")
@@ -814,19 +822,30 @@ export function SelectionProductFields({
             >
               Teeth shade
             </legend>
-            <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000]">
-                {(() => { const r = getFieldValueFn(arch, firstToothNumber, "teeth_shade"); try { return JSON.parse(r).name ?? r; } catch { return r; } })()}
+            <div className="flex items-center gap-2 w-full min-w-0">
+              <span
+                className={SHADE_FIELD_LABEL_CLASS}
+                title={formatRemovableShadeFieldLabel(
+                  getFieldValueFn(arch, firstToothNumber, "teeth_shade"),
+                  selectedProduct?.teeth_shades,
+                  selectedShadeGuide
+                ) || undefined}
+              >
+                {formatRemovableShadeFieldLabel(
+                  getFieldValueFn(arch, firstToothNumber, "teeth_shade"),
+                  selectedProduct?.teeth_shades,
+                  selectedShadeGuide
+                )}
               </span>
               {isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted && (
-                <Check size={16} className="text-[#34a853] ml-auto" />
+                <Check size={16} className="text-[#34a853] flex-shrink-0" />
               )}
             </div>
           </fieldset>
 
           {isVisible("gum_shade") ? (
             <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
+              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden ${
                 isFieldCompletedFn(arch, firstToothNumber, "gum_shade") && !caseSubmitted
                   ? "border-[#34a853]"
                   : isFieldCompletedFn(arch, firstToothNumber, "gum_shade")
@@ -853,19 +872,17 @@ export function SelectionProductFields({
               >
                 Gum Shade
               </legend>
-              <div className="flex items-center gap-2 w-full">
+              <div className="flex items-center gap-2 w-full min-w-0">
                 {(() => {
                   const raw = getFieldValueFn(arch, firstToothNumber, "gum_shade");
-                  let displayName = raw;
-                  let color: string | null = null;
-                  try { const p = JSON.parse(raw); displayName = p.name ?? raw; } catch {}
-                  const matchedShade = selectedProduct?.gum_shades?.find((s) => s.name === displayName);
-                  if (matchedShade) color = matchedShade.color_code_middle;
+                  const matchedShade = findShadeCatalogMatch(raw, selectedProduct?.gum_shades);
+                  const color = matchedShade?.color_code_middle ?? null;
+                  const displayName = formatRemovableShadeFieldLabel(raw, selectedProduct?.gum_shades);
                   return (
                     <>
-                      <span className="text-[14px] sm:text-lg text-[#000000] truncate">{displayName}</span>
+                      <span className={SHADE_FIELD_LABEL_CLASS} title={displayName || undefined}>{displayName}</span>
                       {color && (
-                        <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 ml-auto">
+                        <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                           <rect width="28.0391" height="28.0391" rx="6" fill={color} />
                         </svg>
                       )}
