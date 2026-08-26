@@ -818,7 +818,12 @@ export function buildVirtualSlipVM(d: any, options?: VirtualSlipVMOptions): Virt
       resolveDoctorImageUrl(safe.doctor) ||
       null,
     createdByName: firstStr(safe.created_by?.name, caseObj.created_by?.name),
-    createdByImage: firstStr(safe.created_by?.image, caseObj.created_by?.image) || null,
+    // Real creator photo only (including when creator is a doctor) — never the
+    // dual-dentist Doctor placeholder illustration.
+    createdByImage:
+      resolveDoctorImageUrl(safe.created_by) ||
+      resolveDoctorImageUrl(caseObj.created_by) ||
+      null,
     patientName: firstStr(caseObj.patient_name),
     gender: firstStr(caseObj.gender),
     age: firstStr(caseObj.age),

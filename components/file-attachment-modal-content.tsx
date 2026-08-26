@@ -19,6 +19,7 @@ import {
   ZoomOut,
   Eye,
   Plus,
+  Trash2,
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import SimpleSTLViewer from "./demo/simple-stl-generator"
@@ -1042,11 +1043,14 @@ export default function FileAttachmentModalContent({
             {!isCaseSubmitted && (
               <button
                 type="button"
-                className="ml-auto p-0 hover:text-red-500"
-                title="Delete"
-                onClick={() => void handleDeleteFile(item)}
+                className="ml-auto p-0.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                title="Delete attachment"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDeleteFile(item)
+                }}
               >
-                <X className="w-2.5 h-2.5" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -1276,6 +1280,13 @@ export default function FileAttachmentModalContent({
                           title="Download"
                           onClick={(e) => { e.stopPropagation(); handleDownloadFile(upload) }}>
                           <Download className="w-2.5 h-2.5" />
+                        </button>
+                      )}
+                      {!isCaseSubmitted && (
+                        <button type="button" className="w-5 h-5 rounded bg-white/90 border border-gray-200 shadow-sm flex items-center justify-center text-gray-600 hover:text-red-600"
+                          title="Delete attachment"
+                          onClick={(e) => { e.stopPropagation(); void handleDeleteFile(upload) }}>
+                          <Trash2 className="w-2.5 h-2.5" />
                         </button>
                       )}
                     </div>

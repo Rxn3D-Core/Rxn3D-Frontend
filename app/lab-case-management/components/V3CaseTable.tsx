@@ -718,14 +718,18 @@ function DesktopCell({
 function DigitalImpressionLabels({
   impressions,
 }: {
-  impressions?: Array<{ id: number; name: string; url?: string | null }>
+  impressions?: Array<{ id: number; name: string; code?: string; url?: string | null }>
 }) {
   if (!impressions?.length) return null
 
   return (
     <div className="flex flex-col items-center justify-center gap-0.5">
-      {impressions.map((impression) =>
-        impression.url ? (
+      {impressions.map((impression) => {
+        const label = impression.code || impression.name
+        const title = impression.name && impression.code && impression.name !== impression.code
+          ? impression.name
+          : label
+        return impression.url ? (
           <a
             key={impression.id}
             href={impression.url}
@@ -733,20 +737,21 @@ function DigitalImpressionLabels({
             rel="noopener noreferrer"
             className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]"
             style={{ fontSize: 16, lineHeight: "18px", fontWeight: 600, color: "#1162A8" }}
-            title={`Open ${impression.name}`}
+            title={`Open ${title}`}
             onClick={(e) => e.stopPropagation()}
           >
-            {impression.name}
+            {label}
           </a>
         ) : (
           <span
             key={impression.id}
+            title={title}
             style={{ fontSize: 16, lineHeight: "18px", fontWeight: 600, color: "#1162A8" }}
           >
-            {impression.name}
+            {label}
           </span>
         )
-      )}
+      })}
     </div>
   )
 }

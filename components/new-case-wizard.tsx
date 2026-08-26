@@ -33,7 +33,7 @@ import { usePatientFieldSettings } from "@/hooks/use-patient-field-settings";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { getActiveCustomerId } from "@/lib/customer-scope";
 import { isLabCustomerContext, isOfficeCustomerContext } from "@/lib/role-utils";
-import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName } from "@/utils/avatar-utils";
+import { resolveDoctorImageUrl, getInitials, formatDoctorDisplayName, doctorDisplayImageUrl, DOCTOR_PLACEHOLDER_IMAGE } from "@/utils/avatar-utils";
 import { DoctorPhotoUploadModal } from "@/components/doctor-photo-upload-modal";
 import { DoctorEditModal } from "@/components/case-design-center/components/DoctorEditModal";
 import { PatientDemographicModal } from "@/components/case-design-center/components/PatientDemographicModal";
@@ -697,19 +697,15 @@ function StepDoctor({
                   : "border-[4px] border-[#d9d9d9] group-hover:border-[#1162a8]/100"
                   }`}
               >
-                <span className="absolute inset-0 flex items-center justify-center text-4xl font-semibold text-[#1162a8]">
-                  {getInitials(doc.name) || "?"}
-                </span>
-                {doc.img && (
-                  <img
-                    src={doc.img}
-                    alt={doc.name}
-                    className="relative w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.remove();
-                    }}
-                  />
-                )}
+                <img
+                  src={doctorDisplayImageUrl(doc.img)}
+                  alt={doc.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                    e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                  }}
+                />
               </div>
 
               {/* Optional photo upload, only when this doctor has none and the
@@ -1244,19 +1240,15 @@ function StepPatientInfo({
             <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
               <div className="relative flex-shrink-0">
                 <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-                  <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
-                    {getInitials(doctor.name) || "?"}
-                  </span>
-                  {doctor.img && (
-                    <img
-                      src={doctor.img}
-                      alt={doctor.name}
-                      className="relative w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.remove();
-                      }}
-                    />
-                  )}
+                  <img
+                    src={doctorDisplayImageUrl(doctor.img)}
+                    alt={doctor.name}
+                    className="relative w-full h-full object-cover"
+                    onError={(e) => {
+                      if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                      e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                    }}
+                  />
                 </div>
                 {canEditDoctor && onEditDoctorClick && (
                   <DoctorEditButton onClick={onEditDoctorClick} />
@@ -1378,19 +1370,15 @@ function StepPatientInfo({
           <div className="flex flex-col items-center gap-0">
             <div className="relative flex-shrink-0">
               <div className="relative w-[105px] h-[105px] rounded-full overflow-hidden border-2 border-[#d9d9d9] bg-gray-200 flex items-center justify-center">
-                <span className="absolute inset-0 flex items-center justify-center text-xl font-bold text-gray-500">
-                  {getInitials(doctor.name) || "?"}
-                </span>
-                {doctor.img && (
-                  <img
-                    src={doctor.img}
-                    alt={doctor.name}
-                    className="relative w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.remove();
-                    }}
-                  />
-                )}
+                <img
+                  src={doctorDisplayImageUrl(doctor.img)}
+                  alt={doctor.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                    e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                  }}
+                />
               </div>
               {canEditDoctor && onEditDoctorClick && (
                 <DoctorEditButton onClick={onEditDoctorClick} />
@@ -2205,19 +2193,15 @@ function PatientMiniHeader({
           <div className="flex flex-col justify-center items-center gap-0 w-auto sm:w-[170px] flex-shrink-0">
             <div className="relative flex-shrink-0">
               <div className="relative w-[65px] h-[65px] sm:w-[87.74px] sm:h-[87.74px] rounded-full overflow-hidden flex-shrink-0 bg-gray-200 flex items-center justify-center">
-                <span className="absolute inset-0 flex items-center justify-center text-base sm:text-xl font-bold text-gray-500">
-                  {getInitials(doctor.name) || "?"}
-                </span>
-                {doctor.img && (
-                  <img
-                    src={doctor.img}
-                    alt={doctor.name}
-                    className="relative w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.remove();
-                    }}
-                  />
-                )}
+                <img
+                  src={doctorDisplayImageUrl(doctor.img)}
+                  alt={doctor.name}
+                  className="relative w-full h-full object-cover"
+                  onError={(e) => {
+                    if (e.currentTarget.src.includes(DOCTOR_PLACEHOLDER_IMAGE)) return;
+                    e.currentTarget.src = DOCTOR_PLACEHOLDER_IMAGE;
+                  }}
+                />
               </div>
               {canEditDoctor && onEditDoctorClick && (
                 <DoctorEditButton onClick={onEditDoctorClick} />

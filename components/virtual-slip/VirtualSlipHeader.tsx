@@ -7,6 +7,7 @@ import {
   VirtualSlipLocationAction,
   type VirtualSlipLocationActionProps,
 } from "@/components/virtual-slip/VirtualSlipLocationAction";
+import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
 
 const HEADER_ICON_BASE = "/icons/virtual-slip-actions";
 
@@ -44,21 +45,48 @@ function Avatar({
   src,
   name,
   sizeClass,
+  /** Doctor slot uses the shared illustration; Created By keeps initials. */
+  fallback = "initials",
 }: {
   src: string | null;
   name: string;
   sizeClass: string;
+  fallback?: "doctor" | "initials";
 }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     setFailed(false);
   }, [src]);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  if (fallback === "doctor") {
+    const imgSrc = failed
+      ? DOCTOR_PLACEHOLDER_IMAGE
+      : doctorDisplayImageUrl(src);
+    return (
+      <div
+        className={`flex items-center justify-center overflow-hidden rounded-full bg-gray-200 ${sizeClass}`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imgSrc}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={() => {
+            if (!failed) setFailed(true);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Created By (and any non-doctor avatar): show real photo only; else initials.
   const showImage = Boolean(src) && !failed;
   return (
     <div
@@ -73,7 +101,7 @@ function Avatar({
           onError={() => setFailed(true)}
         />
       ) : (
-        <span className="text-sm font-bold text-gray-500">{initials || "â€”"}</span>
+        <span className="text-sm font-bold text-gray-500">{initials || "—"}</span>
       )}
     </div>
   );
@@ -165,6 +193,7 @@ export function VirtualSlipHeader({
             src={header.doctorImage}
             name={header.doctorName || "Doctor"}
             sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
+            fallback="doctor"
           />
           {hasDisplayValue(header.doctorName) && (
             <div className="flex flex-col items-center gap-[2px] text-center font-sans">
@@ -286,6 +315,7 @@ export function VirtualSlipHeader({
               src={header.createdByImage}
               name={header.createdByName || "Created"}
               sizeClass="h-[clamp(88px,10.5vw,118px)] w-[clamp(88px,10.5vw,118px)]"
+              fallback="initials"
             />
             {hasDisplayValue(header.createdByName) && (
               <div className="flex flex-col items-center gap-[2px] text-center font-sans">

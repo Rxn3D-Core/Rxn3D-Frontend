@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, Search, Plus, ChevronDown, X } from "lucide-react"
+import { Eye, Search, Plus, ChevronDown, X, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -15,6 +15,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useCustomer } from "@/contexts/customer-context"
 import ReactDOM from "react-dom"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import {
+  EditCustomerProfileModal,
+  type EditCustomerProfileData,
+} from "@/components/lab-office-management/edit-customer-profile-modal"
 
 // Updated interface to match customer data structure
 interface officeCustomers {
@@ -43,11 +47,14 @@ interface SelectedOfficeCustomer extends officeCustomers {
   city: string
   postal_code: string
   stateName?: string
+  stateId?: number | null
   countryName?: string
+  countryId?: number | null
   labNumber?: string
   contactName?: string
   contactEmail?: string
   contactNumber?: string
+  code?: string
   officeAdmins?: Array<{
     id: number
     name: string
@@ -92,9 +99,56 @@ export default function AllOffice() {
   const [sortField, setSortField] = useState<keyof officeCustomers | null>(null)
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [editCustomer, setEditCustomer] = useState<EditCustomerProfileData | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const { isCustomersLoading, officeCustomers, fetchCustomers, pagination, updateCustomerProfile, fetchCustomerProfile } = useCustomer()
   const API_STATUS_OPTIONS = ["Active", "Inactive"] as const
+
+  const refreshOfficeList = () => {
+    fetchCustomers("office", {
+      q: searchTerm.trim() || undefined,
+      status: statusFilter === "all" ? undefined : (statusFilter as "Active" | "Inactive"),
+      per_page: parseInt(entriesPerPage, 10),
+      order_by: sortField === "name" ? "name" : "created_at",
+      sort_by: sortOrder,
+      page: currentPage,
+    })
+  }
+
+  const openEditOffice = async (office: officeCustomers) => {
+    try {
+      const profile = await fetchCustomerProfile(office.id)
+      const profileData = profile as any
+      setEditCustomer({
+        id: office.id,
+        name: profileData?.name || office.name,
+        email: profileData?.email || office.email,
+        website: profileData?.website ?? office.website,
+        address: profileData?.address || office.address,
+        city: profileData?.city || office.city,
+        postal_code: profileData?.postal_code || office.postal_code,
+        stateName: profileData?.state?.name || "",
+        stateId: profileData?.state?.id ?? null,
+        countryName: profileData?.country?.name || "",
+        countryId: profileData?.country?.id ?? null,
+        code: profileData?.code || "",
+        logo_url: profileData?.logo_url || office.logo_url,
+      })
+    } catch {
+      setEditCustomer({
+        id: office.id,
+        name: office.name,
+        email: office.email,
+        website: office.website,
+        address: office.address,
+        city: office.city,
+        postal_code: office.postal_code,
+        logo_url: office.logo_url,
+      })
+    }
+    setIsEditModalOpen(true)
+  }
 
   useEffect(() => {
     fetchCustomers("office", {
@@ -195,11 +249,16 @@ export default function AllOffice() {
         city: profileData?.city || user.city || "",
         postal_code: profileData?.postal_code || user.postal_code || "",
         stateName: profileData?.state?.name || "",
+        stateId: profileData?.state?.id ?? null,
         countryName: profileData?.country?.name || "",
+        countryId: profileData?.country?.id ?? null,
         labNumber: profileData?.default_admin?.work_number || "",
         contactName: profileData?.default_admin ? `${profileData.default_admin.first_name || ""} ${profileData.default_admin.last_name || ""}`.trim() : "",
         contactEmail: profileData?.default_admin?.email || "",
         contactNumber: profileData?.default_admin?.phone || "",
+        code: profileData?.code || "",
+        logo_url: profileData?.logo_url || user.logo_url,
+        website: profileData?.website ?? user.website,
         address: [profileData?.address || user.address, profileData?.city || user.city, profileData?.state?.name, profileData?.country?.name, profileData?.postal_code || user.postal_code]
           .filter(Boolean)
           .join(", "),
@@ -215,11 +274,14 @@ export default function AllOffice() {
         city: user.city || "",
         postal_code: user.postal_code || "",
         stateName: "",
+        stateId: null,
         countryName: "",
+        countryId: null,
         labNumber: "",
         contactName: "",
         contactEmail: "",
         contactNumber: "",
+        code: "",
         officeAdmins: [],
         doctors: [],
       })
@@ -511,14 +573,26 @@ export default function AllOffice() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewUser(lab)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewUser(lab)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="View office details"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditOffice(lab)}
+                          className="text-purple-600 hover:text-purple-800"
+                          title="Edit office profile"
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -588,6 +662,34 @@ export default function AllOffice() {
                 onBack={handleBackToList}
                 mode="office"
                 hideOtherNotes={true}
+                allowEdit={true}
+                customerId={selectedUser.id}
+                customerType="office"
+                onProfileUpdated={(updated) => {
+                  setSelectedUser((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          name: updated.name ?? prev.name,
+                          website: updated.website ?? prev.website,
+                          city: updated.city ?? prev.city,
+                          postal_code: updated.postal_code ?? prev.postal_code,
+                          stateName: updated.stateName ?? prev.stateName,
+                          stateId: updated.stateId ?? prev.stateId,
+                          countryName: updated.countryName ?? prev.countryName,
+                          countryId: updated.countryId ?? prev.countryId,
+                          code: updated.code ?? prev.code,
+                          logo_url: updated.logo_url ?? prev.logo_url,
+                          address: updated.address
+                            ? [updated.address, updated.city, updated.stateName, updated.countryName, updated.postal_code]
+                                .filter(Boolean)
+                                .join(", ")
+                            : prev.address,
+                        }
+                      : prev
+                  )
+                  refreshOfficeList()
+                }}
                 officeAdmins={selectedUser.officeAdmins || []}
                 doctors={selectedUser.doctors || []}
               />
@@ -605,6 +707,22 @@ export default function AllOffice() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EditCustomerProfileModal
+        open={isEditModalOpen}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open)
+          if (!open) setEditCustomer(null)
+        }}
+        customerType="office"
+        customer={editCustomer}
+        onSuccess={() => {
+          refreshOfficeList()
+          if (selectedUser && editCustomer && selectedUser.id === editCustomer.id) {
+            void handleViewUser(selectedUser)
+          }
+        }}
+      />
     </div>
   )
 }
