@@ -41,6 +41,12 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import {
+  loadSlipListingLocationFilters,
+  loadSlipListingStatusFilters,
+  saveSlipListingLocationFilters,
+  saveSlipListingStatusFilters,
+} from "@/lib/slip-listing-preferences"
 import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
@@ -143,8 +149,12 @@ function OfficeCaseManagementPage() {
   const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2()
 
   const [search, setSearch] = useState("")
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [selectedLocations, setSelectedLocations] = useState<string[]>(
+    () => loadSlipListingLocationFilters("office") ?? [],
+  )
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(
+    () => loadSlipListingStatusFilters("office") ?? [],
+  )
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(SLIP_LISTING_DEFAULT_PER_PAGE)
   const [selected, setSelected] = useState<number[]>([])
@@ -203,6 +213,14 @@ function OfficeCaseManagementPage() {
   const slips = useMemo(() => officeSlips.map(toCaseRowData), [officeSlips])
 
   const debouncedSearch = useDebounce(search, 400)
+
+  useEffect(() => {
+    saveSlipListingLocationFilters("office", selectedLocations)
+  }, [selectedLocations])
+
+  useEffect(() => {
+    saveSlipListingStatusFilters("office", selectedStatuses)
+  }, [selectedStatuses])
 
   useEffect(() => {
     const customerId = resolveListingCustomerId()
@@ -717,6 +735,7 @@ function OfficeCaseManagementPage() {
 
       <main className="w-full px-4 pb-8">
         <V3CaseWidget
+          listingProfile="office"
           search={search}
           onSearchChange={setSearch}
           onSearchEnter={() => {

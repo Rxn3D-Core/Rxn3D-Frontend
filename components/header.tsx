@@ -59,7 +59,7 @@ import { isOfficeCustomerContext } from "@/lib/role-utils"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
-  "border-none bg-[linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)] hover:brightness-110 text-[#F7F7F7] h-10 w-[120px] rounded-[8px] text-[18px] font-bold leading-[21px] font-[Helvetica] shadow-sm transition-all duration-200 hover:shadow-md px-0"
+  "border-none bg-[linear-gradient(231.46deg,#2AA6DE_-14.5%,#82298D_51.11%,#C9539F_116.71%)] hover:brightness-110 text-[#F7F7F7] h-10 w-[120px] rounded-[8px] text-[18px] font-bold leading-[21px] font-[Inter, sans-serif] shadow-sm transition-all duration-200 hover:shadow-md px-0"
 
 /** Scan Code: white bg, gradient border — text/icon gradient handled inline */
 const SCAN_CODE_BUTTON_CLASS =
@@ -956,7 +956,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                     fontWeight: 700,
                     fontSize: "18px",
                     lineHeight: "21px",
-                    fontFamily: "Helvetica, sans-serif",
+                    fontFamily: "Inter, sans-serif",
                   }}>{t("header.scanCode", "Scan Code")}</span>
                   {scanHistory.length > 0 && (
                     <Badge
@@ -1194,7 +1194,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                       fontWeight: 700,
                       fontSize: "16px",
                       lineHeight: "21px",
-                      fontFamily: "Helvetica, sans-serif",
+                      fontFamily: "Inter, sans-serif",
                     }}>{t("header.scanCode", "Scan Code")}</span>
                     {scanHistory.length > 0 && (
                       <Badge
