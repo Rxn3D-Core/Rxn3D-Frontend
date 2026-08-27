@@ -33,6 +33,7 @@ import {
   updateBillingConfigPlan,
   type BillingConfigPlan,
   type BillingConfigPlanPayload,
+  type LibraryCloneScope,
   type PlanSubscriber,
   type PriceFrequency,
 } from "@/lib/api/billing-config-plans"
@@ -431,6 +432,7 @@ export default function BillingConfigurationPage() {
   const [enforcementAtStorage, setEnforcementAtStorage] = useState("block-new-file-uploads")
   const [gracePeriodDays, setGracePeriodDays] = useState("15")
   const [slipResetMode, setSlipResetMode] = useState<"reset-each-cycle" | "carry-over">("reset-each-cycle")
+  const [libraryCloneScope, setLibraryCloneScope] = useState<LibraryCloneScope>("full")
   const [formErrors, setFormErrors] = useState<WizardFormErrors>({})
   const [openRuleModal, setOpenRuleModal] = useState(false)
   const [ruleKey, setRuleKey] = useState("")
@@ -638,6 +640,7 @@ export default function BillingConfigurationPage() {
     setMaxAdminSeat("")
     setMaxUserSeat("")
     setSlipResetMode("reset-each-cycle")
+    setLibraryCloneScope("full")
     setSelectedModules(["Slip Management Module", "Billing Module", "Lab Admin Module"])
     setEnforcementAtSlip("block-new-case-creation")
     setEnforcementAtStorage("block-new-file-uploads")
@@ -671,6 +674,7 @@ export default function BillingConfigurationPage() {
     setMaxAdminSeat(plan.feature_limits?.max_admin_seats?.toString() || "")
     setMaxUserSeat(plan.feature_limits?.max_user_seats?.toString() || "")
     setSlipResetMode(plan.feature_limits?.capacity_type === "carry_over_unused" ? "carry-over" : "reset-each-cycle")
+    setLibraryCloneScope(plan.library_clone_scope === "half" ? "half" : "full")
     const moduleNames = (plan.module_ids || []).map((id) => MODULE_OPTIONS[id - 1]).filter(Boolean)
     setSelectedModules(moduleNames.length ? moduleNames : [])
     setEnforcementAtSlip(
@@ -823,6 +827,7 @@ export default function BillingConfigurationPage() {
       badge_label: badgeLabel.trim() || undefined,
       display_order: Number(displayOrder),
       status: isDraftVisible ? "draft" : "active",
+      library_clone_scope: libraryCloneScope,
       feature_limits: {
         slip_capacity: Number(monthlySlipAllocation || 0),
         capacity_type: slipResetMode === "carry-over" ? "carry_over_unused" : "reset_each_cycle",
@@ -1689,6 +1694,33 @@ export default function BillingConfigurationPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2 border-t pt-3">
+                  <p className="text-sm font-semibold">Library clone scope</p>
+                  <p className="text-xs text-muted-foreground">
+                    Half clones supporting catalog plus implants/abutments (no products or advance fields). Full also clones products and advance catalog. Free/Freemium plans should use Half.
+                  </p>
+                  <RadioGroup
+                    value={libraryCloneScope}
+                    onValueChange={(value: LibraryCloneScope) => setLibraryCloneScope(value)}
+                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-8"
+                  >
+                    <label className="inline-flex items-start gap-2 text-sm">
+                      <RadioGroupItem value="half" className="mt-0.5" />
+                      <span>
+                        <span className="font-medium">Half library</span>
+                        <span className="block text-xs text-muted-foreground">No products or advance catalog (implants included)</span>
+                      </span>
+                    </label>
+                    <label className="inline-flex items-start gap-2 text-sm">
+                      <RadioGroupItem value="full" className="mt-0.5" />
+                      <span>
+                        <span className="font-medium">Full library</span>
+                        <span className="block text-xs text-muted-foreground">Products and advance fields included</span>
+                      </span>
+                    </label>
+                  </RadioGroup>
+                </div>
+
                 {/* ponytail: hidden per request, not deleted — flip to true to restore */}
                 {false && (
                   <div className="space-y-2">
@@ -1788,6 +1820,7 @@ export default function BillingConfigurationPage() {
                   <ReviewRow label="Included Storage" value={`${includedStorageGb || "0"} GB`} />
                   <ReviewRow label="Max Admin Seats" value={maxAdminSeat === "-1" ? "Unlimited" : (maxAdminSeat || "0")} />
                   <ReviewRow label="Max User Seats" value={maxUserSeat === "-1" ? "Unlimited" : (maxUserSeat || "0")} />
+                  <ReviewRow label="Library Clone" value={libraryCloneScope === "half" ? "Half library" : "Full library"} />
                 </div>
                 <div className="space-y-3 rounded-md border p-3">
                   <SectionHeader title="Payment Gateway setup" />

@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api/client"
 
 export type PlanStatus = "active" | "inactive" | "draft" | "pending"
 export type CapacityType = "reset_each_cycle" | "carry_over_unused"
+export type LibraryCloneScope = "half" | "full"
 export type PriceFrequency = "monthly" | "quarterly" | "semi_annual" | "annual"
 export type TrialAccessMode = "full_access" | "feature_limited"
 export type OverageBillingMethod = "end_of_cycle" | "real_time"
@@ -15,6 +16,7 @@ export interface BillingConfigPlanPayload {
   display_order?: number
   preview_bg_color?: string
   status: PlanStatus
+  library_clone_scope?: LibraryCloneScope
   feature_limits: {
     slip_capacity: number
     capacity_type: CapacityType
@@ -64,6 +66,7 @@ export interface BillingConfigPlan {
   display_order?: number
   preview_bg_color?: string
   active_labs_count?: number
+  library_clone_scope?: LibraryCloneScope
   feature_limits?: BillingConfigPlanPayload["feature_limits"]
   pricing?: BillingConfigPlanPayload["pricing"]
   trial?: BillingConfigPlanPayload["trial"]
