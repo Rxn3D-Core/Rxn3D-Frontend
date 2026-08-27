@@ -4,13 +4,11 @@ import Link from "next/link"
 import { useEffect, useMemo, useState, type ChangeEvent } from "react"
 import {
   ArrowRight,
-  Check,
   ChevronDown,
   Expand,
   Pencil,
   Plus,
   Search,
-  Star,
   Trash2,
   X,
 } from "lucide-react"
@@ -62,70 +60,26 @@ import {
   type AddonPayload,
 } from "@/lib/api/billing-config-addons"
 import { cn } from "@/lib/utils"
+import { PlanFeatureMatrixEditor } from "@/components/billing-subscription/plan-feature-matrix-editor"
+import { CapacityAddonManager } from "@/components/billing-subscription/capacity-addon-manager"
 
-
-const PLAN_CARDS = [
-  {
-    key: "plan_freemium",
-    name: "Freemium",
-    badge: "Acquisition",
-    monthly: "$0.00/mo",
-    includedSlips: "20 (one-time)",
-    overageRate: "N/A — Blocked",
-    includedStorage: "2 GB",
-    maxUsers: "1",
-    prioritySupport: false,
-    customBranding: false,
-    activeLabs: "12 active labs",
-    style: "default",
-  },
-  {
-    key: "plan_starter",
-    name: "Starter",
-    badge: "Growth",
-    monthly: "$49.00/mo",
-    includedSlips: "100/month",
-    overageRate: "$0.50/slip",
-    includedStorage: "5 GB",
-    maxUsers: "2",
-    prioritySupport: false,
-    customBranding: false,
-    activeLabs: "89 active labs",
-    style: "success",
-  },
-  {
-    key: "plan_professional",
-    name: "Professional",
-    badge: "Most Popular",
-    monthly: "$149.00/mo",
-    includedSlips: "300/month",
-    overageRate: "$0.50/slip",
-    includedStorage: "15 GB",
-    maxUsers: "5",
-    prioritySupport: true,
-    customBranding: false,
-    activeLabs: "41 active labs",
-    style: "highlight",
-  },
-  {
-    key: "plan_enterprise",
-    name: "Enterprise",
-    badge: "Premium",
-    monthly: "Custom Pricing",
-    includedSlips: "Unlimited",
-    overageRate: "N/A",
-    includedStorage: "100 GB+",
-    maxUsers: "Unlimited",
-    prioritySupport: true,
-    customBranding: true,
-    activeLabs: "5 active labs",
-    style: "enterprise",
-  },
-] as const
 
 type WizardStep = "plan-details" | "pricing-billing" | "modules-limits" | "review-publish"
 type WizardFormErrors = Record<string, string>
-type PlanCardModel = (typeof PLAN_CARDS)[number] & { sourcePlan?: BillingConfigPlan }
+type PlanCardModel = {
+  key: string
+  name: string
+  badge: string
+  monthly: string
+  includedSlips: string
+  overageRate: string
+  continuousRate: string
+  includedStorage: string
+  maxUsers: string
+  activeLabs: string
+  previewBgColor?: string
+  sourcePlan?: BillingConfigPlan
+}
 
 const MODULE_OPTIONS = [
   "3D App Module",
@@ -182,6 +136,17 @@ function formatLeadPlanPrice(currency: string | undefined, entry: PlanPriceRow |
   }
 }
 
+function formatPlanLimit(value?: number | null, suffix = ""): string {
+  if (value === undefined || value === null) return "N/A"
+  if (value < 0) return "Unlimited"
+  return `${value}${suffix}`
+}
+
+function formatOverageRate(rate?: number | null, enabled?: boolean): string {
+  if (!enabled || rate == null) return "N/A"
+  return `$${Number(rate).toFixed(2)}/slip`
+}
+
 function ConfigRowCard({
   title,
   description,
@@ -231,87 +196,31 @@ function ConfigRowCard({
 }
 
 function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCardModel; onDelete: (id: number) => void; onEdit: (plan: PlanCardModel) => void; onViewSubscribers?: (planId: number, planName: string) => void }) {
-  const isEnterprise = plan.style === "enterprise"
-  const isHighlighted = plan.style === "highlight"
-  const isSuccess = plan.style === "success"
-
-  const headerBg = isEnterprise
-    ? "bg-[#1E2939]"
-    : isHighlighted
-      ? "bg-[#EEF2FF]"
-      : isSuccess
-        ? "bg-[#F0FDF4]"
-        : "bg-[#F9FAFB]"
-
-  const badgeStyle = isEnterprise
-    ? "bg-[#FFFBEB] text-[#BB4D00]"
-    : isHighlighted
-      ? "bg-[#EEF2FF] text-[#1162A8]"
-      : isSuccess
-        ? "bg-[#F0FDF4] text-[#008236]"
-        : "bg-white text-[#434343]"
-
-  const titleColor = isEnterprise ? "text-white" : "text-[#101828]"
-  const priceColor = isEnterprise ? "text-[#D1D5DC]" : "text-[#434343]"
-
-  const isFreemium = plan.style === "default"
-
-  const featureRows = isFreemium
-    ? [
-        { label: "Included Slips", value: plan.includedSlips },
-        { label: "Included Storage", value: plan.includedStorage },
-        { label: "Max User Seats", value: plan.maxUsers },
-        { label: "Priority Support", value: plan.prioritySupport, icon: plan.prioritySupport ? ("check" as const) : ("cross" as const) },
-        { label: "Custom Branding", value: plan.customBranding, icon: plan.customBranding ? ("check" as const) : ("cross" as const) },
-      ]
-    : isEnterprise
-      ? [
-          { label: "Included Slips", value: plan.includedSlips },
-          { label: "Overage Rate", value: "N/A" },
-          { label: "Continuous Rate", value: "Negotiated" },
-          { label: "Included Storage", value: plan.includedStorage },
-          { label: "Max User Seats", value: plan.maxUsers },
-          { label: "Priority Support", value: plan.prioritySupport, icon: plan.prioritySupport ? ("check" as const) : ("cross" as const) },
-          { label: "Custom Branding", value: plan.customBranding, icon: plan.customBranding ? ("check" as const) : ("cross" as const) },
-        ]
-      : [
-          { label: "Included Slips", value: plan.includedSlips },
-          { label: "Standard Overage", value: plan.overageRate },
-          { label: "Continuous Rate", value: isHighlighted ? "$0.45/slip" : "N/A" },
-          { label: "Included Storage", value: plan.includedStorage },
-          { label: "Max User Seats", value: plan.maxUsers },
-          { label: "Priority Support", value: plan.prioritySupport, icon: plan.prioritySupport ? ("check" as const) : ("cross" as const) },
-          { label: "Custom Branding", value: plan.customBranding, icon: plan.customBranding ? ("check" as const) : ("cross" as const) },
-        ] as Array<{ label: string; value: string | boolean; icon?: "check" | "cross" }>
+  const featureRows = [
+    { label: "Included Slips", value: plan.includedSlips },
+    { label: "Standard Overage", value: plan.overageRate },
+    { label: "Continuous Rate", value: plan.continuousRate },
+    { label: "Included Storage", value: plan.includedStorage },
+    { label: "Max User Seats", value: plan.maxUsers },
+  ]
 
   return (
-    <div
-      className={cn(
-        "flex h-full flex-col overflow-hidden rounded-[14px] border bg-white",
-        isHighlighted
-          ? "border-[rgba(79,70,229,0.3)] shadow-[0_0_0_1px_rgba(79,70,229,0.1),0_2px_12px_rgba(79,70,229,0.12)]"
-          : "border-[#E5E7EB] shadow-[0_1px_3px_rgba(0,0,0,0.08)]",
-      )}
-    >
-      {/* Card header */}
-      <div className={cn("flex flex-col gap-1 px-5 pb-4 pt-5", headerBg)}>
-        <div className="flex items-center justify-between">
-          <span className={cn("text-[19px] font-bold leading-7", titleColor)}>{plan.name}</span>
-          <span className={cn("rounded-full px-3 py-0.5 text-[13px] font-medium", badgeStyle)}>
-            {isHighlighted ? (
-              <span className="inline-flex items-center gap-1">
-                <Star className="h-3 w-3" />
-                {plan.badge}
-              </span>
-            ) : (
-              plan.badge
-            )}
-          </span>
+    <div className="flex h-full flex-col overflow-hidden rounded-[14px] border border-[#E5E7EB] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      <div
+        className={cn("flex flex-col gap-1 px-5 pb-4 pt-5", !plan.previewBgColor && "bg-[#F9FAFB]")}
+        style={plan.previewBgColor ? { backgroundColor: plan.previewBgColor } : undefined}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[19px] font-bold leading-7 text-[#101828]">{plan.name}</span>
+          {plan.badge ? (
+            <span className="rounded-full bg-white px-3 py-0.5 text-[13px] font-medium text-[#434343]">
+              {plan.badge}
+            </span>
+          ) : null}
         </div>
-        <p className={cn(plan.monthly === "Custom Pricing" ? "text-[20px] font-semibold leading-9 opacity-80" : "text-[23px] font-bold leading-9", priceColor)}>{plan.monthly}</p>
+        <p className="text-[23px] font-bold leading-9 text-[#434343]">{plan.monthly}</p>
       </div>
 
-      {/* Feature rows */}
       <div className="flex flex-1 flex-col">
         {featureRows.map((row, i) => (
           <div
@@ -322,13 +231,7 @@ function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCar
             )}
           >
             <span className="text-[13px] text-[#777777]">{row.label}</span>
-            <div className="flex items-center gap-1">
-              {row.icon === "check" ? <Check className="h-4 w-4 text-[#34C759]" /> : null}
-              {row.icon === "cross" ? <X className="h-4 w-4 text-[#CF0202]" /> : null}
-              {typeof row.value === "string" ? (
-                <span className="text-[14px] font-medium text-[#434343]">{row.value}</span>
-              ) : null}
-            </div>
+            <span className="text-[14px] font-medium text-[#434343]">{row.value}</span>
           </div>
         ))}
       </div>
@@ -368,19 +271,6 @@ function PlanCard({ plan, onDelete, onEdit, onViewSubscribers }: { plan: PlanCar
         ) : (
           <span className="text-[13px] text-[#777777]">{plan.activeLabs}</span>
         )}
-      </div>
-    </div>
-  )
-}
-
-function FeatureRow({ label, value, icon }: { label: string; value: string; icon?: "check" | "cross" }) {
-  return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-      <p className="text-[13px] leading-tight">{label}</p>
-      <div className="flex items-center gap-1.5">
-        {icon === "check" ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : null}
-        {icon === "cross" ? <X className="h-3.5 w-3.5 text-rose-500" /> : null}
-        <span className="text-[13px] font-semibold leading-tight text-[#2f343b] dark:text-slate-100">{value}</span>
       </div>
     </div>
   )
@@ -587,37 +477,48 @@ export default function BillingConfigurationPage() {
   const mapToPlanCards = (apiPlans: BillingConfigPlan[]): PlanCardModel[] => {
     return apiPlans.map((plan) => {
       const lead = pickLeadPriceRow(plan.pricing?.prices)
-      let priceDisplay = formatLeadPlanPrice(plan.pricing?.currency, lead)
-      const isEnterprise = plan.name.toLowerCase().includes("enterprise")
-      if (isEnterprise) {
-        const numericPrice = lead ? (typeof lead.price === "string" ? parseFloat(lead.price) : lead.price) : null
-        if (priceDisplay === "—" || numericPrice === null || numericPrice === 0) {
-          priceDisplay = "Custom Pricing"
-        }
-      }
-      const nameLower = plan.name.toLowerCase()
-      const style: PlanCardModel["style"] =
-        nameLower.includes("enterprise") ? "enterprise" : nameLower.includes("professional") ? "highlight" : nameLower.includes("starter") ? "success" : "default"
-
+      const overageEnabled = Boolean(plan.overage_policy?.enabled)
       return {
         key: `plan_${plan.id}`,
         name: plan.name,
-        badge: plan.badge_label || (style === "enterprise" ? "Premium" : style === "highlight" ? "Most Popular" : style === "success" ? "Growth" : "Acquisition"),
-        monthly: priceDisplay,
-        includedSlips: plan.feature_limits?.slip_capacity ? `${plan.feature_limits.slip_capacity}/month` : "N/A",
-        overageRate: plan.overage_policy?.standard_rate ? `$${Number(plan.overage_policy.standard_rate).toFixed(2)}/slip` : "N/A",
-        includedStorage: plan.feature_limits?.included_storage_gb ? `${plan.feature_limits.included_storage_gb} GB` : "N/A",
-        maxUsers: plan.feature_limits?.max_user_seats ? `${plan.feature_limits.max_user_seats}` : "N/A",
-        prioritySupport: style === "enterprise" || style === "highlight",
-        customBranding: style === "enterprise",
+        badge: plan.badge_label || "",
+        monthly: formatLeadPlanPrice(plan.pricing?.currency, lead),
+        includedSlips: formatPlanLimit(plan.feature_limits?.slip_capacity, "/month"),
+        overageRate: formatOverageRate(plan.overage_policy?.standard_rate, overageEnabled),
+        continuousRate: formatOverageRate(plan.overage_policy?.discounted_continuous_rate, overageEnabled),
+        includedStorage: formatPlanLimit(plan.feature_limits?.included_storage_gb, " GB"),
+        maxUsers: formatPlanLimit(plan.feature_limits?.max_user_seats),
         activeLabs: plan.active_labs_count !== undefined ? `${plan.active_labs_count} active labs` : "— labs",
-        style,
+        previewBgColor: plan.preview_bg_color,
         sourcePlan: plan,
       }
     })
   }
 
   const planCards = useMemo(() => mapToPlanCards(plans), [plans])
+
+  const planSummary = useMemo(() => {
+    const totalLabs = plans.reduce((sum, plan) => sum + (plan.active_labs_count ?? 0), 0)
+    const revenue = plans.reduce((sum, plan) => {
+      const lead = pickLeadPriceRow(plan.pricing?.prices)
+      const price = lead ? Number(lead.price) || 0 : 0
+      return sum + price * (plan.active_labs_count ?? 0)
+    }, 0)
+    const distribution =
+      totalLabs === 0
+        ? "No subscribers yet"
+        : plans
+            .map((plan) => {
+              const count = plan.active_labs_count ?? 0
+              const percent = Math.round((count / totalLabs) * 100)
+              return `${percent}% ${plan.name}`
+            })
+            .join(", ")
+    return {
+      arpu: totalLabs > 0 ? revenue / totalLabs : 0,
+      distribution,
+    }
+  }, [plans])
 
   const resetPlanWizardForm = () => {
     setPlanName("")
@@ -841,9 +742,9 @@ export default function BillingConfigurationPage() {
       },
       trial: {
         enabled: trialEnabled,
-        trial_days: trialDays ? Number(trialDays) : undefined,
+        trial_days: trialEnabled && trialDays ? Number(trialDays) : undefined,
         access_mode: trialAccessMode === "feature-limited" ? "feature_limited" : "full_access",
-        requires_payment_method: requirePaymentForTrial,
+        requires_payment_method: false,
       },
       overage_policy: {
         enabled: overageEnabled,
@@ -1161,7 +1062,7 @@ export default function BillingConfigurationPage() {
       <div className="space-y-2">
         <BreadcrumbBar
           items={[
-            { label: "Billing & Subscription", href: "/billing-subscription" },
+            { label: "Billing & Subscription" },
             { label: "Global Configurations" },
           ]}
         />
@@ -1173,10 +1074,12 @@ export default function BillingConfigurationPage() {
           {(
             [
               ["plans", "Plan Tiers"],
-              ["rules", "Freemium Inclusions"],
+              ["features", "Feature Matrix"],
+              ["rules", "Global Inclusions"],
               ["credits", "Promotional Offers"],
               ["storage", "Storage tiers"],
               ["addons", "Add-ons"],
+              ["capacity", "Capacity Packs"],
             ] as const
           ).map(([id, label]) => (
             <TabsTrigger
@@ -1194,7 +1097,6 @@ export default function BillingConfigurationPage() {
             <CardHeader className="flex flex-row items-start justify-between space-y-0 px-5 pb-3 pt-5">
               <div>
                 <CardTitle className="text-[18px] font-bold text-[#101828]">Global Pricing</CardTitle>
-                <CardDescription className="mt-1 text-[13px] text-[#777777]">Last updated: Mar 3, 2026 by admin@platform.com</CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
@@ -1228,23 +1130,20 @@ export default function BillingConfigurationPage() {
               </div>
 
               {isPlansLoading ? <p className="text-xs text-muted-foreground">Loading plans...</p> : null}
-              <div className="grid gap-2 md:grid-cols-3">
+              {!isPlansLoading && planCards.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No plans in the database yet. Create a plan to get started.</p>
+              ) : null}
+              <div className="grid gap-2 md:grid-cols-2">
                 <Card className="shadow-none">
                   <CardContent className="px-3 py-2">
                     <p className="text-[11px] text-muted-foreground">Average Revenue Per Lab</p>
-                    <p className="text-sm font-semibold">$118.42/mo</p>
+                    <p className="text-sm font-semibold">${planSummary.arpu.toFixed(2)}/mo</p>
                   </CardContent>
                 </Card>
                 <Card className="shadow-none">
                   <CardContent className="px-3 py-2">
                     <p className="text-[11px] text-muted-foreground">Plan Distribution</p>
-                    <p className="text-sm font-semibold">63% Starter, 29% Pro, 4% Enterprise, 4% Free</p>
-                  </CardContent>
-                </Card>
-                <Card className="shadow-none">
-                  <CardContent className="px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">Upgrade Rate This Quarter</p>
-                    <p className="text-sm font-semibold">12.3%</p>
+                    <p className="text-sm font-semibold">{planSummary.distribution}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1252,6 +1151,14 @@ export default function BillingConfigurationPage() {
           </Card>
 
           {planStatusMessage ? <p className="text-xs text-muted-foreground">{planStatusMessage}</p> : null}
+        </TabsContent>
+
+        <TabsContent value="features" className="mt-0 space-y-3 outline-none">
+          <PlanFeatureMatrixEditor />
+        </TabsContent>
+
+        <TabsContent value="capacity" className="mt-0 space-y-3 outline-none">
+          <CapacityAddonManager />
         </TabsContent>
 
         <TabsContent value="rules" className="mt-0 space-y-3 outline-none">
@@ -1427,7 +1334,7 @@ export default function BillingConfigurationPage() {
               <div className="space-y-3">
                 <Input
                   label="Plan Name"
-                  placeholder="e.g. Professional Plus"
+                  placeholder="Plan name"
                   value={planName}
                   onChange={(e) => {
                     setPlanName(e.target.value)
@@ -1549,8 +1456,14 @@ export default function BillingConfigurationPage() {
                 <section className="space-y-2 border-b pb-3">
                   <div className="flex items-center gap-3">
                     <p className="text-sm font-semibold">Trial Period</p>
-                    <Switch checked={trialEnabled} onCheckedChange={setTrialEnabled} />
+                    <Switch
+                      checked={trialEnabled}
+                      onCheckedChange={setTrialEnabled}
+                    />
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Internal free trial is never billed through Stripe.
+                  </p>
                   <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
                     <Input
                       label="Trial Days"
@@ -1697,7 +1610,7 @@ export default function BillingConfigurationPage() {
                 <div className="space-y-2 border-t pt-3">
                   <p className="text-sm font-semibold">Library clone scope</p>
                   <p className="text-xs text-muted-foreground">
-                    Half clones supporting catalog plus implants/abutments (no products or advance fields). Full also clones products and advance catalog. Free/Freemium plans should use Half.
+                    Half clones supporting catalog plus implants/abutments (no products or advance fields). Full also clones products and advance catalog.
                   </p>
                   <RadioGroup
                     value={libraryCloneScope}

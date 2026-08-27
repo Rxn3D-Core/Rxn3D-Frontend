@@ -62,12 +62,17 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "@/components/ui/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { EntitlementUsagePanel } from "@/components/billing/entitlement-usage-panel"
+import { useEntitlements } from "@/contexts/entitlement-context"
+import { updateContinuousCharging } from "@/lib/api/entitlements"
+import { Switch } from "@/components/ui/switch"
 
 type SubscriptionState = "loading" | "no-subscription" | "active" | "cancelled" | "error"
 
 export default function SubscriptionsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { payload: entitlements, refetch: refetchEntitlements } = useEntitlements()
   const [view, setView] = useState<"overview" | "plans">("overview")
   const [subscriptionState, setSubscriptionState] = useState<SubscriptionState>("loading")
   const [billingProfile, setBillingProfile] = useState<BillingProfile | null>(null)
@@ -160,13 +165,15 @@ export default function SubscriptionsPage() {
     } else {
       setSubscriptionState("active")
     }
-  }, [])
+    void refetchEntitlements()
+  }, [refetchEntitlements])
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search)
       if (urlParams.has("session_id") || urlParams.get("checkout") === "success") {
         setShowSuccessMessage(true)
+        window.dispatchEvent(new Event("plan-entitlement-changed"))
         window.history.replaceState({}, "", window.location.pathname)
       }
     }
@@ -249,11 +256,6 @@ export default function SubscriptionsPage() {
     const selectedPlan = catalogPlans.find((p) => p.id === planId)
     if (!selectedPlan) {
       setError("Selected plan is no longer available.")
-      return
-    }
-
-    if (selectedPlan.name.toLowerCase().includes("enterprise")) {
-      window.location.href = "mailto:support@rxn3d.com?subject=Enterprise%20plan%20inquiry"
       return
     }
 
@@ -748,9 +750,7 @@ export default function SubscriptionsPage() {
             const features = buildPlanFeatures(plan)
 
             let buttonText = "Choose Plan"
-            if (plan.name.toLowerCase().includes("enterprise")) {
-              buttonText = "Contact Sales"
-            } else if (isCurrent) {
+            if (isCurrent) {
               buttonText = "Your current plan"
             } else if (!hasActivePlan) {
               if (isFreePlan(plan) && isLinkedPlan && subscriptionState === "cancelled") {
@@ -766,11 +766,7 @@ export default function SubscriptionsPage() {
               buttonText = planFee > currentFee ? `Upgrade to ${plan.name}` : `Downgrade to ${plan.name}`
             }
 
-            let displayBadge = plan.badge_label
-            if (!displayBadge) {
-              if (isFreePlan(plan)) displayBadge = "Starter, Free"
-              else if (isPopular) displayBadge = "Recommended"
-            }
+            const displayBadge = plan.badge_label
 
             return (
               <PlanCard
@@ -971,7 +967,11 @@ export default function SubscriptionsPage() {
   const billingFrequencyLabel = getBillingFrequencyLabel(planPricing?.prices)
 
   // Derive pricing text
-  let priceText = "$99 / month"
+  const monthlyPeriodPrice = Number(planPricing?.prices?.find((row) => row.frequency === "monthly")?.price)
+  const annualPeriodPrice = Number(planPricing?.prices?.find((row) => row.frequency === "annual")?.price)
+  const monthlyPeriodAmount = Number.isFinite(monthlyPeriodPrice) ? monthlyPeriodPrice : null
+  const annualPeriodAmount = Number.isFinite(annualPeriodPrice) ? annualPeriodPrice : null
+  let priceText = "—"
   if (defaultPrice) {
     priceText = `$${Number(defaultPrice.price).toLocaleString()} / ${defaultPrice.frequency || "month"}`
   } else if (currentPlanDetails?.monthly_fee !== undefined || billingProfile?.plan?.monthly_fee !== undefined) {
@@ -1097,9 +1097,11 @@ export default function SubscriptionsPage() {
             title="Usage"
             hint={`Slips created in the current billing period${usagePeriodLabel ? ` (${usagePeriodLabel})` : ""}. ${usageLimit > 0 ? `${usageCount.toLocaleString()} of ${usageLimit.toLocaleString()} available used.` : "Unlimited plan — no monthly slip cap."}${creditBalance != null ? ` ${creditBalance.toLocaleString()} credits available.` : ""}`}
             action={
+              entitlements?.can_purchase_addons ? (
               <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="w-full sm:w-[210px]">
                 Explore Add-ons
               </SubtleActionButton>
+              ) : undefined
             }
           >
             <div className="space-y-3">
@@ -1143,6 +1145,37 @@ export default function SubscriptionsPage() {
               </div>
             </div>
           </OverviewCard>
+
+          <EntitlementUsagePanel />
+
+          {billingProfile?.id && entitlements?.can_purchase_addons ? (
+            <section className="flex min-h-[120px] flex-col rounded-md border border-[#E4E6EF] bg-white px-5 py-5 shadow-[0_1px_2px_rgba(16,24,40,0.03)] lg:px-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[14px] font-semibold text-black">Continuous charging</p>
+                  <p className="text-[13px] text-black/60">
+                    Discounted overage rate when enabled. Not available on Freemium or during trial.
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(entitlements?.continuous_charging_enabled)}
+                  onCheckedChange={async (enabled) => {
+                    if (!billingProfile?.id) return
+                    try {
+                      await updateContinuousCharging(billingProfile.id, enabled)
+                      await refetchEntitlements()
+                    } catch (err) {
+                      toast({
+                        title: "Could not update continuous charging",
+                        description: err instanceof Error ? err.message : "Please try again.",
+                        variant: "destructive",
+                      })
+                    }
+                  }}
+                />
+              </div>
+            </section>
+          ) : null}
 
           <OverviewCard
             title="Next billing date"
@@ -1256,12 +1289,14 @@ export default function SubscriptionsPage() {
                 <TrendingUp className="h-4 w-4" />
                 Upgrade plan
               </button>
+              {entitlements?.can_purchase_addons ? (
               <SubtleActionButton onClick={() => router.push("/billing/subscriptions/add-ons")} className="px-5">
                 <span className="inline-flex items-center gap-2">
                   <Plus className="h-4 w-4" />
                   Explore Add-ons
                 </span>
               </SubtleActionButton>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1338,7 +1373,13 @@ export default function SubscriptionsPage() {
         </div>
       </div>
 
-      <BillingPeriodDialog open={isBillingPeriodDialogOpen} onOpenChange={setIsBillingPeriodDialogOpen} />
+      <BillingPeriodDialog
+        open={isBillingPeriodDialogOpen}
+        onOpenChange={setIsBillingPeriodDialogOpen}
+        monthlyPrice={monthlyPeriodAmount}
+        annualPrice={annualPeriodAmount}
+        nextBillingDate={nextBillingDate}
+      />
       <Dialog open={isPlanDialogOpen} onOpenChange={setIsPlanDialogOpen}>
         <DialogContent
           onEscapeKeyDown={() => setIsPlanDialogOpen(false)}
@@ -1352,6 +1393,8 @@ export default function SubscriptionsPage() {
         onOpenChange={setIsCancelSubscriptionDialogOpen}
         onConfirm={handleCancelSubscription}
         isProcessing={isProcessing}
+        planName={planName}
+        periodEnd={nextBillingDate}
       />
       <UpdateBillingInfoDialog
         open={isUpdateBillingInfoDialogOpen}

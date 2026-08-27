@@ -81,7 +81,7 @@ export default function DunningWorkflowsPage() {
     <div className="flex flex-col gap-6 p-6">
       <BreadcrumbBar
         items={[
-          { label: "Billing & Subscription Control", href: "/billing-subscription" },
+          { label: "Billing & Subscription Control", href: "/billing-subscription/billing-configuration" },
           { label: "Dunning Workflows" },
         ]}
       />

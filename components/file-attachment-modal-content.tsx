@@ -44,6 +44,7 @@ type LocalUploadItem = {
   slipStageName?: string
 }
 import { toProxiedFileUrl } from "@/lib/file-proxy"
+import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import * as THREE from "three"
 import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
@@ -156,6 +157,7 @@ export default function FileAttachmentModalContent({
   open,
   initialViewerItems,
 }: FileAttachmentModalContentProps) {
+  const { can3dViewer } = usePlanCapabilities()
   const {
     uploadSlipAttachment,
     fetchSlipAttachments,
@@ -938,7 +940,7 @@ export default function FileAttachmentModalContent({
   // Reusable file card renderer
   const renderFileCard = (item: typeof simulatedUploads[number], idx: number) => {
     const { file, url, archived } = item
-    const isStl = file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl")
+    const isStl = can3dViewer && (file.name?.toLowerCase().endsWith(".stl") || url.toLowerCase().endsWith(".stl"))
     const is3dObj = file.name?.toLowerCase().endsWith(".3dobject") || url.toLowerCase().endsWith(".3dobject")
     const isImage =
       ("type" in file && typeof file.type === "string" && file.type.startsWith("image/")) ||

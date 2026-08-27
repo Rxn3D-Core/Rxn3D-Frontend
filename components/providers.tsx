@@ -8,6 +8,7 @@ import { ReduxProvider } from "./redux-provider"
 import { LocationProvider } from "@/contexts/location-context"
 import { CustomerProvider } from "@/contexts/customer-context";
 import { AuthProvider } from "@/contexts/auth-context"
+import { EntitlementProvider } from "@/contexts/entitlement-context"
 
 // Create a client
 const queryClient = new QueryClient({
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ReduxProvider>
         <AuthProvider>
+          <EntitlementProvider>
           <CustomerProvider>
             <LocationProvider>
               <ThemeProvider>
@@ -37,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               </ThemeProvider>
             </LocationProvider>
           </CustomerProvider>
+          </EntitlementProvider>
         </AuthProvider>
       </ReduxProvider>
     </QueryClientProvider>

@@ -13,12 +13,13 @@ import { cn } from "@/lib/utils"
 import { type MenuItem, getMenuForProfile } from "@/config/sidebar-menu"
 import { useAuth } from "@/contexts/auth-context"
 import { getPrimaryRole } from "@/lib/get-primary-role"
-import { filterMenuByPermissions } from "@/lib/menu-permissions"
+import { filterMenuByPermissions, filterMenuByEntitlements } from "@/lib/menu-permissions"
 import { PROFILE_SCOPED_ROLES } from "@/lib/permissions"
 import { useTranslation } from "react-i18next"
 import { CustomerLogo } from "@/components/customer-logo"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
 import { useTheme } from "@/contexts/theme-context"
+import { useEntitlements } from "@/contexts/entitlement-context"
 
 
 interface DashboardSidebarProps {
@@ -43,6 +44,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
   }, [expanded, isMobileOverlay])
 
   const { user, logout, profilePermissions, isSuperadmin, isActingAsLabAdmin, profileRole } = useAuth()
+  const { features } = useEntitlements()
   const logoutMutation = useMutation({
     mutationFn: async () => logout(),
     onError(error: any) {
@@ -69,10 +71,12 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
     if (SUPERADMIN_ONLY && !isActingAsLabAdmin && userRole !== "superadmin") {
       filtered = filtered.filter((item) => item.id !== "product-management")
     }
+    filtered = filterMenuByEntitlements(filtered, features, {
+      unrestricted: isSuperadmin && !isActingAsLabAdmin,
+    })
     if (userRole !== "superadmin") return filtered
     const hiddenIds = new Set([
       "billing-dunning",
-      "billing-integrations",
       "global-workflow",
       "global-pricing",
       "global-clinical-option",
@@ -92,7 +96,7 @@ export function DashboardSidebar({ onClose, isMobileOverlay = false }: Dashboard
           ? { ...item, children: item.children.filter((c) => !hiddenIds.has(c.id)) }
           : item,
       )
-  }, [userRole, usesProfilePermissions, profilePermissions, isSuperadmin])
+  }, [userRole, usesProfilePermissions, profilePermissions, isSuperadmin, isActingAsLabAdmin, features])
   const { t } = useTranslation();
   const { theme } = useTheme();
   const expandableMenuItemIds = useMemo(() => {

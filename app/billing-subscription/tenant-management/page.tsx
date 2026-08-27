@@ -101,10 +101,17 @@ export default function TenantManagementPage() {
   const stats = useMemo(() => {
     return {
       total: rows.filter((row) => row.status !== "Suspended").length,
-      starter: rows.filter((row) => row.planName === "Starter").length,
-      professional: rows.filter((row) => row.planName === "Professional").length,
-      enterprise: rows.filter((row) => row.planName === "Enterprise").length,
     }
+  }, [rows])
+
+  const planCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const row of rows) {
+      if (row.status === "Suspended") continue
+      const name = row.planName?.trim() || "Unassigned"
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]))
   }, [rows])
 
   const planOptions = useMemo(() => {
@@ -157,7 +164,7 @@ export default function TenantManagementPage() {
       <div className="space-y-1">
         <BreadcrumbBar
           items={[
-            { label: "Billing & Subscription", href: "/billing-subscription" },
+            { label: "Billing & Subscription", href: "/billing-subscription/billing-configuration" },
             { label: "Tenant Management" },
           ]}
         />
@@ -184,9 +191,9 @@ export default function TenantManagementPage() {
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Total Active Labs" value={String(stats.total)} />
-            <MetricCard label="Starter Plan" value={String(stats.starter)} accent="bg-[#e7f7ec] text-[#239455]" />
-            <MetricCard label="Professional Plan" value={String(stats.professional)} accent="bg-[#f4ebff] text-[#9b4dff]" />
-            <MetricCard label="Enterprise Plan" value={String(stats.enterprise)} accent="bg-[#eff4ff] text-[#2355a4]" />
+            {planCounts.map(([name, count]) => (
+              <MetricCard key={name} label={name} value={String(count)} />
+            ))}
           </div>
         </CardHeader>
 
@@ -425,14 +432,18 @@ function StatusChip({ status }: { status: SuperadminBillingStatus }) {
 }
 
 function PlanBadge({ planName }: { planName: string }) {
-  const className =
-    planName === "Professional"
-      ? "bg-[#f6ecff] text-[#6f42c1]"
-      : planName === "Starter"
-        ? "bg-[#e8f8ef] text-[#0d8c4d]"
-        : planName === "Enterprise"
-          ? "bg-[#ecf3ff] text-[#2457a6]"
-          : "bg-[#f2f4f7] text-[#667085]"
+  const palette = [
+    "bg-[#e8f8ef] text-[#0d8c4d]",
+    "bg-[#f6ecff] text-[#6f42c1]",
+    "bg-[#ecf3ff] text-[#2457a6]",
+    "bg-[#fff5d8] text-[#bd8c00]",
+    "bg-[#f2f4f7] text-[#667085]",
+  ]
+  let hash = 0
+  for (let i = 0; i < planName.length; i += 1) {
+    hash = (hash + planName.charCodeAt(i)) % palette.length
+  }
+  const className = palette[hash] ?? palette[palette.length - 1]
 
   return <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold", className)}>{planName}</span>
 }

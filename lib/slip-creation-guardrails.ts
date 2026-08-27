@@ -1,3 +1,5 @@
+export { handlePlanError, isPlanError, redirectToSubscriptions, PLAN_SUBSCRIPTIONS_PATH } from "./plan-guard"
+
 export const LAB_SLIP_LIMIT_MESSAGE =
   "Slip creation limit reached. Your lab has no active plan capacity and no credits left. Please subscribe to a plan or buy credit books to continue."
 

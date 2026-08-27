@@ -24,6 +24,8 @@ import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardOfficeInviteModal } from "./dashboard-office-invite-modal"
 import { LabProductLibrarySetupBanner } from "./lab-product-library-setup-banner"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
+import { FeatureGate } from "@/components/feature-gate"
+import { FEATURE_KEYS } from "@/lib/entitlements"
 
 const getStatusBadgeClass = (status: string) => {
   const statusLower = status?.toLowerCase() || ""
@@ -304,20 +306,22 @@ export function LabAdminDashboard() {
         {/* KPI Cards */}
         {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
+          <FeatureGate feature={FEATURE_KEYS.reportsDashboard} required="full">
           <KpiCard
             title="Total Revenue"
-            value={kpi ? `$${kpi.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-            change={kpi ? `${kpi.revenue_change_pct >= 0 ? '+' : ''}${kpi.revenue_change_pct.toFixed(1)}%` : "—"}
+            value={kpi && kpi.total_revenue != null ? `$${kpi.total_revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            change={kpi && kpi.revenue_change_pct != null ? `${kpi.revenue_change_pct >= 0 ? '+' : ''}${kpi.revenue_change_pct.toFixed(1)}%` : "—"}
             isPositive={(kpi?.revenue_change_pct ?? 0) >= 0}
             icon="dollar"
           />
           <KpiCard
             title="Outstanding Balance"
-            value={kpi ? `$${kpi.outstanding_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-            change={kpi ? `${kpi.balance_change_pct >= 0 ? '+' : ''}${kpi.balance_change_pct.toFixed(1)}%` : "—"}
+            value={kpi && kpi.outstanding_balance != null ? `$${kpi.outstanding_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            change={kpi && kpi.balance_change_pct != null ? `${kpi.balance_change_pct >= 0 ? '+' : ''}${kpi.balance_change_pct.toFixed(1)}%` : "—"}
             isPositive={(kpi?.balance_change_pct ?? 0) >= 0}
             icon="document"
           />
+          </FeatureGate>
           <KpiCard
             title="Total Cases"
             value={kpi ? kpi.total_cases.toString() : "—"}

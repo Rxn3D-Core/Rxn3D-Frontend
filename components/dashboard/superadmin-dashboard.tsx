@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
+import { listBillingConfigPlans } from "@/lib/api/billing-config-plans"
 
 export function SuperAdminDashboard() {
   const [showPracticeForm, setShowPracticeForm] = useState(false)
@@ -52,6 +53,7 @@ export function SuperAdminDashboard() {
 
   const [practices, setPractices] = useState<any[]>([])
   const [labs, setLabs] = useState<any[]>([])
+  const [billingPlans, setBillingPlans] = useState<Array<{ name: string; active_labs_count?: number }>>([])
   const { isLoading: isSearchLoading, customers, isCustomersLoading, customersError, officeCustomers, labCustomers, fetchCustomers } = useCustomer()
   const { t } = useTranslation()
   const userRole = getPrimaryRole(user) || "superadmin"
@@ -78,6 +80,12 @@ export function SuperAdminDashboard() {
       (async () => {
         await fetchCustomers("office")
         await fetchCustomers("lab")
+        try {
+          const plans = await listBillingConfigPlans()
+          setBillingPlans(plans.map((plan) => ({ name: plan.name, active_labs_count: plan.active_labs_count })))
+        } catch {
+          setBillingPlans([])
+        }
       })()
       setPractices(officeCustomers || [])
       setLabs(labCustomers || [])
@@ -329,9 +337,14 @@ export function SuperAdminDashboard() {
             }
             color="#34c759"
           />
-          <PlanCard title={tDashboard("startedPlan", "Started Plan")} count={15} color="#1162a8" />
-          <PlanCard title={tDashboard("businessPlan", "Business Plan")} count={110} color="#1162a8" />
-          <PlanCard title={tDashboard("enterprisePlan", "Enterprise Plan")} count={10} color="#1162a8" />
+          {billingPlans.map((plan, index) => (
+            <PlanCard
+              key={plan.name}
+              title={plan.name}
+              count={plan.active_labs_count ?? 0}
+              color={["#1162a8", "#82298d", "#c9539f", "#2aa6de"][index % 4]}
+            />
+          ))}
         </div>
         )}
 
