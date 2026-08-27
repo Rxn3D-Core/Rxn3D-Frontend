@@ -23,6 +23,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { SlipAttachmentsService, validateSlipAttachmentFile } from "@/services/slip-attachments-service"
 import type { CaseAttachmentsData, SlipAttachmentRecord } from "@/services/slip-attachments-service"
 import { toProxiedFileUrl } from "@/lib/file-proxy"
+import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
 
 const STLCanvasOnly = dynamic(() => import("@/components/stl-canvas-only"), { ssr: false })
@@ -90,8 +91,9 @@ function FileCard({
   canDelete?: boolean
   deleting?: boolean
 }) {
+  const { can3dViewer } = usePlanCapabilities()
   const isImage = record.is_image || isImageFile(record.file_name)
-  const isStl = record.is_stl || isStlFile(record.file_name)
+  const isStl = (record.is_stl || isStlFile(record.file_name)) && can3dViewer
   const is3d = is3dFile(record.file_name)
   const isPdf = record.is_pdf || isPdfFile(record.file_name)
 

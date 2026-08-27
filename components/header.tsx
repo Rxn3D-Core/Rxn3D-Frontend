@@ -56,6 +56,8 @@ import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-c
 import { HeaderWaffleLauncher } from "@/components/header-waffle-launcher"
 import { cn } from "@/lib/utils"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
+import { TrialBanner } from "@/components/billing/trial-banner"
+import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
@@ -100,6 +102,7 @@ interface Location {
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext } = useAuth()
+  const { canDriverScanning } = usePlanCapabilities()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
     isLoading: false,
@@ -164,7 +167,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     (isSuperAdmin ||
       hasAnyPermission(["manage_office", "edit_office", "view_office"]))
   // Scanning is a lab-side workflow; office profiles never handle physical case codes.
-  const canScanCode = !isSuperAdmin && !isOfficeSideUser && !isOfficeCustomerContext()
+  const canScanCode = !isSuperAdmin && !isOfficeSideUser && !isOfficeCustomerContext() && canDriverScanning
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -880,6 +883,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   return (
     <>
+      <TrialBanner />
       <LoadingOverlay
         isLoading={isSwitchingProfile}
         title="Switching location..."

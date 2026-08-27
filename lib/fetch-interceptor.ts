@@ -1,4 +1,6 @@
 import { clearSessionStorage } from "./clear-session-storage"
+import { PLAN_ERROR_CODES } from "./entitlements"
+import { PLAN_SUBSCRIPTIONS_PATH } from "./plan-guard"
 
 // Global fetch interceptor for handling 401 responses
 export function setupGlobalFetchInterceptor() {
@@ -20,6 +22,20 @@ export function setupGlobalFetchInterceptor() {
         
         // Throw error to prevent further processing
         throw new Error('Unauthorized - Redirecting to login')
+      }
+
+      if (response.status === 402 || response.status === 403) {
+        const requestUrl = typeof args[0] === "string" ? args[0] : (args[0] as Request)?.url ?? ""
+        if (!requestUrl.includes("/entitlements")) {
+          const body = await response.clone().json().catch(() => null)
+          const code = String(body?.error ?? body?.code ?? "").toLowerCase()
+          if (PLAN_ERROR_CODES.includes(code as (typeof PLAN_ERROR_CODES)[number])) {
+            window.dispatchEvent(new Event("plan-entitlement-changed"))
+            if (!window.location.pathname.startsWith(PLAN_SUBSCRIPTIONS_PATH)) {
+              window.location.assign(PLAN_SUBSCRIPTIONS_PATH)
+            }
+          }
+        }
       }
       
       return response

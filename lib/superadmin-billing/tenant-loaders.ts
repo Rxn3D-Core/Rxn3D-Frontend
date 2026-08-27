@@ -1,10 +1,13 @@
 import {
+  createBillingProfile,
   getCustomerBillingProfile,
   listBillingCatalogPlans,
   upgradeBillingProfile,
   downgradeBillingProfile,
   type BillingProfile,
 } from "@/lib/api/billing-profiles"
+import { listAddons } from "@/lib/api/billing-config-addons"
+import { listBillingConfigPlans } from "@/lib/api/billing-config-plans"
 import {
   createCustomerAddOn,
   deleteCustomerAddOn,
@@ -26,7 +29,7 @@ import {
   type SuperadminLabCustomer,
   type SuperadminLabCustomerProfile,
 } from "@/lib/api/superadmin-customers"
-import { getBillingUsage, listBillingCatalogAddOns, type BillingUsage, type SubscriptionInvoice, type CatalogAddOn } from "@/lib/api/billing-subscription"
+import { getBillingUsage, type BillingUsage, type SubscriptionInvoice, type CatalogAddOn } from "@/lib/api/billing-subscription"
 import { getStorageUsageStatus, type StorageUsageStatus } from "@/lib/api/storage-usage"
 import { getBatchTenantBillingOverview, type TenantBillingOverviewEntry } from "@/lib/api/superadmin-tenant-billing"
 import {
@@ -198,16 +201,17 @@ export async function loadSuperadminBillingTenantDetail(customerId: number): Pro
     }
   }
 
-  const [profileResult, usage, invoices, customerAddOns, catalogAddOns, storageTier, storageUsage, catalogPlans] =
+  const [profileResult, usage, invoices, customerAddOns, catalogAddOns, storageTier, storageUsage, catalogPlans, configPlans] =
     await Promise.all([
       getCustomerBillingProfile(customerId).catch(() => ({ has_plan: false, data: null })),
       getBillingUsage(customerId).catch(() => null),
       listSubscriptionInvoices(customerId).catch(() => []),
       listCustomerAddOns(customerId).catch(() => []),
-      listBillingCatalogAddOns(customerId).catch(() => []),
+      listAddons().catch(() => []),
       getCustomerStorageTier(customerId).catch(() => null),
       getStorageUsageStatus(customerId).catch(() => null),
       listBillingCatalogPlans(customerId).catch(() => []),
+      listBillingConfigPlans().catch(() => []),
     ])
 
   const billingProfile = profileResult?.data ?? null
@@ -230,7 +234,9 @@ export async function loadSuperadminBillingTenantDetail(customerId: number): Pro
     catalogAddOns,
     storageTier,
     storageUsage,
-    catalogPlans,
+    catalogPlans: (configPlans.length ? configPlans : catalogPlans).filter(
+      (plan) => plan?.status !== "draft" && plan?.status !== "inactive",
+    ),
     invoices,
     supports: {
       suspendAccount: false,
@@ -241,11 +247,20 @@ export async function loadSuperadminBillingTenantDetail(customerId: number): Pro
 }
 
 export async function applySuperadminPlanChange(args: {
-  profileId: number
+  customerId: number
+  profileId: number | null
   targetPlanId: number
   currentMonthlyFee: number
   targetMonthlyFee: number
 }) {
+  if (!args.profileId) {
+    return createBillingProfile({
+      customer_id: args.customerId,
+      billing_plan_id: args.targetPlanId,
+      status: "active",
+    })
+  }
+
   const payload = {
     billing_plan_id: args.targetPlanId,
   }

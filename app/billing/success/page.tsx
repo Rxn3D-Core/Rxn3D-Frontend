@@ -1,8 +1,17 @@
+"use client"
+
 import Link from "next/link"
+import { useEffect } from "react"
 import { CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function PaymentSuccessPage() {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("plan-entitlement-changed"))
+    }
+  }, [])
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-lg text-center">

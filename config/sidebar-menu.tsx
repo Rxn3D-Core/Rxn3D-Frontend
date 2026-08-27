@@ -30,6 +30,9 @@ export interface MenuItem {
   path?: string
   children?: MenuItem[]
   permission?: string[]
+  /** Plan feature key from GET /v1/entitlements. Missing items are hidden. */
+  planFeature?: string
+  planFeatureRequired?: unknown
 }
 
 export function useTranslatedMenu(menu: MenuItem[]): MenuItem[] {
@@ -270,6 +273,7 @@ export const labAdminMenu: MenuItem[] = [
         title: "User Permissions",
         path: "/permission",
         permission: ["update_role"],
+        planFeature: "access.custom_roles",
       },
     ],
   },
@@ -336,12 +340,14 @@ export const labAdminMenu: MenuItem[] = [
         title: "Charge Management",
         path: "/billing/charge-management",
         permission: ["view_billing", "manage_billing"],
+        planFeature: "billing.charge_management",
       },
       {
         id: "generate-statements",
         title: "Generate Statements",
         path: "/billing/generate-statements",
         permission: ["view_statements", "create_statements", "manage_statements"],
+        planFeature: "billing.statements",
       },
       // {
       //   id: "integrations",

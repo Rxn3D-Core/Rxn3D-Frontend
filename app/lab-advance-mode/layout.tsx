@@ -6,6 +6,8 @@ import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
 import { AdvanceSidebar } from "@/components/advance-mode/advance-sidebar"
 import { ProtectedRoute } from "@/components/protected-route"
+import { PlanRoute } from "@/components/plan-route"
+import { FEATURE_KEYS } from "@/lib/entitlements"
 
 export default function LabAdvanceModeLayout({
   children,
@@ -14,6 +16,7 @@ export default function LabAdvanceModeLayout({
 }) {
   return (
     <ProtectedRoute>
+      <PlanRoute feature={FEATURE_KEYS.productAdvanceMode}>
       <div className="flex min-h-screen bg-[#f9f9f9]">
         <DashboardSidebar />
         <div className="flex-1 flex flex-col">
@@ -26,6 +29,7 @@ export default function LabAdvanceModeLayout({
           </div>
         </div>
       </div>
+      </PlanRoute>
     </ProtectedRoute>
   )
 }

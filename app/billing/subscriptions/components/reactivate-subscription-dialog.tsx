@@ -27,10 +27,10 @@ export function ReactivateSubscriptionDialog({
   onOpenChange,
   onConfirm,
   isProcessing = false,
-  planName = "Professional",
-  monthlyPrice = 149,
-  cardBrand = "Visa",
-  cardLast4 = "4242",
+  planName,
+  monthlyPrice = 0,
+  cardBrand,
+  cardLast4,
 }: ReactivateSubscriptionDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
   const loading = isProcessing || isLoading

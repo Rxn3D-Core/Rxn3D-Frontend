@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Download, ExternalLink, Loader2 } from "lucide-react"
+import { Download, ExternalLink, Loader2, Minus, Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { BreadcrumbBar } from "@/components/billing-subscription/breadcrumb-bar"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { listSlipUsageFallbackRecords } from "@/lib/api/billing-subscription"
 import { listStorageTiers, type StorageTier } from "@/lib/api/billing-config-storage"
+import { listCreditBooks, type CreditBook } from "@/lib/api/billing-config-credits"
+import {
+  getPlanFeatures,
+  listCustomerCapacityAddons,
+  listFeatureCatalog,
+  setCustomerCapacityAddonQuantity,
+  type CustomerCapacityAddonRow,
+  type FeatureCatalogRow,
+  type PlanFeatureRow,
+} from "@/lib/api/billing-config-entitlements"
 import { getPlanMonthlyFee } from "@/lib/billing-subscription/plan-helpers"
 import {
   applySuperadminPlanChange,
@@ -43,14 +53,18 @@ import {
 } from "@/lib/superadmin-billing/tenant-loaders"
 import type { SuperadminBillingTenantDetail } from "@/lib/superadmin-billing/tenant-data"
 import { cn } from "@/lib/utils"
+import { TenantTrialOverrides } from "@/components/billing-subscription/tenant-trial-overrides"
+import { getCustomerBillingSettings, updateCustomerBillingSettings, type TenantBillingSettings } from "@/lib/api/billing-config-settings"
+import type { CustomerStorageTierRecord } from "@/lib/api/customer-storage-tier"
 
-type DetailTab = "overview" | "usage-analytics" | "billing-history" | "add-ons" | "settings"
+type DetailTab = "overview" | "usage-analytics" | "billing-history" | "add-ons" | "entitlements" | "settings"
 
 const TABS: Array<{ id: DetailTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "usage-analytics", label: "Usage Analytics" },
   { id: "billing-history", label: "Billing History" },
   { id: "add-ons", label: "Add-Ons" },
+  { id: "entitlements", label: "Entitlements" },
   { id: "settings", label: "Settings" },
 ]
 
@@ -114,6 +128,7 @@ export default function TenantManagementDetailPage() {
   const [catalogPlans, setCatalogPlans] = useState<any[]>([])
   const [storageTiers, setStorageTiers] = useState<StorageTier[]>([])
   const [customerStorageTierId, setCustomerStorageTierId] = useState<number | null>(null)
+  const [customerStorageTier, setCustomerStorageTier] = useState<CustomerStorageTierRecord | null>(null)
   const [supports, setSupports] = useState({
     suspendAccount: false,
     bonusSlips: false,
@@ -130,6 +145,17 @@ export default function TenantManagementDetailPage() {
     cumulative: [],
     daily: [],
   })
+  const [billingSettings, setBillingSettings] = useState<TenantBillingSettings>({
+    auto_renew: true,
+    email_notifications_enabled: true,
+    slip_usage_alerts_enabled: true,
+    internal_notes: null,
+  })
+  const [internalNotesDraft, setInternalNotesDraft] = useState("")
+  const [capacityAddOns, setCapacityAddOns] = useState<CustomerCapacityAddonRow[]>([])
+  const [creditBooks, setCreditBooks] = useState<CreditBook[]>([])
+  const [planFeatureRows, setPlanFeatureRows] = useState<PlanFeatureRow[]>([])
+  const [featureCatalog, setFeatureCatalog] = useState<FeatureCatalogRow[]>([])
 
   const loadDetail = useCallback(async () => {
     if (!customerId) {
@@ -141,20 +167,39 @@ export default function TenantManagementDetailPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const [result, storageTierCatalog, slipRecords] = await Promise.all([
+      const [result, storageTierCatalog, slipRecords, settings, capacityRows, creditBookRows, catalogRows] = await Promise.all([
         loadSuperadminBillingTenantDetail(customerId),
         listStorageTiers().catch(() => []),
         listSlipUsageFallbackRecords(customerId, { perPage: 200 }).catch(() => []),
+        getCustomerBillingSettings(customerId).catch(() => ({
+          auto_renew: true,
+          email_notifications_enabled: true,
+          slip_usage_alerts_enabled: true,
+          internal_notes: null,
+        })),
+        listCustomerCapacityAddons(customerId).catch(() => []),
+        listCreditBooks().catch(() => []),
+        listFeatureCatalog().catch(() => []),
       ])
+
+      const planId = result.billingProfile?.billing_plan_id ?? result.detail?.subscription.planId ?? null
+      const features = planId ? await getPlanFeatures(planId).catch(() => []) : []
 
       setDetail(result.detail)
       setBillingProfileId(result.billingProfile?.id ?? null)
-      setCurrentPlanId(result.billingProfile?.billing_plan_id ?? null)
+      setCurrentPlanId(planId)
       setCatalogPlans(result.catalogPlans)
       setStorageTiers(storageTierCatalog.filter((tier) => tier.active))
       setCustomerStorageTierId(result.storageTier?.id ?? null)
+      setCustomerStorageTier(result.storageTier)
       setSupports(result.supports)
       setUsageCharts(buildUsageCharts(slipRecords, result.detail))
+      setBillingSettings(settings)
+      setInternalNotesDraft(settings.internal_notes ?? "")
+      setCapacityAddOns(capacityRows)
+      setCreditBooks(creditBookRows.filter((book) => book.active !== false))
+      setFeatureCatalog(catalogRows)
+      setPlanFeatureRows(features)
     } catch (loadError: any) {
       setError(loadError?.message || "Failed to load tenant billing details.")
     } finally {
@@ -185,11 +230,26 @@ export default function TenantManagementDetailPage() {
     [selectedStorageTierId, storageTiers],
   )
 
+  const overviewFeatures = useMemo(() => {
+    if (featureCatalog.length > 0) {
+      return featureCatalog.map((feature) => ({
+        feature,
+        row: planFeatureRows.find((item) => item.feature_key === feature.key) ?? {
+          feature_key: feature.key,
+          value: feature.default_value,
+          is_unlimited: false,
+        },
+      }))
+    }
+    return planFeatureRows.map((row) => ({ feature: undefined, row }))
+  }, [featureCatalog, planFeatureRows])
+
   const handlePlanChange = async () => {
-    if (!billingProfileId || !selectedPlan) return
+    if (!selectedPlan) return
     try {
       setIsMutating(true)
       await applySuperadminPlanChange({
+        customerId,
         profileId: billingProfileId,
         targetPlanId: selectedPlan.id,
         currentMonthlyFee: getPlanMonthlyFee(currentPlan),
@@ -197,7 +257,12 @@ export default function TenantManagementDetailPage() {
       })
       setPlanDialogOpen(false)
       setSelectedPlanId(null)
-      toast({ title: "Plan updated", description: "The tenant subscription plan was updated successfully." })
+      toast({
+        title: billingProfileId ? "Plan updated" : "Plan assigned",
+        description: billingProfileId
+          ? "The tenant subscription plan was updated successfully."
+          : "This lab now has a subscription plan.",
+      })
       await loadDetail()
     } catch (mutationError: any) {
       toast({
@@ -253,6 +318,26 @@ export default function TenantManagementDetailPage() {
     }
   }
 
+  const handleBillingSettingChange = async (patch: Partial<TenantBillingSettings>) => {
+    try {
+      setIsMutating(true)
+      const next = await updateCustomerBillingSettings(customerId, patch)
+      setBillingSettings(next)
+      if (patch.internal_notes !== undefined) {
+        setInternalNotesDraft(next.internal_notes ?? "")
+      }
+      toast({ title: "Settings saved" })
+    } catch (mutationError: any) {
+      toast({
+        title: "Could not save settings",
+        description: mutationError?.message || "Unable to update tenant billing settings.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMutating(false)
+    }
+  }
+
   const handleToggleAddOn = async (addOn: SuperadminBillingTenantDetail["addOns"][number]) => {
     try {
       setIsMutating(true)
@@ -273,6 +358,34 @@ export default function TenantManagementDetailPage() {
       toast({
         title: "Add-on update failed",
         description: mutationError?.message || "Unable to update the add-on right now.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsMutating(false)
+    }
+  }
+
+  const handleCapacityQuantity = async (addOn: CustomerCapacityAddonRow, quantity: number) => {
+    const next = Math.max(0, quantity)
+    if (next === addOn.quantity) return
+    try {
+      setIsMutating(true)
+      const rows = await setCustomerCapacityAddonQuantity(customerId, {
+        billing_capacity_addon_id: addOn.id,
+        quantity: next,
+      })
+      setCapacityAddOns(rows)
+      toast({
+        title: next === 0 ? "Add-on removed" : "Add-on quantity updated",
+        description:
+          next === 0
+            ? `${addOn.name} was removed from this tenant.`
+            : `${addOn.name} is now ${next} pack${next === 1 ? "" : "s"} (+${addOn.units * next} units).`,
+      })
+    } catch (mutationError: any) {
+      toast({
+        title: "Add-on update failed",
+        description: mutationError?.message || "Unable to update add-on quantity.",
         variant: "destructive",
       })
     } finally {
@@ -303,7 +416,7 @@ export default function TenantManagementDetailPage() {
       <div className="space-y-4 bg-[#f6f7fb] px-4 py-4 md:px-6">
         <BreadcrumbBar
           items={[
-            { label: "Billing & Subscription", href: "/billing-subscription" },
+            { label: "Billing & Subscription", href: "/billing-subscription/billing-configuration" },
             { label: "Tenant Management", href: "/billing-subscription/tenant-management" },
             { label: "Tenant Overview" },
           ]}
@@ -322,7 +435,7 @@ export default function TenantManagementDetailPage() {
           <div className="space-y-1">
             <BreadcrumbBar
               items={[
-                { label: "Billing & Subscription", href: "/billing-subscription" },
+                { label: "Billing & Subscription", href: "/billing-subscription/billing-configuration" },
                 { label: "Tenant Management", href: "/billing-subscription/tenant-management" },
                 { label: "Tenant Overview" },
               ]}
@@ -353,8 +466,8 @@ export default function TenantManagementDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="h-10 rounded-xl border-[#d4dcea]" onClick={() => setPlanDialogOpen(true)} disabled={!billingProfileId || isMutating}>
-                Change Plan
+              <Button variant="outline" className="h-10 rounded-xl border-[#d4dcea]" onClick={() => setPlanDialogOpen(true)} disabled={isMutating}>
+                {billingProfileId ? "Change Plan" : "Assign Plan"}
               </Button>
               <Button
                 variant="outline"
@@ -407,46 +520,31 @@ export default function TenantManagementDetailPage() {
                   <InfoRow label="Monthly Fee" value={detail.subscription.monthlyFeeLabel} />
                   <InfoRow label="Billing Cycle" value={`Monthly — Renews ${detail.subscription.nextRenewalLabel}`} />
                   <InfoRow label="User Seats" value={detail.subscription.seatUsageLabel} />
-                  <InfoRow label="Auto-Renew" value={detail.subscription.autoRenewLabel} />
+                  <InfoRow label="Auto-Renew" value={billingSettings.auto_renew ? "On" : "Off"} />
                   <InfoRow label="Next Invoice Estimate" value={detail.subscription.nextInvoiceEstimate} />
                 </CardContent>
               </Card>
 
               <Card className="xl:col-span-2">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xl text-slate-900">Quick Actions</CardTitle>
+                  <CardTitle className="text-xl text-slate-900">Plan Features</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <ActionButton
-                    label="Add Bonus Slips"
-                    onClick={() =>
-                      announceGap(
-                        "Bonus slips require a backend grant API",
-                        "No verified superadmin bonus-slip or manual credit grant endpoint is currently available, so this action remains blocked.",
-                      )
-                    }
-                  />
-                  <ActionButton label="Upgrade Storage Tier" onClick={() => setStorageDialogOpen(true)} />
-                  <ActionButton
-                    label="Generate Invoice"
-                    onClick={() => {
-                      const latestInvoice = detail.invoices[0]
-                      if (latestInvoice?.downloadUrl) {
-                        window.open(latestInvoice.downloadUrl, "_blank", "noopener,noreferrer")
-                        return
-                      }
-                      announceGap("Invoice unavailable", "No downloadable invoice URL was returned for this tenant.")
-                    }}
-                  />
-                  <ActionButton
-                    label="Send Usage Alert"
-                    onClick={() =>
-                      announceGap(
-                        "Usage alert automation is not wired",
-                        "This control is visible for the superadmin workflow, but there is no verified backend alert endpoint yet.",
-                      )
-                    }
-                  />
+                <CardContent className="max-h-[420px] space-y-2 overflow-y-auto">
+                  {overviewFeatures.length === 0 ? (
+                    <p className="text-sm text-slate-500">
+                      {currentPlanId ? "No features are configured for this plan yet." : "Assign a plan to see its features."}
+                    </p>
+                  ) : (
+                    overviewFeatures.map(({ feature, row }) => (
+                      <div key={row.feature_key} className="flex items-start justify-between gap-3 rounded-xl border border-[#e7edf6] bg-white px-3 py-2">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{feature?.name || row.feature_key}</p>
+                          {feature?.description ? <p className="text-xs text-slate-500">{feature.description}</p> : null}
+                        </div>
+                        <p className="shrink-0 text-sm font-semibold text-slate-800">{formatPlanFeatureValue(feature, row)}</p>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
 
@@ -592,31 +690,156 @@ export default function TenantManagementDetailPage() {
           ) : null}
 
           {activeTab === "add-ons" ? (
-            <div className="space-y-3">
-              {detail.addOns.length === 0 ? (
-                <Card>
-                  <CardContent className="p-6 text-sm text-slate-500">No add-ons are available for this tenant yet.</CardContent>
-                </Card>
-              ) : (
-                detail.addOns.map((addOn) => (
-                  <Card key={addOn.id}>
-                    <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-xl font-semibold text-slate-900">{addOn.name}</p>
-                        <p className="mt-1 text-sm text-slate-500">{addOn.description}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-xl font-semibold text-slate-900">{addOn.monthlyFeeLabel}/mo</p>
-                          <p className="text-sm text-slate-500">{addOn.status}</p>
-                        </div>
-                        <Switch checked={addOn.active} onCheckedChange={() => void handleToggleAddOn(addOn)} disabled={isMutating} />
-                      </div>
-                    </CardContent>
+            <div className="space-y-6">
+              <section className="space-y-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Capacity add-ons</h3>
+                  <p className="text-sm text-slate-500">Buy more packs of the same add-on. Extra capacity is units × quantity.</p>
+                </div>
+                {capacityAddOns.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-6 text-sm text-slate-500">No capacity add-ons are configured yet.</CardContent>
                   </Card>
-                ))
-              )}
+                ) : (
+                  capacityAddOns.map((addOn) => {
+                    const monthlyTotal = Number(addOn.monthly_fee) * addOn.quantity
+                    return (
+                      <Card key={`capacity-${addOn.id}`}>
+                        <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-xl font-semibold text-slate-900">{addOn.name}</p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              +{addOn.units} {capacityAddonUnitLabel(addOn.addon_type)} per pack · ${Number(addOn.monthly_fee).toFixed(2)}/mo each
+                            </p>
+                            {addOn.quantity > 0 ? (
+                              <p className="mt-1 text-sm font-medium text-slate-700">
+                                {addOn.quantity} pack{addOn.quantity === 1 ? "" : "s"} · +{addOn.units * addOn.quantity} {capacityAddonUnitLabel(addOn.addon_type)} · ${monthlyTotal.toFixed(2)}/mo
+                              </p>
+                            ) : (
+                              <p className="mt-1 text-sm text-slate-500">Not assigned</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-9 w-9 rounded-xl"
+                              disabled={isMutating || addOn.quantity <= 0}
+                              onClick={() => void handleCapacityQuantity(addOn, addOn.quantity - 1)}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                            <p className="w-8 text-center text-lg font-semibold text-slate-900">{addOn.quantity}</p>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-9 w-9 rounded-xl"
+                              disabled={isMutating}
+                              onClick={() => void handleCapacityQuantity(addOn, addOn.quantity + 1)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
+                )}
+              </section>
+
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Storage tiers</h3>
+                    <p className="text-sm text-slate-500">Additional case storage billed monthly.</p>
+                  </div>
+                  <Button variant="outline" className="rounded-xl" onClick={() => setStorageDialogOpen(true)}>
+                    {customerStorageTierId ? "Change storage tier" : "Add storage tier"}
+                  </Button>
+                </div>
+                {storageTiers.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-6 text-sm text-slate-500">No storage tiers are configured yet.</CardContent>
+                  </Card>
+                ) : (
+                  storageTiers.map((tier) => {
+                    const isActive = customerStorageTier?.storageTier?.id === tier.id || customerStorageTier?.billing_storage_tier_id === tier.id
+                    return (
+                      <Card key={`storage-${tier.id}`}>
+                        <CardContent className="flex flex-col gap-2 p-5 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-xl font-semibold text-slate-900">{tier.name}</p>
+                            <p className="mt-1 text-sm text-slate-500">{tier.storage_gb} GB additional storage</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xl font-semibold text-slate-900">${Number(tier.monthly_fee).toFixed(2)}/mo</p>
+                            <p className="text-sm text-slate-500">{isActive ? "Active" : "Available"}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
+                )}
+              </section>
+
+              <section className="space-y-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Credit books</h3>
+                  <p className="text-sm text-slate-500">One-time slip credit packs. These are purchased at checkout, not assigned as a monthly quantity.</p>
+                </div>
+                {creditBooks.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-6 text-sm text-slate-500">No credit books are configured yet.</CardContent>
+                  </Card>
+                ) : (
+                  creditBooks.map((book) => (
+                    <Card key={`credit-${book.id}`}>
+                      <CardContent className="flex flex-col gap-2 p-5 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-xl font-semibold text-slate-900">{book.name}</p>
+                          <p className="mt-1 text-sm text-slate-500">{Number(book.slip_amount).toLocaleString()} extra slips</p>
+                        </div>
+                        <p className="text-xl font-semibold text-slate-900">${Number(book.price).toFixed(2)}</p>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </section>
+
+              <section className="space-y-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Other add-ons</h3>
+                  <p className="text-sm text-slate-500">Legacy catalog add-ons such as website extras.</p>
+                </div>
+                {detail.addOns.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-6 text-sm text-slate-500">No other add-ons are available for this tenant yet.</CardContent>
+                  </Card>
+                ) : (
+                  detail.addOns.map((addOn) => (
+                    <Card key={addOn.id}>
+                      <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-xl font-semibold text-slate-900">{addOn.name}</p>
+                          <p className="mt-1 text-sm text-slate-500">{addOn.description}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-xl font-semibold text-slate-900">{addOn.monthlyFeeLabel}/mo</p>
+                            <p className="text-sm text-slate-500">{addOn.status}</p>
+                          </div>
+                          <Switch checked={addOn.active} onCheckedChange={() => void handleToggleAddOn(addOn)} disabled={isMutating} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </section>
             </div>
+          ) : null}
+
+          {activeTab === "entitlements" && customerId ? (
+            <TenantTrialOverrides customerId={customerId} />
           ) : null}
 
           {activeTab === "settings" ? (
@@ -626,17 +849,26 @@ export default function TenantManagementDetailPage() {
                   <CardTitle className="text-xl">Account Settings</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <DisabledSetting
+                  <PersistSetting
                     label="Auto-Renew Subscription"
-                    description="Visible in the superadmin workspace, but persistence is blocked until a dedicated backend setting is exposed."
+                    description="Keep this lab on the current plan when the billing period ends."
+                    checked={billingSettings.auto_renew}
+                    disabled={isMutating}
+                    onCheckedChange={(checked) => void handleBillingSettingChange({ auto_renew: checked })}
                   />
-                  <DisabledSetting
+                  <PersistSetting
                     label="Email Notifications"
-                    description="Visible in the superadmin workspace, but no verified billing-notification setting endpoint exists yet."
+                    description="Send billing emails for invoices, renewals, and payment issues."
+                    checked={billingSettings.email_notifications_enabled}
+                    disabled={isMutating}
+                    onCheckedChange={(checked) => void handleBillingSettingChange({ email_notifications_enabled: checked })}
                   />
-                  <DisabledSetting
+                  <PersistSetting
                     label="Slip Usage Alerts"
-                    description="Visible in the superadmin workspace, but no verified alert-preference endpoint exists yet."
+                    description="Notify the lab when slip usage approaches the plan limit."
+                    checked={billingSettings.slip_usage_alerts_enabled}
+                    disabled={isMutating}
+                    onCheckedChange={(checked) => void handleBillingSettingChange({ slip_usage_alerts_enabled: checked })}
                   />
                 </CardContent>
               </Card>
@@ -654,7 +886,21 @@ export default function TenantManagementDetailPage() {
                   <ReadOnlyField label="Next Renewal" value={detail.subscription.nextRenewalLabel} />
                   <div className="grid gap-2">
                     <label className="text-sm font-medium text-slate-700">Internal Notes</label>
-                    <Textarea readOnly value="Superadmin billing settings are currently read-only until persistence endpoints are verified." className="min-h-[120px] bg-slate-50" />
+                    <Textarea
+                      value={internalNotesDraft}
+                      onChange={(event) => setInternalNotesDraft(event.target.value)}
+                      className="min-h-[120px]"
+                      placeholder="Notes for the superadmin team. These are not shown to the lab."
+                    />
+                    <div>
+                      <Button
+                        className="rounded-xl bg-[#1567b8] hover:bg-[#0f579c]"
+                        disabled={isMutating || internalNotesDraft === (billingSettings.internal_notes ?? "")}
+                        onClick={() => void handleBillingSettingChange({ internal_notes: internalNotesDraft.trim() || null })}
+                      >
+                        Save notes
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -666,9 +912,11 @@ export default function TenantManagementDetailPage() {
       <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
         <DialogContent className="max-w-3xl rounded-3xl border-[#dbe4f0]">
           <DialogHeader>
-            <DialogTitle>Change Subscription Plan</DialogTitle>
+            <DialogTitle>{billingProfileId ? "Change Subscription Plan" : "Assign Subscription Plan"}</DialogTitle>
             <DialogDescription>
-              Select a new plan for {detail.header.labName}. This action uses the live billing-profile upgrade/downgrade endpoints.
+              {billingProfileId
+                ? `Select a new plan for ${detail.header.labName}.`
+                : `${detail.header.labName} has no plan yet. Choose one to assign it. Stripe is not required if the plan is not linked to a price.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -678,6 +926,11 @@ export default function TenantManagementDetailPage() {
               <p className="text-sm text-slate-500">{detail.subscription.monthlyFeeLabel}/month</p>
             </div>
             <div className="grid gap-3">
+              {availablePlans.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-[#d4dcea] p-4 text-sm text-slate-500">
+                  No assignable plans found. Create an active plan in Global Configurations first.
+                </p>
+              ) : null}
               {availablePlans.map((plan) => (
                 <button
                   key={plan.id}
@@ -707,7 +960,7 @@ export default function TenantManagementDetailPage() {
             </Button>
             <Button className="rounded-xl bg-[#1567b8] hover:bg-[#0f579c]" onClick={() => void handlePlanChange()} disabled={!selectedPlanId || isMutating}>
               {isMutating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Confirm Plan Change
+              {billingProfileId ? "Confirm Plan Change" : "Assign Plan"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -767,16 +1020,21 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ActionButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full rounded-xl border border-[#e7edf6] bg-[#f8fbff] px-4 py-3 text-left text-base font-semibold text-slate-900 transition-colors hover:bg-[#edf3fb]"
-    >
-      {label}
-    </button>
-  )
+function formatPlanFeatureValue(feature: FeatureCatalogRow | undefined, row: PlanFeatureRow) {
+  if (row.is_unlimited) return "Unlimited"
+  const raw = row.value
+  if (feature?.value_type === "boolean") {
+    const on = raw === true || raw === "true" || raw === 1 || raw === "1"
+    return on ? "Included" : "Not included"
+  }
+  if (raw === null || raw === undefined || raw === "") return "—"
+  return String(raw)
+}
+
+function capacityAddonUnitLabel(addonType: CustomerCapacityAddonRow["addon_type"]) {
+  if (addonType === "office_connection") return "connections"
+  if (addonType === "admin_seat") return "admin seats"
+  return "user seats"
 }
 
 function UsageSummaryBlock({
@@ -821,14 +1079,26 @@ function KpiCard({ title, value, subtitle }: { title: string; value: string; sub
   )
 }
 
-function DisabledSetting({ label, description }: { label: string; description: string }) {
+function PersistSetting({
+  label,
+  description,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-[#e7edf6] p-4">
       <div className="max-w-2xl">
         <p className="font-semibold text-slate-900">{label}</p>
         <p className="text-sm text-slate-500">{description}</p>
       </div>
-      <Switch checked={false} disabled />
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
     </div>
   )
 }

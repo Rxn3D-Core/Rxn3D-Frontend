@@ -27,8 +27,17 @@ jest.mock("@/config/sidebar-menu", () => ({
 }))
 
 jest.mock("@/lib/menu-permissions", () => ({
-  filterMenuByPermissions: (_items: any, _perms: any, isSuperadmin: boolean) =>
-    isSuperadmin ? _items : _items,
+  filterMenuByPermissions: (_items: any) => _items,
+  filterMenuByEntitlements: (_items: any) => _items,
+}))
+
+jest.mock("@/contexts/entitlement-context", () => ({
+  useEntitlements: () => ({
+    features: {},
+    isLoading: false,
+    hasFeature: () => true,
+    refetch: async () => undefined,
+  }),
 }))
 
 jest.mock("@/lib/get-primary-role", () => ({ getPrimaryRole: () => "lab_admin" }))

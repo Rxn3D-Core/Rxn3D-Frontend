@@ -1,8 +1,10 @@
 import type React from "react"
 import { ProtectedRoute } from "@/components/protected-route"
 import { PermissionRoute } from "@/components/permission-route"
+import { PlanRoute } from "@/components/plan-route"
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar"
 import { Header } from "@/components/header"
+import { FEATURE_KEYS } from "@/lib/entitlements"
 
 export default function PermissionLayout({
   children,
@@ -12,6 +14,7 @@ export default function PermissionLayout({
   return (
     <ProtectedRoute>
       <PermissionRoute permissions={["update_role"]}>
+      <PlanRoute feature={FEATURE_KEYS.accessCustomRoles}>
       <div className="flex h-[100dvh] bg-[#F9F9F9] overflow-hidden">
         <DashboardSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -21,6 +24,7 @@ export default function PermissionLayout({
           </div>
         </div>
       </div>
+      </PlanRoute>
       </PermissionRoute>
     </ProtectedRoute>
   )
