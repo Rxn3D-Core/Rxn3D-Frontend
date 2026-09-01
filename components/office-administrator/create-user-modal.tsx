@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import SignatureCanvas from "react-signature-canvas"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -15,7 +16,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
 import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
 import { getActiveCustomerId } from "@/lib/customer-scope"
-import { Upload, X } from "lucide-react"
+import { Check, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 // Form schema based on the API examples
@@ -69,6 +70,9 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
+  const [hasSignature, setHasSignature] = useState(false)
+  const [signatureMessage, setSignatureMessage] = useState("")
+  const signatureRef = useRef<SignatureCanvas>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
@@ -262,6 +266,9 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
     if (isOpen) {
       form.reset()
       setSignatureFile(null)
+      setHasSignature(false)
+      setSignatureMessage("")
+      signatureRef.current?.clear()
       setAvatarFile(null)
       setSelectedDepartments([])
       if (isLabCustomer) {
@@ -322,6 +329,59 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
   }
 
 
+  const dataURLtoFile = (dataURL: string, filename: string): File => {
+    const arr = dataURL.split(",")
+    const mime = arr[0].match(/:(.*?);/)![1]
+    const bstr = atob(arr[1])
+    const u8arr = new Uint8Array(bstr.length)
+
+    for (let i = 0; i < bstr.length; i++) {
+      u8arr[i] = bstr.charCodeAt(i)
+    }
+
+    return new File([u8arr], filename, { type: mime })
+  }
+
+  const showSignatureMessage = (message: string) => {
+    setSignatureMessage(message)
+    setTimeout(() => setSignatureMessage(""), 2000)
+  }
+
+  const applySignatureFile = (file: File) => {
+    setSignatureFile(file)
+    setHasSignature(true)
+    form.setValue("signature", file, { shouldValidate: true })
+    if (form.watch("license_number")?.trim()) {
+      form.clearErrors("license_number")
+      form.clearErrors("signature")
+    }
+  }
+
+  const handleSaveSignature = () => {
+    if (!signatureRef.current || signatureRef.current.isEmpty()) {
+      showSignatureMessage("Please draw your signature before saving")
+      return
+    }
+
+    try {
+      const quality = signatureRef.current.toDataURL().length > 1024 ? 0.5 : 1
+      const signatureData = signatureRef.current.toDataURL("image/png", quality)
+      const file = dataURLtoFile(signatureData, "signature.png")
+      applySignatureFile(file)
+      showSignatureMessage("Signature saved")
+    } catch {
+      showSignatureMessage("Error saving signature")
+    }
+  }
+
+  const handleClearSignature = () => {
+    signatureRef.current?.clear()
+    setSignatureFile(null)
+    setHasSignature(false)
+    form.setValue("signature", null)
+    showSignatureMessage("Signature cleared")
+  }
+
   // Handle signature file upload
   const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -346,13 +406,10 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
         })
         return
       }
-      
-      setSignatureFile(file)
-      form.setValue("signature", file, { shouldValidate: true })
-      // Clear validation error if license number also has value
-      if (form.watch("license_number") && form.watch("license_number")?.trim() !== "") {
-        form.clearErrors("license_number")
-      }
+
+      signatureRef.current?.clear()
+      applySignatureFile(file)
+      showSignatureMessage("Signature uploaded")
     }
   }
 
@@ -384,12 +441,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
       setAvatarFile(file)
       form.setValue("avatar", file)
     }
-  }
-
-  // Remove signature file
-  const removeSignatureFile = () => {
-    setSignatureFile(null)
-    form.setValue("signature", null)
   }
 
   // Remove avatar file
@@ -846,57 +897,79 @@ export function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUserModalP
                   <FormField
                     control={form.control}
                     name="signature"
-                    render={({ field }) => (
+                    render={() => (
                       <FormItem>
-                        <FormLabel className="text-xs font-medium text-gray-700">Signature *</FormLabel>
                         <FormControl>
                           <div className="space-y-2">
-                            {signatureFile ? (
-                              <div className="flex items-center justify-between p-2.5 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="flex items-center space-x-2">
-                                  <Upload className="h-4 w-4 text-gray-500" />
-                                  <div>
-                                    <span className="text-xs font-medium text-gray-700">{signatureFile.name}</span>
-                                    <span className="text-[10px] text-gray-500 ml-2">
-                                      ({(signatureFile.size / 1024 / 1024).toFixed(2)} MB)
+                            <div
+                              className={cn(
+                                "border rounded-lg overflow-hidden",
+                                form.formState.errors.signature || (isDoctor && !hasSignature && form.formState.errors.license_number)
+                                  ? "border-red-500"
+                                  : "border-gray-200",
+                              )}
+                            >
+                              <div className="p-2 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                                <div className="flex items-center">
+                                  <span className="text-xs font-medium text-gray-700">Signature *</span>
+                                  {hasSignature && (
+                                    <span className="ml-2 text-[10px] text-green-600 flex items-center">
+                                      <Check className="h-3 w-3 mr-1" />
+                                      Saved
                                     </span>
-                                  </div>
+                                  )}
                                 </div>
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={removeSignatureFile}
-                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-6 w-6 p-0"
+                                  onClick={handleClearSignature}
+                                  className="h-7 px-2 text-xs text-gray-600 hover:text-gray-900"
                                 >
-                                  <X className="h-3 w-3" />
+                                  Clear
                                 </Button>
                               </div>
-                            ) : (
-                              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-all bg-gray-50">
+                              <div className="p-2 bg-white relative">
+                                <SignatureCanvas
+                                  ref={signatureRef}
+                                  penColor="black"
+                                  canvasProps={{
+                                    className: "w-full border border-dashed border-gray-300 h-36",
+                                    style: { width: "100%", height: "144px" },
+                                  }}
+                                  onEnd={handleSaveSignature}
+                                />
+                                {!hasSignature && (
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-400 text-sm">
+                                    Sign here
+                                  </div>
+                                )}
+                                {signatureMessage && (
+                                  <div
+                                    className={cn(
+                                      "absolute bottom-2 left-2 right-2 p-1.5 rounded text-xs text-center",
+                                      signatureMessage.includes("Error") || signatureMessage.includes("Please")
+                                        ? "bg-red-100 text-red-700"
+                                        : "bg-green-100 text-green-700",
+                                    )}
+                                  >
+                                    {signatureMessage}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex justify-end">
+                              <label className="text-[#1162a8] px-2 py-1 rounded flex items-center cursor-pointer text-xs font-medium hover:text-[#0d5999]">
+                                <Upload className="h-3.5 w-3.5 mr-1.5" />
+                                Upload Signature
                                 <input
                                   type="file"
+                                  className="hidden"
                                   accept="image/jpeg,image/jpg,image/png"
                                   onChange={handleSignatureUpload}
-                                  className="hidden"
-                                  id="signature-upload"
                                 />
-                                <label
-                                  htmlFor="signature-upload"
-                                  className="cursor-pointer flex flex-col items-center space-y-1.5"
-                                >
-                                  <Upload className="h-6 w-6 text-gray-400" />
-                                  <div className="text-xs text-gray-600">
-                                    <span className="font-medium text-blue-600 hover:text-blue-500">
-                                      Click to upload
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-gray-500">
-                                    JPG, PNG up to 5MB
-                                  </div>
-                                </label>
-                              </div>
-                            )}
+                              </label>
+                            </div>
                           </div>
                         </FormControl>
                         <FormMessage />
