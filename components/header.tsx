@@ -647,7 +647,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
     try {
       // Dialog portal can mount a frame later than open state flips.
-      for (let attempt = 0; attempt < 10 && !videoRef.current; attempt += 1) {
+      for (let attempt = 0; attempt < 20 && !videoRef.current; attempt += 1) {
         await new Promise<void>((resolve) => {
           window.setTimeout(() => resolve(), 50)
         })
@@ -659,45 +659,74 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       }
 
       const mediaStream = await requestCameraPermission()
+      if (!decoderActiveRef.current) {
+        mediaStream.getTracks().forEach((track) => track.stop())
+        setIsDecoding(false)
+        return
+      }
+
       setStream(mediaStream)
 
       const video = videoRef.current
       video.srcObject = mediaStream
+
+      // Hide the full-screen loading overlay BEFORE waiting for frames.
+      // A fixed overlay covering the <video> prevents Chrome from delivering preview frames.
+      setScannerState((prev) => ({ ...prev, isLoading: false, isScanning: true, error: null }))
+
+      // Soft wait only — never blocks scanning if the stream is already live.
       await waitForVideoPlayback(video)
 
       const hints = new Map()
       hints.set(2, [BarcodeFormat.QR_CODE])
       hints.set(3, true)
 
-      // Longer play timeout so ZXing does not reject(false) on slow devices.
       const codeReader = new BrowserMultiFormatReader(hints, {
         tryPlayVideoTimeout: 20_000,
         delayBetweenScanAttempts: 300,
       })
       codeReaderRef.current = codeReader
 
-      // Keep our stream; decodeFromVideoElement does not dispose tracks on stop.
-      const controls = await codeReader.decodeFromVideoElement(video, (result, error) => {
-        if (result) {
-          if (!decoderActiveRef.current || processingRef.current) return
+      let controls: IScannerControls
+      try {
+        controls = await codeReader.decodeFromVideoElement(video, (result, error) => {
+          if (result) {
+            if (!decoderActiveRef.current || processingRef.current) return
 
-          const text = result.getText()
-          const formatStr = result.getBarcodeFormat().toString()
+            const text = result.getText()
+            const formatStr = result.getBarcodeFormat().toString()
 
-          stopActiveDecoder()
-          void handleScanSuccess(text, formatStr)
+            stopActiveDecoder()
+            void handleScanSuccess(text, formatStr)
+          }
+          if (error && error.name !== "NotFoundException") {
+            // NotFoundException is normal while searching for a QR code.
+          }
+        })
+      } catch (decodeError) {
+        // ZXing may reject(false) if play() is slow — stream is already attached; retry once.
+        if (decodeError === false || decodeError instanceof Error) {
+          await waitForVideoPlayback(video, 1_500)
+          controls = await codeReader.decodeFromVideoElement(video, (result, error) => {
+            if (result) {
+              if (!decoderActiveRef.current || processingRef.current) return
+              const text = result.getText()
+              const formatStr = result.getBarcodeFormat().toString()
+              stopActiveDecoder()
+              void handleScanSuccess(text, formatStr)
+            }
+          })
+        } else {
+          throw decodeError
         }
-        if (error && error.name !== "NotFoundException") {
-          // NotFoundException is normal while searching for a QR code.
-        }
-      })
+      }
 
       scannerControlsRef.current = controls
       setScannerState((prev) => ({ ...prev, isLoading: false, isScanning: true, error: null }))
     } catch (error) {
       const message =
         error === false
-          ? "Camera preview timed out. Close other apps using the camera, then tap Retry."
+          ? "Could not start the camera preview. Tap Retry, or refresh the page."
           : error instanceof Error
             ? error.message
             : "Failed to start scanner"
@@ -826,39 +855,27 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Effect to ensure camera is stopped when dialog closes
   useEffect(() => {
-    if (!scannerState.isOpen) {
-      // Dialog is closed, ensure camera is turned off
-      if (videoRef.current && videoRef.current.srcObject) {
-        const mediaStream = videoRef.current.srcObject as MediaStream
-        mediaStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        videoRef.current.pause()
-        videoRef.current.srcObject = null
-        videoRef.current.load()
-      }
-      
-      // Also stop any stream in state
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        setStream(null)
-      }
+    if (scannerState.isOpen) return
 
-      // Stop code reader
-      if (codeReaderRef.current) {
-        try {
-          ;(codeReaderRef.current as any)?.reset?.()
-          codeReaderRef.current = null
-        } catch (error) {
-          // Ignore errors
-        }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const mediaStream = videoRef.current.srcObject as MediaStream
+      mediaStream.getTracks().forEach((track) => {
+        track.stop()
+        track.enabled = false
+      })
+      videoRef.current.pause()
+      videoRef.current.srcObject = null
+      videoRef.current.load()
+    }
+
+    if (codeReaderRef.current) {
+      try {
+        codeReaderRef.current = null
+      } catch {
+        // Ignore errors
       }
     }
-  }, [scannerState.isOpen, stream])
+  }, [scannerState.isOpen])
 
   // Debug effect to track modal state changes
   useEffect(() => {
@@ -1404,13 +1421,6 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
           {/* Scanner view */}
           <div className="space-y-3 sm:space-y-4 lg:space-y-5 xl:space-y-6">
-            <LoadingOverlay
-              isLoading={scannerState.isLoading}
-              title="Loading camera..."
-              message="Please wait while we initialize the camera"
-              zIndex={99999}
-            />
-
             {scannerState.error && (
               <div className="text-center p-3 sm:p-4 lg:p-5 xl:p-6 bg-red-50 rounded-lg lg:rounded-xl transform transition-all duration-300">
                 <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 xl:h-12 xl:w-12 mx-auto mb-2 text-red-500" />
@@ -1443,6 +1453,13 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
                 muted
                 playsInline
               />
+
+              {scannerState.isLoading && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/60 text-white">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <p className="text-sm">Starting camera…</p>
+                </div>
+              )}
 
               {scannerState.isScanning && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

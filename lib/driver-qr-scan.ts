@@ -229,17 +229,13 @@ function videoHasUsableFrame(video: HTMLVideoElement): boolean {
   );
 }
 
-function streamHasLiveVideo(stream: MediaStream | null | undefined): boolean {
-  return Boolean(stream?.getVideoTracks().some((track) => track.readyState === "live"));
-}
-
 /**
- * Wait until a video element with an attached stream can play.
- * Handles the common race where `loadedmetadata` fires before listeners are attached.
+ * Soft-wait for camera preview. Never hard-fails if the MediaStream is live —
+ * some browsers delay frames while overlays cover the <video>.
  */
 export async function waitForVideoPlayback(
   video: HTMLVideoElement,
-  timeoutMs = 15_000
+  timeoutMs = 2_500
 ): Promise<void> {
   prepareVideoElementForCamera(video);
 
@@ -247,14 +243,14 @@ export async function waitForVideoPlayback(
     try {
       await video.play();
     } catch {
-      // Muted autoplay usually works; ignore transient play() rejections while buffering.
+      // Ignore — muted autoplay / later decode loop will retry.
     }
   };
 
   await tryPlay();
   if (videoHasUsableFrame(video)) return;
 
-  await new Promise<void>((resolve, reject) => {
+  await new Promise<void>((resolve) => {
     let settled = false;
 
     const cleanup = () => {
@@ -266,48 +262,31 @@ export async function waitForVideoPlayback(
       video.removeEventListener("playing", onProgress);
     };
 
-    const finishOk = () => {
+    const finish = () => {
       if (settled) return;
       settled = true;
       cleanup();
       resolve();
     };
 
-    const finishErr = (message: string) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new Error(message));
-    };
-
     const onProgress = () => {
       void tryPlay().then(() => {
         if (videoHasUsableFrame(video) || (!video.paused && video.videoWidth > 0)) {
-          finishOk();
+          finish();
         }
       });
     };
 
     const timeoutId = window.setTimeout(() => {
-      const stream = video.srcObject instanceof MediaStream ? video.srcObject : null;
-      // Stream is live — continue scanning even if play() events were flaky.
-      if (streamHasLiveVideo(stream)) {
-        void tryPlay().finally(() => finishOk());
-        return;
-      }
-      finishErr(
-        "Camera preview timed out. Close other apps using the camera, then tap Retry."
-      );
+      void tryPlay().finally(() => finish());
     }, timeoutMs);
 
-    const pollId = window.setInterval(onProgress, 200);
+    const pollId = window.setInterval(onProgress, 150);
 
     video.addEventListener("loadedmetadata", onProgress);
     video.addEventListener("loadeddata", onProgress);
     video.addEventListener("canplay", onProgress);
     video.addEventListener("playing", onProgress);
-
-    // Metadata may already be available (race with srcObject assignment).
     onProgress();
   });
 }
