@@ -61,6 +61,7 @@ import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import { filterValidQrScanSlips } from "@/lib/slip-location"
 import {
   driverQrCameraConstraints,
+  driverQrCameraFallbackConstraints,
   parseDriverQrText,
   processDriverScanApiResult,
   saveDriverSessionKey,
@@ -555,60 +556,53 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Request camera permission
   const requestCameraPermission = useCallback(async () => {
-    // Check if we're in a secure context (HTTPS or localhost)
     if (!window.isSecureContext && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       const errorMsg = "Camera access requires a secure connection (HTTPS). Please use HTTPS or localhost."
       setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
       throw new Error(errorMsg)
     }
 
-    // Check if mediaDevices is available
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const errorMsg = "Camera API is not available in this browser. Please use a modern browser."
       setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
       throw new Error(errorMsg)
     }
 
-    try {
-      // First, check if we can enumerate devices to see if camera exists
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const hasVideoInput = devices.some(device => device.kind === 'videoinput')
-      
-      if (!hasVideoInput) {
-        const errorMsg = "No camera found. Please connect a camera device."
-        setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
-        throw new Error(errorMsg)
-      }
+    const tryGetStream = async (constraints: MediaStreamConstraints) =>
+      navigator.mediaDevices.getUserMedia(constraints)
 
-      const stream = await navigator.mediaDevices.getUserMedia(driverQrCameraConstraints())
-      setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
-      return stream
+    try {
+      // Soft constraints first; do not hard-fail on enumerateDevices (labels are often empty).
+      try {
+        const stream = await tryGetStream(driverQrCameraConstraints())
+        setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
+        return stream
+      } catch (primaryError: any) {
+        if (
+          primaryError?.name === "OverconstrainedError" ||
+          primaryError?.name === "ConstraintNotSatisfiedError" ||
+          primaryError?.name === "NotFoundError" ||
+          primaryError?.name === "DevicesNotFoundError"
+        ) {
+          const stream = await tryGetStream(driverQrCameraFallbackConstraints())
+          setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
+          return stream
+        }
+        throw primaryError
+      }
     } catch (error: any) {
       let errorMessage = "Camera access denied"
-      
+
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         errorMessage = "Camera permission denied. Please allow camera access in your browser settings and try again."
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
         errorMessage = "No camera found. Please connect a camera device."
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
         errorMessage = "Camera is already in use by another application. Please close other apps using the camera."
-      } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
-        errorMessage = "Camera doesn't support the required settings. Trying with default settings..."
-        // Try again with simpler constraints (important for iOS Safari)
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { ideal: "environment" } },
-            audio: false
-          })
-          setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
-          return stream
-        } catch (retryError) {
-          errorMessage = "Camera access failed. Please check your camera permissions."
-        }
       } else if (error.message) {
         errorMessage = error.message
       }
-      
+
       setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMessage }))
       throw new Error(errorMessage)
     }
@@ -652,10 +646,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     }
 
     try {
-      // Dialog content may not be mounted on the first paint after open.
-      if (!videoRef.current) {
+      // Dialog portal can mount a frame later than open state flips.
+      for (let attempt = 0; attempt < 10 && !videoRef.current; attempt += 1) {
         await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+          window.setTimeout(() => resolve(), 50)
         })
       }
 
@@ -671,14 +665,18 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       video.srcObject = mediaStream
       await waitForVideoPlayback(video)
 
-      const codeReader = new BrowserMultiFormatReader()
       const hints = new Map()
       hints.set(2, [BarcodeFormat.QR_CODE])
       hints.set(3, true)
-      codeReader.hints = hints
+
+      // Longer play timeout so ZXing does not reject(false) on slow devices.
+      const codeReader = new BrowserMultiFormatReader(hints, {
+        tryPlayVideoTimeout: 20_000,
+        delayBetweenScanAttempts: 300,
+      })
       codeReaderRef.current = codeReader
 
-      // decodeFromVideoElement keeps our stream alive; decodeFromStream disposes it on stop.
+      // Keep our stream; decodeFromVideoElement does not dispose tracks on stop.
       const controls = await codeReader.decodeFromVideoElement(video, (result, error) => {
         if (result) {
           if (!decoderActiveRef.current || processingRef.current) return
@@ -699,7 +697,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     } catch (error) {
       const message =
         error === false
-          ? "Camera preview timed out. Please allow camera access and tap Retry."
+          ? "Camera preview timed out. Close other apps using the camera, then tap Retry."
           : error instanceof Error
             ? error.message
             : "Failed to start scanner"
@@ -805,10 +803,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     if (scannerState.isScanning || scannerState.isLoading) return
 
     scannerStartAttemptedRef.current = true
-    const frameId = requestAnimationFrame(() => {
+    const timerId = window.setTimeout(() => {
       void startScanner()
-    })
-    return () => cancelAnimationFrame(frameId)
+    }, 150)
+    return () => window.clearTimeout(timerId)
   }, [scannerState.isOpen, scannerState.isScanning, scannerState.isLoading, isDecoding, startScanner])
 
   // Open scanner from driver pickup modal (Add Slip) or native-camera landing page.
@@ -1438,15 +1436,12 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             )}
 
             <div className="relative aspect-video bg-black rounded-lg lg:rounded-xl overflow-hidden shadow-2xl">
-              <video 
-                ref={videoRef} 
-                className="w-full h-full object-cover" 
-                autoPlay 
-                playsInline 
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover bg-black"
+                autoPlay
                 muted
-                style={{
-                  filter: 'contrast(1.2) brightness(1.1)', // Enhance contrast for better QR detection
-                }}
+                playsInline
               />
 
               {scannerState.isScanning && (
