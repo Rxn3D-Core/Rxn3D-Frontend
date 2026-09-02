@@ -90,6 +90,10 @@ export function LabAdminDashboard() {
   const customerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)
 
+  const [practiceSearchQuery, setPracticeSearchQuery] = useState("")
+  const [practicesTab, setPracticesTab] = useState("connected")
+  const [practicesPage, setPracticesPage] = useState(1)
+
   // Use cached hooks - automatic fetching with cache!
   const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id, {
     page: practicesPage,
@@ -118,9 +122,6 @@ export function LabAdminDashboard() {
   const { isLoading: isSearching, customers, isCustomersLoading, customersError } = useCustomer()
   const [activeTabLabs, setActiveTabLabs] = useState("connected")
 
-  const [practiceSearchQuery, setPracticeSearchQuery] = useState("")
-  const [practicesTab, setPracticesTab] = useState("connected")
-  const [practicesPage, setPracticesPage] = useState(1)
   const [labsTab, setLabsTab] = useState("connected")
   const [showPracticeForm, setShowPracticeForm] = useState(false)
   const [showLabForm, setShowLabForm] = useState(false)
