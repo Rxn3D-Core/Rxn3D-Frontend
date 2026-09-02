@@ -133,6 +133,10 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   // QR texts already scanned in the current session — prevents re-hitting the
   // backend with the same (last) slip when the QR stays in front of the camera.
   const scannedQrTextsRef = useRef<Set<string>>(new Set())
+  // When true, ignore decode callbacks (decoder may still emit briefly after reset).
+  const decoderActiveRef = useRef(false)
+  // Cooldown lock: blocks the same QR text from re-firing scan-qr after a failed attempt.
+  const qrScanLockRef = useRef<{ text: string | null; until: number }>({ text: null, until: 0 })
   const [showUserProfileModal, setShowUserProfileModal] = useState(false)
   const [showNewOfficeModal, setShowNewOfficeModal] = useState(false)
   const [showNewLabModal, setShowNewLabModal] = useState(false)
@@ -301,6 +305,26 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     }
   }, [])
 
+  const stopActiveDecoder = useCallback(() => {
+    decoderActiveRef.current = false
+    if (codeReaderRef.current) {
+      try {
+        ;(codeReaderRef.current as any)?.reset?.()
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }, [])
+
+  const isQrScanLocked = useCallback((text: string) => {
+    const lock = qrScanLockRef.current
+    return lock.text === text && Date.now() < lock.until
+  }, [])
+
+  const lockQrScan = useCallback((text: string, cooldownMs: number) => {
+    qrScanLockRef.current = { text, until: Date.now() + cooldownMs }
+  }, [])
+
   // Handle successful scan
   const handleScanSuccess = useCallback(
     async (text: string, format: string) => {
@@ -317,6 +341,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       try {
         // Prevent duplicate scans within 3 seconds AND same content
         if (now - lastScanTimeRef.current < 3000 && lastScannedCodeRef.current === text) {
+          return
+        }
+
+        if (isQrScanLocked(text)) {
           return
         }
 
@@ -347,6 +375,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           const caseId = parseInt(urlMatch[1])
           const slipIds = urlMatch[2].split(',').map(id => parseInt(id))
 
+          // Stop the decoder immediately so the same QR in view cannot re-trigger
+          // scan-qr while the API request is in flight or after a failure.
+          stopActiveDecoder()
+
           // Already scanned in this session — don't hit the backend again with
           // the same slip; just stop the scanner and surface a gentle notice.
           if (scannedQrTextsRef.current.has(text)) {
@@ -360,10 +392,15 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             return
           }
 
+          // Lock before the API call so a failed scan cannot loop on the same QR.
+          lockQrScan(text, 15_000)
+
           try {
             const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
 
             if (res && res.success) {
+              // Success: keep this QR blocked for the rest of the driver session.
+              qrScanLockRef.current = { text, until: Number.MAX_SAFE_INTEGER }
 
               // Mark this QR as handled so it isn't re-scanned while still in view.
               scannedQrTextsRef.current.add(text)
@@ -448,7 +485,19 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         processingRef.current = false
       }
     },
-    [scanHistory, saveScanHistory, autoValidate, validateScanResult, batchMode, toast, handleAutomaticActions],
+    [
+      scanHistory,
+      saveScanHistory,
+      autoValidate,
+      validateScanResult,
+      batchMode,
+      toast,
+      handleAutomaticActions,
+      scanQrCode,
+      stopActiveDecoder,
+      isQrScanLocked,
+      lockQrScan,
+    ],
   )
 
   // Request camera permission
@@ -527,6 +576,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       return
     }
 
+    decoderActiveRef.current = true
     setIsDecoding(true)
     setScannerState((prev) => ({ ...prev, isLoading: true, error: null }))
 
@@ -575,20 +625,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           // Use decodeFromVideoDevice for continuous scanning
           await codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, error) => {
             if (result) {
-              // If already processing, ignore duplicate detections
-              if (processingRef.current) return
+              // Ignore stale callbacks after the decoder was stopped.
+              if (!decoderActiveRef.current || processingRef.current) return
 
               const text = result.getText()
               const formatStr = result.getBarcodeFormat().toString()
 
-
-              // Stop scanning immediately after detection to prevent further callbacks
-              if (codeReaderRef.current) {
-                try {
-                  ;(codeReaderRef.current as any)?.reset?.()
-                } catch (e) {
-                }
-              }
+              // Stop decoding immediately after detection to prevent further callbacks.
+              stopActiveDecoder()
 
               // Call our success handler (async). The handler sets processingRef and clears it in finally.
               void handleScanSuccess(text, formatStr)
@@ -638,23 +682,20 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     scannerState.isOpen,
     batchMode,
     scanHistory.length,
+    stopActiveDecoder,
   ])
 
   // Close scanner
   const closeScanner = useCallback(() => {
+    stopActiveDecoder()
     setIsDecoding(false)
-    lastScannedCodeRef.current = ""
-    // Reset processing and last scan time so scanner can be reopened cleanly
-    processingRef.current = false
-    lastScanTimeRef.current = 0
+    // Keep lastScannedCodeRef / lastScanTimeRef so a still-active decoder frame
+    // cannot immediately re-hit scan-qr with the same QR after a failed attempt.
 
-    // Stop the code reader first
     if (codeReaderRef.current) {
       try {
-        // Try to stop any ongoing scanning
-        ;(codeReaderRef.current as any)?.reset?.()
         codeReaderRef.current = null
-      } catch (error) {
+      } catch {
         // Ignore errors during cleanup
       }
     }
@@ -709,10 +750,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       error: null,
       hasPermission: false,
     })
-  }, [stream])
+
+    processingRef.current = false
+  }, [stream, stopActiveDecoder])
 
   // Open scanner
   const openScanner = useCallback(() => {
+    // Allow retrying a QR that previously failed once the user reopens the scanner.
+    qrScanLockRef.current = { text: null, until: 0 }
     setScannerState((prev) => {
       const newState = { ...prev, isOpen: true }
       return newState
