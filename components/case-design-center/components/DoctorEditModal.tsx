@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { WizardDoctorShape } from "@/components/new-case-wizard";
@@ -46,7 +47,10 @@ export function DoctorEditModal({
         if (!nextOpen) onClose();
       }}
     >
-      <DialogContent className="max-w-[720px] w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden">
+      <DialogContent
+        showCloseButton
+        className="max-w-[720px] w-[calc(100vw-2rem)] p-0 gap-0 overflow-hidden"
+      >
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-[#d9d9d9]">
           <DialogTitle className="text-base font-bold text-[#1d1d1b] text-center">
             Change doctor
@@ -104,6 +108,24 @@ export function DoctorEditModal({
               </div>
             </>
           )}
+        </div>
+
+        <div className="border-t border-[#d9d9d9] px-5 py-4 flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            style={{
+              border: "2px solid #9BA5B7",
+              borderRadius: "6px",
+              fontFamily: "Verdana",
+              fontWeight: 700,
+              fontSize: "12px",
+              color: "#9BA5B7",
+            }}
+          >
+            Cancel
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

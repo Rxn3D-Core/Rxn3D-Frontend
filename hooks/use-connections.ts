@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Connection, ConnectionsResponse } from '@/contexts/connection-context'
+import { useAuth } from '@/contexts/auth-context'
+import { categorizeConnectionsForUser } from '@/lib/connection-utils'
+import { buildConnectionsUrl, getActiveCustomerId } from '@/lib/connection-api'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
 
@@ -9,7 +12,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
 export const connectionKeys = {
   all: ['connections'] as const,
   lists: () => [...connectionKeys.all, 'list'] as const,
-  list: (filters?: string) => [...connectionKeys.lists(), { filters }] as const,
+  list: (customerId?: number | null) => [...connectionKeys.lists(), { customerId }] as const,
   details: () => [...connectionKeys.all, 'detail'] as const,
   detail: (id: number) => [...connectionKeys.details(), id] as const,
 }
@@ -24,12 +27,7 @@ async function fetchConnections(userId?: number): Promise<ConnectionsResponse> {
     throw new Error('No authentication token found')
   }
 
-  const params = new URLSearchParams()
-  if (userId) {
-    params.append('user_id', userId.toString())
-  }
-
-  const response = await fetch(`${API_BASE_URL}/connections`, {
+  const response = await fetch(buildConnectionsUrl(userId), {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -61,23 +59,16 @@ async function fetchConnections(userId?: number): Promise<ConnectionsResponse> {
  * - Handles authentication errors
  */
 export function useConnections(userId?: number) {
+  const { user } = useAuth()
+  const customerId = getActiveCustomerId()
+
   return useQuery({
-    queryKey: connectionKeys.list(),
+    queryKey: connectionKeys.list(customerId),
     queryFn: () => fetchConnections(userId),
     staleTime: 1000 * 60 * 10, // 10 minutes
     gcTime: 1000 * 60 * 60 * 24, // 24 hours in cache
     select: (data) => {
-      // Categorize connections into practices and labs
-      const practices: Connection[] = []
-      const labs: Connection[] = []
-
-      data.data?.forEach((connection) => {
-        if (connection.partner.name) {
-          labs.push(connection)
-        } else {
-          practices.push(connection)
-        }
-      })
+      const { practices, labs } = categorizeConnectionsForUser(data.data || [], user)
 
       return {
         ...data,

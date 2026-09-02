@@ -58,6 +58,7 @@ import { cn } from "@/lib/utils"
 import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { TrialBanner } from "@/components/billing/trial-banner"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
+import { filterValidQrScanSlips } from "@/lib/slip-location"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
@@ -353,6 +354,9 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
         const validation = autoValidate ? validateScanResult(text, format) : { isValid: true, type: "unknown" as const }
 
+        // Check if the scanned content is a URL that contains case and slip information
+        const urlMatch = text.match(/\/case\/(\d+)\?slips=([0-9,]+)/)
+
         const scanResult: ScanResult = {
           id: `scan-${now}`,
           text,
@@ -362,13 +366,13 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           type: validation.type,
         }
 
-        const newHistory = [scanResult, ...scanHistory].slice(0, 100) // Keep last 100 scans
-        setScanHistory(newHistory)
-        saveScanHistory(newHistory)
-
-
-        // Check if the scanned content is a URL that contains case and slip information
-        const urlMatch = text.match(/\/case\/(\d+)\?slips=([0-9,]+)/)
+        // Only persist non-case QR codes to scan history immediately; case/slip scans
+        // are added after a successful API response.
+        if (!urlMatch) {
+          const newHistory = [scanResult, ...scanHistory].slice(0, 100)
+          setScanHistory(newHistory)
+          saveScanHistory(newHistory)
+        }
 
 
         if (urlMatch) {
@@ -383,6 +387,12 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           // the same slip; just stop the scanner and surface a gentle notice.
           if (scannedQrTextsRef.current.has(text)) {
             closeScanner()
+            setQrScanData((prev: any) => {
+              if (!prev || !Array.isArray(prev.data)) return prev
+              const filtered = filterValidQrScanSlips(prev.data)
+              if (filtered.length === 0) return null
+              return { ...prev, data: filtered }
+            })
             setShowDriverHistoryModal(true)
             toast({
               title: "Already added",
@@ -398,7 +408,34 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           try {
             const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
 
+            const removeFailedSlipsFromMemory = () => {
+              const failedSlipIds = new Set(slipIds)
+              setQrScanData((prev: any) => {
+                if (!prev || !Array.isArray(prev.data)) return prev
+                const filtered = filterValidQrScanSlips(
+                  prev.data.filter((d: any) => !failedSlipIds.has(d.slip_id))
+                )
+                if (filtered.length === 0) return null
+                return { ...prev, data: filtered }
+              })
+            }
+
             if (res && res.success) {
+              const validSlips = filterValidQrScanSlips(Array.isArray(res.data) ? res.data : [])
+
+              if (validSlips.length === 0) {
+                removeFailedSlipsFromMemory()
+                toast({
+                  title: "QR Scan Failed",
+                  description:
+                    res?.message ||
+                    "Invalid slip locations for pickup or drop-off. Only slips ready for pick up or drop off can be scanned.",
+                  variant: "destructive",
+                  duration: 5000,
+                })
+                return
+              }
+
               // Success: keep this QR blocked for the rest of the driver session.
               qrScanLockRef.current = { text, until: Number.MAX_SAFE_INTEGER }
 
@@ -408,25 +445,37 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               // Remember the session so subsequent scans stay in the same batch.
               qrSessionRef.current = res.session_key || qrSessionRef.current
 
-              // Merge this case's slips into any already-scanned slips (dedupe by slip_id).
+              const successHistory = [scanResult, ...scanHistory].slice(0, 100)
+              setScanHistory(successHistory)
+              saveScanHistory(successHistory)
+
+              // Merge only valid slips into the scanned list (dedupe by slip_id).
               setQrScanData((prev: any) => {
-                const incoming = Array.isArray(res.data) ? res.data : []
-                if (!prev || !Array.isArray(prev.data)) return res
-                const seen = new Set(prev.data.map((d: any) => d.slip_id))
-                const merged = [...prev.data, ...incoming.filter((d: any) => !seen.has(d.slip_id))]
-                return { ...res, data: merged }
+                const prevValid = filterValidQrScanSlips(
+                  prev && Array.isArray(prev.data) ? prev.data : []
+                )
+                const seen = new Set(prevValid.map((d: any) => d.slip_id))
+                const merged = [
+                  ...prevValid,
+                  ...validSlips.filter((d: any) => !seen.has(d.slip_id)),
+                ]
+                return {
+                  ...res,
+                  data: merged,
+                  scanned_cases_count: merged.length,
+                }
               })
 
               // Show the driver history modal with the scan data
               setShowDriverHistoryModal(true)
 
-
               toast({
                 title: "QR Scan Successful",
-                description: `Found ${res.scanned_cases_count} case(s) for delivery`,
+                description: `Added ${validSlips.length} slip(s) for delivery`,
                 duration: 3000,
               })
             } else {
+              removeFailedSlipsFromMemory()
               toast({
                 title: "QR Scan Failed",
                 description: res?.message || "Failed to process QR code",
@@ -1486,7 +1535,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       </Dialog>
 
       {/* Driver History Modal */}
-      {qrScanData && (
+      {qrScanData && Array.isArray(qrScanData.data) && qrScanData.data.length > 0 && (
         <DriverHistoryModal
           isOpen={showDriverHistoryModal}
           onClose={() => {

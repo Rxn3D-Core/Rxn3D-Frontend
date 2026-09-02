@@ -52,6 +52,44 @@ export function slipCanSendBackToOffice(ref: SlipLocationRef): boolean {
   return slipIsInLab(ref);
 }
 
+/** Location names allowed for QR driver scan (matches backend validQrTransitionLocationNames). */
+export const QR_SCAN_VALID_LOCATION_IDS = [1, 2, 4, 5] as const;
+
+const QR_SCAN_VALID_LOCATION_NAMES = [
+  "In office ready to pickup",
+  "In lab ready to pickup",
+  "On route to the lab",
+  "On route to the office",
+] as const;
+
+/** True when a slip is in a valid pick-up or drop-off location for QR scanning. */
+export function isValidQrScanSlipLocation(ref: SlipLocationRef): boolean {
+  if (typeof ref.locationId === "number") {
+    return (QR_SCAN_VALID_LOCATION_IDS as readonly number[]).includes(ref.locationId);
+  }
+  const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return QR_SCAN_VALID_LOCATION_NAMES.some(
+    (name) => name.toLowerCase().replace(/\s+/g, " ").trim() === label
+  );
+}
+
+export type QrScanSlipLike = {
+  slip_id?: number;
+  location_id?: number;
+  location?: string;
+  current_driver_location?: string;
+};
+
+/** Keep only slips that are in a valid QR pick-up / drop-off location. */
+export function filterValidQrScanSlips<T extends QrScanSlipLike>(slips: T[]): T[] {
+  return slips.filter((item) =>
+    isValidQrScanSlipLocation({
+      locationId: item.location_id,
+      location: item.location || item.current_driver_location || "",
+    })
+  );
+}
+
 /** Lab listing: green truck = pick up (1, 4); red truck = drop off (2, 5). Location 6 (In office) has no driver action. */
 export type SlipPickupDropoffAction = "pickup" | "dropoff";
 

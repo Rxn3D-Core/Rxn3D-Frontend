@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { buildApiUrl } from "@/lib/api/client";
 import { slipService, QRScanPayload, QRScanResponse, QRScanResponseData } from "@/services/slip";
+import { filterValidQrScanSlips } from "@/lib/slip-location";
 
 // Types for the driver slip context
 export interface DriverSlipLocation {
@@ -119,21 +120,35 @@ export function DriverSlipProvider({ children }: { children: ReactNode }) {
       // Make API call
       const response = await slipService.scanQR(payload);
 
+      const validSlips = filterValidQrScanSlips(response.data ?? []);
+      if (!response.success || validSlips.length === 0) {
+        throw new Error(
+          response.message ||
+            "Invalid slip locations for pickup or drop-off. Only slips ready for pick up or drop off can be scanned."
+        );
+      }
+
+      const sanitizedResponse: QRScanResponse = {
+        ...response,
+        data: validSlips,
+        scanned_cases_count: validSlips.length,
+      };
+
       // Validate response
-      if (!slipService.validateQRScanResult(response)) {
+      if (!slipService.validateQRScanResult(sanitizedResponse)) {
         throw new Error("Invalid response from QR scan API");
       }
 
       // Update state
-      setQrScanData(response);
-      setSessionKey(response.session_key);
+      setQrScanData(sanitizedResponse);
+      setSessionKey(sanitizedResponse.session_key);
 
       // Store session key in localStorage for persistence
       if (typeof window !== "undefined") {
-        localStorage.setItem("qr_scan_session_key", response.session_key);
+        localStorage.setItem("qr_scan_session_key", sanitizedResponse.session_key);
       }
 
-      return response;
+      return sanitizedResponse;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An error occurred while scanning QR code";
       setQrScanError(errorMessage);

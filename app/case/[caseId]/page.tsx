@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSlipContext } from "../../lab-case-management/SlipContext";
 import DriverHistoryModal from "../../../components/driver-case-history-modal";
+import { filterValidQrScanSlips } from "@/lib/slip-location";
 
 export default function CaseScanPage({ params }: { params: { caseId: string } }) {
   const { scanQrCode, loading } = useSlipContext();
@@ -31,8 +32,19 @@ export default function CaseScanPage({ params }: { params: { caseId: string } })
     hasScannedRef.current = true;
     scanQrCode(caseId, slipIds)
       .then(res => {
-        setResult(res);
-        if (res && !res.success) setError(res.message || "Scan failed");
+        if (!res || !res.success) {
+          setError(res?.message || "Scan failed");
+          return;
+        }
+        const validSlips = filterValidQrScanSlips(Array.isArray(res.data) ? res.data : []);
+        if (validSlips.length === 0) {
+          setError(
+            res.message ||
+              "Invalid slip locations for pickup or drop-off. Only slips ready for pick up or drop off can be scanned."
+          );
+          return;
+        }
+        setResult({ ...res, data: validSlips });
       })
       .catch(() => setError("Failed to scan QR code."));
   }, [params.caseId, slipsParam, scanQrCode]);

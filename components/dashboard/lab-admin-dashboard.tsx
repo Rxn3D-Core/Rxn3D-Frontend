@@ -22,6 +22,13 @@ import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardOfficeInviteModal } from "./dashboard-office-invite-modal"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
+import {
+  getConnectionPartnerEmail,
+  getConnectionPartnerId,
+  getConnectionPartnerName,
+  isActiveConnection,
+} from "@/lib/connection-utils"
 import { LabProductLibrarySetupBanner } from "./lab-product-library-setup-banner"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 import { FeatureGate } from "@/components/feature-gate"
@@ -148,7 +155,7 @@ export function LabAdminDashboard() {
       const practicesCount = practices.length
       const invitationsCount = sentInvitations.filter((inv: any) => inv.type === "Office").length
       
-      if (practicesCount === 0 && invitationsCount === 0) {
+      if (INVITE_ONBOARDING_MODALS_ENABLED && practicesCount === 0 && invitationsCount === 0) {
         setIsInviteModalOpen(true)
       }
       setHasCheckedInvitePopup(true)
@@ -158,7 +165,7 @@ export function LabAdminDashboard() {
   // Filter practices based on tab
   const filteredPractices =
     practicesTab === "connected"
-      ? practices.filter((p) => p.status?.toLowerCase() === "active")
+      ? practices.filter(isActiveConnection)
       : practicesTab === "sent"
         ? (sent?.data || []).filter((p) => p.type === "Office")
         : (received?.data)
@@ -166,7 +173,7 @@ export function LabAdminDashboard() {
   // Filter labs based on tab
   const filteredLabs =
     labsTab === "connected"
-      ? labs.filter((l) => l.status?.toLowerCase() === "active")
+      ? labs.filter(isActiveConnection)
       : labsTab === "sent"
         ? (sent?.data || []).filter((l) => l.type === "Lab")
         : (received?.data)
@@ -408,7 +415,7 @@ export function LabAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected Practices</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({practices.filter(p => p.status?.toLowerCase() === "active").length})</span>
+                  <span className="block sm:inline">({practices.filter(isActiveConnection).length})</span>
                   {practicesTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
@@ -471,9 +478,9 @@ export function LabAdminDashboard() {
                         >
                           <div className="flex-1">
                             <div className="text-[#1162a8] font-semibold text-base sm:text-lg group-hover:text-blue-700 transition-colors">
-                              {practice.name}
+                              {getConnectionPartnerName(practice)}
                             </div>
-                            <div className="text-xs sm:text-sm text-[#a19d9d] mt-1">{practice.email}</div>
+                            <div className="text-xs sm:text-sm text-[#a19d9d] mt-1">{getConnectionPartnerEmail(practice)}</div>
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
                             <span className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-medium ${getStatusBadgeClass(practice.status || '')}`}>
@@ -688,7 +695,7 @@ export function LabAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected User</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({filteredUsers.filter(u => u.status.toLowerCase() === "connected").length})</span>
+                  <span className="block sm:inline">({users.filter((u: any) => u.status === "connected").length})</span>
                   {activeTabUsers === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
