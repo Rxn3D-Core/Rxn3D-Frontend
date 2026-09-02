@@ -102,6 +102,29 @@ function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: bool
   )
 }
 
+/** Safari can mis-hit absolute overlays / pointer-events-none table cells — ignore real controls. */
+function isRowInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  return Boolean(
+    target.closest(
+      'a,button,input,textarea,select,label,[role="checkbox"],[role="menuitem"],[data-row-interactive="true"]'
+    )
+  )
+}
+
+function openVirtualSlipFromRow(
+  row: V2CaseRowData,
+  onOpen: V2RowActions["onOpen"],
+  event?: { metaKey?: boolean; ctrlKey?: boolean; button?: number }
+) {
+  const href = buildVirtualSlipV2Path(row.id)
+  if (event && (event.metaKey || event.ctrlKey || event.button === 1)) {
+    window.open(href, "_blank", "noopener,noreferrer")
+    return
+  }
+  onOpen(row)
+}
+
 export function V3CaseTable(props: Props) {
   const [popoverRow, setPopoverRow] = useState<number | null>(null)
   // Measured width of the hover action strip; applied to Due Date on hover.
@@ -188,19 +211,17 @@ export function V3CaseTable(props: Props) {
                 <div
                   key={row.id}
                   style={{ backgroundColor: cardBg, border: "1px solid #C8C8C8", borderBottom: "3px solid #C8C8C8" }}
-                  className="relative px-4 pt-3 pb-4 mb-2 rounded-lg"
+                  className="relative px-4 pt-3 pb-4 mb-2 rounded-lg cursor-pointer"
+                  onClick={(e) => {
+                    if (isRowInteractiveTarget(e.target)) return
+                    openVirtualSlipFromRow(row, props.rowActions.onOpen, e)
+                  }}
                 >
-                  {/* Full-card link: tap opens slip; long-press / open in new tab works. */}
-                  <Link
-                    href={virtualSlipHref}
-                    aria-label={openSlipLabel}
-                    className="absolute inset-0 z-[1] rounded-lg"
-                  />
-
                   {/* Header: checkbox + patient name + rush + kebab */}
                   <div className="relative z-[2] flex items-start gap-2">
                     <div
                       className="shrink-0 mt-0.5"
+                      data-row-interactive="true"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
@@ -211,11 +232,16 @@ export function V3CaseTable(props: Props) {
                       />
                     </div>
 
-                    <div className="flex-1 text-left min-w-0 pointer-events-none">
+                    <div className="flex-1 text-left min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-[15px] text-black leading-snug">
+                        <Link
+                          href={virtualSlipHref}
+                          aria-label={openSlipLabel}
+                          className="font-semibold text-[15px] text-black leading-snug truncate hover:text-[#1162A8] hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {row.patient || "Unnamed patient"}
-                        </span>
+                        </Link>
                         {row.rush && (
                           <img src="/icons/rush-bolt.svg" alt="Rush" aria-label="Rush" style={{ width: 11, height: 19, flexShrink: 0 }} />
                         )}
@@ -231,7 +257,7 @@ export function V3CaseTable(props: Props) {
                     </div>
 
                     {/* Kebab */}
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0" data-row-interactive="true">
                       <button
                         type="button"
                         aria-label="Row actions"
@@ -259,27 +285,28 @@ export function V3CaseTable(props: Props) {
                   </div>
 
                   {/* Divider */}
-                  <div className="relative z-[2] mt-3 mb-3 border-t border-[#E2E4E8] pointer-events-none" />
+                  <div className="relative z-[2] mt-3 mb-3 border-t border-[#E2E4E8]" />
 
                   {/* Body */}
                   <div className="relative z-[2] space-y-3">
                     {/* OFFICE + DUE DATE */}
                     <div className="flex items-end justify-between gap-2">
-                      <div className="pointer-events-none">
+                      <div>
                         <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">{officeProfile ? "LAB" : "OFFICE"}</div>
                         <div className="text-[14px] font-bold text-black">{row.officeCode || "—"}</div>
                         {row.doctor && <div className="text-[12px] text-[#575757]">{row.doctor}</div>}
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1 pointer-events-none">DUE DATE</div>
+                        <div className="text-[10px] font-semibold text-[#9ca3af] tracking-wider mb-1">DUE DATE</div>
                         {officeProfile ? (
-                          <span className="text-[14px] font-semibold pointer-events-none" style={{ color: dueDateColor }}>
+                          <span className="text-[14px] font-semibold" style={{ color: dueDateColor }}>
                             {formatDueDate(row)}
                           </span>
                         ) : (
                           <button
                             type="button"
                             className="flex items-center gap-1 justify-end"
+                            data-row-interactive="true"
                             onClick={(e) => { e.stopPropagation(); props.rowActions.onChangeDueDate(row) }}
                           >
                             <img src="/icons/slip-listing/calendar.png" alt="" className="h-4 w-4 shrink-0" />
@@ -475,13 +502,12 @@ export function V3CaseTable(props: Props) {
               return (
                 <tr
                   key={row.id}
-                  className="relative cursor-pointer"
+                  className="cursor-pointer"
                   style={{
                     backgroundColor: rowBg,
                     borderLeft: "1px solid #C8C8C8",
                     borderRight: "1px solid #C8C8C8",
                     height: 65,
-                    position: "relative",
                   }}
                   onMouseEnter={(e) => {
                     if (!isLocked) {
@@ -493,16 +519,25 @@ export function V3CaseTable(props: Props) {
                     e.currentTarget.querySelectorAll("td").forEach((td) => { (td as HTMLElement).style.backgroundColor = rowBg })
                     setPopoverRow((cur) => (cur === row.id ? null : cur))
                   }}
+                  onClick={(e) => {
+                    // Safari: do not use absolute Link overlays on <tr> — hit targets misalign.
+                    if (isRowInteractiveTarget(e.target)) return
+                    openVirtualSlipFromRow(row, props.rowActions.onOpen, e)
+                  }}
+                  onAuxClick={(e) => {
+                    if (e.button !== 1) return
+                    if (isRowInteractiveTarget(e.target)) return
+                    e.preventDefault()
+                    openVirtualSlipFromRow(row, props.rowActions.onOpen, { button: 1 })
+                  }}
                 >
-                  {/* Checkbox + full-row virtual-slip link (right-click → open in new tab).
-                      Link sits at z-0; interactive controls use relative z-[1]+ so they stay clickable. */}
-                  <td className="px-2 py-0 align-middle" style={{ backgroundColor: rowBg, width: 25 }} onClick={(e) => e.stopPropagation()}>
-                    <Link
-                      href={virtualSlipHref}
-                      aria-label={openSlipLabel}
-                      className="absolute inset-0 z-0"
-                    />
-                    <div className="relative z-[1] flex items-center justify-center" style={{ width: 20, height: 65 }}>
+                  <td
+                    className="px-2 py-0 align-middle"
+                    style={{ backgroundColor: rowBg, width: 25 }}
+                    data-row-interactive="true"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-center" style={{ width: 20, height: 65 }}>
                       <Checkbox
                         aria-label={`Select ${row.patient || row.slipNumber || row.id}`}
                         checked={props.selected.includes(row.id)}
@@ -525,12 +560,17 @@ export function V3CaseTable(props: Props) {
                       showTimestamp={props.visibleColumns.has("timestamp")}
                       allowDriverActions={!officeProfile}
                       highlightRushRows={highlightRushRows}
+                      virtualSlipHref={virtualSlipHref}
+                      openSlipLabel={openSlipLabel}
                     />
                   ))}
 
-                  {/* Kebab + hover action strip (above the row link) */}
-                  <td className="relative  px-0 py-0 align-middle" style={{ width: 40, backgroundColor: rowBg, overflow: "visible" }}>
-                    
+                  {/* Kebab + hover action strip */}
+                  <td
+                    className="relative px-0 py-0 align-middle"
+                    style={{ width: 40, backgroundColor: rowBg, overflow: "visible" }}
+                    data-row-interactive="true"
+                  >
                     {popoverRow === row.id && (
                       <V3RowActionsPopover
                         ref={desktopPopoverRef}
@@ -569,6 +609,8 @@ function DesktopCell({
   showTimestamp,
   allowDriverActions,
   highlightRushRows,
+  virtualSlipHref,
+  openSlipLabel,
 }: {
   column: DesktopColumn
   dueDateColor: string
@@ -580,21 +622,25 @@ function DesktopCell({
   rowActions: V2RowActions
   rowBg: string
   rushCasePanColor: string | null
+  virtualSlipHref: string
+  openSlipLabel: string
 }) {
   const cellWidth = column.width + dueDateExtraWidth
-  // Non-interactive cells: pointer-events-none so clicks hit the row virtual-slip <Link>.
-  // Interactive controls: relative z-[1] so they sit above that link and stay clickable.
+  // Avoid pointer-events-none on <td> — Safari can send those clicks to the wrong row.
   if (column.key === "patient") {
     return (
-      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex h-full w-full min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "10px 15px", gap: 2, height: 65 }}>
           <div className="flex items-center min-w-0 w-full" style={{ gap: 5 }}>
-            <span
-              className="truncate min-w-0"
+            <Link
+              href={virtualSlipHref}
+              aria-label={openSlipLabel}
+              className="truncate min-w-0 hover:text-[#1162A8] hover:underline"
               style={{ fontSize: 18, lineHeight: "21px", color: "#000000", fontWeight: 400 }}
+              onClick={(e) => e.stopPropagation()}
             >
               {row.patient || "Unnamed patient"}
-            </span>
+            </Link>
             {row.rush && (
               <img src="/icons/rush-bolt.svg" alt="Rush" aria-label="Rush" style={{ width: 14, height: 24, flexShrink: 0 }} />
             )}
@@ -610,7 +656,7 @@ function DesktopCell({
 
   if (column.key === "panProduct") {
     return (
-      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
           <div
             className="flex items-center justify-center"
@@ -640,8 +686,6 @@ function DesktopCell({
   }
 
   if (column.key === "location") {
-    // Office profiles run neither ready to send nor pick up / drop off, so the
-    // location label stays plain text for them rather than opening a modal.
     const locationAction = row.newStageEligible
       ? "addStage"
       : allowDriverActions
@@ -657,7 +701,7 @@ function DesktopCell({
     if (!locationAction) {
       return (
         <td
-          className="pointer-events-none px-0 py-0 align-middle overflow-hidden"
+          className="px-0 py-0 align-middle overflow-hidden"
           style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}
         >
           <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
@@ -675,12 +719,13 @@ function DesktopCell({
         className="px-0 py-0 align-middle overflow-hidden"
         style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}
       >
-        <div className="relative z-[1] flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
+        <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
           <button
             className="flex w-full min-w-0 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-95"
             style={{ fontSize: 18, lineHeight: "21px", color: "#000000", background: "none", border: "none", cursor: "pointer", padding: 0 }}
             title={locationAction === "addStage" ? "Add stage" : locationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
             type="button"
+            data-row-interactive="true"
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
@@ -710,20 +755,21 @@ function DesktopCell({
           transition: ROW_ACTIONS_RESERVE_TRANSITION,
         }}
       >
-        <div className="relative z-[1] flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
+        <div className="flex w-full min-w-0 flex-row items-center overflow-hidden" style={{ padding: "5px 10px", gap: 8, height: 65 }}>
           {allowDriverActions ? (
             <button
               className="flex w-full min-w-0 items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8] transition-transform duration-200 ease-out hover:scale-[1.02] active:scale-95"
               style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor, background: "none", border: "none", cursor: "pointer", padding: 0 }}
               type="button"
               title="Change due date"
+              data-row-interactive="true"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); rowActions.onChangeDueDate(row) }}
             >
               <img src="/icons/slip-listing/calendar.png" alt="" className="h-5 w-5 shrink-0" />
               <span className="min-w-0 truncate">{formatDueDate(row)}</span>
             </button>
           ) : (
-            <span className="pointer-events-none min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
+            <span className="min-w-0 truncate" style={{ fontSize: 18, lineHeight: "21px", color: dueDateColor }}>
               {formatDueDate(row)}
             </span>
           )}
@@ -734,7 +780,7 @@ function DesktopCell({
 
   if (column.key === "status") {
     return (
-      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 10px", gap: 3, height: 65 }}>
           <StatusPill status={row.status} />
         </div>
@@ -744,7 +790,7 @@ function DesktopCell({
 
   if (column.key === "office") {
     return (
-      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 65 }}>
           <div className="truncate w-full" style={{ fontSize: 18, lineHeight: "21px", color: "#000000" }}>{row.officeCode || "—"}</div>
           {row.doctor && <div className="truncate w-full" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.doctor}</div>}
@@ -755,7 +801,7 @@ function DesktopCell({
 
   if (column.key === "caseNo") {
     return (
-      <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+      <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex h-[65px] min-w-0 items-center overflow-hidden" style={{ padding: "5px 15px" }}>
           <span className="truncate" style={{ fontSize: 16, lineHeight: "18px", color: "#575757" }}>{row.caseNumber || "—"}</span>
         </div>
@@ -766,7 +812,7 @@ function DesktopCell({
   if (column.key === "attachments") {
     return (
       <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
-        <div className="relative z-[1] flex h-[65px] items-center justify-center overflow-hidden" style={{ padding: "5px 4px" }}>
+        <div className="flex h-[65px] items-center justify-center overflow-hidden" style={{ padding: "5px 4px" }} data-row-interactive="true">
           <DigitalImpressionLabels impressions={row.digitalImpressions} />
         </div>
       </td>
@@ -774,13 +820,14 @@ function DesktopCell({
   }
 
   return (
-    <td className="pointer-events-none px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
+    <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
       <div className="flex h-[65px] min-w-0 items-center overflow-hidden" style={{ padding: "5px 15px" }}>
         <span className="truncate" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>{row.createdAt || "—"}</span>
       </div>
     </td>
   )
 }
+
 
 function DigitalImpressionLabels({
   impressions,
