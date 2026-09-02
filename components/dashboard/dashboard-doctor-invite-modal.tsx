@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { InvitationForm } from "@/components/invitation-form"
 import { UserPlus, PlusCircle } from "lucide-react"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
 
 interface DashboardDoctorInviteModalProps {
   doctorsCount: number
@@ -19,6 +20,16 @@ export function DashboardDoctorInviteModal({
   const [showModal, setShowModal] = useState(false)
 
   useEffect(() => {
+    if (!INVITE_ONBOARDING_MODALS_ENABLED && isOpen) {
+      onClose()
+    }
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+      return
+    }
+
     if (isOpen) {
       const hasSeen = localStorage.getItem("has_seen_doctor_invite_modal")
       if (!hasSeen && doctorsCount === 0) {
@@ -37,6 +48,10 @@ export function DashboardDoctorInviteModal({
     setShowModal(false)
     localStorage.setItem("has_seen_doctor_invite_modal", "true")
     onClose()
+  }
+
+  if (!INVITE_ONBOARDING_MODALS_ENABLED) {
+    return null
   }
 
   return (

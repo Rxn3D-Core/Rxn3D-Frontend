@@ -25,6 +25,13 @@ import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { DashboardLabInviteModal } from "@/components/dashboard/dashboard-lab-invite-modal"
 import { DashboardDoctorInviteModal } from "@/components/dashboard/dashboard-doctor-invite-modal"
+import { INVITE_ONBOARDING_MODALS_ENABLED } from "@/lib/invite-onboarding-modals"
+import {
+  getConnectionPartnerEmail,
+  getConnectionPartnerLocation,
+  getConnectionPartnerName,
+  isActiveConnection,
+} from "@/lib/connection-utils"
 interface StatusCardProps {
   title: string
   count: number
@@ -175,11 +182,11 @@ export function OfficeAdminDashboard() {
       ).length
       
       // Check for doctors first as they are critical for office operations
-      if (doctorsCount === 0) {
+      if (INVITE_ONBOARDING_MODALS_ENABLED && doctorsCount === 0) {
         setIsDoctorInviteModalOpen(true)
       } 
       // Then check for labs if no doctors needed
-      else if (labConnectionsCount === 0 && labInvitationsCount === 0) {
+      else if (INVITE_ONBOARDING_MODALS_ENABLED && labConnectionsCount === 0 && labInvitationsCount === 0) {
         setIsLabInviteModalOpen(true)
       }
       
@@ -208,7 +215,7 @@ export function OfficeAdminDashboard() {
   // Filter labs based on tab
   const filteredLabs =
     labsTab === "connected"
-      ? labs.filter((l) => l.status?.toLowerCase() === "active")
+      ? labs.filter(isActiveConnection)
       : labsTab === "sent"
         ? (sent?.data || []).filter((l) => l.type === "Lab")
         : received?.data || [];
@@ -447,7 +454,7 @@ export function OfficeAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected Labs</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({labs.filter(l => l.status?.toLowerCase() === "active").length})</span>
+                  <span className="block sm:inline">({labs.filter(isActiveConnection).length})</span>
                   {labsTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
@@ -510,10 +517,10 @@ export function OfficeAdminDashboard() {
                         >
                           <div className="flex-1">
                             <div className="text-[#1162a8] font-semibold text-base sm:text-lg group-hover:text-blue-700 transition-colors">
-                              {'partner' in lab ? lab.partner.name : lab.name}
+                              {getConnectionPartnerName(lab)}
                             </div>
                             <div className="text-xs sm:text-sm text-[#a19d9d] mt-1">
-                              {'partner' in lab ? `${lab.partner.city}, ${lab.partner.state}` : lab.email}
+                              {getConnectionPartnerLocation(lab) || getConnectionPartnerEmail(lab)}
                             </div>
                           </div>
                           <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">

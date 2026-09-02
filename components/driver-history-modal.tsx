@@ -20,6 +20,7 @@ import {
 import {
   slipPickupDropoffAction,
   slipNextLocationIdFromRef,
+  filterValidQrScanSlips,
   type SlipPickupDropoffAction,
 } from "@/lib/slip-location"
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
@@ -103,9 +104,9 @@ export default function DriverHistoryModal({
   const lastFetchedSlipIdRef = useRef<number | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Convert QR scan data to delivery entries
+  // Convert QR scan data to delivery entries (valid pick-up / drop-off locations only)
   const convertQRDataToDeliveryEntries = (qrData: QRScanResponseData[]): DeliveryEntry[] => {
-    return qrData.map((item, index) => ({
+    return filterValidQrScanSlips(qrData).map((item, index) => ({
       id: `qr-${item.slip_id}-${index}`,
       // Show the code when the backend provides one, otherwise the full name.
       // Note: customer_code is the lab's code here, so it must not feed office.
@@ -129,9 +130,13 @@ export default function DriverHistoryModal({
   useEffect(() => {
     if (singleSlipMode) return
     const activeQrData = qrScanData || contextQrScanData?.data
-    if (activeQrData && activeQrData.length > 0) {
-      const qrEntries = convertQRDataToDeliveryEntries(activeQrData)
+    const validQrData = activeQrData ? filterValidQrScanSlips(activeQrData) : []
+    if (validQrData.length > 0) {
+      const qrEntries = convertQRDataToDeliveryEntries(validQrData)
       setDeliveryEntries(qrEntries)
+    } else if (activeQrData && activeQrData.length > 0) {
+      setDeliveryEntries([])
+      setPickupError("No slips in a valid pick-up or drop-off location.")
     }
   }, [qrScanData, contextQrScanData, singleSlipMode])
 

@@ -2366,7 +2366,13 @@ export default function NewCaseWizard({
   }, []);
 
   const { role, customerId, isOfficeAdmin, isLabAdmin } = useWizardRole();
-  const { officesAsLabs, isLoading: labsLoading, error: labsError, refetch } = useConnectedOfficesOrLabs(role);
+  const {
+    officesAsLabs,
+    isLoading: labsLoading,
+    isSuccess: labsSuccess,
+    error: labsError,
+    refetch,
+  } = useConnectedOfficesOrLabs(role);
   const lab = officesAsLabs.find((l) => l.id === selectedLab);
 
   // customer_id for library/categories: office_admin = selected lab id, lab_admin = their customerId
@@ -2688,7 +2694,42 @@ export default function NewCaseWizard({
         setStep((s) => s + 1);
       }
     }
-  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor]);
+  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor, editTarget, onEditDone]);
+
+  // Office profile: when only one lab is connected, auto-select and proceed to patient info
+  const didAutoAdvanceLabRef = useRef(false);
+  useEffect(() => {
+    const onLabStep = isStepLab(step);
+    if (!onLabStep || role !== "office_admin") {
+      didAutoAdvanceLabRef.current = false;
+      return;
+    }
+    const oneLab = officesAsLabs.length === 1 ? officesAsLabs[0] : null;
+    if (
+      labsSuccess &&
+      oneLab != null &&
+      selectedLab === null &&
+      !didAutoAdvanceLabRef.current
+    ) {
+      didAutoAdvanceLabRef.current = true;
+      setSelectedLab(oneLab.id);
+      onLabSelect?.(oneLab);
+      if (editTarget === "lab" && onEditDone) {
+        onEditDone();
+      } else {
+        setStep((s) => s + 1);
+      }
+    }
+  }, [
+    step,
+    role,
+    labsSuccess,
+    officesAsLabs,
+    selectedLab,
+    editTarget,
+    onEditDone,
+    onLabSelect,
+  ]);
 
   const canProceed = () => {
     switch (step) {

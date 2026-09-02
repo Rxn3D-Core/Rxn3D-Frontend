@@ -14,6 +14,14 @@ import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { fetchProfileData } from "@/lib/api-profile"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getPrimaryRole } from "@/lib/get-primary-role"
+import {
+  getConnectionPartnerEmail,
+  getConnectionPartnerId,
+  getConnectionPartnerLocation,
+  getConnectionPartnerName,
+  isActiveConnection,
+} from "@/lib/connection-utils"
 
 export default function AllConnections() {
   const { user } = useAuth()
@@ -142,36 +150,24 @@ export default function AllConnections() {
 
   const getCurrentConnections = () => {
     let connections: any[] = []
+    const role = getPrimaryRole(user)
+    const isLabSide = role === "lab_admin" || role === "lab_user" || role === "superadmin"
 
     if (activeTab === "connected") {
-      // Combine practices and labs for connected tab
-      const connectedPractices = practices
-        .filter((p) => p.status?.toLowerCase() === "active")
-        .map((p) => ({
-          id: p.id.toString(),
-          name: p.name,
-          address: p.address || "Address not available",
-          type: "Practice" as const,
-          phoneNumber: p.phone || "N/A",
-          emailAddress: p.email,
-          date: new Date(p.created_at || new Date()).toISOString().split('T')[0],
-          status: "Connected" as const,
-        }))
+      const activeConnections = (isLabSide ? practices : labs).filter(isActiveConnection)
 
-      const connectedLabs = labs
-        .filter((l) => l.status?.toLowerCase() === "active")
-        .map((l) => ({
-          id: l.id.toString(),
-          name: ('partner' in l) ? l.partner.name : l.name || "Lab Name",
-          address: ('partner' in l) ? `${l.partner.city || ''}, ${l.partner.state || ''}` : "Address not available",
-          type: "Lab" as const,
-          phoneNumber: "N/A",
-          emailAddress: ('partner' in l) ? l.partner.email || "N/A" : l.email || "N/A",
-          date: new Date(l.created_at || new Date()).toISOString().split('T')[0],
-          status: "Connected" as const,
-        }))
-
-      connections = [...connectedPractices, ...connectedLabs]
+      connections = activeConnections.map((connection) => ({
+        id: getConnectionPartnerId(connection).toString(),
+        name: getConnectionPartnerName(connection),
+        address: getConnectionPartnerLocation(connection) || "Address not available",
+        type: isLabSide ? ("Practice" as const) : ("Lab" as const),
+        phoneNumber: "N/A",
+        emailAddress: getConnectionPartnerEmail(connection),
+        date: new Date(connection.connected_since || connection.created_at || new Date())
+          .toISOString()
+          .split("T")[0],
+        status: "Connected" as const,
+      }))
     } else if (activeTab === "sent") {
       connections = (sent?.data || []).map((item: any) => ({
         id: item.id.toString(),
