@@ -29,6 +29,8 @@ import {
   getConnectionPartnerName,
   isActiveConnection,
 } from "@/lib/connection-utils"
+import { DASHBOARD_CONNECTIONS_PER_PAGE } from "@/lib/connection-api"
+import { ConnectionListPagination } from "./connection-list-pagination"
 import { LabProductLibrarySetupBanner } from "./lab-product-library-setup-banner"
 import { useDashboardStats } from "@/hooks/use-dashboard-stats"
 import { FeatureGate } from "@/components/feature-gate"
@@ -89,9 +91,14 @@ export function LabAdminDashboard() {
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)
 
   // Use cached hooks - automatic fetching with cache!
-  const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id)
+  const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id, {
+    page: practicesPage,
+    perPage: DASHBOARD_CONNECTIONS_PER_PAGE,
+  })
   const practices = connectionsData?.practices || []
   const labs = connectionsData?.labs || []
+  const connectionsPagination = connectionsData?.pagination
+  const connectedPracticesTotal = connectionsPagination?.total ?? connectionsData?.total_connections ?? 0
 
   const selectedLocation = JSON.parse(localStorage.getItem("selectedLocation") || "null")
   const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
@@ -113,6 +120,7 @@ export function LabAdminDashboard() {
 
   const [practiceSearchQuery, setPracticeSearchQuery] = useState("")
   const [practicesTab, setPracticesTab] = useState("connected")
+  const [practicesPage, setPracticesPage] = useState(1)
   const [labsTab, setLabsTab] = useState("connected")
   const [showPracticeForm, setShowPracticeForm] = useState(false)
   const [showLabForm, setShowLabForm] = useState(false)
@@ -152,7 +160,7 @@ export function LabAdminDashboard() {
   // Check for office invite popup
   useEffect(() => {
     if (!isLoading && !hasCheckedInvitePopup) {
-      const practicesCount = practices.length
+      const practicesCount = connectedPracticesTotal
       const invitationsCount = sentInvitations.filter((inv: any) => inv.type === "Office").length
       
       if (INVITE_ONBOARDING_MODALS_ENABLED && practicesCount === 0 && invitationsCount === 0) {
@@ -160,12 +168,16 @@ export function LabAdminDashboard() {
       }
       setHasCheckedInvitePopup(true)
     }
-  }, [isLoading, hasCheckedInvitePopup, practices.length, sentInvitations])
+  }, [isLoading, hasCheckedInvitePopup, connectedPracticesTotal, sentInvitations])
+
+  useEffect(() => {
+    setPracticesPage(1)
+  }, [practicesTab])
 
   // Filter practices based on tab
   const filteredPractices =
     practicesTab === "connected"
-      ? practices.filter(isActiveConnection)
+      ? practices
       : practicesTab === "sent"
         ? (sent?.data || []).filter((p) => p.type === "Office")
         : (received?.data)
@@ -415,7 +427,7 @@ export function LabAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected Practices</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({practices.filter(isActiveConnection).length})</span>
+                  <span className="block sm:inline">({connectedPracticesTotal})</span>
                   {practicesTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
@@ -638,6 +650,14 @@ export function LabAdminDashboard() {
                 </div>
               )}
             </div>
+
+            {practicesTab === "connected" && connectionsPagination && connectionsPagination.last_page > 0 && (
+              <ConnectionListPagination
+                pagination={connectionsPagination}
+                onPageChange={setPracticesPage}
+                itemLabel="practices"
+              />
+            )}
           </div>
           )}
 
