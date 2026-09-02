@@ -5,7 +5,12 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { useAuth } from "./auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { categorizeConnectionsForUser } from "@/lib/connection-utils"
-import { buildConnectionsUrl } from "@/lib/connection-api"
+import {
+  fetchConnectionsApi,
+  DEFAULT_CONNECTIONS_PER_PAGE,
+  type ConnectionsPagination,
+  type ConnectionsQueryParams,
+} from "@/lib/connection-api"
 
 // Define types for the connection data
 export interface Partner {
@@ -33,6 +38,7 @@ export interface Connection {
 export interface ConnectionsResponse {
   data: Connection[]
   total_connections: number
+  pagination?: ConnectionsPagination
 }
 
 interface ConnectionContextType {
@@ -40,9 +46,10 @@ interface ConnectionContextType {
   practices: Connection[]
   labs: Connection[]
   totalConnections: number
+  pagination: ConnectionsPagination | null
   isLoading: boolean
   error: string | null
-  fetchConnections: () => Promise<void>
+  fetchConnections: (options?: ConnectionsQueryParams) => Promise<void>
   filterConnections: (status: string) => Connection[]
 }
 
@@ -61,6 +68,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [practices, setPractices] = useState<Connection[]>([])
   const [labs, setLabs] = useState<Connection[]>([])
   const [totalConnections, setTotalConnections] = useState<number>(0)
+  const [pagination, setPagination] = useState<ConnectionsPagination | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const { user, token: authToken } = useAuth()
@@ -77,7 +85,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.location.href = "/login"
   }
 
-  const fetchConnections = useCallback(async () => {
+  const fetchConnections = useCallback(async (options: ConnectionsQueryParams = {}) => {
     if (!user) return
 
     // Check token presence/expiry before fetching
@@ -93,31 +101,19 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setError(null)
 
     try {
-      // Get token from localStorage
-      const token = localStorage.getItem("token")
-
-      const response = await fetch(buildConnectionsUrl(user.id), {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+      const data: ConnectionsResponse = await fetchConnectionsApi({
+        userId: user.id,
+        page: options.page ?? 1,
+        perPage: options.perPage ?? DEFAULT_CONNECTIONS_PER_PAGE,
+        search: options.search,
+        sortBy: options.sortBy,
+        sortOrder: options.sortOrder,
       })
 
-      if (response.status === 401) {
-        redirectToLogin()
-        return
-      }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch connections: ${response.status}`)
-      }
-
-      const data: ConnectionsResponse = await response.json()
       setConnections(data.data || [])
-      setTotalConnections(data.total_connections || 0)
+      setTotalConnections(data.total_connections || data.pagination?.total || 0)
+      setPagination(data.pagination ?? null)
 
-      // Categorize connections into practices and labs
       const { practices, labs } = categorizePracticesAndLabs(data.data || [])
       setPractices(practices)
       setLabs(labs)
@@ -149,6 +145,7 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         practices,
         labs,
         totalConnections,
+        pagination,
         isLoading,
         error,
         fetchConnections,

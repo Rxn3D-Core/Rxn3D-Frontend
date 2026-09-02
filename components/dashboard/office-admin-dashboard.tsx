@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { useConnection } from "@/contexts/connection-context"
+import { useConnections } from "@/hooks/use-connections"
 import { Skeleton } from "@/components/ui/skeleton"
 import { InvitationForm } from "@/components/invitation-form"
 import { CustomerSearchBox } from "@/components/CustomerSearchBox"
@@ -30,8 +30,9 @@ import {
   getConnectionPartnerEmail,
   getConnectionPartnerLocation,
   getConnectionPartnerName,
-  isActiveConnection,
 } from "@/lib/connection-utils"
+import { DASHBOARD_CONNECTIONS_PER_PAGE } from "@/lib/connection-api"
+import { ConnectionListPagination } from "./connection-list-pagination"
 interface StatusCardProps {
   title: string
   count: number
@@ -57,7 +58,21 @@ function StatusCard({ title, count, color }: StatusCardProps) {
 export function OfficeAdminDashboard() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const { labs, isLoading, error, fetchConnections } = useConnection()
+  const [labsPage, setLabsPage] = useState(1)
+  const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id, {
+    page: labsPage,
+    perPage: DASHBOARD_CONNECTIONS_PER_PAGE,
+  })
+  const labs = connectionsData?.labs || []
+  const connectionsPagination = connectionsData?.pagination
+  const connectedLabsTotal = connectionsPagination?.total ?? connectionsData?.total_connections ?? 0
+  const isLoading = isLoadingConnections
+  const error =
+    connectionsError instanceof Error
+      ? connectionsError.message
+      : connectionsError
+        ? String(connectionsError)
+        : null
   const userRole = getPrimaryRole(user) || "office_admin"
   const userId = user?.id
   const dashboardCustomerId = getCustomerId(user)
@@ -113,11 +128,13 @@ export function OfficeAdminDashboard() {
   useEffect(() => {
     if (invitedBy && !hasFetchedRef.current) {
       hasFetchedRef.current = true
-      Promise.all([fetchConnections(), fetchAllInvitations(invitedBy)]).finally(() =>
-        setHasLoadedLabData(true),
-      )
+      fetchAllInvitations(invitedBy).finally(() => setHasLoadedLabData(true))
     }
-  }, [invitedBy, fetchConnections, fetchAllInvitations])
+  }, [invitedBy, fetchAllInvitations])
+
+  useEffect(() => {
+    setLabsPage(1)
+  }, [labsTab])
 
   // Transform API user data to match UI format
   const transformUsers = useCallback((): Array<{ id: number; name: string; role: string; status: string; email: string }> => {
@@ -161,7 +178,7 @@ export function OfficeAdminDashboard() {
 
   // Any existing lab connection (regardless of status) or lab invitation in either
   // direction means the office is already linked up and needs no onboarding prompt.
-  const labConnectionsCount = labs.length
+  const labConnectionsCount = connectedLabsTotal
   const labInvitationsCount = useMemo(
     () =>
       [...(sent?.data || []), ...(received?.data || [])].filter((l) => l.type === "Lab").length,
@@ -215,7 +232,7 @@ export function OfficeAdminDashboard() {
   // Filter labs based on tab
   const filteredLabs =
     labsTab === "connected"
-      ? labs.filter(isActiveConnection)
+      ? labs
       : labsTab === "sent"
         ? (sent?.data || []).filter((l) => l.type === "Lab")
         : received?.data || [];
@@ -454,7 +471,7 @@ export function OfficeAdminDashboard() {
                 >
                   <span className="hidden sm:inline">Connected Labs</span>
                   <span className="sm:hidden">Connected</span>
-                  <span className="block sm:inline">({labs.filter(isActiveConnection).length})</span>
+                  <span className="block sm:inline">({connectedLabsTotal})</span>
                   {labsTab === "connected" && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full" style={{ background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)" }} />}
                 </button>
                 <button
@@ -652,6 +669,14 @@ export function OfficeAdminDashboard() {
                 </div>
               )}
             </div>
+
+            {labsTab === "connected" && connectionsPagination && connectionsPagination.last_page > 0 && (
+              <ConnectionListPagination
+                pagination={connectionsPagination}
+                onPageChange={setLabsPage}
+                itemLabel="labs"
+              />
+            )}
           </div>
           )}
 
