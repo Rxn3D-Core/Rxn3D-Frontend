@@ -45,8 +45,10 @@ import {
 import {
   findShadeCatalogMatch,
   formatRemovableShadeFieldLabel,
+  getShadePreviewCode,
   SHADE_FIELD_LABEL_CLASS,
 } from "../utils/shadeFieldDisplay";
+import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -823,20 +825,23 @@ export function SelectionProductFields({
               Teeth shade
             </legend>
             <div className="flex items-center gap-2 w-full min-w-0">
-              <span
-                className={SHADE_FIELD_LABEL_CLASS}
-                title={formatRemovableShadeFieldLabel(
-                  getFieldValueFn(arch, firstToothNumber, "teeth_shade"),
+              {(() => {
+                const teethShadeRaw = getFieldValueFn(arch, firstToothNumber, "teeth_shade");
+                const teethShadeLabel = formatRemovableShadeFieldLabel(
+                  teethShadeRaw,
                   selectedProduct?.teeth_shades,
                   selectedShadeGuide
-                ) || undefined}
-              >
-                {formatRemovableShadeFieldLabel(
-                  getFieldValueFn(arch, firstToothNumber, "teeth_shade"),
-                  selectedProduct?.teeth_shades,
-                  selectedShadeGuide
-                )}
-              </span>
+                );
+                const teethShadeCode = getShadePreviewCode(teethShadeRaw);
+                return (
+                  <>
+                    <span className={SHADE_FIELD_LABEL_CLASS} title={teethShadeLabel || undefined}>
+                      {teethShadeLabel}
+                    </span>
+                    {teethShadeCode && <TeethShadePreviewIcon shadeCode={teethShadeCode} />}
+                  </>
+                );
+              })()}
               {isFieldCompletedFn(arch, firstToothNumber, "teeth_shade") && !caseSubmitted && (
                 <Check size={16} className="text-[#34a853] flex-shrink-0" />
               )}

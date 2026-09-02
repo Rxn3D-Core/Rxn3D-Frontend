@@ -8,6 +8,7 @@ import { categorizeConnectionsForUser } from "@/lib/connection-utils"
 import {
   fetchConnectionsApi,
   DEFAULT_CONNECTIONS_PER_PAGE,
+  normalizeConnectionsPagination,
   type ConnectionsPagination,
   type ConnectionsQueryParams,
 } from "@/lib/connection-api"
@@ -110,9 +111,13 @@ export const ConnectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         sortOrder: options.sortOrder,
       })
 
+      const page = options.page ?? 1
+      const perPage = options.perPage ?? DEFAULT_CONNECTIONS_PER_PAGE
+      const pagination = normalizeConnectionsPagination(data, page, perPage)
+
       setConnections(data.data || [])
-      setTotalConnections(data.total_connections || data.pagination?.total || 0)
-      setPagination(data.pagination ?? null)
+      setTotalConnections(pagination?.total ?? data.total_connections ?? 0)
+      setPagination(pagination)
 
       const { practices, labs } = categorizePracticesAndLabs(data.data || [])
       setPractices(practices)

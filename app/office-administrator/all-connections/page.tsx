@@ -272,7 +272,7 @@ export default function AllConnections() {
               onDeleteConnection={handleDeleteConnection}
               onResendInvitation={handleResendInvitation}
             />
-            {activeTab === "connected" && connectionsPagination && connectionsPagination.last_page > 1 && (
+            {activeTab === "connected" && connectionsPagination && connectionsPagination.total > 0 && (
               <div className="mt-6 bg-white rounded-lg border">
                 <ConnectionListPagination
                   pagination={connectionsPagination}

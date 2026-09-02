@@ -3,6 +3,8 @@ import {
   formatRemovableShadeFieldLabel,
   formatShadeSystemName,
   findShadeCatalogMatch,
+  getGumShadePreviewColor,
+  getShadePreviewCode,
 } from "./shadeFieldDisplay.ts";
 
 assert.equal(formatShadeSystemName("vita_classical"), "Vita Classical");
@@ -60,6 +62,38 @@ const match = findShadeCatalogMatch(
   gumShades
 );
 assert.equal(match?.color_code_middle, "#c97b8a");
+
+assert.equal(
+  getShadePreviewCode(JSON.stringify({ teeth_shade_id: 10, name: "C3" })),
+  "C3"
+);
+
+assert.equal(
+  getShadePreviewCode("Gc Initial Gingiva - G-Dark"),
+  "G-Dark"
+);
+
+assert.equal(
+  getGumShadePreviewColor("Gc Initial Gingiva - G-Dark", [
+    {
+      gum_shade_id: 2,
+      name: "G-Dark",
+      brand: { id: 1, system_name: "GC INITIAL GINGIVA" },
+      color_code_middle: "#D99191",
+    },
+  ]),
+  "#D99191"
+);
+
+assert.equal(
+  formatRemovableShadeFieldLabel("Gc Initial Gingiva - G-Dark", [
+    {
+      name: "G-Dark",
+      brand: { id: 1, system_name: "GC INITIAL GINGIVA" },
+    },
+  ]),
+  "Gc Initial Gingiva - G-Dark"
+);
 
 // Never fall back to brand.name when system_name is missing
 assert.equal(

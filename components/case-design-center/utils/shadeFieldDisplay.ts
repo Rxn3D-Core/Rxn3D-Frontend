@@ -14,6 +14,8 @@ export type ShadeCatalogRow = {
     system_name?: string | null;
   } | null;
   color_code_middle?: string | null;
+  color_code_top?: string | null;
+  color_code_bottom?: string | null;
 };
 
 function parseShadeSelection(raw: string | undefined | null): {
@@ -48,23 +50,60 @@ export function formatShadeSystemName(raw: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Candidate shade names for catalog lookup (handles formatted labels like "Vita Classical - B2"). */
+function shadeNameCandidates(raw: string | undefined | null): string[] {
+  const parsed = parseShadeSelection(raw);
+  const name = parsed.name;
+  if (!name) return [];
+
+  const candidates = [name];
+  const dashIdx = name.lastIndexOf(" - ");
+  if (dashIdx > 0) {
+    const shortName = name.slice(dashIdx + 3).trim();
+    if (shortName && shortName !== name) candidates.push(shortName);
+  }
+  return candidates;
+}
+
+function rowMatchesShadeSelection(
+  row: ShadeCatalogRow,
+  parsed: ReturnType<typeof parseShadeSelection>,
+  name: string
+): boolean {
+  const rowShadeId = Number(row.teeth_shade_id ?? row.gum_shade_id ?? row.id ?? 0);
+  const rowBrandId = Number(row.brand?.id ?? 0);
+  if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
+  if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
+  return row.name === name;
+}
+
 export function findShadeCatalogMatch(
   raw: string | undefined | null,
   shades: ShadeCatalogRow[] | undefined | null
 ): ShadeCatalogRow | null {
   if (!raw?.trim() || !shades?.length) return null;
   const parsed = parseShadeSelection(raw);
-  const name = parsed.name;
-  if (!name) return null;
 
+  for (const name of shadeNameCandidates(raw)) {
+    const match = shades.find((row) => rowMatchesShadeSelection(row, parsed, name));
+    if (match) return match;
+  }
+
+  return null;
+}
+
+/** Middle / top / bottom gum shade color for field preview swatches. */
+export function getGumShadePreviewColor(
+  raw: string | undefined | null,
+  shades: ShadeCatalogRow[] | undefined | null
+): string | null {
+  const match = findShadeCatalogMatch(raw, shades);
+  if (!match) return null;
   return (
-    shades.find((row) => {
-      const rowShadeId = Number(row.teeth_shade_id ?? row.gum_shade_id ?? row.id ?? 0);
-      const rowBrandId = Number(row.brand?.id ?? 0);
-      if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
-      if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
-      return row.name === name;
-    }) ?? null
+    match.color_code_middle?.trim() ||
+    match.color_code_top?.trim() ||
+    match.color_code_bottom?.trim() ||
+    null
   );
 }
 
@@ -83,13 +122,30 @@ export function formatShadeFieldLabel(
   if (!name) return "";
 
   const match = findShadeCatalogMatch(raw, shades);
-  const systemRaw =
-    match?.brand?.system_name?.trim() ||
-    fallbackSystemName?.trim() ||
-    "";
-  if (!systemRaw) return name;
+  if (match) {
+    const displayName = match.name;
+    const systemRaw =
+      match.brand?.system_name?.trim() ||
+      fallbackSystemName?.trim() ||
+      "";
+    if (!systemRaw) return displayName;
+    return `${formatShadeSystemName(systemRaw)} - ${displayName}`;
+  }
 
-  return `${formatShadeSystemName(systemRaw)} - ${name}`;
+  const fallbackSystem = fallbackSystemName?.trim();
+  if (fallbackSystem) {
+    const shortName = shadeNameCandidates(raw).at(-1) ?? name;
+    return `${formatShadeSystemName(fallbackSystem)} - ${shortName}`;
+  }
+
+  return name;
+}
+
+/** Shade code/name for the tooth preview icon beside Teeth Shade fields. */
+export function getShadePreviewCode(raw: string | undefined | null): string {
+  const candidates = shadeNameCandidates(raw);
+  if (candidates.length === 0) return "";
+  return candidates[candidates.length - 1] ?? candidates[0] ?? "";
 }
 
 /** @deprecated Use formatShadeFieldLabel — kept for existing removable call sites. */
