@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Settings, QrCode, AlertCircle, Loader2, RotateCcw, Building2 } from "lucide-react"
+import { Search, X, Settings, QrCode, Building2 } from "lucide-react"
 import { searchSuperadminLabCustomers } from "@/lib/api/superadmin-customers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
@@ -35,10 +35,10 @@ import { useLocation } from "@/contexts/location-context"
 import { useDriverSlip } from "@/contexts/DriverSlipContext"
 import { useToast } from "@/hooks/use-toast"
 import { Breadcrumb } from "@/components/breadcrumb"
-import { BrowserMultiFormatReader, BarcodeFormat } from "@zxing/browser"
 import { preloadComponentsByRoute } from "@/lib/code-splitting"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import DriverHistoryModal from "./driver-history-modal"
+import { DriverQrScanner, type DriverQrScannerHandle } from "@/components/driver-qr-scanner"
 import { CustomerLogo } from "@/components/customer-logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
@@ -60,19 +60,15 @@ import { TrialBanner } from "@/components/billing/trial-banner"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import { filterValidQrScanSlips } from "@/lib/slip-location"
 import {
-  driverQrCameraConstraints,
-  driverQrCameraFallbackConstraints,
   parseDriverQrText,
   processDriverScanApiResult,
   saveDriverSessionKey,
   loadDriverSessionKey,
-  waitForVideoPlayback,
   persistDriverScanBatch,
   loadDriverScanBatch,
   clearDriverScanBatch,
   DRIVER_QR_SCANNER_OPEN_EVENT,
 } from "@/lib/driver-qr-scan"
-import type { IScannerControls } from "@zxing/browser"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
@@ -102,10 +98,6 @@ interface ScanResult {
 
 interface ScannerState {
   isOpen: boolean
-  isLoading: boolean
-  isScanning: boolean
-  error: string | null
-  hasPermission: boolean
 }
 
 // Add a Location type for clarity
@@ -120,26 +112,14 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const { canDriverScanning } = usePlanCapabilities()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
-    isLoading: false,
-    isScanning: false,
-    error: null,
-    hasPermission: false,
   })
-  const [stream, setStream] = useState<MediaStream | null>(null)
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([])
-  const [batchMode, setBatchMode] = useState(false)
-  const [selectedFormats, setSelectedFormats] = useState<BarcodeFormat[]>([
-    BarcodeFormat.QR_CODE,
-    BarcodeFormat.CODE_128,
-    BarcodeFormat.EAN_13,
-    BarcodeFormat.EAN_8,
-  ])
-  const [autoValidate, setAutoValidate] = useState(true)
+  const [batchMode] = useState(false)
+  const [autoValidate] = useState(true)
   // use a ref for last scan time to avoid async state updates causing duplicate handling
   const lastScanTimeRef = useRef<number>(0)
   // processingRef prevents concurrent handling of the same detection
   const processingRef = useRef(false)
-  const [isDecoding, setIsDecoding] = useState(false)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
   const qrScanDataRef = useRef<any>(null)
@@ -168,12 +148,9 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const pathname = usePathname() || "";
   const router = useRouter();
   const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation();
-const videoRef = useRef<HTMLVideoElement | null>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
-  const scannerControlsRef = useRef<IScannerControls | null>(null);
-  const scannerStartAttemptedRef = useRef(false);
-  const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const driverQrScannerRef = useRef<DriverQrScannerHandle | null>(null);
   const lastScannedCodeRef = useRef<string>("");
+  const closeScannerRef = useRef<() => void>(() => {});
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   // When acting as lab admin, treat the session as non-superadmin across the whole UI
@@ -337,14 +314,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const stopActiveDecoder = useCallback(() => {
     decoderActiveRef.current = false
-    if (scannerControlsRef.current) {
-      try {
-        scannerControlsRef.current.stop()
-      } catch {
-        // Ignore cleanup errors
-      }
-      scannerControlsRef.current = null
-    }
+    driverQrScannerRef.current?.pause()
   }, [])
 
   const isQrScanLocked = useCallback((text: string) => {
@@ -358,7 +328,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Handle successful scan
   const handleScanSuccess = useCallback(
-    async (text: string, format: string) => {
+    async (text: string, format: string = "QR_CODE") => {
       const now = Date.now()
 
       // Prevent concurrent handling from multiple decode callbacks
@@ -407,7 +377,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
               variant: "destructive",
               duration: 5000,
             })
-            closeScanner()
+            closeScannerRef.current()
             return
           }
 
@@ -418,7 +388,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           // Already scanned in this session — don't hit the backend again with
           // the same slip; just stop the scanner and surface a gentle notice.
           if (scannedQrTextsRef.current.has(parsedDriverQr.rawText)) {
-            closeScanner()
+            closeScannerRef.current()
             setQrScanData((prev: any) => {
               if (!prev || !Array.isArray(prev.data)) return prev
               const filtered = filterValidQrScanSlips(prev.data)
@@ -514,7 +484,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           } finally {
             // Always stop the camera after handling a case/slip QR so it does not
             // keep re-firing /scan-qr with the same slip.
-            closeScanner()
+            closeScannerRef.current()
           }
 
           return
@@ -530,7 +500,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           duration: 5000,
         })
         if (!batchMode) {
-          closeScanner()
+          closeScannerRef.current()
         }
         return
       } catch (err) {
@@ -554,289 +524,30 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     ],
   )
 
-  // Request camera permission
-  const requestCameraPermission = useCallback(async () => {
-    if (!window.isSecureContext && window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      const errorMsg = "Camera access requires a secure connection (HTTPS). Please use HTTPS or localhost."
-      setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
-      throw new Error(errorMsg)
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      const errorMsg = "Camera API is not available in this browser. Please use a modern browser."
-      setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMsg }))
-      throw new Error(errorMsg)
-    }
-
-    const tryGetStream = async (constraints: MediaStreamConstraints) =>
-      navigator.mediaDevices.getUserMedia(constraints)
-
-    try {
-      // Soft constraints first; do not hard-fail on enumerateDevices (labels are often empty).
-      try {
-        const stream = await tryGetStream(driverQrCameraConstraints())
-        setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
-        return stream
-      } catch (primaryError: any) {
-        if (
-          primaryError?.name === "OverconstrainedError" ||
-          primaryError?.name === "ConstraintNotSatisfiedError" ||
-          primaryError?.name === "NotFoundError" ||
-          primaryError?.name === "DevicesNotFoundError"
-        ) {
-          const stream = await tryGetStream(driverQrCameraFallbackConstraints())
-          setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
-          return stream
-        }
-        throw primaryError
-      }
-    } catch (error: any) {
-      let errorMessage = "Camera access denied"
-
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        errorMessage = "Camera permission denied. Please allow camera access in your browser settings and try again."
-      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        errorMessage = "No camera found. Please connect a camera device."
-      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        errorMessage = "Camera is already in use by another application. Please close other apps using the camera."
-      } else if (error.message) {
-        errorMessage = error.message
-      }
-
-      setScannerState((prev) => ({ ...prev, hasPermission: false, error: errorMessage }))
-      throw new Error(errorMessage)
-    }
-  }, [])
-
-  // Start scanner
-  const startScanner = useCallback(async () => {
-    if (isDecoding) {
-      return
-    }
-
-    decoderActiveRef.current = true
-    setIsDecoding(true)
-    setScannerState((prev) => ({ ...prev, isLoading: true, isScanning: false, error: null }))
-
-    const failStart = (message: string, cause?: unknown) => {
-      console.error("Error starting scanner:", cause ?? message)
-      stopActiveDecoder()
-      setIsDecoding(false)
-      if (videoRef.current?.srcObject) {
-        const activeStream = videoRef.current.srcObject as MediaStream
-        activeStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        videoRef.current.srcObject = null
-      }
-      setStream(null)
-      setScannerState((prev) => ({
-        ...prev,
-        isLoading: false,
-        isScanning: false,
-        error: message,
-      }))
-      toast({
-        title: "Scanner Error",
-        description: message,
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-
-    try {
-      // Dialog portal can mount a frame later than open state flips.
-      for (let attempt = 0; attempt < 20 && !videoRef.current; attempt += 1) {
-        await new Promise<void>((resolve) => {
-          window.setTimeout(() => resolve(), 50)
-        })
-      }
-
-      if (!videoRef.current) {
-        failStart("Camera preview is not ready. Please close and reopen the scanner.")
-        return
-      }
-
-      const mediaStream = await requestCameraPermission()
-      if (!decoderActiveRef.current) {
-        mediaStream.getTracks().forEach((track) => track.stop())
-        setIsDecoding(false)
-        return
-      }
-
-      setStream(mediaStream)
-
-      const video = videoRef.current
-      video.srcObject = mediaStream
-
-      // Hide the full-screen loading overlay BEFORE waiting for frames.
-      // A fixed overlay covering the <video> prevents Chrome from delivering preview frames.
-      setScannerState((prev) => ({ ...prev, isLoading: false, isScanning: true, error: null }))
-
-      // Soft wait only — never blocks scanning if the stream is already live.
-      await waitForVideoPlayback(video)
-
-      const hints = new Map()
-      hints.set(2, [BarcodeFormat.QR_CODE])
-      hints.set(3, true)
-
-      const codeReader = new BrowserMultiFormatReader(hints, {
-        tryPlayVideoTimeout: 20_000,
-        delayBetweenScanAttempts: 300,
-      })
-      codeReaderRef.current = codeReader
-
-      let controls: IScannerControls
-      try {
-        controls = await codeReader.decodeFromVideoElement(video, (result, error) => {
-          if (result) {
-            if (!decoderActiveRef.current || processingRef.current) return
-
-            const text = result.getText()
-            const formatStr = result.getBarcodeFormat().toString()
-
-            stopActiveDecoder()
-            void handleScanSuccess(text, formatStr)
-          }
-          if (error && error.name !== "NotFoundException") {
-            // NotFoundException is normal while searching for a QR code.
-          }
-        })
-      } catch (decodeError) {
-        // ZXing may reject(false) if play() is slow — stream is already attached; retry once.
-        if (decodeError === false || decodeError instanceof Error) {
-          await waitForVideoPlayback(video, 1_500)
-          controls = await codeReader.decodeFromVideoElement(video, (result, error) => {
-            if (result) {
-              if (!decoderActiveRef.current || processingRef.current) return
-              const text = result.getText()
-              const formatStr = result.getBarcodeFormat().toString()
-              stopActiveDecoder()
-              void handleScanSuccess(text, formatStr)
-            }
-          })
-        } else {
-          throw decodeError
-        }
-      }
-
-      scannerControlsRef.current = controls
-      setScannerState((prev) => ({ ...prev, isLoading: false, isScanning: true, error: null }))
-    } catch (error) {
-      const message =
-        error === false
-          ? "Could not start the camera preview. Tap Retry, or refresh the page."
-          : error instanceof Error
-            ? error.message
-            : "Failed to start scanner"
-      failStart(message, error)
-    }
-  }, [
-    requestCameraPermission,
-    handleScanSuccess,
-    toast,
-    isDecoding,
-    stopActiveDecoder,
-  ])
-
   // Close scanner
   const closeScanner = useCallback(() => {
     stopActiveDecoder()
-    setIsDecoding(false)
-    scannerStartAttemptedRef.current = false
+    void driverQrScannerRef.current?.stop()
     // Keep lastScannedCodeRef / lastScanTimeRef so a still-active decoder frame
     // cannot immediately re-hit scan-qr with the same QR after a failed attempt.
-
-    if (codeReaderRef.current) {
-      try {
-        codeReaderRef.current = null
-      } catch {
-        // Ignore errors during cleanup
-      }
-    }
-
-    // Clear any timeouts
-    if (scanTimeoutRef.current) {
-      clearTimeout(scanTimeoutRef.current)
-      scanTimeoutRef.current = null
-    }
-
-    // Stop all video tracks to turn off camera
-    // Get stream from state first, then from video element as fallback
-    let mediaStream: MediaStream | null = stream
-    
-    // If stream is not in state, try to get it from video element
-    if (!mediaStream && videoRef.current && videoRef.current.srcObject) {
-      mediaStream = videoRef.current.srcObject as MediaStream
-    }
-
-    // Stop all tracks from the stream
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((track) => {
-        track.stop()
-        track.enabled = false
-      })
-    }
-
-    // Clear video element source and pause video
-    if (videoRef.current) {
-      // Pause the video element
-      videoRef.current.pause()
-      // Clear the source
-      if (videoRef.current.srcObject) {
-        const videoStream = videoRef.current.srcObject as MediaStream
-        videoStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-      }
-      videoRef.current.srcObject = null
-      // Clear any remaining references
-      videoRef.current.load()
-    }
-
-    // Clear stream state
-    setStream(null)
-
-    setScannerState({
-      isOpen: false,
-      isLoading: false,
-      isScanning: false,
-      error: null,
-      hasPermission: false,
-    })
-
+    setScannerState({ isOpen: false })
     processingRef.current = false
-  }, [stream, stopActiveDecoder])
+  }, [stopActiveDecoder])
+
+  closeScannerRef.current = closeScanner
 
   // Open scanner
   const openScanner = useCallback(() => {
     // Allow retrying a QR that previously failed once the user reopens the scanner.
     qrScanLockRef.current = { text: null, until: 0 }
-    scannerStartAttemptedRef.current = false
+    decoderActiveRef.current = true
     const restoredBatch = loadDriverScanBatch()
     if (restoredBatch && !qrScanDataRef.current) {
       setQrScanData(restoredBatch)
       qrScanDataRef.current = restoredBatch
     }
-    setScannerState((prev) => {
-      const newState = { ...prev, isOpen: true }
-      return newState
-    })
+    setScannerState({ isOpen: true })
   }, [])
-
-  // Effect to start scanner when dialog opens (once per open; manual Retry calls startScanner directly).
-  useEffect(() => {
-    if (!scannerState.isOpen || scannerStartAttemptedRef.current || isDecoding) return
-    if (scannerState.isScanning || scannerState.isLoading) return
-
-    scannerStartAttemptedRef.current = true
-    const timerId = window.setTimeout(() => {
-      void startScanner()
-    }, 150)
-    return () => window.clearTimeout(timerId)
-  }, [scannerState.isOpen, scannerState.isScanning, scannerState.isLoading, isDecoding, startScanner])
 
   // Open scanner from driver pickup modal (Add Slip) or native-camera landing page.
   useEffect(() => {
@@ -853,30 +564,6 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     return () => window.removeEventListener(DRIVER_QR_SCANNER_OPEN_EVENT, handleOpenScannerRequest)
   }, [openScanner])
 
-  // Effect to ensure camera is stopped when dialog closes
-  useEffect(() => {
-    if (scannerState.isOpen) return
-
-    if (videoRef.current && videoRef.current.srcObject) {
-      const mediaStream = videoRef.current.srcObject as MediaStream
-      mediaStream.getTracks().forEach((track) => {
-        track.stop()
-        track.enabled = false
-      })
-      videoRef.current.pause()
-      videoRef.current.srcObject = null
-      videoRef.current.load()
-    }
-
-    if (codeReaderRef.current) {
-      try {
-        codeReaderRef.current = null
-      } catch {
-        // Ignore errors
-      }
-    }
-  }, [scannerState.isOpen])
-
   // Debug effect to track modal state changes
   useEffect(() => {
   }, [showDriverHistoryModal, qrScanData])
@@ -884,42 +571,9 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Clear timeouts
-      if (scanTimeoutRef.current) {
-        clearTimeout(scanTimeoutRef.current)
-        scanTimeoutRef.current = null
-      }
-      
-      // Stop code reader
-      if (codeReaderRef.current) {
-        try {
-          ;(codeReaderRef.current as any)?.reset?.()
-          codeReaderRef.current = null
-        } catch (error) {
-          // Ignore errors
-        }
-      }
-      
-      // Stop camera from video element
-      if (videoRef.current && videoRef.current.srcObject) {
-        const mediaStream = videoRef.current.srcObject as MediaStream
-        mediaStream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-        videoRef.current.pause()
-        videoRef.current.srcObject = null
-      }
-      
-      // Stop stream from state
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          track.stop()
-          track.enabled = false
-        })
-      }
+      void driverQrScannerRef.current?.stop()
     }
-  }, [stream])
+  }, [])
 
   // Copy to clipboard
   const copyToClipboard = useCallback(
@@ -1419,78 +1073,22 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             </DialogTitle>
           </DialogHeader>
 
-          {/* Scanner view */}
+          {/* Scanner view — html5-qrcode owns camera + decode */}
           <div className="space-y-3 sm:space-y-4 lg:space-y-5 xl:space-y-6">
-            {scannerState.error && (
-              <div className="text-center p-3 sm:p-4 lg:p-5 xl:p-6 bg-red-50 rounded-lg lg:rounded-xl transform transition-all duration-300">
-                <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 xl:h-12 xl:w-12 mx-auto mb-2 text-red-500" />
-                <p className="text-red-700 text-sm sm:text-base lg:text-lg xl:text-xl mb-3">{scannerState.error}</p>
-                {scannerState.error.includes("permission") && (
-                  <div className="mb-3 text-xs sm:text-sm text-red-600 bg-red-100 p-2 rounded">
-                    <p className="font-semibold mb-1">How to enable camera access:</p>
-                    <ul className="text-left list-disc list-inside space-y-1">
-                      <li>Click the camera icon in your browser's address bar</li>
-                      <li>Select "Allow" for camera permissions</li>
-                      <li>Refresh the page and try again</li>
-                    </ul>
-                  </div>
-                )}
-                <Button className="mt-2 lg:mt-3 xl:mt-4 transform transition-transform hover:scale-105 text-xs sm:text-sm lg:text-base xl:text-lg px-4 lg:px-6 xl:px-8 py-2 lg:py-2.5 xl:py-3" onClick={() => {
-                  scannerStartAttemptedRef.current = true
-                  void startScanner()
-                }}>
-                  <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 mr-2" />
-                  Retry
-                </Button>
-              </div>
-            )}
-
-            <div className="relative aspect-video bg-black rounded-lg lg:rounded-xl overflow-hidden shadow-2xl">
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover bg-black"
-                autoPlay
-                muted
-                playsInline
-              />
-
-              {scannerState.isLoading && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/60 text-white">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                  <p className="text-sm">Starting camera…</p>
-                </div>
-              )}
-
-              {scannerState.isScanning && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  {/* Larger, more visible scanning frame */}
-                  <div className="w-48 h-48 sm:w-56 sm:h-56 lg:w-72 lg:h-72 xl:w-80 xl:h-80 2xl:w-96 2xl:h-96 relative">
-                    {/* Main scanning frame */}
-                    <div className="w-full h-full border-4 border-white/30 rounded-2xl relative">
-                      {/* Corner brackets for better visibility */}
-                      <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-green-400 rounded-tl-2xl"></div>
-                      <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-green-400 rounded-tr-2xl"></div>
-                      <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-green-400 rounded-bl-2xl"></div>
-                      <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-green-400 rounded-br-2xl"></div>
-                      
-                      {/* Scanning line animation */}
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-400 to-transparent animate-pulse"></div>
-                      <div className="absolute top-1/2 left-1/2 w-4 h-4 bg-green-400 rounded-full transform -translate-x-1/2 -translate-y-1/2 animate-ping opacity-75"></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Overlay to help with focus */}
-              <div className="absolute inset-0 bg-black/20 pointer-events-none"></div>
-            </div>
+            <DriverQrScanner
+              ref={driverQrScannerRef}
+              active={scannerState.isOpen}
+              onScan={(text) => {
+                void handleScanSuccess(text, "QR_CODE")
+              }}
+            />
 
             {/* Recent scans */}
             {scanHistory.length > 0 && (
               <div className="space-y-2 lg:space-y-3 xl:space-y-4">
                 <h4 className="text-sm sm:text-base lg:text-lg xl:text-xl font-medium">Recent Scans</h4>
                 <div className="space-y-1 lg:space-y-2 max-h-24 sm:max-h-32 lg:max-h-40 xl:max-h-48 overflow-y-auto">
-                  {scanHistory.slice(0, 3).map((scan, index) => (
+                  {scanHistory.slice(0, 3).map((scan) => (
                     <div
                       key={scan.id}
                       className="flex items-center justify-between p-2 sm:p-2.5 lg:p-3 xl:p-4 bg-muted rounded-lg lg:rounded-xl text-xs sm:text-sm lg:text-base transform transition-all duration-300 hover:scale-105 hover:shadow-md"
@@ -1518,25 +1116,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             {/* Controls */}
             <div className="flex gap-2 sm:gap-3 lg:gap-4 xl:gap-5 flex-wrap">
               <Button
-                onClick={() => {
-                  scannerStartAttemptedRef.current = true
-                  void startScanner()
-                }}
-                disabled={scannerState.isScanning || isDecoding}
+                onClick={() => driverQrScannerRef.current?.restart()}
                 className="transform transition-all duration-200 hover:scale-105 hover:shadow-lg text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5 flex-1 sm:flex-none"
               >
-                {scannerState.isScanning ? (
-                  <>
-                    <div className="w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    <span className="hidden sm:inline">Scanning...</span>
-                    <span className="sm:hidden">Scan...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="hidden sm:inline">Start Scanner</span>
-                    <span className="sm:hidden">Start</span>
-                  </>
-                )}
+                Restart Scanner
               </Button>
               <Button
                 onClick={closeScanner}
