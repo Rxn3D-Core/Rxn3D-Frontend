@@ -1053,7 +1053,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         onClose={() => setShowNewLabModal(false)}
       />
 
-      {/* Enhanced Scanner Dialog with maintained functionality */}
+      {/* Fullscreen scanner — avoids CSS transform centering that breaks iOS camera video */}
       <Dialog
         open={scannerState.isOpen}
         onOpenChange={(open) => {
@@ -1062,40 +1062,50 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
       >
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-[600px] lg:max-w-[700px] xl:max-w-[800px] 2xl:max-w-[900px] max-w-[95vw] w-full mx-auto overflow-hidden"
+          fullscreen
+          className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden bg-background p-0 sm:h-[100dvh]"
         >
-          <DialogHeader>
-            <DialogTitle className="flex justify-between items-center text-sm sm:text-base lg:text-lg xl:text-xl">
-              <span>QR Code Scanner: Position QR code in the frame</span>
-              <Button variant="ghost" size="icon" onClick={closeScanner} className="h-6 w-6 sm:h-8 sm:w-8 lg:h-9 lg:w-9 xl:h-10 xl:w-10">
-                <X className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
+          <DialogHeader className="shrink-0 border-b px-4 py-3 text-left sm:px-6 sm:py-4">
+            <DialogTitle className="flex items-center justify-between gap-3 text-lg sm:text-xl">
+              <span className="leading-tight">Scan slip QR code</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeScanner}
+                className="h-11 w-11 shrink-0 rounded-full"
+                aria-label="Close scanner"
+              >
+                <X className="h-6 w-6" />
               </Button>
             </DialogTitle>
+            <DialogDescription className="text-left text-sm text-muted-foreground sm:text-base">
+              Fill the frame with the printed QR on the case slip.
+            </DialogDescription>
           </DialogHeader>
 
-          {/* Scanner view — html5-qrcode owns camera + decode */}
-          <div className="space-y-3 sm:space-y-4 lg:space-y-5 xl:space-y-6">
-            <DriverQrScanner
-              ref={driverQrScannerRef}
-              active={scannerState.isOpen}
-              onScan={(text) => {
-                void handleScanSuccess(text, "QR_CODE")
-              }}
-            />
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-0 py-0 sm:gap-4 sm:px-6 sm:py-4">
+            <div className="min-h-0 flex-1 px-0 sm:px-0">
+              <DriverQrScanner
+                ref={driverQrScannerRef}
+                active={scannerState.isOpen}
+                onScan={(text) => {
+                  void handleScanSuccess(text, "QR_CODE")
+                }}
+              />
+            </div>
 
-            {/* Recent scans */}
             {scanHistory.length > 0 && (
-              <div className="space-y-2 lg:space-y-3 xl:space-y-4">
-                <h4 className="text-sm sm:text-base lg:text-lg xl:text-xl font-medium">Recent Scans</h4>
-                <div className="space-y-1 lg:space-y-2 max-h-24 sm:max-h-32 lg:max-h-40 xl:max-h-48 overflow-y-auto">
+              <div className="hidden space-y-2 px-4 sm:block sm:px-0">
+                <h4 className="text-sm font-medium sm:text-base">Recent Scans</h4>
+                <div className="max-h-28 space-y-1 overflow-y-auto sm:max-h-36">
                   {scanHistory.slice(0, 3).map((scan) => (
                     <div
                       key={scan.id}
-                      className="flex items-center justify-between p-2 sm:p-2.5 lg:p-3 xl:p-4 bg-muted rounded-lg lg:rounded-xl text-xs sm:text-sm lg:text-base transform transition-all duration-300 hover:scale-105 hover:shadow-md"
+                      className="flex items-center justify-between rounded-lg bg-muted p-2.5 text-sm"
                     >
-                      <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
-                        <span className="font-mono truncate">{scan.text.substring(0, 20)}...</span>
-                        <Badge variant="outline" className="text-xs sm:text-sm lg:text-base flex-shrink-0">
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <span className="truncate font-mono">{scan.text.substring(0, 24)}…</span>
+                        <Badge variant="outline" className="shrink-0 text-xs">
                           {scan.format}
                         </Badge>
                       </div>
@@ -1103,7 +1113,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => copyToClipboard(scan.text)}
-                        className="transform transition-transform hover:scale-110 flex-shrink-0 text-xs sm:text-sm lg:text-base px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2"
+                        className="shrink-0"
                       >
                         Copy
                       </Button>
@@ -1113,26 +1123,21 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               </div>
             )}
 
-            {/* Controls */}
-            <div className="flex gap-2 sm:gap-3 lg:gap-4 xl:gap-5 flex-wrap">
+            <div className="sticky bottom-0 flex gap-3 border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:border-0 sm:px-0 sm:pb-0">
               <Button
                 onClick={() => driverQrScannerRef.current?.restart()}
-                className="transform transition-all duration-200 hover:scale-105 hover:shadow-lg text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5 flex-1 sm:flex-none"
+                className="h-12 flex-1 text-base"
               >
-                Restart Scanner
+                Restart
               </Button>
-              <Button
-                onClick={closeScanner}
-                variant="outline"
-                className="transform transition-all duration-200 hover:scale-105 text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5"
-              >
+              <Button onClick={closeScanner} variant="outline" className="h-12 flex-1 text-base">
                 Close
               </Button>
               <Button
                 onClick={clearScanHistory}
                 variant="outline"
                 disabled={scanHistory.length === 0}
-                className="transform transition-all duration-200 hover:scale-105 disabled:hover:scale-100 text-xs sm:text-sm lg:text-base xl:text-lg px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-2.5 lg:py-3 xl:py-3.5 hidden sm:inline-flex"
+                className="hidden h-12 sm:inline-flex"
               >
                 Clear History
               </Button>
