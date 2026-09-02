@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSlipContext } from "../../lab-case-management/SlipContext";
 import DriverHistoryModal from "../../../components/driver-case-history-modal";
@@ -8,13 +8,16 @@ import DriverHistoryModal from "../../../components/driver-case-history-modal";
 export default function CaseScanPage({ params }: { params: { caseId: string } }) {
   const { scanQrCode, loading } = useSlipContext();
   const searchParams = useSearchParams();
+  const slipsParam = searchParams.get("slips");
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(true);
+  const hasScannedRef = useRef(false);
 
   useEffect(() => {
+    if (hasScannedRef.current) return;
+
     const caseId = Number(params.caseId);
-    const slipsParam = searchParams.get("slips");
     if (!caseId || !slipsParam) {
       setError("Missing case or slip information in URL.");
       return;
@@ -24,13 +27,15 @@ export default function CaseScanPage({ params }: { params: { caseId: string } })
       setError("No slip IDs provided.");
       return;
     }
+
+    hasScannedRef.current = true;
     scanQrCode(caseId, slipIds)
       .then(res => {
         setResult(res);
         if (res && !res.success) setError(res.message || "Scan failed");
       })
       .catch(() => setError("Failed to scan QR code."));
-  }, [params.caseId, searchParams, scanQrCode]);
+  }, [params.caseId, slipsParam, scanQrCode]);
 
   if (loading) return <div className="p-8 text-lg">Loading...</div>;
   if (error) return <div className="p-8 text-red-600">{error}</div>;
