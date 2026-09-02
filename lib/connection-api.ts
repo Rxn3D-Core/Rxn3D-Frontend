@@ -104,3 +104,31 @@ export async function fetchConnectionsApi(
 
 export const DEFAULT_CONNECTIONS_PER_PAGE = 50
 export const DASHBOARD_CONNECTIONS_PER_PAGE = 10
+
+/** Build pagination metadata when the API only returns total_connections. */
+export function normalizeConnectionsPagination(
+  response: ConnectionsResponse,
+  page: number,
+  perPage: number,
+): ConnectionsPagination | null {
+  if (response.pagination) {
+    return response.pagination
+  }
+
+  const total = response.total_connections ?? response.data?.length ?? 0
+  if (total <= 0) {
+    return null
+  }
+
+  const itemCount = response.data?.length ?? 0
+  const lastPage = Math.max(1, Math.ceil(total / perPage))
+
+  return {
+    total,
+    per_page: perPage,
+    current_page: page,
+    last_page: lastPage,
+    from: itemCount > 0 ? (page - 1) * perPage + 1 : null,
+    to: itemCount > 0 ? Math.min((page - 1) * perPage + itemCount, total) : null,
+  }
+}

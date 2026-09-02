@@ -93,6 +93,7 @@ export function LabAdminDashboard() {
   const [practiceSearchQuery, setPracticeSearchQuery] = useState("")
   const [practicesTab, setPracticesTab] = useState("connected")
   const [practicesPage, setPracticesPage] = useState(1)
+  const practicesListRef = useRef<HTMLDivElement>(null)
 
   // Use cached hooks - automatic fetching with cache!
   const { data: connectionsData, isLoading: isLoadingConnections, error: connectionsError } = useConnections(user?.id, {
@@ -174,6 +175,11 @@ export function LabAdminDashboard() {
   useEffect(() => {
     setPracticesPage(1)
   }, [practicesTab])
+
+  const handlePracticesPageChange = (page: number) => {
+    setPracticesPage(page)
+    practicesListRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }
 
   // Filter practices based on tab
   const filteredPractices =
@@ -456,7 +462,10 @@ export function LabAdminDashboard() {
               </div>
             </div>
 
-            <div className="max-h-80 sm:max-h-96 overflow-y-auto">
+            <div
+              ref={practicesListRef}
+              className={practicesTab === "connected" ? "" : "max-h-80 sm:max-h-96 overflow-y-auto"}
+            >
               {isLoading ? (
                 <div className="space-y-3 sm:space-y-4 p-3 sm:p-6">
                   {Array.from({ length: 3 }).map((_, index) => (
@@ -478,7 +487,7 @@ export function LabAdminDashboard() {
               ) : error ? (
                 <div className="p-6 sm:p-8 text-center">
                   <div className="text-red-500 font-medium mb-2">Failed to load practices</div>
-                  <p className="text-sm text-gray-600">{error}</p>
+                  <p className="text-sm text-gray-600">{error instanceof Error ? error.message : String(error)}</p>
                 </div>
               ) : filteredPractices.length > 0 ? (
                 <div className="divide-y divide-[#e4e6ef]">
@@ -652,10 +661,10 @@ export function LabAdminDashboard() {
               )}
             </div>
 
-            {practicesTab === "connected" && connectionsPagination && connectionsPagination.last_page > 0 && (
+            {practicesTab === "connected" && connectionsPagination && connectedPracticesTotal > 0 && (
               <ConnectionListPagination
                 pagination={connectionsPagination}
-                onPageChange={setPracticesPage}
+                onPageChange={handlePracticesPageChange}
                 itemLabel="practices"
               />
             )}

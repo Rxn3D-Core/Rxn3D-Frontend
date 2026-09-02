@@ -5,6 +5,7 @@ import { categorizeConnectionsForUser } from '@/lib/connection-utils'
 import {
   fetchConnectionsApi,
   getActiveCustomerId,
+  normalizeConnectionsPagination,
   type ConnectionsQueryParams,
   DEFAULT_CONNECTIONS_PER_PAGE,
 } from '@/lib/connection-api'
@@ -44,11 +45,13 @@ export function useConnections(userId?: number, options?: UseConnectionsOptions)
     gcTime: 1000 * 60 * 60 * 24,
     select: (data) => {
       const { practices, labs } = categorizeConnectionsForUser(data.data || [], user)
+      const pagination = normalizeConnectionsPagination(data, page, perPage)
 
       return {
         ...data,
         practices,
         labs,
+        pagination,
       }
     },
   })
