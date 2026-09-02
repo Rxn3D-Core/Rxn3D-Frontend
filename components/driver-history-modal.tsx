@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Plus, Loader2, AlertCircle, Trash2 } from "lucide-react"
+import { Plus, Loader2, AlertCircle, Trash2, QrCode } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
@@ -183,6 +183,17 @@ export default function DriverHistoryModal({
     [singleSlipMode, pickupDropoffAction]
   )
 
+  /** QR driver batch (header scanner / deep link) — Add Slip opens camera, not manual rows. */
+  const isQrScanFlow = !singleSlipMode && ((qrScanData?.length ?? 0) > 0 || Boolean(onRequestScan))
+
+  const tableEntries = useMemo(
+    () =>
+      isQrScanFlow
+        ? deliveryEntries.filter((entry) => typeof entry.slip_id === "number")
+        : deliveryEntries,
+    [deliveryEntries, isQrScanFlow]
+  )
+
   // Logged-in user's name — used as the drop-off signature (captured automatically).
   const currentUserName = useMemo(() => getCurrentUserName(), [isOpen])
 
@@ -249,7 +260,7 @@ export default function DriverHistoryModal({
   }, [isOpen])
 
   // Header checkbox: check if all are selected
-  const allChecked = deliveryEntries.length > 0 && deliveryEntries.every(entry => entry.isChecked)
+  const allChecked = tableEntries.length > 0 && tableEntries.every(entry => entry.isChecked)
 
   const handleCheckboxToggle = (id: string) => {
     setDeliveryEntries((prevEntries) =>
@@ -277,6 +288,14 @@ export default function DriverHistoryModal({
       isChecked: false,
     }
     setDeliveryEntries((prevEntries) => [...prevEntries, newEntry])
+  }
+
+  const handleAddSlipClick = () => {
+    if (isQrScanFlow) {
+      onRequestScan?.()
+      return
+    }
+    handleAddCase()
   }
 
   const handleUpdateManualEntry = (id: string, field: keyof DeliveryEntry, value: string) => {
@@ -529,14 +548,16 @@ export default function DriverHistoryModal({
                           </td>
                         </tr>
                       ))
-                    ) : deliveryEntries.length === 0 ? (
+                    ) : tableEntries.length === 0 ? (
                       <tr className="border-b border-dashed border-[#E5E7EB]">
                         <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-600">
-                          No entries available. Click &quot;Add Slip&quot; to add one manually or scan a QR code.
+                          {isQrScanFlow
+                            ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
+                            : 'No entries available. Click "Add Slip" to add one manually or scan a QR code.'}
                         </td>
                       </tr>
                     ) : (
-                      deliveryEntries.map((entry) => {
+                      tableEntries.map((entry) => {
                         const isManual = !entry.slip_id
                         const rowAction = slipPickupDropoffAction({
                           locationId: entry.location_id,
@@ -646,11 +667,16 @@ export default function DriverHistoryModal({
                 <Button
                   variant="outline"
                   className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
-                  onClick={onRequestScan ?? handleAddCase}
+                  onClick={handleAddSlipClick}
                   type="button"
+                  disabled={isQrScanFlow && !onRequestScan}
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Slip
+                  {isQrScanFlow ? (
+                    <QrCode className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" />
+                  )}
+                  {isQrScanFlow ? "Scan Slip" : "Add Slip"}
                 </Button>
               </div>
 

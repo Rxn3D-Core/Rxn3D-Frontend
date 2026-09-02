@@ -3,6 +3,10 @@ import { filterValidQrScanSlips } from "@/lib/slip-location";
 
 /** Persisted across in-app scans and native-camera deep links. */
 export const DRIVER_QR_SESSION_STORAGE_KEY = "qr_scan_session_key";
+/** In-memory batch for Add Slip across modal ↔ scanner (same tab). */
+export const DRIVER_QR_BATCH_STORAGE_KEY = "qr_scan_batch_data";
+/** Dispatched to open the header scanner from other pages (e.g. native-camera landing). */
+export const DRIVER_QR_SCANNER_OPEN_EVENT = "rxn3d:open-driver-qr-scanner";
 
 export type ParsedDriverQr = {
   case_id: number;
@@ -158,6 +162,32 @@ export function saveDriverSessionKey(key: string | null): void {
   else localStorage.removeItem(DRIVER_QR_SESSION_STORAGE_KEY);
 }
 
+export function persistDriverScanBatch(response: QRScanResponse | null): void {
+  if (typeof window === "undefined") return;
+  if (!response?.data?.length) {
+    sessionStorage.removeItem(DRIVER_QR_BATCH_STORAGE_KEY);
+    return;
+  }
+  sessionStorage.setItem(DRIVER_QR_BATCH_STORAGE_KEY, JSON.stringify(response));
+}
+
+export function loadDriverScanBatch(): QRScanResponse | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem(DRIVER_QR_BATCH_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as QRScanResponse;
+    return parsed?.data?.length ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearDriverScanBatch(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(DRIVER_QR_BATCH_STORAGE_KEY);
+}
+
 /** iOS Safari and iPadOS need simpler camera constraints. */
 export function isIosDevice(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -182,4 +212,55 @@ export function driverQrCameraConstraints(): MediaStreamConstraints {
     },
     audio: false,
   };
+}
+
+/** Wait until a video element with an attached stream can play (required before ZXing decode). */
+export async function waitForVideoPlayback(
+  video: HTMLVideoElement,
+  timeoutMs = 12_000
+): Promise<void> {
+  video.muted = true;
+  video.playsInline = true;
+  video.setAttribute("playsinline", "true");
+  video.setAttribute("webkit-playsinline", "true");
+
+  const attemptPlay = async (): Promise<boolean> => {
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA) return false;
+    await video.play();
+    return true;
+  };
+
+  try {
+    if (await attemptPlay()) return;
+  } catch {
+    // Fall through to event listeners below.
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Camera preview timed out. Please allow camera access and tap Retry."));
+    }, timeoutMs);
+
+    const onReady = () => {
+      void attemptPlay()
+        .then(() => {
+          cleanup();
+          resolve();
+        })
+        .catch((err) => {
+          cleanup();
+          reject(err instanceof Error ? err : new Error("Could not start camera preview"));
+        });
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener("loadedmetadata", onReady);
+      video.removeEventListener("canplay", onReady);
+    };
+
+    video.addEventListener("loadedmetadata", onReady, { once: true });
+    video.addEventListener("canplay", onReady, { once: true });
+  });
 }

@@ -11,6 +11,9 @@ import {
   loadDriverSessionKey,
   processDriverScanApiResult,
   saveDriverSessionKey,
+  persistDriverScanBatch,
+  clearDriverScanBatch,
+  DRIVER_QR_SCANNER_OPEN_EVENT,
 } from "@/lib/driver-qr-scan";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -157,11 +160,18 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
         setModalOpen(false);
         setQrScanData(null);
         clearSession();
+        clearDriverScanBatch();
         router.replace("/dashboard");
       }}
       qrScanData={qrScanData.data}
+      onRequestScan={() => {
+        persistDriverScanBatch(qrScanData)
+        setModalOpen(false)
+        window.dispatchEvent(new CustomEvent(DRIVER_QR_SCANNER_OPEN_EVENT))
+      }}
       onSubmitted={() => {
         clearSession();
+        clearDriverScanBatch();
         router.replace("/dashboard");
       }}
     />
