@@ -59,6 +59,14 @@ import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { TrialBanner } from "@/components/billing/trial-banner"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import { filterValidQrScanSlips } from "@/lib/slip-location"
+import {
+  driverQrCameraConstraints,
+  parseDriverQrText,
+  processDriverScanApiResult,
+  saveDriverSessionKey,
+  loadDriverSessionKey,
+} from "@/lib/driver-qr-scan"
+import type { IScannerControls } from "@zxing/browser"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
@@ -128,6 +136,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const [isDecoding, setIsDecoding] = useState(false)
   const [showDriverHistoryModal, setShowDriverHistoryModal] = useState(false)
   const [qrScanData, setQrScanData] = useState<any>(null)
+  const qrScanDataRef = useRef<any>(null)
   // Driver pickup session key — reused across scans so the backend keeps the
   // same single-office session; cleared when the batch is submitted/cancelled.
   const qrSessionRef = useRef<string | null>(null)
@@ -155,6 +164,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const clearCaseDesignCenterStateMutation = useClearCaseDesignCenterStateMutation();
 const videoRef = useRef<HTMLVideoElement | null>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedCodeRef = useRef<string>("");
 
@@ -214,7 +224,18 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
     return () => { cancelled = true }
   }, [isSuperAdmin])
 
-  // Load scan history from localStorage on mount
+  // Load persisted driver session + scan history on mount
+  useEffect(() => {
+    const savedSession = loadDriverSessionKey()
+    if (savedSession) {
+      qrSessionRef.current = savedSession
+    }
+  }, [])
+
+  useEffect(() => {
+    qrScanDataRef.current = qrScanData
+  }, [qrScanData])
+
   useEffect(() => {
     const savedHistory = localStorage.getItem("qr-scan-history")
     if (savedHistory) {
@@ -308,6 +329,14 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const stopActiveDecoder = useCallback(() => {
     decoderActiveRef.current = false
+    if (scannerControlsRef.current) {
+      try {
+        scannerControlsRef.current.stop()
+      } catch {
+        // Ignore cleanup errors
+      }
+      scannerControlsRef.current = null
+    }
     if (codeReaderRef.current) {
       try {
         ;(codeReaderRef.current as any)?.reset?.()
@@ -354,8 +383,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
         const validation = autoValidate ? validateScanResult(text, format) : { isValid: true, type: "unknown" as const }
 
-        // Check if the scanned content is a URL that contains case and slip information
-        const urlMatch = text.match(/\/case\/(\d+)\?slips=([0-9,]+)/)
+        const parsedDriverQr = parseDriverQrText(text)
 
         const scanResult: ScanResult = {
           id: `scan-${now}`,
@@ -366,18 +394,21 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           type: validation.type,
         }
 
-        // Only persist non-case QR codes to scan history immediately; case/slip scans
-        // are added after a successful API response.
-        if (!urlMatch) {
-          const newHistory = [scanResult, ...scanHistory].slice(0, 100)
-          setScanHistory(newHistory)
-          saveScanHistory(newHistory)
-        }
+        if (parsedDriverQr) {
+          const { case_id: caseId, slip_ids: slipIds } = parsedDriverQr
 
-
-        if (urlMatch) {
-          const caseId = parseInt(urlMatch[1])
-          const slipIds = urlMatch[2].split(',').map(id => parseInt(id))
+          if (slipIds.length === 0) {
+            stopActiveDecoder()
+            lockQrScan(text, 10_000)
+            toast({
+              title: "Invalid QR code",
+              description: "This QR code is missing slip information. Please scan the code printed on the slip.",
+              variant: "destructive",
+              duration: 5000,
+            })
+            closeScanner()
+            return
+          }
 
           // Stop the decoder immediately so the same QR in view cannot re-trigger
           // scan-qr while the API request is in flight or after a failure.
@@ -385,7 +416,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
 
           // Already scanned in this session — don't hit the backend again with
           // the same slip; just stop the scanner and surface a gentle notice.
-          if (scannedQrTextsRef.current.has(text)) {
+          if (scannedQrTextsRef.current.has(parsedDriverQr.rawText)) {
             closeScanner()
             setQrScanData((prev: any) => {
               if (!prev || !Array.isArray(prev.data)) return prev
@@ -408,81 +439,69 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
           try {
             const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
 
-            const removeFailedSlipsFromMemory = () => {
-              const failedSlipIds = new Set(slipIds)
-              setQrScanData((prev: any) => {
-                if (!prev || !Array.isArray(prev.data)) return prev
-                const filtered = filterValidQrScanSlips(
-                  prev.data.filter((d: any) => !failedSlipIds.has(d.slip_id))
-                )
-                if (filtered.length === 0) return null
-                return { ...prev, data: filtered }
-              })
+            const prevData = filterValidQrScanSlips(
+              qrScanDataRef.current && Array.isArray(qrScanDataRef.current.data)
+                ? qrScanDataRef.current.data
+                : []
+            )
+            const outcome = processDriverScanApiResult(res, prevData, slipIds)
+
+            if (outcome.sessionKey) {
+              qrSessionRef.current = outcome.sessionKey
+              saveDriverSessionKey(outcome.sessionKey)
             }
 
-            if (res && res.success) {
-              const validSlips = filterValidQrScanSlips(Array.isArray(res.data) ? res.data : [])
-
-              if (validSlips.length === 0) {
-                removeFailedSlipsFromMemory()
-                toast({
-                  title: "QR Scan Failed",
-                  description:
-                    res?.message ||
-                    "Invalid slip locations for pickup or drop-off. Only slips ready for pick up or drop off can be scanned.",
-                  variant: "destructive",
-                  duration: 5000,
-                })
-                return
+            if (outcome.alreadyInSession) {
+              if (outcome.response?.data?.length) {
+                setQrScanData(outcome.response)
+                setShowDriverHistoryModal(true)
               }
-
-              // Success: keep this QR blocked for the rest of the driver session.
-              qrScanLockRef.current = { text, until: Number.MAX_SAFE_INTEGER }
-
-              // Mark this QR as handled so it isn't re-scanned while still in view.
-              scannedQrTextsRef.current.add(text)
-
-              // Remember the session so subsequent scans stay in the same batch.
-              qrSessionRef.current = res.session_key || qrSessionRef.current
-
-              const successHistory = [scanResult, ...scanHistory].slice(0, 100)
-              setScanHistory(successHistory)
-              saveScanHistory(successHistory)
-
-              // Merge only valid slips into the scanned list (dedupe by slip_id).
-              setQrScanData((prev: any) => {
-                const prevValid = filterValidQrScanSlips(
-                  prev && Array.isArray(prev.data) ? prev.data : []
-                )
-                const seen = new Set(prevValid.map((d: any) => d.slip_id))
-                const merged = [
-                  ...prevValid,
-                  ...validSlips.filter((d: any) => !seen.has(d.slip_id)),
-                ]
-                return {
-                  ...res,
-                  data: merged,
-                  scanned_cases_count: merged.length,
-                }
-              })
-
-              // Show the driver history modal with the scan data
-              setShowDriverHistoryModal(true)
-
               toast({
-                title: "QR Scan Successful",
-                description: `Added ${validSlips.length} slip(s) for delivery`,
-                duration: 3000,
+                title: "Already added",
+                description: outcome.message,
+                duration: 4000,
               })
-            } else {
-              removeFailedSlipsFromMemory()
+              return
+            }
+
+            if (!outcome.ok || !outcome.response?.data?.length) {
+              if (outcome.response) {
+                setQrScanData(outcome.response)
+              } else {
+                setQrScanData((prev: any) => {
+                  if (!prev || !Array.isArray(prev.data)) return prev
+                  const filtered = filterValidQrScanSlips(
+                    prev.data.filter((d: any) => !slipIds.includes(d.slip_id))
+                  )
+                  if (filtered.length === 0) return null
+                  return { ...prev, data: filtered }
+                })
+              }
               toast({
                 title: "QR Scan Failed",
-                description: res?.message || "Failed to process QR code",
+                description: outcome.message,
                 variant: "destructive",
                 duration: 5000,
               })
+              return
             }
+
+            // Success: keep this QR blocked for the rest of the driver session.
+            qrScanLockRef.current = { text, until: Number.MAX_SAFE_INTEGER }
+            scannedQrTextsRef.current.add(parsedDriverQr.rawText)
+
+            const successHistory = [scanResult, ...scanHistory].slice(0, 100)
+            setScanHistory(successHistory)
+            saveScanHistory(successHistory)
+
+            setQrScanData(outcome.response)
+            setShowDriverHistoryModal(true)
+
+            toast({
+              title: "QR Scan Successful",
+              description: `Added ${outcome.validSlips.length} slip(s) for delivery`,
+              duration: 3000,
+            })
           } catch (error) {
             console.error("QR scan error:", error)
             toast({
@@ -497,36 +516,22 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             closeScanner()
           }
 
-          return // Exit early, don't process as regular URL
+          return
         }
 
-        // For other non-URL codes, show regular scan success message
+        // Not an Rxn3D slip QR — reject clearly instead of treating as a generic success.
+        stopActiveDecoder()
+        lockQrScan(text, 8_000)
         toast({
-          title: "Code Scanned Successfully",
-          description: validation.message || `${format}: ${text.substring(0, 30)}${text.length > 30 ? "..." : ""}`,
-          duration: 2000,
+          title: "Invalid QR code",
+          description: "This is not a valid Rxn3D slip QR code. Please scan the code printed on the case slip.",
+          variant: "destructive",
+          duration: 5000,
         })
-
-        // Announce to screen readers
-        const announcement = urlMatch
-          ? `QR code scanned successfully: ${text.substring(0, 50)}${text.length > 50 ? "..." : ""}`
-          : `Scanned ${validation.type} code: ${text.substring(0, 50)}${text.length > 50 ? "..." : ""}`
-
-        const ariaLive = document.createElement("div")
-        ariaLive.setAttribute("aria-live", "polite")
-        ariaLive.setAttribute("aria-atomic", "true")
-        ariaLive.className = "sr-only"
-        ariaLive.textContent = announcement
-        document.body.appendChild(ariaLive)
-        setTimeout(() => document.body.removeChild(ariaLive), 1000)
-
-        // Auto-close if not in batch mode
         if (!batchMode) {
-          setTimeout(() => closeScanner(), 1500)
+          closeScanner()
         }
-
-        // Trigger automatic actions based on code type
-        await handleAutomaticActions(scanResult)
+        return
       } catch (err) {
         console.error("Error in handleScanSuccess:", err)
       } finally {
@@ -541,7 +546,6 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
       validateScanResult,
       batchMode,
       toast,
-      handleAutomaticActions,
       scanQrCode,
       stopActiveDecoder,
       isQrScanLocked,
@@ -576,16 +580,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         throw new Error(errorMsg)
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment", // Use back camera for better QR scanning
-          width: { ideal: 1920, min: 1280 }, // Higher resolution for better scanning
-          height: { ideal: 1080, min: 720 },
-          aspectRatio: { ideal: 16/9 },
-          frameRate: { ideal: 30, min: 15 }, // Higher frame rate for smoother scanning
-        },
-        audio: false // Explicitly disable audio
-      })
+      const stream = await navigator.mediaDevices.getUserMedia(driverQrCameraConstraints())
       setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
       return stream
     } catch (error: any) {
@@ -599,10 +594,10 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         errorMessage = "Camera is already in use by another application. Please close other apps using the camera."
       } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
         errorMessage = "Camera doesn't support the required settings. Trying with default settings..."
-        // Try again with simpler constraints
+        // Try again with simpler constraints (important for iOS Safari)
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: { facingMode: { ideal: "environment" } },
             audio: false
           })
           setScannerState((prev) => ({ ...prev, hasPermission: true, error: null }))
@@ -663,7 +658,7 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         })
       }
 
-      // Use continuous scanning with better error handling
+      // Use the stream we already opened — avoids a second camera session that breaks on iOS.
       const startContinuousScanning = async () => {
         if (!videoRef.current || !codeReaderRef.current) {
           console.error("Video element or code reader not available")
@@ -671,26 +666,25 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
         }
 
         try {
-          // Use decodeFromVideoDevice for continuous scanning
-          await codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, error) => {
-            if (result) {
-              // Ignore stale callbacks after the decoder was stopped.
-              if (!decoderActiveRef.current || processingRef.current) return
+          const controls = await codeReader.decodeFromStream(
+            mediaStream,
+            videoRef.current,
+            (result, error) => {
+              if (result) {
+                if (!decoderActiveRef.current || processingRef.current) return
 
-              const text = result.getText()
-              const formatStr = result.getBarcodeFormat().toString()
+                const text = result.getText()
+                const formatStr = result.getBarcodeFormat().toString()
 
-              // Stop decoding immediately after detection to prevent further callbacks.
-              stopActiveDecoder()
-
-              // Call our success handler (async). The handler sets processingRef and clears it in finally.
-              void handleScanSuccess(text, formatStr)
+                stopActiveDecoder()
+                void handleScanSuccess(text, formatStr)
+              }
+              if (error && error.name !== "NotFoundException") {
+                console.error("Scan error:", error)
+              }
             }
-            // Don't log NotFoundException errors as they're normal during scanning
-            if (error && error.name !== "NotFoundException") {
-              console.error("Scan error:", error)
-            }
-          })
+          )
+          scannerControlsRef.current = controls
         } catch (error) {
           console.error("Error starting continuous scanning:", error)
           setScannerState((prev) => ({
@@ -1542,11 +1536,11 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             setShowDriverHistoryModal(false);
             setQrScanData(null);
             scannedQrTextsRef.current.clear();
-            // End the driver session (submit or cancel) so a new batch can start fresh.
             if (qrSessionRef.current) {
               void clearDriverSession(qrSessionRef.current);
               qrSessionRef.current = null;
             }
+            saveDriverSessionKey(null);
           }}
           qrScanData={qrScanData.data}
           onRequestScan={() => {
@@ -1555,12 +1549,12 @@ const videoRef = useRef<HTMLVideoElement | null>(null);
             openScanner();
           }}
           onSubmitted={() => {
-            // Scanned slips submitted — clear the driver session id.
             if (qrSessionRef.current) {
               void clearDriverSession(qrSessionRef.current);
               qrSessionRef.current = null;
             }
             scannedQrTextsRef.current.clear();
+            saveDriverSessionKey(null);
           }}
         />
       )}

@@ -31,8 +31,10 @@ import {
 import {
   findShadeCatalogMatch,
   formatRemovableShadeFieldLabel,
+  getShadePreviewCode,
   SHADE_FIELD_LABEL_CLASS,
 } from "../utils/shadeFieldDisplay";
+import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
 import {
   archHasOpposingImpressionSelections,
   resolveOpposingImpressionProductId,
@@ -621,6 +623,9 @@ export function OpposingRemovableAccordion({
                               opposingProductData.teeth_shades
                             )}
                           </span>
+                          {getShadePreviewCode(fVal("teeth_shade")) && (
+                            <TeethShadePreviewIcon shadeCode={getShadePreviewCode(fVal("teeth_shade"))} />
+                          )}
                           {isFComplete("teeth_shade") && !caseSubmitted && (
                             <Check size={16} className="text-[#34a853] flex-shrink-0" />
                           )}

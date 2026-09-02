@@ -3,7 +3,12 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { buildApiUrl } from "@/lib/api/client";
 import { slipService, QRScanPayload, QRScanResponse, QRScanResponseData } from "@/services/slip";
-import { filterValidQrScanSlips } from "@/lib/slip-location";
+import {
+  processDriverScanApiResult,
+  saveDriverSessionKey,
+  loadDriverSessionKey,
+  parseDriverQrText,
+} from "@/lib/driver-qr-scan";
 
 // Types for the driver slip context
 export interface DriverSlipLocation {
@@ -103,50 +108,34 @@ export function DriverSlipProvider({ children }: { children: ReactNode }) {
     setQrScanError(null);
 
     try {
-      // Parse QR code to extract case_id and slip_ids
-      const parsedData = slipService.parseQRCode(qrText);
+      const parsedData = parseDriverQrText(qrText);
       
-      if (!parsedData) {
+      if (!parsedData || parsedData.slip_ids.length === 0) {
         throw new Error("Invalid QR code format. Unable to extract case and slip information.");
       }
 
-      // Prepare payload
       const payload: QRScanPayload = {
         case_id: parsedData.case_id,
         slip_ids: parsedData.slip_ids,
         ...(currentSessionKey || sessionKey ? { session_key: currentSessionKey || sessionKey! } : {})
       };
 
-      // Make API call
       const response = await slipService.scanQR(payload);
+      const outcome = processDriverScanApiResult(response, qrScanData?.data ?? [], parsedData.slip_ids);
 
-      const validSlips = filterValidQrScanSlips(response.data ?? []);
-      if (!response.success || validSlips.length === 0) {
-        throw new Error(
-          response.message ||
-            "Invalid slip locations for pickup or drop-off. Only slips ready for pick up or drop off can be scanned."
-        );
+      if (!outcome.ok || !outcome.response) {
+        throw new Error(outcome.message);
       }
 
-      const sanitizedResponse: QRScanResponse = {
-        ...response,
-        data: validSlips,
-        scanned_cases_count: validSlips.length,
-      };
+      const sanitizedResponse = outcome.response;
 
-      // Validate response
       if (!slipService.validateQRScanResult(sanitizedResponse)) {
         throw new Error("Invalid response from QR scan API");
       }
 
-      // Update state
       setQrScanData(sanitizedResponse);
       setSessionKey(sanitizedResponse.session_key);
-
-      // Store session key in localStorage for persistence
-      if (typeof window !== "undefined") {
-        localStorage.setItem("qr_scan_session_key", sanitizedResponse.session_key);
-      }
+      saveDriverSessionKey(sanitizedResponse.session_key);
 
       return sanitizedResponse;
     } catch (err) {
@@ -168,33 +157,19 @@ export function DriverSlipProvider({ children }: { children: ReactNode }) {
     setQrScanData(null);
     setQrScanError(null);
     setSessionKey(null);
-    
-    // Clear session key from localStorage
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("qr_scan_session_key");
-    }
+    saveDriverSessionKey(null);
   };
 
   const setSessionKeyValue = (key: string | null) => {
     setSessionKey(key);
-    
-    // Update localStorage
-    if (typeof window !== "undefined") {
-      if (key) {
-        localStorage.setItem("qr_scan_session_key", key);
-      } else {
-        localStorage.removeItem("qr_scan_session_key");
-      }
-    }
+    saveDriverSessionKey(key);
   };
 
   // Load session key from localStorage on mount
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedSessionKey = localStorage.getItem("qr_scan_session_key");
-      if (savedSessionKey) {
-        setSessionKey(savedSessionKey);
-      }
+    const savedSessionKey = loadDriverSessionKey();
+    if (savedSessionKey) {
+      setSessionKey(savedSessionKey);
     }
   }, []);
 

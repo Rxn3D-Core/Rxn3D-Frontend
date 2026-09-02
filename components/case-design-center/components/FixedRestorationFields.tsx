@@ -7,11 +7,13 @@ import {
   ShadeField,
 } from "./fields";
 import {
-  findShadeCatalogMatch,
   formatShadeFieldLabel,
+  getGumShadePreviewColor,
   SHADE_FIELD_LABEL_CLASS,
   type ShadeCatalogRow,
 } from "../utils/shadeFieldDisplay";
+import { resolveGumShadesForDisplay } from "../utils/gradeHelpers";
+import { GumShadePreviewSwatch } from "./GumShadePreviewSwatch";
 import {
   Select,
   SelectContent,
@@ -29,6 +31,7 @@ import type {
 import { FixedAccordionShadePicker } from "./FixedAccordionShadePicker";
 import { ShadeDetailSection } from "./ShadeDetailSection";
 import { GumShadePicker } from "./GumShadePicker";
+import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import {
   FIXED_RETENTION_MECHANISM_FIELD_STEP,
@@ -108,6 +111,24 @@ function isRealShadeDisplayValue(raw: string | undefined | null): boolean {
   const name = parseShadeFieldDisplayName(raw);
   if (!name) return false;
   return !SHADE_PLACEHOLDER_VALUES.has(name.trim().toLowerCase());
+}
+
+/** Fixed gum shade may be stored on the group stage tooth or any tooth in the bridge. */
+function resolveFixedGumShadeRaw(
+  arch: Arch,
+  toothNumbers: number[],
+  firstToothNumber: number,
+  groupStageToothNumber: number,
+  getFieldValue: (arch: Arch, toothNumber: number, step: string) => string,
+  getSelectedShade: (productId: string, arch: Arch, shadeType: ShadeFieldType) => string,
+  fixedShadeProductId: string
+): string {
+  const toothCandidates = [...new Set([firstToothNumber, groupStageToothNumber, ...toothNumbers])];
+  for (const tn of toothCandidates) {
+    const raw = getFieldValue(arch, tn, "fixed_stump_shade");
+    if (isRealShadeDisplayValue(raw)) return raw;
+  }
+  return getSelectedShade(fixedShadeProductId, arch, "stump_shade") || "";
 }
 
 /* ------------------------------------------------------------------ */
@@ -638,6 +659,7 @@ export function RetentionProductFields({
     shadeGuideOptions.length > 0
       ? shadeGuideOptions
       : getShadeGuideOptionsFromProduct(selectedProduct);
+  const displayGumShades = resolveGumShadesForDisplay(selectedProduct);
   const showFixedStage =
     !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
   const impressionVisible =
@@ -1277,25 +1299,23 @@ export function RetentionProductFields({
           })()}
           {stumpShadeFields.map(({ label, shadeType, isGumShade }) => {
             if (isGumShade) {
-              const gumShadeValue = getFieldValue(arch, firstToothNumber, "fixed_stump_shade");
-              let gumShadeName: string | null = isRealShadeDisplayValue(gumShadeValue)
-                ? parseShadeFieldDisplayName(gumShadeValue)
-                : null;
-              if (!gumShadeName) {
-                gumShadeName =
-                  getSelectedShade(fixedShadeProductId, arch, "stump_shade") || null;
-              }
-              const gumLabelSource = isRealShadeDisplayValue(gumShadeValue)
-                ? gumShadeValue
-                : gumShadeName;
-              const matchedGumShade =
-                findShadeCatalogMatch(gumLabelSource, selectedProduct?.gum_shades) ??
-                selectedProduct?.gum_shades?.find((s) => s.name === gumShadeName) ??
-                null;
-              const gumShadeColor = matchedGumShade?.color_code_middle ?? null;
+              const gumShadeRaw = resolveFixedGumShadeRaw(
+                arch,
+                toothNumbers,
+                firstToothNumber,
+                groupStageToothNumber,
+                getFieldValue,
+                getSelectedShade,
+                fixedShadeProductId
+              );
+              const gumShadeName = isRealShadeDisplayValue(gumShadeRaw)
+                ? parseShadeFieldDisplayName(gumShadeRaw)
+                : gumShadeRaw.trim() || null;
+              const gumLabelSource = gumShadeRaw;
               const gumDisplayLabel = gumShadeName
-                ? formatShadeFieldLabel(gumLabelSource, selectedProduct?.gum_shades)
+                ? formatShadeFieldLabel(gumLabelSource, displayGumShades)
                 : "";
+              const gumShadeColor = getGumShadePreviewColor(gumLabelSource, displayGumShades);
               const isGumComplete = !!gumShadeName;
               const borderColor = isGumComplete && !caseSubmitted ? "border-[#34a853]" : isGumComplete ? "border-[#b4b0b0]" : "border-[#CF0202]";
               const legendColor = isGumComplete && !caseSubmitted ? "text-[#34a853]" : isGumComplete ? "text-[#7f7f7f]" : "text-[#CF0202]";
@@ -1321,11 +1341,7 @@ export function RetentionProductFields({
                     <span className={SHADE_FIELD_LABEL_CLASS} title={gumDisplayLabel || undefined}>
                       {gumDisplayLabel}
                     </span>
-                    {gumShadeColor && (
-                      <svg width="29" height="29" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                        <rect width="28.0391" height="28.0391" rx="6" fill={gumShadeColor} />
-                      </svg>
-                    )}
+                    {gumShadeColor && <GumShadePreviewSwatch color={gumShadeColor} />}
                     {isGumComplete && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
                   </div>
                 </fieldset>
@@ -1378,6 +1394,7 @@ export function RetentionProductFields({
                   <span className={SHADE_FIELD_LABEL_CLASS} title={teethDisplayLabel || undefined}>
                     {teethDisplayLabel}
                   </span>
+                  {shadeCode && <TeethShadePreviewIcon shadeCode={shadeCode} />}
                   {isTeethComplete && !caseSubmitted && (
                     <Check size={16} className="text-[#34a853] flex-shrink-0" />
                   )}
@@ -1414,7 +1431,7 @@ export function RetentionProductFields({
               }));
               setInlineGumPickerOpen(false);
             }}
-            gumShades={selectedProduct?.gum_shades || []}
+            gumShades={displayGumShades}
           />
         </div>
       )}
