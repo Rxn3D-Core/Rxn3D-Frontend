@@ -71,7 +71,6 @@ export interface ProductVM {
   advanceFields: Array<{ label: string; value: string }>;
 }
 
-import { formatFieldValueForNote } from "@/components/case-design-center/utils/caseNoteBuilder";
 import type { ExtractionDisplayVM } from "./virtual-slip-extraction-display";
 import {
   buildArchChartExtractionDisplayFromSlipProducts,
@@ -451,34 +450,51 @@ function buildProduct(apiProduct: any): ProductVM {
   const productTitle = firstStr(product?.name, apiProduct?.name, "Product");
 
   // Advance field saved values for the "Advance Mode configuration" expander.
-  // Each entry in apiProduct.advance_fields carries its own label via the nested
-  // `advance_field.name` — no separate definitions array from product is needed.
+  // Prefer API `field_name` / `display_value` / `selections` (resolved server-side).
   const advanceFields: Array<{ label: string; value: string }> = [];
   if (Array.isArray(apiProduct?.advance_fields)) {
-    // Optional product-level defs map (older API shape where product carries its own advance_fields array).
-    const defs: Record<number, string> = {};
-    if (Array.isArray(product?.advance_fields)) {
-      for (const def of product.advance_fields) {
-        if (def?.id) defs[def.id] = def?.name ?? "";
-      }
-    }
-    const productAdvanceDefs = Array.isArray(product?.advance_fields)
-      ? product.advance_fields
-      : undefined;
+    const pushRow = (label: string, value: string) => {
+      const cleanLabel = String(label ?? "").trim();
+      const cleanValue = String(value ?? "").trim();
+      if (!cleanLabel || !hasDisplayValue(cleanValue)) return;
+      if (cleanValue === "Auto" || cleanValue === "auto") return;
+      // Skip raw JSON leftovers from older API payloads.
+      if (cleanValue.startsWith("{") || cleanValue.startsWith("[")) return;
+      if (advanceFields.some((row) => row.label === cleanLabel && row.value === cleanValue)) return;
+      // One row per field name (first wins).
+      if (advanceFields.some((row) => row.label === cleanLabel)) return;
+      advanceFields.push({ label: cleanLabel, value: cleanValue });
+    };
+
     for (const saved of apiProduct.advance_fields) {
-      const id = saved?.advance_field_id ?? saved?.id;
-      const rawValue = firstStr(
-        saved?.advance_field_value,
-        saved?.value,
-        saved?.teeth_shade?.name,
-        saved?.file?.name,
+      const selections = Array.isArray(saved?.selections) ? saved.selections : null;
+      if (selections && selections.length > 0) {
+        for (const selection of selections) {
+          pushRow(
+            firstStr(selection?.field_name, saved?.field_name, saved?.advance_field?.name),
+            firstStr(selection?.value, selection?.display_value),
+          );
+        }
+        continue;
+      }
+
+      pushRow(
+        firstStr(saved?.field_name, saved?.advance_field?.name, saved?.name),
+        firstStr(
+          saved?.display_value,
+          saved?.advance_field?.selected_option?.name,
+          saved?.selected_option?.name,
+          saved?.teeth_shade?.name,
+          saved?.file?.name,
+          // Plain non-numeric scalar only — never dump JSON blobs or bare option ids.
+          typeof saved?.advance_field_value === "string" &&
+            !saved.advance_field_value.trim().startsWith("{") &&
+            !saved.advance_field_value.trim().startsWith("[") &&
+            !/^\d+$/.test(saved.advance_field_value.trim())
+            ? saved.advance_field_value
+            : "",
+        ),
       );
-      const value =
-        formatFieldValueForNote(rawValue, productAdvanceDefs) ||
-        (rawValue.startsWith("{") || rawValue.startsWith("[") ? "" : rawValue);
-      // Prefer the nested advance_field.name (present in v2 response); fall back to defs map.
-      const label = firstStr(saved?.advance_field?.name, defs[id], saved?.name);
-      if (label && hasDisplayValue(value)) advanceFields.push({ label, value });
     }
   }
 
