@@ -158,7 +158,7 @@ export default function LabProfile() {
   } : null
 
   const renderTabContent = () => {
-    if (isProfileLoading) {
+    if (isProfileLoading && !transformedData) {
       return (
         <div className="flex items-center justify-center h-64">
           <div className="flex space-x-1.5">
@@ -179,7 +179,7 @@ export default function LabProfile() {
       )
     }
 
-    if (profileError) {
+    if (profileError && !transformedData) {
       return <div className="flex items-center justify-center h-64 text-red-500">Error: {profileError}</div>
     }
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import { AlertTriangle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -8,7 +9,7 @@ import { useTranslation } from "react-i18next"
 interface DeleteConfirmationModalProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   title?: string
   description?: string
   itemName?: string
@@ -33,6 +34,7 @@ export function DeleteConfirmationModal({
   isCustomNo = false,
 }: DeleteConfirmationModalProps) {
   const { t } = useTranslation()
+  const confirmInFlightRef = useRef(false)
 
   const getTitle = () => {
     if (title) return title
@@ -63,8 +65,23 @@ export function DeleteConfirmationModal({
     return t("No, cancel")
   }
 
+  const handleConfirm = async () => {
+    if (isLoading || isCustomNo || confirmInFlightRef.current) return
+    confirmInFlightRef.current = true
+    try {
+      await onConfirm()
+    } finally {
+      confirmInFlightRef.current = false
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isLoading && !confirmInFlightRef.current) onClose()
+      }}
+    >
       <DialogContent className="max-w-md">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
@@ -88,6 +105,7 @@ export function DeleteConfirmationModal({
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <Button 
+                type="button"
                 variant="outline" 
                 onClick={onClose}
                 disabled={isLoading}
@@ -95,11 +113,12 @@ export function DeleteConfirmationModal({
                 {getCancelText()}
               </Button>
               <Button 
+                type="button"
                 variant="destructive" 
-                onClick={onConfirm}
+                onClick={() => void handleConfirm()}
                 disabled={isLoading || isCustomNo}
               >
-                {getConfirmText()}
+                {isLoading ? t("Deleting...") : getConfirmText()}
               </Button>
             </div>
           </div>

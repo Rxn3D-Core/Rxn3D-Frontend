@@ -172,12 +172,32 @@ export default function GumShadePage() {
 
   // Confirm delete (single or bulk)
   const handleConfirmDelete = async () => {
+    if (isLoading) return
     if (deleteConfirmation.isBulk) {
-      // Bulk delete
-      for (const id of selectedItems) {
-        await deleteGumShadeBrand(id)
+      const ids = [...selectedItems]
+      let deletedCount = 0
+      // Silent per-item deletes so success popup/toast only fires once at the end
+      for (const id of ids) {
+        const ok = await deleteGumShadeBrand(id, { silent: true })
+        if (ok) deletedCount += 1
       }
       setSelectedItems([])
+      if (deletedCount > 0) {
+        toast({
+          title: "Success",
+          description:
+            deletedCount === 1
+              ? "Gum shade brand deleted successfully!"
+              : `Successfully deleted ${deletedCount} gum shade brand(s).`,
+        })
+        await fetchGumShadeBrands(
+          pagination.current_page,
+          pagination.per_page,
+          searchQuery,
+          sortColumn,
+          sortDirection,
+        )
+      }
     } else if (deleteConfirmation.item) {
       await deleteGumShadeBrand(deleteConfirmation.item.id)
     }

@@ -179,6 +179,9 @@ export function EditCustomerProfileModal({
   useEffect(() => {
     if (!open || !customer) return
 
+    let cancelled = false
+    const customerId = customer.id
+
     const initial = {
       name: customer.name || "",
       website: customer.website || "",
@@ -199,8 +202,10 @@ export function EditCustomerProfileModal({
     const loadLatest = async () => {
       setIsLoadingProfile(true)
       try {
-        const profile = await fetchCustomerProfile(customer.id)
-        if (!profile) return
+        // Silent: no page loading flag and no global profile setState (avoids re-render loops
+        // when parents pass an inline `customer` object each render).
+        const profile = await fetchCustomerProfile(customerId, { silent: true })
+        if (cancelled || !profile) return
         const profileData = profile as any
         const next = {
           name: profileData.name || initial.name,
@@ -220,12 +225,17 @@ export function EditCustomerProfileModal({
       } catch (error) {
         console.error("Failed to load customer profile for edit:", error)
       } finally {
-        setIsLoadingProfile(false)
+        if (!cancelled) setIsLoadingProfile(false)
       }
     }
 
     void loadLatest()
-  }, [open, customer, fetchCustomerProfile])
+    return () => {
+      cancelled = true
+    }
+    // Intentionally depend on customer.id (not the whole customer object): parents often
+    // pass a fresh inline object each render, which would re-fetch forever.
+  }, [open, customer?.id, fetchCustomerProfile])
 
   useEffect(() => {
     if (!open) return

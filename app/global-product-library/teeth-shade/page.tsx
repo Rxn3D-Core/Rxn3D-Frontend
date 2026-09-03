@@ -38,6 +38,7 @@ export default function TeethShadePage() {
     setSelectedItems,
     fetchTeethShadeBrands,
     deleteTeethShadeBrand,
+    bulkDeleteTeethShadeBrands,
     updateTeethShadeBrand,
   } = useTeethShades()
 
@@ -197,19 +198,12 @@ export default function TeethShadePage() {
 
   // Confirm delete
   const handleConfirmDelete = async () => {
+    if (isLoading) return
     if (isBulkDelete) {
-      for (const id of selectedItems) {
-        await deleteTeethShadeBrand(id)
-      }
-      setSelectedItems([])
-      // Refresh the list after bulk delete
-      await fetchTeethShadeBrands(currentPage, Number(entriesPerPage))
+      // One API call + one success toast (avoid per-item popup spam)
+      await bulkDeleteTeethShadeBrands(selectedItems)
     } else if (deleteTargetId !== null) {
-      const success = await deleteTeethShadeBrand(deleteTargetId)
-      if (success) {
-        // Refresh the list after delete
-        await fetchTeethShadeBrands(currentPage, Number(entriesPerPage))
-      }
+      await deleteTeethShadeBrand(deleteTargetId)
     }
     setIsDeleteModalOpen(false)
     setDeleteTargetId(null)
@@ -654,6 +648,7 @@ export default function TeethShadePage() {
         title={isBulkDelete ? t("Delete Selected Teeth Shade Brands?") : t("Delete Teeth Shade Brand?")}
         confirmText={t("Delete")}
         cancelText={t("Cancel")}
+        isLoading={isLoading}
       />
     </div>
   )
