@@ -505,34 +505,74 @@ export function snapshotToProduct(
       }
     }
 
-    const advanceFieldKeys: Array<[string, (n: string) => boolean, boolean]> = [
-      ["fixed_characterization", (n) => n.includes("characterization"), false],
+    const advanceFieldKeys: Array<[string, (n: string) => boolean]> = [
+      ["fixed_characterization", (n) => n.includes("characterization")],
       [
         "fixed_contact_icons",
         (n) => n.includes("occlusal") || n.includes("pontic") || n.includes("embrasure"),
-        false,
       ],
-      ["fixed_margin", (n) => n.includes("margin"), false],
-      ["fixed_metal", (n) => n.includes("metal"), false],
-      ["fixed_proximal_contact", (n) => n.includes("proximal") && n.includes("contact"), false],
-      ["fixed_notes", (n) => n.includes("note") || n.includes("additional"), false],
-      ["fixed_retention_type", (n) => n.includes("retention"), false],
+      ["fixed_margin", (n) => n.includes("margin")],
+      ["fixed_metal", (n) => n.includes("metal")],
+      ["fixed_proximal_contact", (n) => n.includes("proximal") && n.includes("contact")],
+      ["fixed_notes", (n) => n.includes("note") || n.includes("additional")],
+      ["fixed_retention_type", (n) => n.includes("retention")],
     ];
 
-    for (const [key, matcher, isShadeJson] of advanceFieldKeys) {
+    for (const [key, matcher] of advanceFieldKeys) {
       const raw = snap.fieldValues[key];
-      if (!raw) continue;
-      const advField = product?.advance_fields?.find((af: { name?: string; field_type?: string }) => {
-        if (shadeGuideFields.length > 0 && af.field_type === "shade_guide") return false;
-        return matcher((af.name ?? "").toLowerCase());
-      });
-      if (!advField) continue;
-      const value = isShadeJson ? parseShadeDisplayName(raw) : raw;
-      advance_fields.push({
-        teeth_number: null,
-        advance_field_id: advField.id,
-        advance_field_value: value,
-      });
+      if (!raw || raw === "auto") continue;
+
+      const matchingFields = (product?.advance_fields ?? []).filter(
+        (af: { name?: string; field_type?: string }) => {
+          if (shadeGuideFields.length > 0 && af.field_type === "shade_guide") return false;
+          return matcher((af.name ?? "").toLowerCase());
+        },
+      );
+      if (matchingFields.length === 0) continue;
+
+      // Step UI stores `{ [fieldId]: { name, optionId } }`. Persist one row per field
+      // with only the selected option id (not the whole map / name blob).
+      if (raw.startsWith("{")) {
+        let parsed: Record<string, { name?: string; optionId?: number; option_id?: number } | string> =
+          {};
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          parsed = {};
+        }
+
+        let wroteAny = false;
+        for (const advField of matchingFields) {
+          const selection = parsed[advField.id] ?? parsed[String(advField.id)];
+          if (selection == null) continue;
+
+          let optionId = 0;
+          if (typeof selection === "object" && selection !== null) {
+            optionId = Number(selection.optionId ?? selection.option_id ?? 0);
+          } else if (typeof selection === "string" && /^\d+$/.test(selection.trim())) {
+            optionId = Number(selection.trim());
+          }
+
+          if (!(optionId > 0)) continue;
+
+          advance_fields.push({
+            teeth_number: null,
+            advance_field_id: advField.id,
+            advance_field_value: String(optionId),
+          });
+          wroteAny = true;
+        }
+        if (wroteAny) continue;
+      }
+
+      // Plain text / notes fields — store the scalar as-is on the first matching field.
+      if (!raw.startsWith("{") && !raw.startsWith("[")) {
+        advance_fields.push({
+          teeth_number: null,
+          advance_field_id: matchingFields[0].id,
+          advance_field_value: raw,
+        });
+      }
     }
 
     if (snap.advanceFieldFiles) {

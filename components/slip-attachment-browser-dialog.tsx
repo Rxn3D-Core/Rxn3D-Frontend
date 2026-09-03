@@ -61,9 +61,23 @@ interface StagedFile {
 interface SlipGroup {
   slipId: number
   slipNumber: string
-  productName: string
+  /** Stage name(s) for the slip header — joined with " / " when upper + lower differ */
   stageName: string
   attachments: SlipAttachmentRecord[]
+}
+
+/** Build slip folder label from product stage names (upper / lower). */
+function formatSlipStageLabel(
+  products?: Array<{ stage_name?: string | null }> | null
+): string {
+  const stages = (products ?? [])
+    .map((p) => (p.stage_name ?? "").trim())
+    .filter(Boolean)
+  const unique: string[] = []
+  for (const name of stages) {
+    if (!unique.includes(name)) unique.push(name)
+  }
+  return unique.length > 0 ? unique.join(" / ") : "Slip"
 }
 
 // ─── FileCard ─────────────────────────────────────────────────────────────────
@@ -658,15 +672,17 @@ export default function SlipAttachmentBrowserDialog({
   // ── Derived data ────────────────────────────────────────────────────────────
   const slipGroups = useMemo<SlipGroup[]>(() => {
     if (!caseData) return []
-    return caseData.slips.map((slip) => ({
-      slipId: slip.id,
-      slipNumber: slip.slip_number ?? String(slip.id),
-      productName: slip.products?.[0]?.product_name ?? "Slip",
-      stageName: slip.products?.[0]?.stage_name ?? "",
-      attachments: slip.attachments.filter((a) =>
-        hideArchived ? !a.is_archived : true
-      ),
-    }))
+    return caseData.slips
+      .map((slip) => ({
+        slipId: slip.id,
+        slipNumber: slip.slip_number ?? String(slip.id),
+        stageName: formatSlipStageLabel(slip.products),
+        attachments: slip.attachments.filter((a) =>
+          hideArchived ? !a.is_archived : true
+        ),
+      }))
+      // Hide slips that currently have no visible attachments
+      .filter((group) => group.attachments.length > 0)
   }, [caseData, hideArchived])
 
   const totalSizeMB = useMemo(() => {
@@ -1071,7 +1087,7 @@ export default function SlipAttachmentBrowserDialog({
                               <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                             )}
                             <FolderOpen className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                            <span className="text-sm font-medium text-gray-800">{group.productName}</span>
+                            <span className="text-sm font-medium text-gray-800">{group.stageName}</span>
                             <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-600 font-medium">
                               {group.attachments.length} file{group.attachments.length !== 1 ? "s" : ""}
                             </span>
@@ -1081,7 +1097,7 @@ export default function SlipAttachmentBrowserDialog({
                           </button>
 
                           {/* File thumbnails */}
-                          {isExpanded && group.attachments.length > 0 && (
+                          {isExpanded && (
                             <div className="px-4 pb-4">
                               <div className="flex gap-3 flex-wrap">
                                 {group.attachments.map((record) => (
@@ -1098,10 +1114,6 @@ export default function SlipAttachmentBrowserDialog({
                                 ))}
                               </div>
                             </div>
-                          )}
-
-                          {isExpanded && group.attachments.length === 0 && (
-                            <div className="px-8 pb-4 text-xs text-gray-400">No files in this slip</div>
                           )}
                         </div>
                       )

@@ -887,12 +887,49 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
         if (!matchedStep) continue;
 
         const stepKey = matchedStep[0];
-        // Resolve optionId from the field definition options
-        const matchedOption = def.options?.find((o) => o.name === savedValue);
-        const optionId = matchedOption?.id ?? 0;
+
+        // New storage: advance_field_value is the selected option id only.
+        // Legacy: plain option name, or a multi-field JSON map blob.
+        let optionId = 0;
+        let optionName = "";
+
+        const trimmed = String(savedValue).trim();
+        if (/^\d+$/.test(trimmed)) {
+          optionId = Number(trimmed);
+          const matchedOption = def.options?.find((o) => Number(o.id) === optionId);
+          optionName = matchedOption?.name ?? "";
+        } else if (trimmed.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+            const own = parsed[String(def.id)] ?? parsed[def.id as unknown as string];
+            if (own && typeof own === "object" && own !== null) {
+              const entry = own as { name?: string; optionId?: number; option_id?: number };
+              optionName = String(entry.name ?? "").trim();
+              optionId = Number(entry.optionId ?? entry.option_id ?? 0);
+            } else if (typeof parsed.name === "string") {
+              optionName = parsed.name.trim();
+              optionId = Number(
+                (parsed as { optionId?: number; option_id?: number }).optionId ??
+                  (parsed as { option_id?: number }).option_id ??
+                  0,
+              );
+            }
+          } catch {
+            /* fall through */
+          }
+        } else {
+          optionName = trimmed;
+          const matchedOption = def.options?.find((o) => o.name === optionName);
+          optionId = matchedOption?.id ?? 0;
+        }
+
+        if (!optionName && optionId > 0) {
+          optionName = def.options?.find((o) => Number(o.id) === optionId)?.name ?? "";
+        }
+        if (!optionName) continue;
 
         if (!stepAccumulators[stepKey]) stepAccumulators[stepKey] = {};
-        stepAccumulators[stepKey][def.id] = { name: savedValue, optionId };
+        stepAccumulators[stepKey][def.id] = { name: optionName, optionId };
       }
 
       // Write accumulated step values into fieldValues and mark steps as completed
