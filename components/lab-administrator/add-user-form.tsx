@@ -15,8 +15,23 @@ import { ChevronLeft, Upload, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
+import { adminResetUserPassword } from "@/lib/api/admin-reset-user-password"
 import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
 import { getActiveCustomerId } from "@/lib/customer-scope"
+import {
+  getCreateUserTitle,
+  getRoleDisplayLabel,
+  isDoctorRole,
+} from "@/lib/user-role-labels"
+
+/** Matches backend Password::min(8)->mixedCase()->numbers()->symbols() */
+const passwordStrengthSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
 
 const baseUserFormSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -37,13 +52,40 @@ const baseUserFormSchema = z.object({
 
 const createUserFormSchema = baseUserFormSchema
   .extend({
-    password: z.string().min(8, "Password must be at least 8 characters"),
+    password: passwordStrengthSchema,
     password_confirmation: z.string().min(1, "Confirm password is required"),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: "Passwords do not match",
     path: ["password_confirmation"],
   })
+
+/** Edit: password optional; if either field is set, both must be valid and match. */
+const editUserFormSchema = baseUserFormSchema.superRefine((data, ctx) => {
+  const password = (data.password ?? "").trim()
+  const confirmation = (data.password_confirmation ?? "").trim()
+  if (!password && !confirmation) return
+
+  const strength = passwordStrengthSchema.safeParse(password)
+  if (!strength.success) {
+    strength.error.issues.forEach((issue) => {
+      ctx.addIssue({ ...issue, path: ["password"] })
+    })
+  }
+  if (!confirmation) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Confirm password is required",
+      path: ["password_confirmation"],
+    })
+  } else if (password !== confirmation) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Passwords do not match",
+      path: ["password_confirmation"],
+    })
+  }
+})
 
 type UserFormValues = z.infer<typeof baseUserFormSchema>
 
@@ -52,6 +94,8 @@ interface AddUserFormProps {
   onSuccess: () => void
   /** When provided, the form runs in edit mode and updates this user. */
   user?: { id: number } | null
+  /** When set (create mode), role is fixed to this page context — no role picker. */
+  lockedRole?: string
 }
 
 interface Department {
@@ -106,7 +150,7 @@ const getRoleOptions = (customerType: string | null) => {
 
 const statusOptions = ["Pending", "Active", "Inactive", "Suspended", "Archived"]
 
-export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
+export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFormProps) {
   const { toast } = useToast()
   const {
     createUser,
@@ -115,6 +159,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
     hasAnyPermission,
   } = useAuth()
   const isEditMode = !!user?.id
+  const roleIsLocked = !isEditMode && Boolean(lockedRole)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingUser, setIsLoadingUser] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -136,15 +181,15 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
 
   // Initialize form with default values
   const form = useForm<UserFormValues>({
-    resolver: zodResolver(isEditMode ? baseUserFormSchema : createUserFormSchema),
+    resolver: zodResolver(isEditMode ? editUserFormSchema : createUserFormSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
       email: "",
       phone: "",
       work_number: "",
-      role: "",
-      is_doctor: false,
+      role: lockedRole || "",
+      is_doctor: isDoctorRole(lockedRole),
       status: "Pending",
       department_ids: [],
       license_number: "",
@@ -159,6 +204,13 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
   const selectedRole = form.watch("role")
   const isDoctor = form.watch("is_doctor")
 
+  // Keep locked role applied in create mode
+  useEffect(() => {
+    if (!roleIsLocked || !lockedRole) return
+    form.setValue("role", lockedRole, { shouldValidate: true })
+    form.setValue("is_doctor", isDoctorRole(lockedRole))
+  }, [roleIsLocked, lockedRole, form])
+
   // Load departments for lab customers (optional)
   useEffect(() => {
     if (isLabCustomer) {
@@ -172,12 +224,15 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
     form.setValue("department_ids", selectedDepartments, { shouldValidate: true })
   }, [selectedDepartments, form])
 
-  // Auto-set is_doctor when the doctor role is chosen
+  // Auto-set is_doctor for doctor role; locked non-doctor roles force it off
   useEffect(() => {
-    if (selectedRole === "doctor") {
+    if (isEditMode) return
+    if (isDoctorRole(selectedRole)) {
       form.setValue("is_doctor", true)
+    } else if (roleIsLocked) {
+      form.setValue("is_doctor", false)
     }
-  }, [selectedRole, form])
+  }, [selectedRole, form, isEditMode, roleIsLocked])
 
   // In edit mode, load the full user and pre-fill the form
   useEffect(() => {
@@ -205,6 +260,8 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
           license_number: detail.license_number || "",
           signature: null,
           avatar: null,
+          password: "",
+          password_confirmation: "",
         })
         setSelectedDepartments(departmentIds)
       } catch (error) {
@@ -334,13 +391,25 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
 
         await updateUserDetails(user.id, payload)
 
+        const newPassword = (data.password ?? "").trim()
+        if (newPassword) {
+          await adminResetUserPassword({
+            userId: user.id,
+            password: newPassword,
+            password_confirmation: (data.password_confirmation ?? "").trim(),
+            customerId: activeCustomerId,
+          })
+        }
+
         if (canManagePermissions) {
           await persistUserDirectPermissions(user.id, selectedPermissions, activeCustomerId)
         }
 
         toast({
           title: "User Updated",
-          description: `${data.first_name} ${data.last_name} has been updated successfully.`,
+          description: newPassword
+            ? `${data.first_name} ${data.last_name} has been updated and their password was reset.`
+            : `${data.first_name} ${data.last_name} has been updated successfully.`,
         })
 
         onSuccess()
@@ -357,8 +426,9 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
       return
     }
 
-    // Doctor fields are required when is_doctor is set
-    if (data.is_doctor) {
+    // Doctor fields are required when creating a doctor
+    const treatingAsDoctor = isDoctorRole(lockedRole || data.role) || data.is_doctor
+    if (treatingAsDoctor) {
       const hasLicense = data.license_number && data.license_number.trim() !== ""
       if (!hasLicense || !signatureFile) {
         form.setError("license_number", {
@@ -385,8 +455,8 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
       formData.append("phone", data.phone)
       formData.append("work_number", data.work_number || data.phone)
       if (customerId) formData.append("customer_id", customerId)
-      formData.append("role", data.role)
-      formData.append("is_doctor", data.is_doctor ? "1" : "0")
+      formData.append("role", lockedRole || data.role)
+      formData.append("is_doctor", (isDoctorRole(lockedRole || data.role) || data.is_doctor) ? "1" : "0")
       formData.append("status", data.status)
       formData.append("password", data.password || "")
       formData.append("password_confirmation", data.password_confirmation || "")
@@ -397,10 +467,10 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
         })
       }
 
-      if (data.is_doctor && data.license_number) {
+      if (treatingAsDoctor && data.license_number) {
         formData.append("license_number", data.license_number)
       }
-      if (data.is_doctor && signatureFile) {
+      if (treatingAsDoctor && signatureFile) {
         formData.append("signature", signatureFile)
       }
       if (avatarFile) {
@@ -452,7 +522,11 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
             <Card>
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-6 flex items-center gap-2">
-                  {isEditMode ? "Edit User" : "User Details"}
+                  {isEditMode
+                    ? "Edit User"
+                    : lockedRole
+                      ? getCreateUserTitle(lockedRole).replace("Create ", "") + " Details"
+                      : "User Details"}
                   <span className="text-gray-400">📋</span>
                 </h3>
 
@@ -562,51 +636,49 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     )}
                   />
 
-                  {/* Password (create only) */}
-                  {!isEditMode && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                label="Password *"
-                                placeholder="Enter password"
-                                revealToggle
-                                validationState={getValidationState("password", true)}
-                                errorMessage={form.formState.errors.password?.message as string}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="password_confirmation"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                label="Confirm Password *"
-                                placeholder="Re-enter password"
-                                revealToggle
-                                validationState={getValidationState("password_confirmation", true)}
-                                errorMessage={form.formState.errors.password_confirmation?.message as string}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
+                  {/* Password: required on create; optional reset on edit (no current password) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              label={isEditMode ? "New Password" : "Password *"}
+                              placeholder={isEditMode ? "Leave blank to keep current" : "Enter password"}
+                              revealToggle
+                              validationState={getValidationState("password", !isEditMode)}
+                              errorMessage={form.formState.errors.password?.message as string}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password_confirmation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              label={isEditMode ? "Confirm New Password" : "Confirm Password *"}
+                              placeholder={isEditMode ? "Re-enter new password" : "Re-enter password"}
+                              revealToggle
+                              validationState={getValidationState("password_confirmation", !isEditMode)}
+                              errorMessage={form.formState.errors.password_confirmation?.message as string}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   {/* Phone & work number */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -649,31 +721,37 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     />
                   </div>
 
-                  {/* User type (role) & status */}
+                  {/* User type (role) & status — role picker hidden when page locks the role */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem>
-                          <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
-                            <FormControl>
-                              <SelectTrigger className="h-14">
-                                <SelectValue placeholder="User Type *" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {roleOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {roleIsLocked ? (
+                      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 h-14 flex items-center">
+                        Creating as <span className="font-medium ml-1">{getRoleDisplayLabel(lockedRole)}</span>
+                      </div>
+                    ) : (
+                      <FormField
+                        control={form.control}
+                        name="role"
+                        render={({ field }) => (
+                          <FormItem>
+                            <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
+                              <FormControl>
+                                <SelectTrigger className="h-14">
+                                  <SelectValue placeholder="User Type *" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {roleOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     <FormField
                       control={form.control}
                       name="status"
@@ -699,8 +777,8 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                     />
                   </div>
 
-                  {/* Is doctor (offices only; auto-set when role is doctor) */}
-                  {selectedRole !== "doctor" && customerType === "office" && (
+                  {/* Is doctor — only on mixed office create forms, never when role is locked */}
+                  {!roleIsLocked && selectedRole !== "doctor" && customerType === "office" && (
                     <FormField
                       control={form.control}
                       name="is_doctor"
@@ -759,7 +837,7 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                   )}
 
                   {/* Doctor-specific fields */}
-                  {isDoctor && (
+                  {(isDoctor || isDoctorRole(selectedRole) || isDoctorRole(lockedRole)) && (
                     <div className="space-y-4">
                       <h4 className="text-sm font-semibold text-gray-900">Doctor Information</h4>
                       <FormField
@@ -842,7 +920,9 @@ export function AddUserForm({ onCancel, onSuccess, user }: AddUserFormProps) {
                         : "Saving..."
                       : isEditMode
                         ? "Update User"
-                        : "Save User"}
+                        : lockedRole
+                          ? getCreateUserTitle(lockedRole).replace("Create ", "Save ")
+                          : "Save User"}
                   </Button>
                 </div>
               </CardContent>

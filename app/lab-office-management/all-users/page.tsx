@@ -20,6 +20,10 @@ import {
   normalizeUserStatus,
   type UserStatus,
 } from "@/lib/user-status"
+import {
+  getAddUserButtonLabel,
+  resolveLockedRole,
+} from "@/lib/user-role-labels"
 
 const USER_STATUS_OPTIONS: Array<{ value: UserStatus; dotClass: string }> = [
   { value: "Active", dotClass: "bg-green-500" },
@@ -97,6 +101,8 @@ export default function AllUsers() {
   const canCreateUser = hasPermission("create_user")
   const canEditUser = hasPermission("edit_user")
   const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || !!departmentFilter || !!customerFilter
+  const lockedRole = resolveLockedRole(roleFilter)
+  const addButtonLabel = getAddUserButtonLabel(lockedRole)
 
   const customerNameById = customerOptions.reduce<Record<string, string>>((acc, option) => {
     acc[option.value] = option.label
@@ -557,7 +563,7 @@ export default function AllUsers() {
               )}
               <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={handleAddUser} disabled={!canCreateUser}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add User
+                {addButtonLabel}
               </Button>
             </div>
             <div className="relative w-full md:w-auto">
@@ -769,6 +775,7 @@ export default function AllUsers() {
           setShowAddUser(false)
           loadUsers()
         }}
+        lockedRole={lockedRole}
       />
 
       <UpdateUserModal

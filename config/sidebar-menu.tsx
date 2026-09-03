@@ -252,8 +252,20 @@ export const labAdminMenu: MenuItem[] = [
     children: [
       {
         id: "staff-management",
-        title: "Staff Management",
+        title: "All Staff",
         path: "/lab-administrator/staff-management",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
+      },
+      {
+        id: "lab-admins",
+        title: "Lab Admins",
+        path: "/lab-administrator/lab-admins",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
+      },
+      {
+        id: "lab-users",
+        title: "Lab Users",
+        path: "/lab-administrator/lab-users",
         permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
       {

@@ -21,6 +21,8 @@ import { useEntitlements } from "@/contexts/entitlement-context"
 
 const FALLBACK_ICONS: Record<string, React.ReactNode> = {
   "staff-management":    <Users className="h-5 w-5" />,
+  "lab-admins":          <Users className="h-5 w-5" />,
+  "lab-users":           <Users className="h-5 w-5" />,
   "lab-schedule":        <CalendarDays className="h-5 w-5" />,
   "all-connections":     <Network className="h-5 w-5" />,
   "permission-management": <ShieldCheck className="h-5 w-5" />,

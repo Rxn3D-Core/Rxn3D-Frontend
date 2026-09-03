@@ -13,20 +13,58 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
+import { adminResetUserPassword } from "@/lib/api/admin-reset-user-password"
 import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
 import { getActiveCustomerId } from "@/lib/customer-scope"
 import { normalizeRoleSlug } from "@/lib/role-utils"
 import { USER_STATUSES, normalizeUserStatus, type UserStatus } from "@/lib/user-status"
 
+/** Matches backend Password::min(8)->mixedCase()->numbers()->symbols() */
+const passwordStrengthSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Password must contain at least one number")
+  .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character")
+
 // Form schema based on the API examples
-const updateUserSchema = z.object({
-  first_name: z.string().min(2, "First name must be at least 2 characters"),
-  last_name: z.string().min(2, "Last name must be at least 2 characters"),
-  phone: z.string().min(10, "Please enter a valid phone number"),
-  work_number: z.string().optional(),
-  status: z.string().min(1, "Please select a status"),
-  department_ids: z.array(z.number()).optional(),
-})
+const updateUserSchema = z
+  .object({
+    first_name: z.string().min(2, "First name must be at least 2 characters"),
+    last_name: z.string().min(2, "Last name must be at least 2 characters"),
+    phone: z.string().min(10, "Please enter a valid phone number"),
+    work_number: z.string().optional(),
+    status: z.string().min(1, "Please select a status"),
+    department_ids: z.array(z.number()).optional(),
+    password: z.string().optional(),
+    password_confirmation: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const password = (data.password ?? "").trim()
+    const confirmation = (data.password_confirmation ?? "").trim()
+    if (!password && !confirmation) return
+
+    const strength = passwordStrengthSchema.safeParse(password)
+    if (!strength.success) {
+      strength.error.issues.forEach((issue) => {
+        ctx.addIssue({ ...issue, path: ["password"] })
+      })
+    }
+    if (!confirmation) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Confirm password is required",
+        path: ["password_confirmation"],
+      })
+    } else if (password !== confirmation) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Passwords do not match",
+        path: ["password_confirmation"],
+      })
+    }
+  })
 
 type UpdateUserFormValues = z.infer<typeof updateUserSchema>
 
@@ -103,6 +141,8 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
       work_number: "",
       status: "Active",
       department_ids: [],
+      password: "",
+      password_confirmation: "",
     },
   })
 
@@ -119,6 +159,8 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
         work_number: user.phone || "", // Default to phone if work_number not available
         status: normalizeUserStatus(user.status),
         department_ids: [],
+        password: "",
+        password_confirmation: "",
       })
       
       setSelectedDepartments([])
@@ -190,13 +232,25 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
 
       await authContext.updateUserDetails(user.id, payload)
 
+      const newPassword = (data.password ?? "").trim()
+      if (newPassword) {
+        await adminResetUserPassword({
+          userId: user.id,
+          password: newPassword,
+          password_confirmation: (data.password_confirmation ?? "").trim(),
+          customerId: activeCustomerId,
+        })
+      }
+
       if (canManagePermissions) {
         await persistUserDirectPermissions(user.id, selectedPermissions, activeCustomerId)
       }
 
       toast({
         title: "Success",
-        description: "User updated successfully",
+        description: newPassword
+          ? "User updated and password reset successfully"
+          : "User updated successfully",
       })
 
       onSuccess()
@@ -277,6 +331,46 @@ export function UpdateUserModal({ isOpen, onClose, onSuccess, user }: UpdateUser
                     <FormLabel>Work Number</FormLabel>
                     <FormControl>
                       <Input placeholder="Enter work number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>New Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Leave blank to keep current"
+                        revealToggle
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="password_confirmation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Confirm New Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Re-enter new password"
+                        revealToggle
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
