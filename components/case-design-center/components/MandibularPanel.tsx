@@ -3245,6 +3245,7 @@ export function MandibularPanel({
                           />
                           <RetentionProductFields
                             arch="mandibular"
+                            productCardId={ap.id}
                             isExpanded={isCardAccordionExpanded(apSlotId)}
                             firstToothNumber={apFirstTn}
                             groupStageToothNumber={apFirstTn}
@@ -3670,6 +3671,7 @@ export function MandibularPanel({
                     {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="mandibular"
+                        productCardId={0}
                         isExpanded={isCardAccordionExpanded(slotId)}
                         firstToothNumber={groupStageToothNumber}
                         groupStageToothNumber={groupStageToothNumber}
