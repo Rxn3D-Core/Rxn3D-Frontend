@@ -11,6 +11,8 @@ import { getAudits, type AuditEntry, type AuditFilters } from "@/lib/api-audit"
 
 interface ActivityLogTabProps {
   customerId?: number | null
+  /** When true, omit IP / request / raw payload sections in the details sheet (office profile). */
+  hideTechnicalDetails?: boolean
 }
 
 function formatChanges(entry: AuditEntry): string {
@@ -21,7 +23,7 @@ function formatChanges(entry: AuditEntry): string {
     .join(", ")
 }
 
-export default function ActivityLogTab({ customerId }: ActivityLogTabProps) {
+export default function ActivityLogTab({ customerId, hideTechnicalDetails = false }: ActivityLogTabProps) {
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState("")
@@ -91,6 +93,7 @@ export default function ActivityLogTab({ customerId }: ActivityLogTabProps) {
             setSelectedAudit(null)
           }
         }}
+        hideTechnicalDetails={hideTechnicalDetails}
       />
 
       <div className="mb-4 flex items-center justify-between">

@@ -88,6 +88,20 @@ const ADVANCE_FIELD_STEP_MATCHERS: Record<string, (name: string) => boolean> = {
 /** A consecutive run longer than this collapses to `#first–#last`. */
 const TEETH_RANGE_COLLAPSE_THRESHOLD = 8;
 
+const MAXILLARY_FULL_ARCH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+const MANDIBULAR_FULL_ARCH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+
+/**
+ * True when `teeth` is the complete maxillary (#1–#16) or mandibular (#17–#32) arch.
+ * Full-arch products (e.g. Immediate Full Denture) omit tooth numbers from case summary notes.
+ */
+export function isFullArchTeeth(teeth: number[]): boolean {
+  const sorted = [...new Set(teeth)].sort((a, b) => a - b);
+  if (sorted.length !== 16) return false;
+  const matches = (arch: number[]) => sorted.every((tn, i) => tn === arch[i]);
+  return matches(MAXILLARY_FULL_ARCH) || matches(MANDIBULAR_FULL_ARCH);
+}
+
 export function formatTeethNumbers(teeth: number[]): string {
   if (teeth.length === 0) return "";
   const sorted = [...new Set(teeth)].sort((a, b) => a - b);
@@ -564,7 +578,8 @@ export function buildFixedProductNote(ctx: ProductNoteContext): string {
     selectedStages,
   } = ctx;
   const productName = product?.name || "restoration";
-  const teethStr = formatTeethNumbers(teeth);
+  // Full-arch selections omit `#1–#16` / `#17–#32` — the product implies the whole arch.
+  const teethStr = isFullArchTeeth(teeth) ? "" : formatTeethNumbers(teeth);
   const minTooth = teeth.length ? Math.min(...teeth) : repTooth;
 
   const grade = parseFieldDisplayValue(getFieldValue(arch, repTooth, "grade"));
@@ -621,7 +636,10 @@ export function buildRemovableProductNote(ctx: ProductNoteContext): string {
   const gradeBit = grade ? `${grade} ` : "";
   let line = `Please fabricate ${gradeBit}${productName}`;
   // `teeth` must be orange-header / teeth_selection only (not missing, extract, clasps).
-  if (teeth.length > 0) line += ` for ${formatTeethNumbers(teeth)}`;
+  // Omit numbers when the full arch is selected (e.g. Immediate Full Denture → no `#1–#16`).
+  if (teeth.length > 0 && !isFullArchTeeth(teeth)) {
+    line += ` for ${formatTeethNumbers(teeth)}`;
+  }
   if (stageName) line += ` for ${stageName}`;
   if (teethShade) {
     const shadeStr = `${teethShade.systemName ? `${teethShade.systemName} ` : ""}${teethShade.name}`.trim();

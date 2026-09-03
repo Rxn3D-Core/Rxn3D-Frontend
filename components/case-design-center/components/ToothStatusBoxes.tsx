@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import ReactDOM from "react-dom";
-import { useSupportsHover } from "@/hooks/use-supports-hover";
+import { useEffect, useRef } from "react";
+// import ReactDOM from "react-dom";
+// import { useSupportsHover } from "@/hooks/use-supports-hover";
 import { DoneTransitionButton } from "./DoneTransitionButton";
 import type { ProductExtraction } from "../types";
 import { formatToothNumbersLabel } from "@/lib/virtual-slip-display";
@@ -211,8 +211,9 @@ export function ToothStatusBoxes({
     return teethForBox.length === 0 && !anyOptionalHasTeeth;
   });
 
-  const supportsHover = useSupportsHover();
-  const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
+  // Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting
+  // const supportsHover = useSupportsHover();
+  // const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
 
   const prevRequiredValidationRef = useRef<boolean | null>(null);
   useEffect(() => {
@@ -303,14 +304,15 @@ export function ToothStatusBoxes({
             </div>
           );
 
-          const tooltipLabel =
-            isInteractive && supportsHover ? `assign teeth to ${extraction.name}` : undefined;
-          const hoverHandlers = tooltipLabel
-            ? {
-                onMouseMove: (e: React.MouseEvent) => setTooltipState({ label: tooltipLabel, x: e.clientX, y: e.clientY }),
-                onMouseLeave: () => setTooltipState(null),
-              }
-            : {};
+          // Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting
+          // const tooltipLabel =
+          //   isInteractive && supportsHover ? `assign teeth to ${extraction.name}` : undefined;
+          // const hoverHandlers = tooltipLabel
+          //   ? {
+          //       onMouseMove: (e: React.MouseEvent) => setTooltipState({ label: tooltipLabel, x: e.clientX, y: e.clientY }),
+          //       onMouseLeave: () => setTooltipState(null),
+          //     }
+          //   : {};
 
           // Active state: blue border to indicate selection mode
           if (isActive) {
@@ -320,7 +322,7 @@ export function ToothStatusBoxes({
                 type="button"
                 aria-label={extraction.name}
                 onClick={toggleBox}
-                {...hoverHandlers}
+                // {...hoverHandlers}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -366,7 +368,6 @@ export function ToothStatusBoxes({
                 type="button"
                 aria-label={extraction.name}
                 onClick={toggleBox}
-                {...hoverHandlers}
                 style={{
                   flex: "0 0 auto",
                   border: "2px solid rgb(211, 211, 211)",
@@ -410,7 +411,6 @@ export function ToothStatusBoxes({
                 compact ? "w-[26px] h-[30px]" : "w-[40px] h-[50px]"
               }`}
               onClick={toggleBox}
-              {...hoverHandlers}
             >
               {extraction.image_url ? (
                 <img
@@ -446,6 +446,7 @@ export function ToothStatusBoxes({
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
       )}
+      {/* Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting
       {supportsHover && tooltipState && typeof document !== "undefined" && ReactDOM.createPortal(
         <div
           style={{ position: "fixed", left: tooltipState.x + 12, top: tooltipState.y - 36, zIndex: 9999, pointerEvents: "none" }}
@@ -455,6 +456,7 @@ export function ToothStatusBoxes({
         </div>,
         document.body
       )}
+      */}
     </div>
   );
 }

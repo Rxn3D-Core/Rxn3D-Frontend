@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Edit, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,6 +17,8 @@ interface OverviewTabProps {
     number: string
     email: string
     address: string
+    /** Street-only address for the edit modal (not the formatted display string). */
+    streetAddress?: string
     phone: string
     website: string
     contactName: string
@@ -55,6 +57,40 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
     }
   }, [officeData.logo_url])
 
+  const editCustomer = useMemo(
+    () => ({
+      id: Number(officeData.id),
+      name: officeData.name,
+      email: officeData.email,
+      website: officeData.website,
+      address: officeData.streetAddress || officeData.address,
+      city: officeData.city,
+      postal_code: officeData.postal_code,
+      stateName: officeData.stateName,
+      stateId: officeData.stateId,
+      countryName: officeData.countryName,
+      countryId: officeData.countryId,
+      code: officeData.code,
+      logo_url: logoUrl || officeData.logo_url,
+    }),
+    [
+      officeData.id,
+      officeData.name,
+      officeData.email,
+      officeData.website,
+      officeData.streetAddress,
+      officeData.address,
+      officeData.city,
+      officeData.postal_code,
+      officeData.stateName,
+      officeData.stateId,
+      officeData.countryName,
+      officeData.countryId,
+      officeData.code,
+      officeData.logo_url,
+      logoUrl,
+    ]
+  )
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -312,21 +348,7 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         customerType="office"
-        customer={{
-          id: Number(officeData.id),
-          name: officeData.name,
-          email: officeData.email,
-          website: officeData.website,
-          address: officeData.address,
-          city: officeData.city,
-          postal_code: officeData.postal_code,
-          stateName: officeData.stateName,
-          stateId: officeData.stateId,
-          countryName: officeData.countryName,
-          countryId: officeData.countryId,
-          code: officeData.code,
-          logo_url: logoUrl || officeData.logo_url,
-        }}
+        customer={editCustomer}
         onSuccess={(updated) => {
           if (updated.logo_url) {
             setLogoUrl(updated.logo_url)

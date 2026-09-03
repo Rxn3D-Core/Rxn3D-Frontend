@@ -135,7 +135,7 @@ interface CustomerContextType {
   }) => Promise<void>,
   officeCustomers: Customer[],
   labCustomers: Customer[],
-  fetchCustomerProfile: (customerId: number) => Promise<CustomerProfile | null>,
+  fetchCustomerProfile: (customerId: number, options?: { silent?: boolean }) => Promise<CustomerProfile | null>,
   customerProfile: CustomerProfile | null,
   isProfileLoading: boolean,
   profileError: string | null,
@@ -325,9 +325,12 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   )
 
   const fetchCustomerProfile = useCallback(
-    async (customerId: number): Promise<CustomerProfile | null> => {
-      setIsProfileLoading(true)
-      setProfileError(null)
+    async (customerId: number, options?: { silent?: boolean }): Promise<CustomerProfile | null> => {
+      const silent = options?.silent === true
+      if (!silent) {
+        setIsProfileLoading(true)
+        setProfileError(null)
+      }
 
       try {
         const token = localStorage.getItem("token") || localStorage.getItem("library_token")
@@ -349,18 +352,26 @@ export const CustomerProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
 
         const data = await response.json()
-        setCustomerProfile(data.data)
+        // Silent loads are for form hydration only — updating global profile state would
+        // re-render parents that pass inline `customer` props and re-trigger those effects.
+        if (!silent) {
+          setCustomerProfile(data.data)
+        }
         return data.data
       } catch (err: any) {
-        setProfileError(err.message || "Failed to fetch customer profile")
-        toast({
-          title: "Error",
-          description: err.message || "Failed to fetch customer profile",
-          variant: "destructive",
-        })
+        if (!silent) {
+          setProfileError(err.message || "Failed to fetch customer profile")
+          toast({
+            title: "Error",
+            description: err.message || "Failed to fetch customer profile",
+            variant: "destructive",
+          })
+        }
         return null
       } finally {
-        setIsProfileLoading(false)
+        if (!silent) {
+          setIsProfileLoading(false)
+        }
       }
     },
     [toast],

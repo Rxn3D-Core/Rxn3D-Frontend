@@ -194,7 +194,9 @@ export function OperatingHoursTab({ hoursData, customerId, customerType = "lab",
       <div className="bg-white rounded-lg border">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4 mb-6">
-            <h3 className="text-lg font-semibold">Lab Hours</h3>
+            <h3 className="text-lg font-semibold">
+              {customerType === "office" ? "Office Hours" : "Lab Hours"}
+            </h3>
             <p className="text-sm text-gray-500">Open days default to 9:00 AM – 5:00 PM until you change them.</p>
           </div>
 
