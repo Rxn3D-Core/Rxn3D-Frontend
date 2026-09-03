@@ -16,6 +16,10 @@ import { UpdateUserModal } from "./update-user-modal"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import ReactDOM from "react-dom"
+import {
+  getAddUserButtonLabel,
+  resolveLockedRole,
+} from "@/lib/user-role-labels"
 
 interface ApiUser {
   id: number
@@ -70,6 +74,8 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   const searchParams = useSearchParams()
   const { user, fetchUsers, updateUser } = useAuth()
   const { toast } = useToast()
+  const lockedRole = resolveLockedRole(roleFilter)
+  const addButtonLabel = getAddUserButtonLabel(lockedRole)
   
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -501,7 +507,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
 
               <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={() => setShowAddUser(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add User
+                {addButtonLabel}
               </Button>
             </div>
             <div className="relative w-full md:w-auto">
@@ -748,11 +754,12 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         </div>
       </div>
 
-      {/* Create User Modal */}
+      {/* Create User Modal — role locked to this listing page */}
       <CreateUserModal
         isOpen={showAddUser}
         onClose={() => setShowAddUser(false)}
         onSuccess={handleCreateUserSuccess}
+        lockedRole={lockedRole}
       />
 
 
