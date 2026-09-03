@@ -505,74 +505,84 @@ export function snapshotToProduct(
       }
     }
 
-    const advanceFieldKeys: Array<[string, (n: string) => boolean]> = [
-      ["fixed_characterization", (n) => n.includes("characterization")],
-      [
-        "fixed_contact_icons",
-        (n) => n.includes("occlusal") || n.includes("pontic") || n.includes("embrasure"),
-      ],
-      ["fixed_margin", (n) => n.includes("margin")],
-      ["fixed_metal", (n) => n.includes("metal")],
-      ["fixed_proximal_contact", (n) => n.includes("proximal") && n.includes("contact")],
+    const emittedAdvanceFieldIds = new Set<number>();
+    const productAdvanceFields = (product?.advance_fields ?? []).filter(
+      (af: { field_type?: string }) =>
+        !(shadeGuideFields.length > 0 && af.field_type === "shade_guide"),
+    );
+    const productAdvanceFieldIds = new Set(
+      productAdvanceFields.map((af: { id: number }) => af.id),
+    );
+
+    /** Steps that store `{ [advanceFieldId]: { name, optionId } }` in fieldValues. */
+    const jsonAdvanceFieldSteps = [
+      "fixed_characterization",
+      "fixed_contact_icons",
+      "fixed_margin",
+      "fixed_metal",
+      "fixed_proximal_contact",
+    ] as const;
+
+    for (const key of jsonAdvanceFieldSteps) {
+      const raw = snap.fieldValues[key];
+      if (!raw || raw === "auto" || !raw.startsWith("{")) continue;
+
+      let parsed: Record<string, { name?: string; optionId?: number; option_id?: number } | string> =
+        {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+
+      // Emit one row per field id saved in the step blob (matches UI storage exactly).
+      for (const [fieldKey, selection] of Object.entries(parsed)) {
+        const fieldId = Number(fieldKey);
+        if (!Number.isInteger(fieldId) || fieldId <= 0) continue;
+        if (!productAdvanceFieldIds.has(fieldId)) continue;
+        if (emittedAdvanceFieldIds.has(fieldId)) continue;
+
+        let optionId = 0;
+        if (typeof selection === "object" && selection !== null) {
+          optionId = Number(selection.optionId ?? selection.option_id ?? 0);
+        } else if (typeof selection === "string" && /^\d+$/.test(selection.trim())) {
+          optionId = Number(selection.trim());
+        }
+        if (!(optionId > 0)) continue;
+
+        advance_fields.push({
+          teeth_number: null,
+          advance_field_id: fieldId,
+          advance_field_value: String(optionId),
+        });
+        emittedAdvanceFieldIds.add(fieldId);
+      }
+    }
+
+    /** Plain-text advance field steps (notes, retention type, etc.). */
+    const plainAdvanceFieldSteps: Array<[string, (n: string) => boolean]> = [
       ["fixed_notes", (n) => n.includes("note") || n.includes("additional")],
       ["fixed_retention_type", (n) => n.includes("retention")],
     ];
 
-    for (const [key, matcher] of advanceFieldKeys) {
+    for (const [key, matcher] of plainAdvanceFieldSteps) {
       const raw = snap.fieldValues[key];
-      if (!raw || raw === "auto") continue;
+      if (!raw || raw === "auto" || raw.startsWith("{") || raw.startsWith("[")) continue;
 
-      const matchingFields = (product?.advance_fields ?? []).filter(
-        (af: { name?: string; field_type?: string }) => {
-          if (shadeGuideFields.length > 0 && af.field_type === "shade_guide") return false;
-          return matcher((af.name ?? "").toLowerCase());
-        },
+      const matchingFields = productAdvanceFields.filter((af: { name?: string }) =>
+        matcher((af.name ?? "").toLowerCase()),
       );
       if (matchingFields.length === 0) continue;
 
-      // Step UI stores `{ [fieldId]: { name, optionId } }`. Persist one row per field
-      // with only the selected option id (not the whole map / name blob).
-      if (raw.startsWith("{")) {
-        let parsed: Record<string, { name?: string; optionId?: number; option_id?: number } | string> =
-          {};
-        try {
-          parsed = JSON.parse(raw);
-        } catch {
-          parsed = {};
-        }
+      const advField = matchingFields[0];
+      if (emittedAdvanceFieldIds.has(advField.id)) continue;
 
-        let wroteAny = false;
-        for (const advField of matchingFields) {
-          const selection = parsed[advField.id] ?? parsed[String(advField.id)];
-          if (selection == null) continue;
-
-          let optionId = 0;
-          if (typeof selection === "object" && selection !== null) {
-            optionId = Number(selection.optionId ?? selection.option_id ?? 0);
-          } else if (typeof selection === "string" && /^\d+$/.test(selection.trim())) {
-            optionId = Number(selection.trim());
-          }
-
-          if (!(optionId > 0)) continue;
-
-          advance_fields.push({
-            teeth_number: null,
-            advance_field_id: advField.id,
-            advance_field_value: String(optionId),
-          });
-          wroteAny = true;
-        }
-        if (wroteAny) continue;
-      }
-
-      // Plain text / notes fields — store the scalar as-is on the first matching field.
-      if (!raw.startsWith("{") && !raw.startsWith("[")) {
-        advance_fields.push({
-          teeth_number: null,
-          advance_field_id: matchingFields[0].id,
-          advance_field_value: raw,
-        });
-      }
+      advance_fields.push({
+        teeth_number: null,
+        advance_field_id: advField.id,
+        advance_field_value: raw,
+      });
+      emittedAdvanceFieldIds.add(advField.id);
     }
 
     if (snap.advanceFieldFiles) {
