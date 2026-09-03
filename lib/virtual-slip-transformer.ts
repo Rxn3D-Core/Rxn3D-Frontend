@@ -27,6 +27,14 @@ import {
 } from "@/lib/virtual-slip-extraction-display";
 import { isTimExtractionRow } from "@/components/case-design-center/utils/extractionHelpers";
 import { parseSlipProductNotes } from "@/lib/parse-slip-product-notes";
+import {
+  buildCheckboxSelection,
+  buildTextSelection,
+  isFileUploadAdvanceField,
+  isTextAdvanceField,
+  normalizeAdvanceFieldType,
+  type StoredAdvanceSelection,
+} from "@/components/case-design-center/utils/advanceFieldStepHelpers";
 
 /**
  * Give the preloaded product object an `extractions` catalog merged from the slip
@@ -844,6 +852,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       const productFieldDefs: Array<{
         id: number;
         name: string;
+        field_type?: string;
         options?: Array<{ id: number; name: string }>;
       }> = [
         ...configuredAdvanceFields,
@@ -876,7 +885,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       ];
 
       // Group saved values by step, building JSON objects in the same format as interactive use
-      const stepAccumulators: Record<string, Record<string, { name: string; optionId: number }>> = {};
+      const stepAccumulators: Record<string, Record<string, StoredAdvanceSelection>> = {};
 
       for (const def of productFieldDefs) {
         const savedValue = savedByFieldId[def.id];
@@ -887,49 +896,89 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
         if (!matchedStep) continue;
 
         const stepKey = matchedStep[0];
-
-        // New storage: advance_field_value is the selected option id only.
-        // Legacy: plain option name, or a multi-field JSON map blob.
-        let optionId = 0;
-        let optionName = "";
-
+        const activeOptions = def.options ?? [];
         const trimmed = String(savedValue).trim();
-        if (/^\d+$/.test(trimmed)) {
-          optionId = Number(trimmed);
-          const matchedOption = def.options?.find((o) => Number(o.id) === optionId);
-          optionName = matchedOption?.name ?? "";
-        } else if (trimmed.startsWith("{")) {
+        let storedSelection: StoredAdvanceSelection | null = null;
+
+        // Checkbox / multiselect: JSON array of option ids, e.g. "[120,121]".
+        if (trimmed.startsWith("[")) {
           try {
-            const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-            const own = parsed[String(def.id)] ?? parsed[def.id as unknown as string];
-            if (own && typeof own === "object" && own !== null) {
-              const entry = own as { name?: string; optionId?: number; option_id?: number };
-              optionName = String(entry.name ?? "").trim();
-              optionId = Number(entry.optionId ?? entry.option_id ?? 0);
-            } else if (typeof parsed.name === "string") {
-              optionName = parsed.name.trim();
-              optionId = Number(
-                (parsed as { optionId?: number; option_id?: number }).optionId ??
-                  (parsed as { option_id?: number }).option_id ??
-                  0,
-              );
+            const parsedIds = JSON.parse(trimmed);
+            if (Array.isArray(parsedIds)) {
+              const optionIds = parsedIds
+                .map((id) => Number(id))
+                .filter((id) => Number.isInteger(id) && id > 0);
+              if (optionIds.length > 0) {
+                storedSelection = buildCheckboxSelection(optionIds, activeOptions);
+              }
             }
           } catch {
             /* fall through */
           }
-        } else {
-          optionName = trimmed;
-          const matchedOption = def.options?.find((o) => o.name === optionName);
-          optionId = matchedOption?.id ?? 0;
         }
 
-        if (!optionName && optionId > 0) {
-          optionName = def.options?.find((o) => Number(o.id) === optionId)?.name ?? "";
+        // New storage: advance_field_value is the selected option id only.
+        // Legacy: plain option name, or a multi-field JSON map blob.
+        if (!storedSelection) {
+          let optionId = 0;
+          let optionName = "";
+
+          if (/^\d+$/.test(trimmed)) {
+            optionId = Number(trimmed);
+            const matchedOption = activeOptions.find((o) => Number(o.id) === optionId);
+            optionName = matchedOption?.name ?? "";
+          } else if (trimmed.startsWith("{")) {
+            try {
+              const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+              const own = parsed[String(def.id)] ?? parsed[def.id as unknown as string];
+              if (own && typeof own === "object" && own !== null) {
+                const entry = own as {
+                  name?: string;
+                  optionId?: number;
+                  option_id?: number;
+                  optionIds?: number[];
+                };
+                if (Array.isArray(entry.optionIds) && entry.optionIds.length > 0) {
+                  storedSelection = buildCheckboxSelection(entry.optionIds, activeOptions);
+                } else {
+                  optionName = String(entry.name ?? "").trim();
+                  optionId = Number(entry.optionId ?? entry.option_id ?? 0);
+                }
+              } else if (typeof parsed.name === "string") {
+                optionName = parsed.name.trim();
+                optionId = Number(
+                  (parsed as { optionId?: number; option_id?: number }).optionId ??
+                    (parsed as { option_id?: number }).option_id ??
+                    0,
+                );
+              }
+            } catch {
+              /* fall through */
+            }
+          } else {
+            optionName = trimmed;
+            const matchedOption = activeOptions.find((o) => o.name === optionName);
+            optionId = matchedOption?.id ?? 0;
+          }
+
+          if (!storedSelection) {
+            if (!optionName && optionId > 0) {
+              optionName = activeOptions.find((o) => Number(o.id) === optionId)?.name ?? "";
+            }
+            if (!optionName) {
+              if (isTextAdvanceField(def) || isFileUploadAdvanceField(def)) {
+                storedSelection = buildTextSelection(trimmed);
+              } else {
+                continue;
+              }
+            } else {
+              storedSelection = { name: optionName, optionId };
+            }
+          }
         }
-        if (!optionName) continue;
 
         if (!stepAccumulators[stepKey]) stepAccumulators[stepKey] = {};
-        stepAccumulators[stepKey][def.id] = { name: optionName, optionId };
+        stepAccumulators[stepKey][def.id] = storedSelection;
       }
 
       // Write accumulated step values into fieldValues and mark steps as completed

@@ -3279,6 +3279,7 @@ export function MaxillaryPanel({
                           />
                           <RetentionProductFields
                             arch="maxillary"
+                            productCardId={ap.id}
                             isExpanded={isExpanded}
                             firstToothNumber={apFirstTn}
                             groupStageToothNumber={apFirstTn}
@@ -3708,6 +3709,7 @@ export function MaxillaryPanel({
                     {card0ShowFixedFieldsContent && hasRetentionOptions(selectedProduct) ? (
                       <RetentionProductFields
                         arch="maxillary"
+                        productCardId={0}
                         isExpanded={isCardAccordionExpanded(slotId)}
                         firstToothNumber={groupStageToothNumber}
                         groupStageToothNumber={groupStageToothNumber}

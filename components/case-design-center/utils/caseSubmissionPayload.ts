@@ -31,6 +31,11 @@ import {
 } from "./caseSummaryNotesPayload";
 import { mergeDefaultToothChartIntoSlipPayloadMaps } from "@/lib/product-default-tooth-chart-slip-display";
 import type { RetentionChartType } from "./retentionOptionChartType";
+import {
+  formatAdvanceFieldPayloadValue,
+  isFileUploadAdvanceField,
+  type StoredAdvanceSelection,
+} from "./advanceFieldStepHelpers";
 
 interface BuildCaseSubmissionPayloadParams {
   snapshots: SlipProductSnapshot[];
@@ -513,8 +518,11 @@ export function snapshotToProduct(
     const productAdvanceFieldIds = new Set(
       productAdvanceFields.map((af: { id: number }) => af.id),
     );
+    const advanceFieldById = new Map<number, { id: number; field_type?: string; name?: string }>(
+      productAdvanceFields.map((af: { id: number; field_type?: string; name?: string }) => [af.id, af]),
+    );
 
-    /** Steps that store `{ [advanceFieldId]: { name, optionId } }` in fieldValues. */
+    /** Steps that store `{ [advanceFieldId]: StoredAdvanceSelection }` in fieldValues. */
     const jsonAdvanceFieldSteps = [
       "fixed_characterization",
       "fixed_contact_icons",
@@ -527,8 +535,7 @@ export function snapshotToProduct(
       const raw = snap.fieldValues[key];
       if (!raw || raw === "auto" || !raw.startsWith("{")) continue;
 
-      let parsed: Record<string, { name?: string; optionId?: number; option_id?: number } | string> =
-        {};
+      let parsed: Record<string, StoredAdvanceSelection | string> = {};
       try {
         parsed = JSON.parse(raw);
       } catch {
@@ -542,18 +549,40 @@ export function snapshotToProduct(
         if (!productAdvanceFieldIds.has(fieldId)) continue;
         if (emittedAdvanceFieldIds.has(fieldId)) continue;
 
-        let optionId = 0;
+        const fieldDef = advanceFieldById.get(fieldId);
+        let storedSelection: StoredAdvanceSelection | undefined;
         if (typeof selection === "object" && selection !== null) {
-          optionId = Number(selection.optionId ?? selection.option_id ?? 0);
+          storedSelection = selection as StoredAdvanceSelection;
         } else if (typeof selection === "string" && /^\d+$/.test(selection.trim())) {
-          optionId = Number(selection.trim());
+          storedSelection = { name: "", optionId: Number(selection.trim()) };
         }
-        if (!(optionId > 0)) continue;
+
+        const advanceValue = fieldDef
+          ? formatAdvanceFieldPayloadValue(fieldDef, storedSelection)
+          : storedSelection?.optionId
+            ? String(storedSelection.optionId)
+            : storedSelection?.textValue ?? storedSelection?.name ?? null;
+
+        if (!advanceValue && !(fieldDef && isFileUploadAdvanceField(fieldDef))) continue;
+
+        const fileForField = snap.advanceFieldFiles?.[String(fieldId)];
+        if (fieldDef && isFileUploadAdvanceField(fieldDef) && fileForField instanceof File) {
+          advance_fields.push({
+            teeth_number: null,
+            advance_field_id: fieldId,
+            advance_field_value: advanceValue ?? fileForField.name,
+            file: fileForField,
+          });
+          emittedAdvanceFieldIds.add(fieldId);
+          continue;
+        }
+
+        if (!advanceValue) continue;
 
         advance_fields.push({
           teeth_number: null,
           advance_field_id: fieldId,
-          advance_field_value: String(optionId),
+          advance_field_value: advanceValue,
         });
         emittedAdvanceFieldIds.add(fieldId);
       }
@@ -586,18 +615,24 @@ export function snapshotToProduct(
     }
 
     if (snap.advanceFieldFiles) {
-      for (const [stepKey, file] of Object.entries(snap.advanceFieldFiles)) {
-        const advField = product?.advance_fields?.find(
-          (af: { name?: string; field_type?: string }) =>
-            (af.field_type ?? "").toLowerCase() === "file" ||
-            (af.name ?? "").toLowerCase().includes(stepKey.replace("fixed_", ""))
-        );
+      for (const [fieldIdKey, file] of Object.entries(snap.advanceFieldFiles)) {
+        const fieldId = Number(fieldIdKey);
+        const advField = Number.isInteger(fieldId)
+          ? product?.advance_fields?.find((af: { id: number }) => af.id === fieldId)
+          : product?.advance_fields?.find(
+              (af: { name?: string; field_type?: string }) =>
+                (af.field_type ?? "").toLowerCase() === "file_upload" ||
+                (af.field_type ?? "").toLowerCase() === "file" ||
+                (af.name ?? "").toLowerCase().includes(fieldIdKey.replace("fixed_", "")),
+            );
         if (!advField) continue;
+        if (emittedAdvanceFieldIds.has(advField.id)) continue;
         advance_fields.push({
           teeth_number: null,
           advance_field_id: advField.id,
           file,
         });
+        emittedAdvanceFieldIds.add(advField.id);
       }
     }
 

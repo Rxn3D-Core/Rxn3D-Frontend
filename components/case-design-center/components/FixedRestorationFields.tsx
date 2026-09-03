@@ -14,13 +14,6 @@ import {
 } from "../utils/shadeFieldDisplay";
 import { resolveGumShadesForDisplay } from "../utils/gradeHelpers";
 import { GumShadePreviewSwatch } from "./GumShadePreviewSwatch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type {
   Arch,
   ShadeFieldType,
@@ -76,6 +69,7 @@ import {
   ARCH_IMPRESSION_PRODUCT_ID,
   archHasActiveImpressionSelections,
 } from "../utils/impressionFieldSync";
+import { AdvanceFieldStepGrid, parseStepStoredValues } from "./AdvanceFieldStepGrid";
 import { useAutoOpenSuppressed } from "./auto-open-suppression";
 
 /** Removaables-style display name from a field value (plain string or JSON `{ name }`). */
@@ -290,101 +284,6 @@ export function getAdvanceFieldsForStep(
 }
 
 /* ------------------------------------------------------------------ */
-/*  AdvanceFieldSelect                                                 */
-/* ------------------------------------------------------------------ */
-/** Advance field dropdown that auto-selects default option and auto-opens when no value. */
-function AdvanceFieldSelect({
-  fieldId,
-  fieldName,
-  activeOptions,
-  currentSelection,
-  borderColor,
-  labelColor,
-  onSelect,
-  caseSubmitted,
-}: {
-  fieldId: number;
-  fieldName: string;
-  activeOptions: Array<{ id: number; name: string; is_default?: string; image_url?: string | null; [key: string]: any }>;
-  currentSelection: { name: string; optionId: number } | undefined;
-  borderColor: string;
-  labelColor: string;
-  onSelect: (opt: { id: number; name: string }) => void;
-  caseSubmitted?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const hasAutoSelected = useRef(false);
-
-  // Auto-select the default option on mount if no current selection
-  useEffect(() => {
-    if (!currentSelection && !hasAutoSelected.current) {
-      hasAutoSelected.current = true;
-      const defaultOpt = activeOptions.find((o) => o.is_default === "Yes");
-      if (defaultOpt) {
-        onSelect(defaultOpt);
-      }
-    }
-  }, [currentSelection, activeOptions, onSelect]);
-
-  const hasVal = !!currentSelection;
-  const selectedOption = activeOptions.find((o) => o.id === currentSelection?.optionId);
-  const selectedImageUrl = selectedOption?.image_url ?? null;
-
-  return (
-    <fieldset
-      className="border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 cursor-pointer hover:bg-gray-50 transition-colors"
-      style={{ borderColor }}
-      onClick={() => setOpen(true)}
-    >
-      <legend className="text-sm px-1 leading-none whitespace-nowrap" style={{ color: labelColor }}>
-        {fieldName}
-      </legend>
-      <div className="flex items-center gap-2 w-full min-w-0">
-        <Select
-          open={open}
-          onOpenChange={setOpen}
-          value={currentSelection?.optionId?.toString() || ""}
-          onValueChange={(value) => {
-            const opt = activeOptions.find((o) => o.id?.toString() === value);
-            if (opt) onSelect(opt);
-          }}
-        >
-          <SelectTrigger
-            className="border-0 shadow-none p-0 h-auto focus:ring-0 focus:ring-offset-0 [&>svg]:hidden text-lg font-normal text-[#000000] min-w-0 flex-1 bg-transparent"
-          >
-            <SelectValue>
-              {currentSelection ? currentSelection.name : ''}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {activeOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id.toString()}>
-                <div className="flex items-center gap-2">
-                  {option.image_url && (
-                    <img src={option.image_url} alt={option.name} className="w-6 h-6 object-contain flex-shrink-0" />
-                  )}
-                  {option.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Selected option image — shown on the right of the field */}
-        {selectedImageUrl && (
-          <img
-            src={selectedImageUrl}
-            alt={currentSelection?.name ?? ""}
-            className="h-8 w-8 object-contain flex-shrink-0"
-          />
-        )}
-        {hasVal && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
-      </div>
-    </fieldset>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /*  FixedRestorationFields props                                       */
 /* ------------------------------------------------------------------ */
 interface FixedRestorationFieldsProps {
@@ -453,6 +352,8 @@ interface FixedRestorationFieldsProps {
   selectedImpressions?: SlipImpressionSelections;
   /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
   labCustomerId?: number | null;
+  /** Product card id for file upload storage keys (0 = initial card). */
+  productCardId?: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -506,6 +407,7 @@ export function RetentionProductFields({
   onExpandedImplantToothChange,
   selectedImpressions = { maxillary: [], mandibular: [] },
   labCustomerId,
+  productCardId = 0,
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
@@ -1095,6 +997,29 @@ export function RetentionProductFields({
     getFieldValue(arch, firstToothNumber, FIXED_RETENTION_MECHANISM_FIELD_STEP) ||
     serializeRetentionMechanismSelection(availableRetentionMechanismTypes);
 
+  const renderAdvanceFieldStep = (stepKey: FieldStep) => {
+    if (!isFixedAfterImplant(stepKey) || !hasAdvanceField(stepKey, selectedProduct?.advance_fields)) {
+      return null;
+    }
+    const stepFields = getAdvanceFieldsForStep(stepKey, selectedProduct?.advance_fields);
+    if (stepFields.length === 0) return null;
+    const storedValues = parseStepStoredValues(getFieldValue(arch, firstToothNumber, stepKey));
+    return (
+      <AdvanceFieldStepGrid
+        stepKey={stepKey}
+        fields={stepFields}
+        storedValues={storedValues}
+        arch={arch}
+        cardId={productCardId}
+        firstToothNumber={firstToothNumber}
+        caseSubmitted={caseSubmitted}
+        completeFieldStep={completeFieldStep}
+        storeFieldValue={storeFieldValue}
+        uncompleteFieldStep={uncompleteFieldStep}
+      />
+    );
+  };
+
   return (
     <>
       {/* ===== FIXED RESTORATION: Progressive step-by-step fields ===== */}
@@ -1523,431 +1448,12 @@ export function RetentionProductFields({
         onExpandedImplantToothChange={onExpandedImplantToothChange}
       />
 
-      {/* Step 4: Dynamic characterization advance fields */}
-      {isFixedAfterImplant("fixed_characterization") && hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields) && (() => {
-        const charFields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
-        if (charFields.length === 0) return null;
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_characterization");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = charFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = charFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_characterization");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_characterization", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_characterization", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_characterization");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 5: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixedAfterImplant("fixed_contact_icons") && hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields) && (() => {
-        const contactFields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
-        if (contactFields.length === 0) {
-          // No matching fields — auto-complete handled in useEffect above
-          return null;
-        }
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_contact_icons");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = contactFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = contactFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_contact_icons", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_contact_icons");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 6: Dynamic margin advance fields */}
-      {isFixedAfterImplant("fixed_margin") && hasAdvanceField("fixed_margin", selectedProduct?.advance_fields) && (() => {
-        const marginFields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
-        if (marginFields.length === 0) return null;
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_margin");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = marginFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = marginFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_margin");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_margin", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_margin", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_margin");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 7: Dynamic metal advance fields */}
-      {isFixedAfterImplant("fixed_metal") && hasAdvanceField("fixed_metal", selectedProduct?.advance_fields) && (() => {
-        const metalFields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
-        if (metalFields.length === 0) return null;
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_metal");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = metalFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = metalFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_metal");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_metal", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_metal", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_metal");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
-
-      {/* Step 8: Dynamic advance fields — progressive: show one by one, auto-open dropdown */}
-      {isFixedAfterImplant("fixed_proximal_contact") && hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields) && (() => {
-        const proximalFields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
-        if (proximalFields.length === 0) {
-          // No matching fields — auto-complete handled in useEffect above
-          return null;
-        }
-        const fieldVal = getFieldValue(arch, firstToothNumber, "fixed_proximal_contact");
-        let storedValues: Record<string, { name: string; optionId: number }> = {};
-        try { if (fieldVal && fieldVal.startsWith("{")) storedValues = JSON.parse(fieldVal); } catch {}
-
-        const fieldsWithOptions = proximalFields.filter((f) => {
-          const opts = (f.options || []).filter((o: any) => o.status === "Active" || o.status === undefined);
-          return opts.length > 0;
-        });
-        const isSubFieldVisible = (index: number) => {
-          for (let i = 0; i < index; i++) {
-            if (!storedValues[fieldsWithOptions[i].id]) return false;
-          }
-          return true;
-        };
-
-        const visibleFields = proximalFields.filter((field) => {
-          const activeOptions = (field.options || [])
-            .filter((opt: any) => opt.status === "Active" || opt.status === undefined);
-          if (activeOptions.length === 0) return true;
-          const fieldIdx = fieldsWithOptions.findIndex((f) => f.id === field.id);
-          return fieldIdx >= 0 && isSubFieldVisible(fieldIdx);
-        });
-        const colCount = Math.min(visibleFields.length, 4);
-
-        return (
-          <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))` }}>
-            {visibleFields.map((field) => {
-              const activeOptions = (field.options || [])
-                .filter((opt: any) => opt.status === "Active" || opt.status === undefined)
-                .sort((a: any, b: any) => (a.sequence || 0) - (b.sequence || 0));
-              const currentSelection = storedValues[field.id];
-              const hasFieldOptions = activeOptions.length > 0;
-              const hasVal = !!currentSelection;
-              const borderColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-              const labelColor = hasVal && !caseSubmitted ? '#119933' : hasVal ? '#b4b0b0' : '#CF0202';
-
-              if (!hasFieldOptions) {
-                const stepCompleted = isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact");
-                return (
-                  <fieldset
-                    key={field.id}
-                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
-                      stepCompleted && !caseSubmitted ? "border-[#34a853]" : "border-[#d9d9d9]"
-                    }`}
-                  >
-                    <legend className={`text-sm px-1 leading-none ${stepCompleted && !caseSubmitted ? "text-[#34a853]" : "text-[#7f7f7f]"}`}>
-                      {field.name}
-                    </legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000]"></span>
-                  </fieldset>
-                );
-              }
-
-              return (
-                <AdvanceFieldSelect
-                  key={field.id}
-                  fieldId={field.id}
-                  fieldName={field.name}
-                  activeOptions={activeOptions}
-                  currentSelection={currentSelection}
-                  borderColor={borderColor}
-                  labelColor={labelColor}
-                  caseSubmitted={caseSubmitted}
-                  onSelect={(opt) => {
-                    const updated = { ...storedValues, [field.id]: { name: opt.name, optionId: opt.id } };
-                    const allFilled = fieldsWithOptions.every((f) => updated[f.id]);
-                    if (allFilled) {
-                      completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", JSON.stringify(updated));
-                    } else {
-                      storeFieldValue(arch, firstToothNumber, "fixed_proximal_contact", JSON.stringify(updated));
-                      uncompleteFieldStep(arch, firstToothNumber, "fixed_proximal_contact");
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
+      {/* Dynamic advance field steps — field_type drives control (dropdown / checkbox / radio / text / file / …) */}
+      {renderAdvanceFieldStep("fixed_characterization")}
+      {renderAdvanceFieldStep("fixed_contact_icons")}
+      {renderAdvanceFieldStep("fixed_margin")}
+      {renderAdvanceFieldStep("fixed_metal")}
+      {renderAdvanceFieldStep("fixed_proximal_contact")}
 
       {/* Step 9: Impression / Add ons */}
       {isFixedAfterImplant("fixed_impression") && showImpressionAndAddons && (() => {

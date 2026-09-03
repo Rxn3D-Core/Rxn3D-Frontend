@@ -17,6 +17,7 @@ import {
   resolveProductTeethForSlipSubmit,
 } from "../utils/removableToothDisplay";
 import { splintKeyForProductCard, deriveWingTeeth } from "../utils/splintHelpers";
+import { collectAdvanceFieldFilesForCard } from "../utils/advanceFieldFileStore";
 import { useCaseDesignState } from "./useCaseDesignState";
 import type { CaseDesignProps, SlipProductSnapshot } from "../types";
 
@@ -333,6 +334,8 @@ export function useSlipProductCollector({
             ? deriveWingTeeth(archRetentionTypes ?? {}, allTeeth, productPonticTeeth).join(",")
             : "";
 
+        const advanceFieldFiles = collectAdvanceFieldFilesForCard(arch, cardId);
+
         snapshots.push({
           type,
           productId,
@@ -358,6 +361,7 @@ export function useSlipProductCollector({
           selectedAddonsByTooth: { ...(state.selectedAddonsByTooth ?? {}) },
           ...(splintLinks.length > 0 ? { splintLinks } : {}),
           ...(wingTeeth ? { wingTeeth } : {}),
+          ...(Object.keys(advanceFieldFiles).length > 0 ? { advanceFieldFiles } : {}),
         });
       });
     };
