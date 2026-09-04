@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { MoreHorizontal, Mail, Trash2, CirclePause, EllipsisVertical, CircleOff, Search, Plus, LayoutDashboard } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { useConnection } from "@/contexts/connection-context"
 import { Skeleton } from "../ui/skeleton"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
@@ -17,12 +16,16 @@ import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { fetchProfileData, saveProfileData } from "@/lib/api-profile"
 import { CustomerSearchBox } from "../CustomerSearchBox"
 import { PlanCard } from "./plan-card"
-import { useCustomer } from "@/contexts/customer-context"
 import { useTranslation } from "react-i18next"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
 import { WIDGET_IDS, getCustomerId } from "@/lib/dashboard-widgets"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { listBillingConfigPlans } from "@/lib/api/billing-config-plans"
+import {
+  searchSuperadminLabCustomers,
+  searchSuperadminOfficeCustomers,
+  type SuperadminCustomer,
+} from "@/lib/api/superadmin-customers"
 
 export function SuperAdminDashboard() {
   const [showPracticeForm, setShowPracticeForm] = useState(false)
@@ -32,7 +35,6 @@ export function SuperAdminDashboard() {
   const [activeTabPractices, setActiveTabPractices] = useState("connected")
   const [activeTabLabs, setActiveTabLabs] = useState("connected")
   const [activeTabUsers, setActiveTabUsers] = useState("connected")
-  const { isLoading, error, totalConnections, fetchConnections } = useConnection()
   const { toast } = useToast()
   const { sent, fetchAllInvitations, deleteInvitation, resendInvitation } = useInvitation()
   const [practicesTab, setPracticesTab] = useState("connected")
@@ -51,52 +53,87 @@ export function SuperAdminDashboard() {
 
   const [userSearchQuery, setUserSearchQuery] = useState("")
 
-  const [practices, setPractices] = useState<any[]>([])
-  const [labs, setLabs] = useState<any[]>([])
+  const [practices, setPractices] = useState<SuperadminCustomer[]>([])
+  const [labs, setLabs] = useState<SuperadminCustomer[]>([])
+  const [isLoadingPractices, setIsLoadingPractices] = useState(true)
+  const [isLoadingLabs, setIsLoadingLabs] = useState(true)
+  const [practicesError, setPracticesError] = useState<string | null>(null)
+  const [labsError, setLabsError] = useState<string | null>(null)
   const [billingPlans, setBillingPlans] = useState<Array<{ name: string; active_labs_count?: number }>>([])
-  const { isLoading: isSearchLoading, customers, isCustomersLoading, customersError, officeCustomers, labCustomers, fetchCustomers } = useCustomer()
   const { t } = useTranslation()
   const userRole = getPrimaryRole(user) || "superadmin"
   const userId = user?.id
   const customerId = getCustomerId(user)
   const { isEnabled, enabledWidgets } = useDashboardSettings(userRole, userId, customerId)
+  const isLoadingKpis = isLoadingPractices || isLoadingLabs
 
   useEffect(() => {
-    if (!isCustomersLoading && !customersError) {
-      // Filter customers by type
-      const officeCustomers = customers.filter((customer) => customer?.type?.toLowerCase() === "office")
-      const labCustomers = customers.filter((customer) => customer?.type?.toLowerCase() === "lab")
-      setPractices(officeCustomers || [])
-      setLabs(labCustomers || [])
+    let cancelled = false
+
+    const loadRegisteredCustomers = async () => {
+      setIsLoadingPractices(true)
+      setIsLoadingLabs(true)
+      setPracticesError(null)
+      setLabsError(null)
+
+      void fetchAllInvitations(0)
+
+      const [officesResult, labsResult, plansResult] = await Promise.allSettled([
+        searchSuperadminOfficeCustomers({
+          per_page: 100,
+          order_by: "name",
+          sort_by: "asc",
+        }),
+        searchSuperadminLabCustomers({
+          per_page: 100,
+          order_by: "name",
+          sort_by: "asc",
+        }),
+        listBillingConfigPlans(),
+      ])
+
+      if (cancelled) return
+
+      if (officesResult.status === "fulfilled") {
+        setPractices(officesResult.value.data)
+      } else {
+        const message =
+          officesResult.reason instanceof Error
+            ? officesResult.reason.message
+            : "Failed to load practices"
+        setPracticesError(message)
+        setPractices([])
+      }
+      setIsLoadingPractices(false)
+
+      if (labsResult.status === "fulfilled") {
+        setLabs(labsResult.value.data)
+      } else {
+        const message =
+          labsResult.reason instanceof Error ? labsResult.reason.message : "Failed to load labs"
+        setLabsError(message)
+        setLabs([])
+      }
+      setIsLoadingLabs(false)
+
+      if (plansResult.status === "fulfilled") {
+        setBillingPlans(
+          plansResult.value.map((plan) => ({
+            name: plan.name,
+            active_labs_count: plan.active_labs_count,
+          })),
+        )
+      } else {
+        setBillingPlans([])
+      }
     }
-  }, [customers, isCustomersLoading, customersError])
 
-  const hasFetchedRef = useRef(false)
+    void loadRegisteredCustomers()
 
-  useEffect(() => {
-    if (!hasFetchedRef.current) {
-      fetchConnections()
-      fetchAllInvitations(0);
-      (async () => {
-        await fetchCustomers("office")
-        await fetchCustomers("lab")
-        try {
-          const plans = await listBillingConfigPlans()
-          setBillingPlans(plans.map((plan) => ({ name: plan.name, active_labs_count: plan.active_labs_count })))
-        } catch {
-          setBillingPlans([])
-        }
-      })()
-      setPractices(officeCustomers || [])
-      setLabs(labCustomers || [])
-      hasFetchedRef.current = true
+    return () => {
+      cancelled = true
     }
-  }, [0, fetchConnections, fetchAllInvitations,])
-
-  useEffect(() => {
-    setPractices(officeCustomers || [])
-    setLabs(labCustomers || [])
-  }, [officeCustomers, labCustomers])
+  }, [fetchAllInvitations])
 
   const getStatusBadgeClass = (status: string) => {
     const statusLower = status?.toLowerCase() || ""
@@ -147,14 +184,14 @@ export function SuperAdminDashboard() {
   // Filter practices based on active tab
   const filteredPractices: Entity[] =
     activeTabPractices === "connected" ? practices.filter((p) => p?.status === "Active").map((p) => ({
-      id: p?.id || 0,
-      name: p?.name || (p?.partner && p?.partner?.name) || "Unknown Practice",
-      email: p?.email || (p?.partner && p?.partner?.email) || "No email",
+      id: p.id,
+      name: p.name || "Unknown Practice",
+      email: p.email || "No email",
       type: "Office" as EntityType,
-      status: p?.status || "unknown",
+      status: p.status || "unknown",
       invited_by: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: p.created_at || new Date().toISOString(),
+      updated_at: p.updated_at || new Date().toISOString(),
     }))
       : sent.data
         .filter((p: Entity) => p?.type === "Office")
@@ -166,14 +203,14 @@ export function SuperAdminDashboard() {
   // Filter labs based on active tab
   const filteredLabs: Entity[] =
     activeTabLabs === "connected" ? labs.filter((l) => l?.status === "Active").map((l) => ({
-      id: l?.id || 0,
-      name: l?.name || (l?.partner && l?.partner?.name) || "Unknown Lab",
-      email: l?.email || (l?.partner && l?.partner?.email) || "No email",
+      id: l.id,
+      name: l.name || "Unknown Lab",
+      email: l.email || "No email",
       type: "Lab" as EntityType,
-      status: l?.status || "unknown",
+      status: l.status || "unknown",
       invited_by: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: l.created_at || new Date().toISOString(),
+      updated_at: l.updated_at || new Date().toISOString(),
     }))
       : sent.data
         .filter((l: Entity) => l?.type === "Lab")
@@ -301,7 +338,7 @@ export function SuperAdminDashboard() {
         {/* KPI Cards */}
         {isEnabled(WIDGET_IDS.KPI_CARDS) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
-          {isLoading ? (
+          {isLoadingKpis ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="p-4 sm:p-6 bg-white border rounded-xl shadow-sm">
                 <Skeleton className="h-4 w-32 sm:w-40 mb-3" />
@@ -331,7 +368,7 @@ export function SuperAdminDashboard() {
             color="#eb0303"
           />
           <PlanCard
-            title={tDashboard("totalActiveConnection", "Total Active Connection")}
+            title={tDashboard("totalActiveConnection", "Total Registered Active")}
             count={
               practices.filter((p) => p?.status === "Active").length + labs.filter((l) => l?.status === "Active").length
             }
@@ -357,7 +394,7 @@ export function SuperAdminDashboard() {
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-base sm:text-lg font-semibold text-white mb-1">{tDashboard("allPractices", "All Practices")}</h2>
-                  <p className="text-blue-100 text-xs">Manage all practice connections</p>
+                  <p className="text-blue-100 text-xs">Manage all registered practices</p>
                 </div>
                 <Button
                   variant="ghost"
@@ -420,7 +457,7 @@ export function SuperAdminDashboard() {
             </div>
 
             <div className="max-h-80 sm:max-h-96 overflow-y-auto">
-              {isLoading ? (
+              {isLoadingPractices ? (
                 <div className="space-y-3 sm:space-y-4 p-3 sm:p-6">
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div key={index} className="flex justify-between items-center p-3 sm:p-4 bg-slate-50 rounded-lg">
@@ -438,10 +475,10 @@ export function SuperAdminDashboard() {
                     </div>
                   ))}
                 </div>
-              ) : error ? (
+              ) : practicesError ? (
                 <div className="p-6 sm:p-8 text-center">
                   <div className="text-red-500 font-medium mb-2">{tDashboard("failedToLoadPractices", "Failed to load practices")}</div>
-                  <p className="text-sm text-gray-600">{error}</p>
+                  <p className="text-sm text-gray-600">{practicesError}</p>
                 </div>
               ) : filteredPractices.length > 0 ? (
                 <div className="divide-y divide-[#d9d9d9]">
@@ -574,7 +611,7 @@ export function SuperAdminDashboard() {
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-base sm:text-lg font-semibold text-white mb-1">{tDashboard("allLab", "All Labs")}</h2>
-                  <p className="text-blue-100 text-xs">Manage all lab connections</p>
+                  <p className="text-blue-100 text-xs">Manage all registered labs</p>
                 </div>
                 <Button
                   variant="ghost"
@@ -638,7 +675,7 @@ export function SuperAdminDashboard() {
             </div>
 
             <div className="max-h-80 sm:max-h-96 overflow-y-auto">
-              {isLoading ? (
+              {isLoadingLabs ? (
                 <div className="space-y-3 sm:space-y-4 p-3 sm:p-6">
                   {Array.from({ length: 3 }).map((_, index) => (
                     <div key={index} className="flex justify-between items-center p-3 sm:p-4 bg-slate-50 rounded-lg">
@@ -656,10 +693,10 @@ export function SuperAdminDashboard() {
                     </div>
                   ))}
                 </div>
-              ) : error ? (
+              ) : labsError ? (
                 <div className="p-6 sm:p-8 text-center">
                   <div className="text-red-500 font-medium mb-2">{tDashboard("failedToLoadLabs", "Failed to load labs")}</div>
-                  <p className="text-sm text-gray-600">{error}</p>
+                  <p className="text-sm text-gray-600">{labsError}</p>
                 </div>
               ) : filteredLabs.length > 0 ? (
                 <div className="divide-y divide-[#d9d9d9]">

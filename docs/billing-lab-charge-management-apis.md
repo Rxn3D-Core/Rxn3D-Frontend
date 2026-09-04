@@ -7,7 +7,7 @@ All routes require `Authorization: Bearer <token>` unless noted.
 | # | Method | Path | Purpose |
 |---|--------|------|---------|
 | 1 | GET | `/billing` | List invoices (filters: `lab_id`, `office_id`, `status`, dates, amounts, sort, pagination) |
-| 2 | GET | `/billing/statistics` | Aggregated stats for scoped user |
+| 2 | GET | `/billing/statistics` | Aggregated stats for scoped user; same optional filters as list (`lab_id`, `office_id`, `status`, `patient_name`, `date_range` / `date_from`/`date_to`, amounts) |
 | 3 | POST | `/billing/advanced-search` | Search with `item_status`, case/product names, `date_range`, etc. |
 | 4 | GET | `/billing/{id}` | Single invoice (full detail) |
 | 5 | PUT | `/billing/{id}/status` | Update **invoice** status (`pending`, `paid`, `overdue`, `cancelled`) |
@@ -66,8 +66,10 @@ Optional **`PUT /billing/products/{id}/pricing`** remains in RTK for single-line
 | # | API | RTK / UI |
 |---|-----|----------|
 | 1 | List `GET /billing` | `useListBillingInvoicesQuery` — main table (standard list) |
-| 2 | Statistics `GET /billing/statistics` | `useGetBillingStatisticsQuery` — summary cards |
-| 3 | Advanced search `POST /billing/advanced-search` | `useAdvancedBillingSearchMutation` — Advance Filter |
+| 2 | Statistics `GET /billing/statistics` | `useGetBillingStatisticsQuery(statsParams)` — summary cards follow active filters; `refetchOnFocus: false` |
+| 3 | Advanced search `POST /billing/advanced-search` | `useAdvancedBillingSearchMutation` — Advance Filter; default `per_page` 100 |
+
+Also: list/advanced default page size is **100** (`CHARGE_MANAGEMENT_PER_PAGE`). Filters (search, dates, office, status, advanced fields) are persisted per `customerId` in `localStorage` via [`lib/charge-management-preferences.ts`](../lib/charge-management-preferences.ts).
 | 4 | Detail `GET /billing/{id}` | `useGetBillingInvoiceByIdQuery` — **Edit invoice pricing** modal (pencil) + any other flows |
 | 5 | Bulk `POST /billing/bulk-action` | `useBulkBillingActionMutation` — Mark Checked / Uncheck / Billed / Mark Refund / Remove Refund |
 | 6 | Generate PDF `POST /billing/{id}/generate-pdf` | `useGenerateBillingPdfMutation` — PDF view (preferred) |

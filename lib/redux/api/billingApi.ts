@@ -438,7 +438,7 @@ function emptyPagination(): BillingPagination {
   return {
     current_page: 1,
     last_page: 1,
-    per_page: 15,
+    per_page: 100,
     total: 0,
     from: null,
     to: null,

@@ -193,19 +193,19 @@ function ImpressionGrid({
     // Green check only on the single last-touched card across both arch sections
     const showCheck = qty >= 1 && getKey(impression) === lastTouchedKey
 
-    const imgSize = compact ? "text-2xl" : "text-3xl lg:text-4xl"
-    const nameSize = compact ? "text-xs" : "text-sm lg:text-base"
-    const controlSize = compact ? "w-7 h-7" : "w-9 h-9"
-    const iconSize = compact ? "w-5 h-5" : "w-7 h-7"
-    const qtyTextSize = compact ? "text-sm min-w-[18px]" : "text-lg min-w-[24px]"
-    const qtyLabelSize = compact ? "text-xs" : "text-sm"
+    const imgSize = compact ? "text-2xl" : "text-2xl md:text-3xl lg:text-4xl"
+    const nameSize = compact ? "text-xs" : "text-xs md:text-sm lg:text-base"
+    const controlSize = compact ? "w-7 h-7" : "w-7 h-7 md:w-8 md:h-8 lg:w-9 lg:h-9"
+    const iconSize = compact ? "w-5 h-5" : "w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7"
+    const qtyTextSize = compact ? "text-sm min-w-[18px]" : "text-base md:text-lg min-w-[18px]"
+    const qtyLabelSize = compact ? "text-xs" : "text-xs md:text-sm"
 
     return (
       <div
         key={impression.id}
         className={cn(
-          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 cursor-pointer select-none h-full w-full",
-          compact ? "p-1.5" : "p-2 lg:p-3",
+          "relative flex flex-col items-center rounded-[11px] transition-all duration-200 cursor-pointer select-none h-full w-full min-w-0 overflow-hidden",
+          compact ? "p-1.5" : "p-1.5 md:p-2 lg:p-3",
           isSelected
             ? "border-[3px] border-[#1162A8]"
             : "border-2 border-[#B4B0B0]"
@@ -216,7 +216,7 @@ function ImpressionGrid({
         <div
           className={cn(
             "w-full rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0",
-            compact ? "h-[68px]" : "aspect-square"
+            compact ? "h-[68px]" : "aspect-square max-h-[120px] lg:max-h-none"
           )}
         >
           {impression.image_url ? (
@@ -248,9 +248,9 @@ function ImpressionGrid({
           {getImpressionLabel(impression)}
         </span>
 
-        {/* Controls — always pinned to bottom */}
+        {/* Controls — always pinned to bottom; wrap/shrink so cards stay in-bounds */}
         <div
-          className="flex items-center gap-1 mt-auto"
+          className="flex items-center justify-center gap-0.5 mt-auto max-w-full min-w-0 flex-wrap"
           onClick={(e) => e.stopPropagation()}
         >
           {qty === 0 ? (
@@ -324,20 +324,22 @@ function ImpressionGrid({
     )
   }
 
-  // Index of the last-touched card in THIS section (so Done sits under that column)
-  const lastTouchedIndex = impressions.findIndex(
-    (imp) => getKey(imp) === lastTouchedKey
-  )
+  // Green check only on last-touched card; Done is shown for this section when that card lives here
   const showDoneInThisSection =
-    !suppressDoneButton && isValidationComplete && lastTouchedIndex >= 0
+    !suppressDoneButton &&
+    isValidationComplete &&
+    impressions.some((imp) => getKey(imp) === lastTouchedKey)
 
-  // Cap the grid to the cards' natural width and center it, so a single (or few)
-  // impression card doesn't stretch to the full modal width and balloon in size.
-  // When there are many options the columns still shrink to fit the modal.
+  // Responsive wrapping grid: auto-fill wraps when N cards exceed the section
+  // width (instead of overflowing the green/red border). maxWidth keeps a
+  // single / few cards from stretching to the full modal width.
   const colCount = impressions.length
+  const CARD_MIN_PX = 112
+  const CARD_MAX_PX = 168
+  const GAP_PX = 12
   const cappedGridStyle = {
-    gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
-    maxWidth: `calc(${colCount} * 190px + ${Math.max(colCount - 1, 0)} * 1rem)`,
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_MIN_PX}px), 1fr))`,
+    maxWidth: `min(100%, calc(${colCount} * ${CARD_MAX_PX}px + ${Math.max(colCount - 1, 0)} * ${GAP_PX}px))`,
   }
 
   return (
@@ -359,34 +361,23 @@ function ImpressionGrid({
         ))}
       </div>
 
-      {/* sm+: capped grid centered in the section */}
-      <div className="hidden sm:grid gap-3 md:gap-4 w-full mx-auto min-w-0" style={cappedGridStyle}>
-        {impressions?.map((impression) => renderCard(impression, false))}
+      {/* sm+: wrapping capped grid — stays inside the section border */}
+      <div className="hidden sm:grid gap-2 md:gap-3 w-full mx-auto min-w-0" style={cappedGridStyle}>
+        {impressions?.map((impression) => (
+          <div key={impression.id} className="min-w-0">
+            {renderCard(impression, false)}
+          </div>
+        ))}
       </div>
 
-      {/* Done sits under the column of the last-touched card — kept inside the box */}
+      {/* Done centered under the grid so it stays in-bounds when cards wrap */}
       {showDoneInThisSection && (
-        <>
-          {/* Desktop: align under the last-touched card's column */}
-          <div
-            className="hidden sm:grid gap-3 md:gap-4 w-full mt-3 mx-auto"
-            style={cappedGridStyle}
-          >
-            <div className="flex justify-center py-2 overflow-visible" style={{ gridColumnStart: lastTouchedIndex + 1 }}>
-              <DoneTransitionButton
-                className="whitespace-nowrap px-10 py-2"
-                onComplete={onConfirmAllAndClose}
-              />
-            </div>
-          </div>
-          {/* Mobile: centered */}
-          <div className="flex sm:hidden justify-center mt-3 py-2 overflow-visible">
-            <DoneTransitionButton
-              className="whitespace-nowrap px-10 py-2"
-              onComplete={onConfirmAllAndClose}
-            />
-          </div>
-        </>
+        <div className="flex justify-center mt-3 py-2 overflow-visible">
+          <DoneTransitionButton
+            className="whitespace-nowrap px-10 py-2"
+            onComplete={onConfirmAllAndClose}
+          />
+        </div>
       )}
 
       {selectedSTLImpression && (
