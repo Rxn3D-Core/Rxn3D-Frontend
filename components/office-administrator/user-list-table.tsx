@@ -1,18 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Filter, Plus, ChevronDown, ChevronUp, Eye, Edit } from "lucide-react"
+import { Search, Filter, Plus, ChevronDown, ChevronUp, Edit, Lock } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { OfficeUserDetail } from "./office-user-detail"
 import { CreateUserModal } from "./create-user-modal"
 import { UpdateUserModal } from "./update-user-modal"
+import { ResetUserPasswordModal } from "./reset-user-password-modal"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import ReactDOM from "react-dom"
@@ -70,8 +69,6 @@ interface UserListTableProps {
 }
 
 export function UserListTable({ roleFilter, title, description }: UserListTableProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { user, fetchUsers, updateUser } = useAuth()
   const { toast } = useToast()
   const lockedRole = resolveLockedRole(roleFilter)
@@ -80,13 +77,14 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all")
-  const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [showAddUser, setShowAddUser] = useState(false)
   const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
 
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
@@ -184,17 +182,6 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   useEffect(() => {
     loadUsers()
   }, [roleFilter])
-
-  // Check URL params for user detail view
-  useEffect(() => {
-    const userId = searchParams?.get("userId")
-    if (userId) {
-      const user = staffUsers.find((u) => u.id === Number.parseInt(userId))
-      if (user) {
-        setSelectedUser(user)
-      }
-    }
-  }, [searchParams, staffUsers])
 
   // Get unique user types for filter
   const uniqueUserTypes = Array.from(new Set(staffUsers.map(user => user.userType))).sort()
@@ -381,18 +368,6 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
     setAllSelected(!allSelected)
   }
 
-  // Handle view user details
-  const handleViewUser = (user: StaffUser) => {
-    setSelectedUser(user)
-    router.push(`?userId=${user.id}`)
-  }
-
-  // Handle back to list
-  const handleBackToList = () => {
-    setSelectedUser(null)
-    router.push(window.location.pathname)
-  }
-
   // Handle create user success
   const handleCreateUserSuccess = () => {
     loadUsers() // Reload the user list
@@ -409,13 +384,20 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
     setShowUpdateUser(true)
   }
 
-  // If viewing user details, show detail component
-  if (selectedUser) {
-    return <OfficeUserDetail user={selectedUser} onBack={handleBackToList} />
+  const handleResetPassword = (user: StaffUser) => {
+    setUserToResetPassword(user)
+    setShowResetPassword(true)
   }
 
   return (
     <div className="py-6">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        {description ? (
+          <p className="text-gray-500 mt-1">{description}</p>
+        ) : null}
+      </div>
+
       {/* Filters and actions */}
       <div className="bg-white border border-gray-200 rounded-lg mb-6">
         <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-200">
@@ -705,18 +687,20 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleViewUser(user)}
-                          className="text-blue-600 hover:text-blue-800"
+                          onClick={() => handleEditUser(user)}
+                          className="text-green-600 hover:text-green-800"
+                          title="Edit user"
                         >
-                          <Eye className="h-5 w-5" />
+                          <Edit className="h-5 w-5" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEditUser(user)}
-                          className="text-green-600 hover:text-green-800"
+                          onClick={() => handleResetPassword(user)}
+                          className="text-amber-600 hover:text-amber-800"
+                          title="Set password"
                         >
-                          <Edit className="h-5 w-5" />
+                          <Lock className="h-5 w-5" />
                         </Button>
                       </div>
                     </td>
@@ -772,6 +756,15 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         }}
         onSuccess={handleUpdateUserSuccess}
         user={userToUpdate}
+      />
+
+      <ResetUserPasswordModal
+        isOpen={showResetPassword}
+        onClose={() => {
+          setShowResetPassword(false)
+          setUserToResetPassword(null)
+        }}
+        user={userToResetPassword}
       />
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Eye, Search, Plus, ChevronDown, Edit, Trash2 } from "lucide-react"
+import { Eye, Search, Plus, ChevronDown, Edit, Trash2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,6 +14,7 @@ import { Avatar } from "@/components/ui/avatar"
 import ReactDOM from "react-dom"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
+import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import {
   USER_STATUSES,
   formatUserStatusForApi,
@@ -24,6 +25,11 @@ import {
   getAddUserButtonLabel,
   resolveLockedRole,
 } from "@/lib/user-role-labels"
+import {
+  buildUserCustomerRoleDisplay,
+  type UserCustomerRoleLink,
+} from "@/lib/user-customer-roles"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 const USER_STATUS_OPTIONS: Array<{ value: UserStatus; dotClass: string }> = [
   { value: "Active", dotClass: "bg-green-500" },
@@ -42,15 +48,11 @@ interface StaffUser {
   customerId?: number
   phone: string
   userType: string
-  customerRoles?: Array<{
-    customerId: number
-    customerName: string
-    roleName: string
-    departments: string[]
-  }>
+  customerRoles?: UserCustomerRoleLink[]
   customerNamesList?: string[]
   roleNamesList?: string[]
   departmentsList?: string[]
+  associationHoverLines?: string[]
   joinDate: string
   status: UserStatus
   avatar?: string
@@ -60,6 +62,7 @@ interface StaffUser {
 interface CustomerOption {
   value: string
   label: string
+  type?: string
 }
 
 const avatarColors = [
@@ -82,6 +85,8 @@ export default function AllUsers() {
   const [showAddUser, setShowAddUser] = useState(false)
   const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
   const [allSelected, setAllSelected] = useState(false)
@@ -115,47 +120,27 @@ export default function AllUsers() {
     return `${items[0]} +${items.length - 1}`
   }
 
-  const buildCustomerScopedRoleData = (userData: any, selectedCustomerId?: number) => {
-    const customerUsers = Array.isArray(userData?.customer_users) ? userData.customer_users : []
-    const mapped = customerUsers.map((cu: any) => ({
-      customerId: cu?.customer_id || cu?.customer?.id,
-      customerName: cu?.customer?.name || customerNameById[String(cu?.customer_id || cu?.customer?.id || "")] || "",
-      roleName: cu?.role?.name || "",
-      departments: Array.isArray(cu?.departments) ? cu.departments.map((d: any) => d?.name).filter(Boolean) : [],
-    })).filter((item: any) => item.customerId && item.roleName)
-
-    const scoped = selectedCustomerId ? mapped.filter((item: any) => item.customerId === selectedCustomerId) : mapped
-    const source = scoped.length > 0 ? scoped : mapped
-
-    const customerNames: string[] = Array.from(
-      new Set(
-        source
-          .map((item: any) => item.customerName)
-          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
-      )
-    )
-    const roleNames: string[] = Array.from(
-      new Set(
-        source
-          .map((item: any) => item.roleName)
-          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
-      )
-    )
-    const departmentNames: string[] = Array.from(
-      new Set(
-        source
-          .flatMap((item: any) => (Array.isArray(item.departments) ? item.departments : []))
-          .filter((name: unknown): name is string => typeof name === "string" && name.trim().length > 0)
-      )
-    )
-
+  const mapApiUserToStaffUser = (user: any, index: number, selectedCustomerId?: number): StaffUser => {
+    const scopedRoleData = buildUserCustomerRoleDisplay(user, {
+      selectedCustomerId,
+      customerNameById,
+    })
     return {
-      customerNameDisplay: formatFirstPlusCount(customerNames),
-      roleDisplay: formatFirstPlusCount(roleNames),
-      customerNamesList: customerNames,
-      roleNamesList: roleNames,
-      departmentsList: departmentNames,
-      customerRoles: mapped,
+      id: user.id,
+      name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
+      email: user.email,
+      customerName: scopedRoleData.customerNameDisplay,
+      customerId: selectedCustomerId,
+      phone: user.phone || user.work_number || "N/A",
+      userType: scopedRoleData.roleDisplay,
+      customerRoles: scopedRoleData.customerRoles,
+      customerNamesList: scopedRoleData.customerNamesList,
+      roleNamesList: scopedRoleData.roleNamesList,
+      departmentsList: scopedRoleData.departmentsList,
+      associationHoverLines: scopedRoleData.associationHoverLines,
+      joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
+      status: normalizeUserStatus(user.status),
+      avatarColor: avatarColors[index % avatarColors.length],
     }
   }
 
@@ -202,6 +187,7 @@ export default function AllUsers() {
           uniqueById.set(customer.id, {
             value: String(customer.id),
             label: customer.name,
+            type: customer.type,
           })
         }
       })
@@ -229,25 +215,7 @@ export default function AllUsers() {
       if (!Array.isArray(usersData)) throw new Error("Invalid response format")
 
       const selectedCustomerId = customerFilter.trim() ? Number(customerFilter.trim()) : undefined
-      setUsers(usersData.map((user: any, index: number) => {
-        const scopedRoleData = buildCustomerScopedRoleData(user, selectedCustomerId)
-        return {
-          id: user.id,
-          name: `${user.first_name || ""} ${user.last_name || ""}`.trim(),
-          email: user.email,
-          customerName: scopedRoleData.customerNameDisplay,
-          customerId: selectedCustomerId,
-          phone: user.phone || user.work_number || "N/A",
-          userType: scopedRoleData.roleDisplay,
-          customerRoles: scopedRoleData.customerRoles,
-          customerNamesList: scopedRoleData.customerNamesList,
-          roleNamesList: scopedRoleData.roleNamesList,
-          departmentsList: scopedRoleData.departmentsList,
-          joinDate: user.created_at ? new Date(user.created_at).toISOString().split("T")[0] : "",
-          status: normalizeUserStatus(user.status),
-          avatarColor: avatarColors[index % avatarColors.length],
-        }
-      }))
+      setUsers(usersData.map((user: any, index: number) => mapApiUserToStaffUser(user, index, selectedCustomerId)))
       setPagination({
         total: response?.total || response?.pagination?.total || usersData.length,
         per_page: response?.per_page || response?.pagination?.per_page || Number(entriesPerPage),
@@ -292,24 +260,12 @@ export default function AllUsers() {
       const result = await fetchUserById(user.id, customerFilter.trim() || undefined)
       const details = result?.data || result
       const selectedCustomerId = customerFilter.trim() ? Number(customerFilter.trim()) : undefined
-      const scopedRoleData = buildCustomerScopedRoleData(details, selectedCustomerId)
-      const mapped: StaffUser = {
-        id: details.id,
-        name: `${details.first_name || ""} ${details.last_name || ""}`.trim(),
-        email: details.email || "",
-        customerName: scopedRoleData.customerNameDisplay,
+      const mapped = mapApiUserToStaffUser(details, 0, selectedCustomerId)
+      setSelectedUser({
+        ...mapped,
         customerId: selectedCustomerId || user.customerId,
-        phone: details.phone || details.work_number || "N/A",
-        userType: scopedRoleData.roleDisplay,
-        customerRoles: scopedRoleData.customerRoles,
-        customerNamesList: scopedRoleData.customerNamesList,
-        roleNamesList: scopedRoleData.roleNamesList,
-        departmentsList: scopedRoleData.departmentsList,
-        joinDate: details.created_at ? new Date(details.created_at).toISOString().split("T")[0] : "",
-        status: normalizeUserStatus(details.status),
         avatarColor: user.avatarColor,
-      }
-      setSelectedUser(mapped)
+      })
     } catch (error: any) {
       toast({
         title: "Error",
@@ -329,6 +285,12 @@ export default function AllUsers() {
     if (!canEditUser) return
     setUserToUpdate(user)
     setShowUpdateUser(true)
+  }
+
+  const handleResetPassword = (user: StaffUser) => {
+    if (!canEditUser) return
+    setUserToResetPassword(user)
+    setShowResetPassword(true)
   }
 
   const handleDeleteUser = async (userId: number) => {
@@ -663,18 +625,56 @@ export default function AllUsers() {
                         </div>
                     </td>
                     <td className="px-4 py-4 text-gray-700">{user.email}</td>
-                    <td className="px-4 py-4 text-gray-700" title={user.customerNamesList?.join(", ") || user.customerName}>
-                      {user.customerName}
+                    <td className="px-4 py-4 text-gray-700">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-default border-b border-dotted border-gray-400">
+                              {user.customerName}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            {user.associationHoverLines && user.associationHoverLines.length > 0 ? (
+                              <ul className="space-y-1 text-xs">
+                                {user.associationHoverLines.map((line) => (
+                                  <li key={line}>{line}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-xs">No customer associations</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </td>
-                    <td className="px-4 py-4 text-gray-700" title={user.roleNamesList?.join(", ") || user.userType}>
-                      <div className="flex flex-col">
-                        <span>{user.userType}</span>
-                        {user.departmentsList && user.departmentsList.length > 0 && (
-                          <span className="text-xs text-gray-500" title={user.departmentsList.join(", ")}>
-                            Dept: {formatFirstPlusCount(user.departmentsList)}
-                          </span>
-                        )}
-                      </div>
+                    <td className="px-4 py-4 text-gray-700">
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex flex-col cursor-default">
+                              <span className="border-b border-dotted border-gray-400 w-fit">
+                                {user.userType}
+                              </span>
+                              {user.departmentsList && user.departmentsList.length > 0 && (
+                                <span className="text-xs text-gray-500">
+                                  Dept: {formatFirstPlusCount(user.departmentsList)}
+                                </span>
+                              )}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            {user.associationHoverLines && user.associationHoverLines.length > 0 ? (
+                              <ul className="space-y-1 text-xs">
+                                {user.associationHoverLines.map((line) => (
+                                  <li key={line}>{line}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-xs">No roles</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </td>
                     <td className="px-4 py-4 relative">
                       <div className="relative">
@@ -744,7 +744,8 @@ export default function AllUsers() {
                     <td className="px-4 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)} className="text-blue-600 hover:text-blue-800"><Eye className="h-5 w-5" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)} className="text-green-600 hover:text-green-800" disabled={!canEditUser}><Edit className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)} className="text-green-600 hover:text-green-800" disabled={!canEditUser} title="Edit user"><Edit className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleResetPassword(user)} className="text-amber-600 hover:text-amber-800" disabled={!canEditUser} title="Set password"><Lock className="h-5 w-5" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user.id)} className="text-red-600 hover:text-red-800" disabled={!canEditUser}><Trash2 className="h-5 w-5" /></Button>
                       </div>
                     </td>
@@ -776,6 +777,8 @@ export default function AllUsers() {
           loadUsers()
         }}
         lockedRole={lockedRole}
+        requireCustomerSelection
+        customerOptions={customerOptions}
       />
 
       <UpdateUserModal
@@ -790,6 +793,25 @@ export default function AllUsers() {
           loadUsers()
         }}
         user={userToUpdate}
+        manageCustomerLinks
+        customerOptions={customerOptions}
+      />
+
+      <ResetUserPasswordModal
+        isOpen={showResetPassword}
+        onClose={() => {
+          setShowResetPassword(false)
+          setUserToResetPassword(null)
+        }}
+        user={
+          userToResetPassword
+            ? {
+                id: userToResetPassword.id,
+                name: userToResetPassword.name,
+                customerId: userToResetPassword.customerId,
+              }
+            : null
+        }
       />
     </div>
   )

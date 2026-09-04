@@ -13,16 +13,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { PermissionAssignmentPanel } from "@/components/permission/permission-assignment-panel"
-import { persistUserDirectPermissions } from "@/lib/api/user-permissions-api"
-import { getActiveCustomerId } from "@/lib/customer-scope"
 import { Check, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import {
   getCreateUserTitle,
   getRoleDisplayLabel,
   isDoctorRole,
+  isOfficeAdminRole,
+  requiresDoctorCredentials,
+  resolveOfficeMixedRole,
 } from "@/lib/user-role-labels"
+import { roleSelectOptionsForCustomerType } from "@/lib/user-customer-roles"
 
 // Form schema based on the API examples
 const passwordStrengthSchema = z
@@ -40,8 +42,10 @@ const createUserSchema = z
     email: z.string().email("Please enter a valid email address"),
     phone: z.string().min(1, "Phone number is required"),
     work_number: z.string().optional(),
+    customer_id: z.string().optional(),
     role: z.string().min(1, "Please select a role"),
     is_doctor: z.boolean().default(false),
+    is_also_admin: z.boolean().default(false),
     status: z.string().default("Pending"),
     department_ids: z.array(z.number()).optional(),
     license_number: z.string().optional(),
@@ -57,12 +61,24 @@ const createUserSchema = z
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>
 
+interface CustomerOption {
+  value: string
+  label: string
+  type?: string
+}
+
 interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
   /** When set, role is fixed to this page context — no role picker. */
   lockedRole?: string
+  /**
+   * Superadmin All Users: require picking a customer to create into.
+   * Not used on lab/office scoped create pages (they use the active customer).
+   */
+  requireCustomerSelection?: boolean
+  customerOptions?: CustomerOption[]
 }
 
 interface Department {
@@ -70,18 +86,19 @@ interface Department {
   name: string
 }
 
-const roles = [
-  { value: "lab_user", label: "Lab User" },
-  { value: "lab_admin", label: "Lab Admin" },
-  { value: "office_admin", label: "Office Admin" },
-  { value: "office_user", label: "Office User" },
-  { value: "doctor", label: "Doctor" },
-]
+interface Department {
+  id: number
+  name: string
+}
 
-const LAB_ROLE_VALUES = ["lab_user", "lab_admin"]
-
-
-export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: CreateUserModalProps) {
+export function CreateUserModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  lockedRole,
+  requireCustomerSelection = false,
+  customerOptions = [],
+}: CreateUserModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [signatureFile, setSignatureFile] = useState<File | null>(null)
@@ -92,42 +109,35 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const roleIsLocked = Boolean(lockedRole)
 
   // Get auth context
   const authContext = useAuth()
-  const canManagePermissions = authContext.hasAnyPermission?.(["manage_users", "edit_user"]) ?? false
-  const activeCustomerId = getActiveCustomerId()
-
-  // Check if auth context is properly initialized
-  if (!authContext?.createUser) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div className="bg-white p-6 rounded-lg max-w-md">
-          <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
-          <p>Auth context is not available. Please refresh the page.</p>
-          <button 
-            onClick={onClose}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   const form = useForm<CreateUserFormValues>({
-    resolver: zodResolver(createUserSchema),
+    resolver: zodResolver(
+      requireCustomerSelection
+        ? createUserSchema.superRefine((data, ctx) => {
+            if (!data.customer_id?.trim()) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Please select a customer",
+                path: ["customer_id"],
+              })
+            }
+          })
+        : createUserSchema,
+    ),
     defaultValues: {
       first_name: "",
       last_name: "",
       email: "",
       phone: "",
       work_number: "",
+      customer_id: "",
       role: lockedRole || "",
-      is_doctor: isDoctorRole(lockedRole),
+      is_doctor: isDoctorRole(lockedRole) || requiresDoctorCredentials(lockedRole),
+      is_also_admin: false,
       status: "pending",
       department_ids: [],
       license_number: "",
@@ -137,198 +147,112 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
       password_confirmation: "",
     },
     mode: "onChange",
+    reValidateMode: "onChange",
   })
 
-  // Watch for changes to trigger validation
   const licenseNumber = form.watch("license_number")
   const isDoctor = form.watch("is_doctor")
+  const isAlsoAdmin = form.watch("is_also_admin")
   const selectedRole = form.watch("role")
+  const selectedCustomerId = form.watch("customer_id")
 
-  useEffect(() => {
-    if (!isOpen) {
-      setSelectedPermissions([])
+  const localCustomerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
+  const selectedCustomer = customerOptions.find((option) => option.value === selectedCustomerId)
+  const effectiveCustomerType = requireCustomerSelection
+    ? (selectedCustomer?.type || "").toLowerCase() || null
+    : localCustomerType
+  const isLabCustomer = effectiveCustomerType === "lab"
+  const isOfficeCustomer = effectiveCustomerType === "office"
+
+  const effectiveBaseRole = lockedRole || selectedRole
+  const resolvedCreateRole = resolveOfficeMixedRole({
+    baseRole: effectiveBaseRole,
+    isAlsoDoctor: isDoctorRole(effectiveBaseRole) || Boolean(isDoctor),
+    isAlsoAdmin: Boolean(isAlsoAdmin),
+  })
+  const treatingAsDoctor =
+    requiresDoctorCredentials(resolvedCreateRole) ||
+    isDoctorRole(effectiveBaseRole) ||
+    Boolean(isDoctor)
+  const showAlsoDoctorCheckbox =
+    isOfficeCustomer && (isOfficeAdminRole(effectiveBaseRole) || (!roleIsLocked && selectedRole === "office_admin"))
+  const showAlsoAdminCheckbox =
+    isOfficeCustomer && (isDoctorRole(effectiveBaseRole) || (!roleIsLocked && selectedRole === "doctor"))
+
+  const availableRoles = useMemo(() => {
+    if (requireCustomerSelection && !effectiveCustomerType) {
+      return []
     }
-  }, [isOpen, selectedRole])
-  const customerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
-  const isLabCustomer = customerType === "lab"
-  const isOfficeCustomer = customerType === "office"
-
-  const availableRoles = useMemo(
-    () => (isOfficeCustomer ? roles.filter((role) => !LAB_ROLE_VALUES.includes(role.value)) : roles),
-    [isOfficeCustomer],
-  )
-
+    if (effectiveCustomerType === "lab" || effectiveCustomerType === "office") {
+      return roleSelectOptionsForCustomerType(effectiveCustomerType)
+    }
+    // Locked role pages still need a coherent list if type is briefly missing
+    if (lockedRole) {
+      if (["lab_admin", "lab_user"].includes(lockedRole)) {
+        return roleSelectOptionsForCustomerType("lab")
+      }
+      if (["office_admin", "office_user", "doctor", "doctor_admin"].includes(lockedRole)) {
+        return roleSelectOptionsForCustomerType("office")
+      }
+    }
+    return []
+  }, [requireCustomerSelection, effectiveCustomerType, lockedRole])
   // Drop a lab role that is no longer selectable in an office context (only when role is choosable)
   useEffect(() => {
     if (roleIsLocked || !selectedRole) return
     if (!availableRoles.some((role) => role.value === selectedRole)) {
-      form.setValue("role", "", { shouldValidate: true })
+      form.setValue("role", "", { shouldValidate: false, shouldDirty: false })
     }
   }, [availableRoles, selectedRole, form, roleIsLocked])
 
-  // Validate doctor fields and clear errors when both have values
+  // Clear doctor field errors when both are filled or when not a doctor — never auto-error on open
   useEffect(() => {
-    if (isDoctor) {
-      const hasLicense = licenseNumber && licenseNumber.trim() !== ""
-      const hasSignature = signatureFile !== null
-      
-      if (hasLicense && hasSignature) {
-        // Both fields have values - clear all errors
-        form.clearErrors("license_number")
-        form.clearErrors("signature")
-      } else if (!hasLicense && !hasSignature) {
-        // Both are empty - set error
-        if (!form.formState.errors.license_number) {
-          form.setError("license_number", {
-            type: "manual",
-            message: "License number and signature are required for doctors"
-          })
-        }
-      } else {
-        // One has value - clear error but don't set new one (wait for both)
-        form.clearErrors("license_number")
-        form.clearErrors("signature")
-      }
-    } else {
-      // Not a doctor - clear any doctor-related errors
+    if (!treatingAsDoctor) {
+      form.clearErrors("license_number")
+      form.clearErrors("signature")
+      return
+    }
+    const hasLicense = licenseNumber && licenseNumber.trim() !== ""
+    const hasSignature = signatureFile !== null
+    if (hasLicense && hasSignature) {
       form.clearErrors("license_number")
       form.clearErrors("signature")
     }
-  }, [licenseNumber, signatureFile, isDoctor, form])
+  }, [licenseNumber, signatureFile, treatingAsDoctor, form])
 
-  // Helper function to determine validation state
-  const getValidationState = (fieldName: keyof CreateUserFormValues, isRequired: boolean = false): "default" | "valid" | "warning" | "error" => {
-    const value = form.watch(fieldName)
+  /** Show valid/error borders only after the field has been changed by the user. */
+  const getValidationState = (fieldName: keyof CreateUserFormValues): "default" | "valid" | "warning" | "error" => {
+    const isDirty = Boolean(form.formState.dirtyFields[fieldName])
+    const hasError = Boolean(form.formState.errors[fieldName])
+    if (!isDirty && !hasError) return "default"
+    if (hasError) return "error"
+
+    const value = form.getValues(fieldName)
     const hasValue = value !== undefined && value !== null && value !== "" && String(value).trim() !== ""
-    const errors = form.formState.errors
-    const valueStr = String(value || "")
-    
-    // Special handling for license_number - show green border with checkmark when it has a value
-    if (fieldName === "license_number") {
-      const hasLicense = hasValue
-      
-      // If license has a value, show green border with checkmark
-      if (hasLicense) {
-        return "valid"
-      }
-      // If there's an error, show it
-      if (errors[fieldName]) {
-        return "error"
-      }
-      // If required and empty, show error
-      if (isRequired && !hasValue) {
-        return "error"
-      }
-      return "default"
+    if (!hasValue) return "default"
+
+    if (fieldName === "email") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      return emailRegex.test(String(value)) ? "valid" : "warning"
     }
-    
-    if (fieldName === "signature") {
-      const hasLicense = licenseNumber && licenseNumber.trim() !== ""
-      const hasSignature = signatureFile !== null
-      
-      // If both have values, no error
-      if (hasLicense && hasSignature) {
-        return "default"
-      }
-      // If signature has value but license doesn't, no error on signature field
-      if (hasSignature) {
-        return "default"
-      }
-      // If there's an error, show it
-      if (errors[fieldName]) {
-        return "error"
-      }
-      // If required and empty, show error
-      if (isRequired && !hasSignature) {
-        return "error"
-      }
-      return "default"
-    }
-    
-    // If field has error, show error state
-    if (errors[fieldName]) {
-      return "error"
-    }
-    
-    // Required fields: red if empty, orange if has value, green if valid (has value and no errors)
-    if (isRequired) {
-      if (!hasValue) {
-        return "error" // Red: required but empty
-      }
-      // Check if field has minimum characters (5) for validation
-      if (valueStr.length >= 5) {
-        // Special validation for email
-        if (fieldName === "email") {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-          if (emailRegex.test(valueStr)) {
-            return "valid" // Green: valid email
-          }
-          return "warning" // Orange: has value but invalid format
-        }
-        return "valid" // Green: has value and meets minimum length
-      }
-      return "warning" // Orange: has value but less than 5 characters
-    }
-    
-    // Optional fields: orange if has value, default if empty
-    if (hasValue) {
-      return "warning" // Orange: has value
-    }
-    
-    return "default"
+
+    return "valid"
   }
 
-  // Reset form when modal opens/closes; seed locked role from page context
-  useEffect(() => {
-    if (isOpen) {
-      form.reset({
-        first_name: "",
-        last_name: "",
-        email: "",
-        phone: "",
-        work_number: "",
-        role: lockedRole || "",
-        is_doctor: isDoctorRole(lockedRole),
-        status: "pending",
-        department_ids: [],
-        license_number: "",
-        signature: null,
-        avatar: null,
-        password: "",
-        password_confirmation: "",
-      })
-      setSignatureFile(null)
-      setHasSignature(false)
-      setSignatureMessage("")
-      signatureRef.current?.clear()
-      setAvatarFile(null)
-      setSelectedDepartments([])
-      if (isLabCustomer) {
-        fetchDepartments()
-      }
-    }
-  }, [isOpen, form, isLabCustomer, lockedRole])
-
-  useEffect(() => {
-    form.setValue("department_ids", selectedDepartments, { shouldValidate: true })
-  }, [selectedDepartments, form])
-
-  // Keep is_doctor in sync for doctor role; locked non-doctor roles force it off
-  useEffect(() => {
-    if (isDoctorRole(selectedRole)) {
-      form.setValue("is_doctor", true)
-    } else if (roleIsLocked) {
-      form.setValue("is_doctor", false)
-    }
-  }, [selectedRole, form, roleIsLocked])
-
-  const fetchDepartments = async () => {
+  const fetchDepartments = async (customerIdOverride?: string) => {
     setIsLoadingDepartments(true)
     try {
-      const customerId = localStorage.getItem("customerId")
+      const customerId =
+        customerIdOverride ||
+        (requireCustomerSelection ? selectedCustomerId : null) ||
+        localStorage.getItem("customerId")
       const token = localStorage.getItem("token")
+      if (!customerId) {
+        setDepartments([])
+        return
+      }
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/departments?customer_id=${customerId || ""}`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL || ""}/departments?customer_id=${customerId}`,
         {
           method: "GET",
           headers: {
@@ -344,7 +268,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
 
       const result = await response.json()
       setDepartments(result.data || [])
-    } catch (error) {
+    } catch {
       setDepartments([])
       toast({
         title: "Department Load Failed",
@@ -354,6 +278,89 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
     } finally {
       setIsLoadingDepartments(false)
     }
+  }
+
+  // Reset form when modal opens/closes; seed locked role from page context
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        first_name: "",
+        last_name: "",
+        email: "",
+        phone: "",
+        work_number: "",
+        customer_id: "",
+        role: lockedRole || "",
+        is_doctor: isDoctorRole(lockedRole),
+        is_also_admin: false,
+        status: "pending",
+        department_ids: [],
+        license_number: "",
+        signature: null,
+        avatar: null,
+        password: "",
+        password_confirmation: "",
+      })
+      setSignatureFile(null)
+      setHasSignature(false)
+      setSignatureMessage("")
+      signatureRef.current?.clear()
+      setAvatarFile(null)
+      setSelectedDepartments([])
+      setDepartments([])
+      if (isLabCustomer && !requireCustomerSelection) {
+        void fetchDepartments()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, form, lockedRole, requireCustomerSelection])
+
+  // When superadmin picks a customer, load departments for lab customers and clear incompatible role
+  useEffect(() => {
+    if (!requireCustomerSelection || !isOpen) return
+    setSelectedDepartments([])
+    if (isLabCustomer && selectedCustomerId) {
+      void fetchDepartments(selectedCustomerId)
+    } else {
+      setDepartments([])
+    }
+    if (!roleIsLocked && selectedRole && !availableRoles.some((role) => role.value === selectedRole)) {
+      form.setValue("role", "", { shouldValidate: false, shouldDirty: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requireCustomerSelection, selectedCustomerId, isLabCustomer, isOpen])
+
+  useEffect(() => {
+    form.setValue("department_ids", selectedDepartments, { shouldValidate: false, shouldDirty: false })
+  }, [selectedDepartments, form])
+
+  // Keep is_doctor true for doctor role; do not clear the “also Doctor” checkbox when role is locked
+  useEffect(() => {
+    if (isDoctorRole(selectedRole) || isDoctorRole(lockedRole)) {
+      form.setValue("is_doctor", true, { shouldValidate: false })
+      return
+    }
+    if (!roleIsLocked && !isOfficeAdminRole(selectedRole)) {
+      form.setValue("is_doctor", false, { shouldValidate: false })
+      form.setValue("is_also_admin", false, { shouldValidate: false })
+    }
+  }, [selectedRole, form, roleIsLocked, lockedRole])
+
+  if (!authContext?.createUser) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-lg max-w-md">
+          <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
+          <p>Auth context is not available. Please refresh the page.</p>
+          <button
+            onClick={onClose}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )
   }
 
   const handleDepartmentToggle = (departmentId: number) => {
@@ -485,11 +492,17 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
 
 
   const onSubmit = async (data: CreateUserFormValues) => {
-    const effectiveRole = lockedRole || data.role
-    const treatingAsDoctor = isDoctorRole(effectiveRole) || data.is_doctor
+    const baseRole = lockedRole || data.role
+    const effectiveRole = resolveOfficeMixedRole({
+      baseRole,
+      isAlsoDoctor: isDoctorRole(baseRole) || Boolean(data.is_doctor),
+      isAlsoAdmin: Boolean(data.is_also_admin),
+    })
+    const treatingAsDoctorOnSubmit =
+      requiresDoctorCredentials(effectiveRole) || isDoctorRole(baseRole) || Boolean(data.is_doctor)
 
     // Validate doctor fields before submission
-    if (treatingAsDoctor) {
+    if (treatingAsDoctorOnSubmit) {
       const hasLicense = data.license_number && data.license_number.trim() !== ""
       const hasSignature = signatureFile !== null
       
@@ -509,20 +522,34 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
     }
     setIsSubmitting(true)
     try {
-      const customerId = localStorage.getItem("customerId")
-      
+      const customerId = requireCustomerSelection
+        ? data.customer_id?.trim()
+        : localStorage.getItem("customerId")
+
+      if (!customerId) {
+        toast({
+          title: "Validation Error",
+          description: requireCustomerSelection
+            ? "Please select a customer"
+            : "No active customer selected",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
       // Create FormData for multipart form submission
       const formData = new FormData()
-      
+
       // Add basic user data
       formData.append('first_name', data.first_name)
       formData.append('last_name', data.last_name)
       formData.append('email', data.email)
       formData.append('phone', data.phone)
       formData.append('work_number', data.work_number || data.phone)
-      formData.append('customer_id', customerId || "1")
+      formData.append('customer_id', customerId)
       formData.append('role', effectiveRole)
-      formData.append('is_doctor', treatingAsDoctor ? "1" : "0")
+      formData.append('is_doctor', treatingAsDoctorOnSubmit ? "1" : "0")
       formData.append('status', "Pending")
       formData.append('password', data.password)
       formData.append('password_confirmation', data.password_confirmation)
@@ -535,12 +562,12 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
       }
       
       // Add doctor-specific fields
-      if (treatingAsDoctor && data.license_number) {
+      if (treatingAsDoctorOnSubmit && data.license_number) {
         formData.append('license_number', data.license_number)
       }
       
       // Add signature file if it exists
-      if (treatingAsDoctor && signatureFile) {
+      if (treatingAsDoctorOnSubmit && signatureFile) {
         formData.append('signature', signatureFile)
       }
       
@@ -550,15 +577,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
       }
 
       const createResult = await authContext.createUser(formData)
-      const newUserId =
-        createResult?.data?.id ??
-        createResult?.data?.user?.id ??
-        createResult?.user?.id ??
-        createResult?.id
-
-      if (canManagePermissions && newUserId) {
-        await persistUserDirectPermissions(Number(newUserId), selectedPermissions, activeCustomerId)
-      }
 
       toast({
         title: "Success",
@@ -589,8 +607,37 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex flex-col max-h-[calc(90vh-120px)]">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4 flex flex-col max-h-[calc(90vh-120px)]"
+            autoComplete="off"
+          >
             <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-4">
+            {requireCustomerSelection && (
+              <div className="space-y-2 pb-3 border-b border-gray-100">
+                <h3 className="text-xs font-semibold text-gray-900">Customer *</h3>
+                <FormField
+                  control={form.control}
+                  name="customer_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <SearchableSelect
+                          options={customerOptions}
+                          value={field.value || ""}
+                          onValueChange={field.onChange}
+                          placeholder="Select a customer"
+                          searchPlaceholder="Search customers…"
+                          emptyMessage="No customers found"
+                          className="h-12"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
             {/* Avatar Section */}
             <div className="flex items-start gap-4 pb-3 border-b border-gray-100">
               <FormField
@@ -659,7 +706,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                             <Input 
                               label="First Name *"
                               placeholder="Enter first name" 
-                              validationState={getValidationState("first_name", true)}
+                              validationState={getValidationState("first_name")}
                               errorMessage={form.formState.errors.first_name?.message as string}
                               className="h-12"
                               {...field} 
@@ -679,7 +726,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                             <Input 
                               label="Last Name *"
                               placeholder="Enter last name" 
-                              validationState={getValidationState("last_name", true)}
+                              validationState={getValidationState("last_name")}
                               errorMessage={form.formState.errors.last_name?.message as string}
                               className="h-12"
                               {...field} 
@@ -698,26 +745,28 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
             <div className="space-y-3 pb-3 border-b border-gray-100">
               <h3 className="text-xs font-semibold text-gray-900">Contact Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Input 
-                          type="email"
-                          label="Email Address *"
-                          placeholder="Enter email address" 
-                          validationState={getValidationState("email", true)}
-                          errorMessage={form.formState.errors.email?.message as string}
-                          className="h-12"
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            label="Email Address *"
+                            placeholder="Enter email address"
+                            autoComplete="off"
+                            data-1p-ignore
+                            data-lpignore="true"
+                            validationState={getValidationState("email")}
+                            className="h-12"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}
@@ -728,7 +777,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           <Input 
                             label="Phone Number *"
                             placeholder="Enter phone number" 
-                            validationState={getValidationState("phone", true)}
+                            validationState={getValidationState("phone")}
                             errorMessage={form.formState.errors.phone?.message as string}
                             className="h-12"
                             {...field}
@@ -753,7 +802,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           <Input 
                             label="Work Number"
                             placeholder="Enter work number" 
-                            validationState={getValidationState("work_number", false)}
+                            validationState={getValidationState("work_number")}
                             className="h-12"
                             {...field}
                             onChange={(e) => {
@@ -785,8 +834,10 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           label="Password *"
                           placeholder="Enter password"
                           revealToggle
-                          validationState={getValidationState("password", true)}
-                          errorMessage={form.formState.errors.password?.message as string}
+                          autoComplete="new-password"
+                          data-1p-ignore
+                          data-lpignore="true"
+                          validationState={getValidationState("password")}
                           className="h-12"
                           {...field}
                         />
@@ -807,8 +858,10 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           label="Confirm Password *"
                           placeholder="Re-enter password"
                           revealToggle
-                          validationState={getValidationState("password_confirmation", true)}
-                          errorMessage={form.formState.errors.password_confirmation?.message as string}
+                          autoComplete="new-password"
+                          data-1p-ignore
+                          data-lpignore="true"
+                          validationState={getValidationState("password_confirmation")}
                           className="h-12"
                           {...field}
                         />
@@ -820,14 +873,61 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
               </div>
             </div>
 
-            {/* Role & Permissions Section — hidden picker when page locks the role */}
+            {/* Role Section — hidden picker when page locks the role */}
             <div className="space-y-3 pb-3 border-b border-gray-100">
               <h3 className="text-xs font-semibold text-gray-900">
-                {roleIsLocked ? "Permissions" : "Role & Permissions"}
+                {roleIsLocked ? "User Type" : "Role"}
               </h3>
               {roleIsLocked ? (
-                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
-                  Creating as <span className="font-medium">{getRoleDisplayLabel(lockedRole)}</span>
+                <div className="space-y-3">
+                  <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                    Creating as <span className="font-medium">{getRoleDisplayLabel(lockedRole)}</span>
+                    {resolvedCreateRole === "doctor_admin" && (
+                      <span className="ml-2 text-xs text-[#1162a8]">(+ mixed Doctor Admin)</span>
+                    )}
+                  </div>
+                  {showAlsoDoctorCheckbox && (
+                    <FormField
+                      control={form.control}
+                      name="is_doctor"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="leading-none">
+                            <FormLabel className="text-xs font-medium cursor-pointer">
+                              User is also a Doctor
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  {showAlsoAdminCheckbox && (
+                    <FormField
+                      control={form.control}
+                      name="is_also_admin"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="leading-none">
+                            <FormLabel className="text-xs font-medium cursor-pointer">
+                              User is also an Admin
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -840,9 +940,19 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           <Select onValueChange={field.onChange} value={field.value}>
                             <SelectTrigger className={cn(
                               "h-12 border-2 text-sm",
-                              !field.value ? "border-[#CF0202]" : "border-[#119933]"
+                              form.formState.dirtyFields.role && !field.value
+                                ? "border-[#CF0202]"
+                                : form.formState.dirtyFields.role && field.value
+                                  ? "border-[#119933]"
+                                  : "border-gray-200"
                             )}>
-                              <SelectValue placeholder="Select a role" />
+                              <SelectValue
+                                placeholder={
+                                  requireCustomerSelection && !effectiveCustomerType
+                                    ? "Select a customer first"
+                                    : "Select a role"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               {availableRoles.map((role) => (
@@ -858,7 +968,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                     )}
                   />
 
-                  {selectedRole !== "doctor" && isOfficeCustomer && (
+                  {showAlsoDoctorCheckbox && (
                     <FormField
                       control={form.control}
                       name="is_doctor"
@@ -872,7 +982,28 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           </FormControl>
                           <div className="leading-none">
                             <FormLabel className="text-xs font-medium cursor-pointer">
-                              Is Doctor
+                              User is also a Doctor
+                            </FormLabel>
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  {showAlsoAdminCheckbox && (
+                    <FormField
+                      control={form.control}
+                      name="is_also_admin"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50 h-12">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="leading-none">
+                            <FormLabel className="text-xs font-medium cursor-pointer">
+                              User is also an Admin
                             </FormLabel>
                           </div>
                         </FormItem>
@@ -910,7 +1041,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
             )}
 
             {/* Doctor-Specific Fields */}
-            {(isDoctor || isDoctorRole(selectedRole) || isDoctorRole(lockedRole)) && (
+            {treatingAsDoctor && (
               <div className="space-y-3 pb-3 border-b border-gray-100">
                 <h3 className="text-xs font-semibold text-gray-900">Doctor Information</h3>
                 <div className="space-y-3">
@@ -923,7 +1054,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                           <Input 
                             label="License Number *"
                             placeholder="Enter license number" 
-                            validationState={getValidationState("license_number", true)}
+                            validationState={getValidationState("license_number")}
                             errorMessage={form.formState.errors.license_number?.message as string}
                             className="h-12"
                             {...field}
@@ -951,7 +1082,7 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
                             <div
                               className={cn(
                                 "border rounded-lg overflow-hidden",
-                                form.formState.errors.signature || (isDoctor && !hasSignature && form.formState.errors.license_number)
+                                form.formState.errors.signature
                                   ? "border-red-500"
                                   : "border-gray-200",
                               )}
@@ -1027,18 +1158,6 @@ export function CreateUserModal({ isOpen, onClose, onSuccess, lockedRole }: Crea
               </div>
             )}
 
-            {canManagePermissions && selectedRole && (
-              <div className="space-y-3 border-t pt-4">
-                <h4 className="text-sm font-semibold">Permissions</h4>
-                <PermissionAssignmentPanel
-                  key={`${selectedRole}-${activeCustomerId ?? "none"}`}
-                  customerId={activeCustomerId ?? undefined}
-                  role={selectedRole}
-                  selected={selectedPermissions}
-                  onChange={setSelectedPermissions}
-                />
-              </div>
-            )}
             </div>
 
             <DialogFooter className="pt-3 border-t border-gray-100 flex-shrink-0">
