@@ -42,6 +42,7 @@ import {
   type CaseSchedule,
 } from "@/lib/api-business-settings";
 import { caseDesignInter } from "@/components/case-design-center/case-design-inter-font";
+import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
 
@@ -295,6 +296,13 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
 
       clearAddStageSession();
       setSubmissionState("success-transition");
+
+      // Same as slip create: virtual slip page consumes this once to auto-open
+      // the paper slip print window for the newly created stage slip.
+      if (typeof firstNewSlipId === "number" && firstNewSlipId > 0) {
+        markSlipForAutoPrint(firstNewSlipId);
+      }
+
       toast({
         title: "New stage created",
         description:

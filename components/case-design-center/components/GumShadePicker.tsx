@@ -80,17 +80,20 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
     <>
       {/* Dim the rest of the screen; block clicks so background fields stay inactive */}
       <div className="fixed inset-0 z-[55] bg-black/30" aria-hidden />
-      <div className="bg-white self-stretch flex flex-col gap-3 relative z-[60] rounded-lg shadow-lg ring-1 ring-[#e5e7eb] p-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="bg-white self-stretch flex flex-col gap-3 relative z-[60] rounded-lg shadow-lg ring-1 ring-[#e5e7eb] p-3 min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
         {/* Brand dropdown */}
-        <div className="relative">
+        <div className="relative min-w-0">
           <fieldset
-            className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors"
+            className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors min-w-0 overflow-hidden"
             onClick={() => setShowBrandDropdown((v) => !v)}
           >
             <legend className="text-sm px-1 leading-none text-[#34a853]">Shade guide selected</legend>
-            <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+            <div className="flex items-center gap-2 w-full min-w-0">
+              <span
+                className="text-[14px] sm:text-lg text-[#000000] truncate min-w-0 flex-1"
+                title={currentBrandLabel}
+              >
                 {currentBrandLabel}
               </span>
               <ChevronDown size={16} className="text-[#7f7f7f] flex-shrink-0" />
@@ -133,19 +136,22 @@ export function GumShadePicker({ selected, onSelect, gumShades }: GumShadePicker
 
         {/* Select Gum shade field */}
         {localSelected ? (
-          <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center transition-colors">
+          <fieldset className="border border-[#34a853] rounded px-3 py-0 relative h-[42px] flex items-center transition-colors min-w-0 overflow-hidden">
             <legend className="text-sm px-1 leading-none text-[#34a853]">
               Gum shade selected
             </legend>
-            <div className="flex items-center gap-2 w-full">
-              <span className="text-[14px] sm:text-lg text-[#000000] truncate flex-1">
+            <div className="flex items-center gap-2 w-full min-w-0">
+              <span
+                className="text-[14px] sm:text-lg text-[#000000] truncate min-w-0 flex-1"
+                title={localSelected}
+              >
                 {localSelected}
               </span>
               <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />
             </div>
           </fieldset>
         ) : (
-          <div className="h-[42px] flex items-center">
+          <div className="h-[42px] flex items-center min-w-0">
             <span className="text-[#cf0202] text-base font-medium flex items-center cursor-pointer">Select Gum shade</span>
           </div>
         )}

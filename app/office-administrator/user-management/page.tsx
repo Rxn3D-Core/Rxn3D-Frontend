@@ -1,19 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, Filter, Search, Plus, ChevronDown, ChevronUp } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Filter, Search, Plus, ChevronDown, ChevronUp, Pencil, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
-import { OfficeUserDetail } from "@/components/office-administrator/office-user-detail"
-import { AddUserForm } from "@/components/lab-administrator/add-user-form"
+import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
+import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
+import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { normalizeUserStatus, type UserStatus } from "@/lib/user-status"
 
 interface StaffUser {
   id: number
@@ -22,21 +24,23 @@ interface StaffUser {
   phone: string
   userType: string
   joinDate: string
-  status: "Active" | "Inactive" | "Suspended" | "Archived"
+  status: UserStatus
   avatar?: string
   avatarColor?: string
 }
 
 export default function UserOfficeManagement() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { user, fetchUsers, updateUser, hasPermission } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all")
-  const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [showUpdateUser, setShowUpdateUser] = useState(false)
+  const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
+  const [showResetPassword, setShowResetPassword] = useState(false)
+  const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
@@ -89,17 +93,6 @@ export default function UserOfficeManagement() {
 
   // Transform API user data to StaffUser format
   const transformApiUser = (apiUser: any, index: number): StaffUser => {
-    // Map API status to our status types
-    const statusMap: { [key: string]: "Active" | "Inactive" | "Suspended" | "Archived" } = {
-      'Active': 'Active',
-      'active': 'Active',
-      'Inactive': 'Inactive',
-      'inactive': 'Inactive',
-      'suspended': 'Suspended',
-      'archived': 'Archived',
-      'pending': 'Inactive' // Default pending to Inactive
-    }
-
     const selectedCustomerId = Number(localStorage.getItem("customerId") || 0)
     const customerUsers = Array.isArray(apiUser.customer_users) ? apiUser.customer_users : []
     const scopedCustomerUsers = selectedCustomerId
@@ -122,7 +115,7 @@ export default function UserOfficeManagement() {
       phone: apiUser.phone || apiUser.work_number || '',
       userType: userType,
       joinDate: apiUser.created_at ? new Date(apiUser.created_at).toISOString().split('T')[0] : '',
-      status: statusMap[apiUser.status] || 'Inactive',
+      status: normalizeUserStatus(apiUser.status),
       avatarColor: avatarColors[index % avatarColors.length],
     }
   }
@@ -181,17 +174,6 @@ export default function UserOfficeManagement() {
   useEffect(() => {
     loadStaffUsers()
   }, [])
-
-  // Check URL params for user detail view
-  useEffect(() => {
-    const userId = searchParams?.get("userId")
-    if (userId) {
-      const user = staffUsers.find((u) => u.id === Number.parseInt(userId))
-      if (user) {
-        setSelectedUser(user)
-      }
-    }
-  }, [searchParams, staffUsers])
 
   // Get unique user types for filter
   const uniqueUserTypes = Array.from(new Set(staffUsers.map(user => user.userType))).sort()
@@ -296,25 +278,31 @@ export default function UserOfficeManagement() {
     setAllSelected(!allSelected)
   }
 
-  // Handle view user details
-  const handleViewUser = (user: StaffUser) => {
-    setSelectedUser(user)
-    router.replace(`/office-administrator/user-management?userId=${user.id}`)
-  }
-
-  // Handle add new user
+  // Handle add new user – same Create User modal as superadmin
   const handleAddUser = () => {
     setShowAddUser(true)
-    setSelectedUser(null)
-    router.replace("/office-administrator/user-management?action=add")
   }
 
-  // Handle back to list
-  const handleBackToList = () => {
-    setSelectedUser(null)
+  const handleEditUser = (user: StaffUser) => {
+    if (!hasPermission("edit_user")) return
+    setUserToUpdate(user)
+    setShowUpdateUser(true)
+  }
+
+  const handleResetPassword = (user: StaffUser) => {
+    if (!hasPermission("edit_user")) return
+    setUserToResetPassword(user)
+    setShowResetPassword(true)
+  }
+
+  const handleUpdateUserSuccess = () => {
+    setShowUpdateUser(false)
+    setUserToUpdate(null)
+    loadStaffUsers()
+  }
+
+  const handleAddUserSuccess = () => {
     setShowAddUser(false)
-    router.replace("/office-administrator/user-management")
-    // Reload users to get latest data
     loadStaffUsers()
   }
 
@@ -397,19 +385,7 @@ export default function UserOfficeManagement() {
     }
   }
 
-  // If showing user detail or add user form
-  if (selectedUser || showAddUser) {
-    return (
-      <div className="h-full">
-        {selectedUser ? (
-          <OfficeUserDetail user={selectedUser} onBack={handleBackToList} />
-        ) : (
-          <AddUserForm onCancel={handleBackToList} onSuccess={handleBackToList} />
-        )}
-      </div>
-    )
-  }
-
+  // Listing + modals (same pattern as superadmin All Users)
   return (
     <div className="py-6 px-4">
       {/* Page Header */}
@@ -645,15 +621,28 @@ export default function UserOfficeManagement() {
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewUser(user)}
-                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                        title="View user details"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditUser(user)}
+                          className="text-green-600 hover:text-green-800"
+                          title="Edit user"
+                          disabled={!hasPermission("edit_user")}
+                        >
+                          <Pencil className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleResetPassword(user)}
+                          className="text-amber-600 hover:text-amber-800"
+                          title="Set password"
+                          disabled={!hasPermission("edit_user")}
+                        >
+                          <Lock className="h-5 w-5" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -742,6 +731,31 @@ export default function UserOfficeManagement() {
           </div>
         </div>
       </div>
+
+      <CreateUserModal
+        isOpen={showAddUser}
+        onClose={() => setShowAddUser(false)}
+        onSuccess={handleAddUserSuccess}
+      />
+
+      <UpdateUserModal
+        isOpen={showUpdateUser}
+        onClose={() => {
+          setShowUpdateUser(false)
+          setUserToUpdate(null)
+        }}
+        onSuccess={handleUpdateUserSuccess}
+        user={userToUpdate}
+      />
+
+      <ResetUserPasswordModal
+        isOpen={showResetPassword}
+        onClose={() => {
+          setShowResetPassword(false)
+          setUserToResetPassword(null)
+        }}
+        user={userToResetPassword}
+      />
     </div>
   )
 }

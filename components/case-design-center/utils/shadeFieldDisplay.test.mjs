@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   formatRemovableShadeFieldLabel,
   formatShadeSystemName,
+  formatShadeGuideWithBrand,
   findShadeCatalogMatch,
   getGumShadePreviewColor,
   getShadePreviewCode,
@@ -9,6 +10,16 @@ import {
 
 assert.equal(formatShadeSystemName("vita_classical"), "Vita Classical");
 assert.equal(formatShadeSystemName("Vita classical"), "Vita Classical");
+
+assert.equal(
+  formatShadeGuideWithBrand("vita_classical", "Ivoclar"),
+  "Ivoclar - Vita Classical"
+);
+assert.equal(formatShadeGuideWithBrand("vita_classical", ""), "Vita Classical");
+assert.equal(
+  formatShadeGuideWithBrand("Vita Classical", "Vita Classical"),
+  "Vita Classical"
+);
 
 const teethShades = [
   {

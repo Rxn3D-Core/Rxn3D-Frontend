@@ -26,6 +26,9 @@ export function ShadeField({
 }) {
   const displayShade = shade || "";
   const previewCode = getShadePreviewCode(displayShade || value) || displayShade || value;
+  // While the shade guide is open, show only the shade code (e.g. "C1") —
+  // brand/system name is already on the adjacent "Shade guide selected" field.
+  const displayText = isActive && previewCode ? previewCode : value;
   const hasValue = value.trim().length > 0 || displayShade.trim().length > 0;
   const showGreen = hasValue && !submitted && !isActive;
   const showRed = required && !hasValue && !submitted && !isActive;
@@ -53,8 +56,11 @@ export function ShadeField({
         {isActive ? `${label} — selecting` : label}
       </legend>
       <div className="flex items-center gap-2 w-full min-w-0">
-        <span className={`text-lg leading-tight truncate flex-1 min-w-0 ${isActive ? "text-[#1162A8] font-medium" : "text-[#000000]"}`} title={value || undefined}>
-          {value}
+        <span
+          className={`text-lg leading-tight truncate flex-1 min-w-0 ${isActive ? "text-[#1162A8] font-medium" : "text-[#000000]"}`}
+          title={value || undefined}
+        >
+          {displayText}
         </span>
         {previewCode && <TeethShadePreviewIcon shadeCode={previewCode} />}
 

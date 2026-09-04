@@ -50,6 +50,24 @@ export function formatShadeSystemName(raw: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * Shade guide dropdown / “Shade guide selected” label: "Brand - System"
+ * when brand.name is present and distinct from system_name; otherwise system only.
+ */
+export function formatShadeGuideWithBrand(
+  systemName: string | null | undefined,
+  brandName?: string | null
+): string {
+  const system = formatShadeSystemName((systemName ?? "").trim());
+  const brand = (brandName ?? "").trim();
+  if (!system) return brand;
+  if (!brand) return system;
+  if (formatShadeSystemName(brand).toLowerCase() === system.toLowerCase()) {
+    return system;
+  }
+  return `${brand} - ${system}`;
+}
+
 /** Candidate shade names for catalog lookup (handles formatted labels like "Vita Classical - B2"). */
 function shadeNameCandidates(raw: string | undefined | null): string[] {
   const parsed = parseShadeSelection(raw);

@@ -140,6 +140,10 @@ type AuthContextType = {
     status?: string
     department_ids?: number[]
     customer_id?: number
+    role?: string
+    is_doctor?: boolean
+    license_number?: string
+    signature?: File | null
   }) => Promise<any>
   createUser: (userData: FormData | {
     first_name: string;
@@ -161,6 +165,10 @@ type AuthContextType = {
     work_number?: string;
     status: string;
     department_ids?: number[];
+    role?: string;
+    is_doctor?: boolean;
+    license_number?: string;
+    signature?: File | null;
   }) => Promise<any>
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
@@ -978,14 +986,33 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     status?: string
     department_ids?: number[]
     customer_id?: number
+    role?: string
+    is_doctor?: boolean
+    license_number?: string
+    signature?: File | null
   }): Promise<any> => {
     try {
       const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
+
+      let signaturePayload: string | undefined
+      if (data.signature instanceof File) {
+        signaturePayload = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(String(reader.result || ""))
+          reader.onerror = () => reject(new Error("Failed to read signature file"))
+          reader.readAsDataURL(data.signature as File)
+        })
+      }
+
+      const { signature: _signature, ...rest } = data
       const payload = {
-        ...data,
+        ...rest,
         ...(data.status !== undefined ? { status: formatUserStatusForApi(data.status) } : {}),
         ...(customerId !== undefined ? { customer_id: customerId } : {}),
+        ...(signaturePayload ? { signature: signaturePayload } : {}),
       }
+
+      // Always PUT — api.rxn3d.com only allows PUT on /users/{id} (POST returns 405)
       const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
         method: "PUT",
         headers: {
@@ -1002,7 +1029,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || "Failed to update user")
+        throw new Error(errorData.message || errorData.error_description || "Failed to update user")
       }
 
       return await response.json()
@@ -1259,37 +1286,14 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     work_number?: string;
     status: string;
     department_ids?: number[];
+    role?: string;
+    is_doctor?: boolean;
+    license_number?: string;
+    signature?: File | null;
   }): Promise<any> => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify({
-          ...userData,
-          status: formatUserStatusForApi(userData.status),
-        }),
-      });
-
-      if (response.status === 401) {
-        handleUnauthorized()
-        throw new Error("Unauthorized")
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || "Failed to update user");
-      }
-
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error("Update user details error:", error);
-      throw error;
-    }
-  }, [handleUnauthorized]);
+    // Delegate to updateUser so customer_id / FormData signature uploads stay consistent
+    return updateUser(userId, userData)
+  }, [updateUser]);
 
   const setCustomerId = useCallback(
     async (

@@ -5,7 +5,8 @@ import { Check } from "@/components/ui/custom-check";
 import { ChevronDown } from "lucide-react";
 import { ToothShadeSelectionSVG } from "@/components/tooth-shade-selection-svg";
 import type { Arch, ProductApiData, ShadeFieldType, ShadeSelectionState } from "../types";
-import { getTeethShadesForSelectedGuide, getBrandColorForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
+import { getTeethShadesForSelectedGuide, getBrandColorForSelectedGuide, getBrandForSelectedGuide } from "../utils/shadeGuideAdvanceFields";
+import { formatShadeGuideWithBrand, getShadePreviewCode } from "../utils/shadeFieldDisplay";
 
 interface FixedAccordionShadePickerProps {
   arch: Arch;
@@ -83,16 +84,25 @@ export function FixedAccordionShadePicker({
     [productForShades, selectedShadeGuide]
   );
 
+  const formatGuideOptionLabel = (systemName: string) => {
+    const brand = getBrandForSelectedGuide(productForShades, systemName);
+    return formatShadeGuideWithBrand(systemName, brand?.name);
+  };
+
+  const selectedGuideLabel = selectedShadeGuide
+    ? formatGuideOptionLabel(selectedShadeGuide)
+    : "";
+
   const activeLabel = shadeSelectionState.advanceFieldLabel || "Shade";
 
   if (!fieldType) return null;
 
   return (
     <div className="mt-3 border border-[#1162A8] rounded-lg p-4 bg-white min-w-0 overflow-visible">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-        <div className="relative">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 min-w-0">
+        <div className="relative min-w-0">
           <fieldset
-            className={`border rounded px-3 py-0 relative h-[42px] flex items-center ${
+            className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 overflow-hidden ${
               selectedShadeGuide ? "border-[#34a853]" : "border-[#cf0202]"
             }`}
           >
@@ -106,10 +116,15 @@ export function FixedAccordionShadePicker({
             <button
               type="button"
               onClick={() => setShowShadeGuideDropdown(!showShadeGuideDropdown)}
-              className="w-full flex items-center justify-between text-left"
+              className="w-full flex items-center justify-between text-left gap-2 min-w-0"
             >
-              <span className="text-lg text-[#000000]">{selectedShadeGuide || ""}</span>
-              <div className="flex items-center gap-2">
+              <span
+                className="text-lg text-[#000000] truncate min-w-0"
+                title={selectedGuideLabel || undefined}
+              >
+                {selectedGuideLabel}
+              </span>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {selectedShadeGuide && <Check size={16} className="text-[#34a853]" />}
                 <ChevronDown
                   size={16}
@@ -139,7 +154,7 @@ export function FixedAccordionShadePicker({
                     <Check size={16} className="text-[#34a853]" />
                   )}
                   <span className={selectedShadeGuide === option ? "ml-0" : "ml-6"}>
-                    {option}
+                    {formatGuideOptionLabel(option)}
                   </span>
                 </button>
               ))}
@@ -152,7 +167,9 @@ export function FixedAccordionShadePicker({
             <span className="text-sm text-[#7f7f7f]">Editing</span>
             <span className="text-base font-semibold text-[#1162A8]">{activeLabel}</span>
             {activeShade && (
-              <span className="text-sm text-[#000000]">Current: {activeShade}</span>
+              <span className="text-sm text-[#000000]">
+                Current: {getShadePreviewCode(activeShade) || activeShade}
+              </span>
             )}
           </div>
         )}
