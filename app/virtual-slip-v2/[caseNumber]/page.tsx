@@ -150,7 +150,11 @@ export default function VirtualSlipV2Page() {
     let cancelled = false;
     fetchNewStageEligibility(slipId)
       .then((res) => {
-        if (!cancelled) setAddStageEligible(Boolean(res.data?.eligible));
+        if (cancelled) return;
+        const products = res.data?.products ?? [];
+        setAddStageEligible(
+          Boolean(res.data?.eligible) || products.some((p) => p.eligible)
+        );
       })
       .catch(() => {
         if (!cancelled) setAddStageEligible(false);
