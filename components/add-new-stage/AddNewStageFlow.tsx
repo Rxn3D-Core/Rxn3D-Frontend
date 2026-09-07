@@ -7,7 +7,11 @@ import { useToast } from "@/hooks/use-toast";
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage";
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
 import { postAddStageToSlip } from "@/lib/api/slip-add-stage";
-import { extractVirtualSlipProducts } from "@/lib/virtual-slip-products";
+import {
+  extractVirtualSlipProducts,
+  findSlipProductForEligibility,
+  slipProductLibraryId,
+} from "@/lib/virtual-slip-products";
 import {
   buildAddStagePreload,
   buildAddedProducts,
@@ -141,7 +145,10 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         const eligibilityRes = await fetchNewStageEligibility(sourceSlipId);
         if (cancelled) return;
         const data = eligibilityRes.data;
-        if (!data?.eligible) {
+        const eligibleLines = (data?.products ?? []).filter((p) => p.eligible);
+        const slipEligible = Boolean(data?.eligible) || eligibleLines.length > 0;
+
+        if (!slipEligible) {
           const msg =
             data?.reasons?.join(" ") ||
             data?.message ||
@@ -152,10 +159,9 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           return;
         }
 
-        const eligibleLines = (data.products ?? []).filter((p) => p.eligible);
         if (eligibleLines.length === 0) {
           setIneligibleMessage(
-            data.message || "No product lines are eligible for a new stage."
+            data?.message || "No product lines are eligible for a new stage."
           );
           setStep("ineligible");
           return;
@@ -178,6 +184,19 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           return;
         }
 
+        // Only preload arches that are eligible so a finished side is not re-submitted.
+        const eligibleApiProducts = eligibleLines
+          .map((ep) => findSlipProductForEligibility(ep, apiProducts))
+          .filter((row): row is Record<string, unknown> => Boolean(row));
+        const uniqueEligibleApiProducts = Array.from(
+          new Map(
+            eligibleApiProducts.map((row) => {
+              const key = `${slipProductLibraryId(row)}:${String(row.type ?? "").toLowerCase()}`;
+              return [key, row] as const;
+            })
+          ).values()
+        );
+
         const session = readAddStageSession();
         const selections =
           session.sourceSlipId === sourceSlipId &&
@@ -189,7 +208,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         const historyByArch = init.historyByArch;
         saveAddStageSession(sourceSlipId, selections, historyByArch);
 
-        const preload = buildAddStagePreload(apiProducts, selections);
+        const preload = buildAddStagePreload(uniqueEligibleApiProducts, selections);
         const seed = buildWizardSeedFromSlipDetails(virtualSlipDetails);
 
         setInitialSlipState(preload.initialSlipState);
@@ -208,7 +227,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             ? { id: seed.lab.id, name: seed.lab.name, logo: seed.lab.logo }
             : null,
           officeId: resolveOfficeIdFromSlipDetails(virtualSlipDetails),
-          addedProducts: buildAddedProducts(apiProducts),
+          addedProducts: buildAddedProducts(uniqueEligibleApiProducts),
           initialArch: preload.initialArch,
         });
         setStep("design");
