@@ -29,11 +29,14 @@ function stageRowId(row: ProductStageRow): number {
 /**
  * Pick the initial stage from slip/eligibility context.
  * Dropdown options in CDC still come from the full product details API.
+ *
+ * @param preferRepeatStage When true (send-back remake), keep the last stage instead of advancing.
  */
 export function resolveDefaultStageSelection(
   eligibilityProduct: NewStageEligibilityProduct,
   productStages: ProductStageRow[] | undefined,
-  productForSkip?: ProductForStageSkip
+  productForSkip?: ProductForStageSkip,
+  preferRepeatStage = false
 ): { stageId: number; stageName: string } | null {
   if (shouldSkipStageSelection(productForSkip)) {
     return { stageId: 0, stageName: SKIPPED_STAGE_LABEL };
@@ -52,6 +55,10 @@ export function resolveDefaultStageSelection(
   const stages = Array.isArray(productStages) ? [...productStages] : [];
   const last = eligibilityProduct.last_stage;
   const lastSeq = last?.stage_sequence ?? 0;
+
+  if (preferRepeatStage && last?.stage_id && last.stage_name) {
+    return { stageId: last.stage_id, stageName: last.stage_name };
+  }
 
   if (eligibilityProduct.proposed_stage?.valid && eligibilityProduct.proposed_stage.stage_id) {
     const proposedId = eligibilityProduct.proposed_stage.stage_id;
@@ -98,8 +105,16 @@ export async function buildAddStageInitFromProductApi(params: {
   apiProducts: unknown[];
   fetchProductDetails: (productId: number, labId?: number) => Promise<unknown>;
   labId: number | null;
+  /** Send-back remake: default to repeating the last stage instead of advancing. */
+  preferRepeatStage?: boolean;
 }): Promise<BuildAddStageInitResult> {
-  const { eligibleProducts, apiProducts, fetchProductDetails, labId } = params;
+  const {
+    eligibleProducts,
+    apiProducts,
+    fetchProductDetails,
+    labId,
+    preferRepeatStage = false,
+  } = params;
   const selections: AddStageSelections = {};
   const historyByArch: AddStageHistoryByArch = {};
   let matchedCount = 0;
@@ -119,7 +134,12 @@ export async function buildAddStageInitFromProductApi(params: {
     )) as ProductForStageSkip & { stages?: ProductStageRow[] } | null;
     if (!details) continue;
 
-    const pick = resolveDefaultStageSelection(ep, details.stages, details);
+    const pick = resolveDefaultStageSelection(
+      ep,
+      details.stages,
+      details,
+      preferRepeatStage
+    );
     if (!pick?.stageName && !shouldSkipStageSelection(details)) continue;
 
     matchedCount++;
