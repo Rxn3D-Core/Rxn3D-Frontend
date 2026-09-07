@@ -218,13 +218,6 @@ function formatShortDate(iso: string | null | undefined): string {
   return d.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
 }
 
-function officeShortCode(name: string | null | undefined): string {
-  if (!name?.trim()) return "—"
-  const alpha = name.replace(/[^a-zA-Z]/g, "")
-  if (alpha.length >= 3) return alpha.slice(0, 3).toUpperCase()
-  return name.slice(0, 3).toUpperCase()
-}
-
 function mapProductType(ul: string | null | undefined): string {
   if (!ul) return "—"
   const t = ul.toLowerCase()
@@ -379,7 +372,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   const officeName = inv.office?.name
   const officeNameLabel = officeName?.trim() || "—"
   const invoiceNumber = inv.invoice_number?.trim() || `INV-${inv.id}`
-  const oc = officeShortCode(officeName ?? undefined)
+  const oc = inv.office?.code?.trim() || "—"
   const due = formatShortDate(inv.created_at ?? inv.slip?.case?.created_at)
   const invStatus = mapInvoiceStatusToLabel(inv.status)
 

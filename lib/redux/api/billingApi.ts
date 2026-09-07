@@ -189,7 +189,7 @@ export interface BillingInvoice {
     } | null
   } | null
   lab?: { id?: number; name?: string | null; email?: string | null; phone?: string | null } | null
-  office?: { id?: number; name?: string | null; email?: string | null; phone?: string | null } | null
+  office?: { id?: number; name?: string | null; code?: string | null; email?: string | null; phone?: string | null } | null
   products?: BillingProduct[]
   created_at?: string | null
   updated_at?: string | null
