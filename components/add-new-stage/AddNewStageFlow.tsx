@@ -147,6 +147,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         const data = eligibilityRes.data;
         const eligibleLines = (data?.products ?? []).filter((p) => p.eligible);
         const slipEligible = Boolean(data?.eligible) || eligibleLines.length > 0;
+        const remakeViaSendBack = Boolean(data?.finished_via_send_back_to_office);
 
         if (!slipEligible) {
           const msg =
@@ -172,6 +173,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           apiProducts,
           fetchProductDetails,
           labId: labIdForProductFetch,
+          preferRepeatStage: remakeViaSendBack,
         });
         if (cancelled) return;
         if (init.matchedCount === 0) {
@@ -214,7 +216,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
         setInitialSlipState(preload.initialSlipState);
         setAddStageContext({
           historyByArch,
-          promptStagesOnLoad: true,
+          // Send-back remake: autofill (repeat stage / skip single-stage); no forced picker.
+          promptStagesOnLoad: !remakeViaSendBack,
         });
         setBootstrap({
           patientName: seed.patientName,
