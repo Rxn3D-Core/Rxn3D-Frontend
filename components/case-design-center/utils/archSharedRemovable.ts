@@ -112,3 +112,50 @@ export function getRepToothForRemovableCard(
   if (card0Assigned.length > 0) return card0Assigned[0];
   return allArchTeeth[0] ?? (arch === "maxillary" ? 1 : 17);
 }
+
+/**
+ * Find a stored removable field (e.g. teeth_shade) on any tooth of a card.
+ * Card 0 also binds sentinel tooth 1/17 for accordion render, while shade/grade
+ * values live on chart-selected teeth — so callers must not rely on the sentinel
+ * alone when mirroring shades across arches.
+ */
+export function findRemovableCardFieldValue(
+  arch: Arch,
+  cardId: number,
+  allArchTeeth: number[],
+  step: string,
+  getToothProductCard: (arch: Arch, toothNumber: number) => number,
+  getToothProduct: (arch: Arch, toothNumber: number) => ProductApiData | null,
+  getFieldValue: (arch: Arch, toothNumber: number, step: string) => string,
+  isFieldCompleted: (arch: Arch, toothNumber: number, step: string) => boolean
+): { tooth: number; value: string; completed: boolean } | null {
+  const repTooth = getRepToothForRemovableCard(
+    arch,
+    cardId,
+    allArchTeeth,
+    getToothProductCard,
+    getToothProduct
+  );
+
+  const cardTeeth =
+    cardId === 0
+      ? allArchTeeth.filter(
+          (tn) => getToothProductCard(arch, tn) === 0 && !!getToothProduct(arch, tn)
+        )
+      : allArchTeeth.filter((tn) => getToothProductCard(arch, tn) === cardId);
+
+  const candidates = [repTooth, ...cardTeeth];
+  if (cardId !== 0) candidates.push(-cardId);
+
+  const seen = new Set<number>();
+  for (const tn of candidates) {
+    if (seen.has(tn)) continue;
+    seen.add(tn);
+    const completed = isFieldCompleted(arch, tn, step);
+    const value = getFieldValue(arch, tn, step) || "";
+    if (completed || value) {
+      return { tooth: tn, value, completed };
+    }
+  }
+  return null;
+}

@@ -187,14 +187,54 @@ function ImpressionGrid({
     setSelectedSTLImpression(null)
   }
 
-  const renderCard = (impression: ImpressionOption, compact: boolean) => {
-    const qty = getQty(impression)
-    const isSelected = qty > 0
-    // Green check only on the single last-touched card across both arch sections
-    const showCheck = qty >= 1 && getKey(impression) === lastTouchedKey
+  const renderImpressionImage = (
+    impression: ImpressionOption,
+    className: string,
+    fallbackTextSize: string
+  ) => (
+    <div
+      className={cn(
+        "rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0",
+        className
+      )}
+    >
+      {impression.image_url ? (
+        <img
+          src={impression.image_url}
+          alt={getImpressionLabel(impression)}
+          className="w-full h-full object-contain"
+          onError={(e) => {
+            const el = e.target as HTMLImageElement
+            el.style.display = "none"
+            const parent = el.parentElement
+            if (parent && !parent.querySelector(".fallback-letter")) {
+              const div = document.createElement("div")
+              div.className = `fallback-letter text-[#B4B0B0] ${fallbackTextSize} font-bold flex items-center justify-center w-full h-full`
+              div.textContent = (impression.name ?? "").charAt(0).toUpperCase()
+              parent.appendChild(div)
+            }
+          }}
+        />
+      ) : (
+        <div
+          className={cn(
+            "text-[#B4B0B0] font-bold flex items-center justify-center w-full h-full",
+            fallbackTextSize
+          )}
+        >
+          {(impression.name ?? "").charAt(0).toUpperCase()}
+        </div>
+      )}
+    </div>
+  )
 
-    const imgSize = compact ? "text-2xl" : "text-2xl md:text-3xl lg:text-4xl"
-    const nameSize = compact ? "text-xs" : "text-xs md:text-sm lg:text-base"
+  const renderQtyControls = (
+    impression: ImpressionOption,
+    compact: boolean,
+    align: "center" | "end" = "center"
+  ) => {
+    const qty = getQty(impression)
+    const showCheck = qty >= 1 && getKey(impression) === lastTouchedKey
     const controlSize = compact ? "w-7 h-7" : "w-7 h-7 md:w-8 md:h-8 lg:w-9 lg:h-9"
     const iconSize = compact ? "w-5 h-5" : "w-5 h-5 md:w-6 md:h-6 lg:w-7 lg:h-7"
     const qtyTextSize = compact ? "text-sm min-w-[18px]" : "text-base md:text-lg min-w-[18px]"
@@ -202,123 +242,146 @@ function ImpressionGrid({
 
     return (
       <div
+        className={cn(
+          "flex items-center gap-0.5 max-w-full min-w-0 flex-wrap",
+          align === "center" ? "justify-center" : "justify-end"
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {qty === 0 ? (
+          <span
+            className={cn("font-['Verdana'] text-[#7F7F7F] cursor-pointer", qtyLabelSize)}
+            onClick={() => handleCardClick(impression)}
+          >
+            QTY +
+          </span>
+        ) : (
+          <>
+            <button
+              className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+              onClick={(e) => handleRemove(impression, e)}
+            >
+              <Trash2 className={cn("text-[#CF0202]", iconSize)} strokeWidth={1.83} />
+            </button>
+
+            {qty > 1 && (
+              <button
+                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+                onClick={(e) => handleDecrement(impression, e)}
+              >
+                <span
+                  className={cn(
+                    "font-['Verdana'] font-normal text-black text-center leading-none",
+                    qtyTextSize
+                  )}
+                >
+                  −
+                </span>
+              </button>
+            )}
+
+            <span className={cn("font-['Verdana'] font-normal text-black text-center", qtyTextSize)}>
+              {qty}
+            </span>
+
+            <button
+              className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
+              onClick={(e) => handleIncrement(impression, e)}
+            >
+              <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
+            </button>
+
+            {showCheck && (
+              <button
+                type="button"
+                className={cn(
+                  "flex items-center justify-center flex-shrink-0 rounded hover:bg-green-50",
+                  controlSize
+                )}
+                title={
+                  isValidationComplete
+                    ? "Save all impressions and close"
+                    : "Save impression for this arch"
+                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (isValidationComplete) {
+                    onConfirmAllAndClose()
+                  } else {
+                    onSaveArchSelection?.(arch)
+                  }
+                }}
+              >
+                <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  /** Mobile list row: thumbnail | name | qty controls */
+  const renderListRow = (impression: ImpressionOption) => {
+    const qty = getQty(impression)
+    const isSelected = qty > 0
+
+    return (
+      <div
+        key={impression.id}
+        className={cn(
+          "flex items-center gap-3 rounded-[10px] px-2.5 py-2 cursor-pointer select-none min-w-0",
+          isSelected ? "border-[3px] border-[#1162A8]" : "border-2 border-[#B4B0B0]"
+        )}
+        onClick={() => handleCardClick(impression)}
+      >
+        {renderImpressionImage(impression, "w-14 h-14", "text-xl")}
+        <span className="font-['Verdana'] text-sm text-black flex-1 min-w-0 leading-snug">
+          {getImpressionLabel(impression)}
+        </span>
+        {renderQtyControls(impression, true, "end")}
+      </div>
+    )
+  }
+
+  const renderCard = (impression: ImpressionOption, compact: boolean) => {
+    const qty = getQty(impression)
+    const isSelected = qty > 0
+
+    // Keep labels readable even with many cards in one row
+    const imgSize = compact ? "text-3xl" : "text-2xl md:text-3xl lg:text-4xl"
+    const nameSize = compact ? "text-xs md:text-sm" : "text-xs md:text-sm lg:text-base"
+
+    return (
+      <div
         key={impression.id}
         className={cn(
           "relative flex flex-col items-center rounded-[11px] transition-all duration-200 cursor-pointer select-none h-full w-full min-w-0 overflow-hidden",
-          compact ? "p-1.5" : "p-1.5 md:p-2 lg:p-3",
+          compact ? "p-1.5 md:p-2" : "p-1.5 md:p-2 lg:p-3",
           isSelected
             ? "border-[3px] border-[#1162A8]"
             : "border-2 border-[#B4B0B0]"
         )}
         onClick={() => handleCardClick(impression)}
       >
-        {/* Image */}
-        <div
+        {renderImpressionImage(
+          impression,
+          // Scale image with card width so empty side space becomes bigger thumbnails
+          "w-full aspect-square max-h-[160px]",
+          imgSize
+        )}
+
+        <span
           className={cn(
-            "w-full rounded-[8px] overflow-hidden flex items-center justify-center bg-gray-50 flex-shrink-0",
-            compact ? "h-[68px]" : "aspect-square max-h-[120px] lg:max-h-none"
+            "font-['Verdana'] font-normal text-black text-center mt-1 w-full flex-1 flex items-end justify-center pb-0.5 leading-tight",
+            nameSize
           )}
         >
-          {impression.image_url ? (
-              <img
-              src={impression.image_url}
-              alt={getImpressionLabel(impression)}
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                const el = e.target as HTMLImageElement
-                el.style.display = "none"
-                const parent = el.parentElement
-                if (parent && !parent.querySelector(".fallback-letter")) {
-                  const div = document.createElement("div")
-                  div.className = `fallback-letter text-[#B4B0B0] ${imgSize} font-bold flex items-center justify-center w-full h-full`
-                  div.textContent = (impression.name ?? '').charAt(0).toUpperCase()
-                  parent.appendChild(div)
-                }
-              }}
-            />
-          ) : (
-            <div className={cn("text-[#B4B0B0] font-bold flex items-center justify-center w-full h-full", imgSize)}>
-              {(impression.name ?? '').charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        {/* Name */}
-        <span className={cn("font-['Verdana'] font-normal text-black text-center mt-1 w-full flex-1 flex items-end justify-center pb-0.5 leading-tight", nameSize)}>
           {getImpressionLabel(impression)}
         </span>
 
-        {/* Controls — always pinned to bottom; wrap/shrink so cards stay in-bounds */}
-        <div
-          className="flex items-center justify-center gap-0.5 mt-auto max-w-full min-w-0 flex-wrap"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {qty === 0 ? (
-            <span
-              className={cn("font-['Verdana'] text-[#7F7F7F] cursor-pointer", qtyLabelSize)}
-              onClick={() => handleCardClick(impression)}
-            >
-              QTY +
-            </span>
-          ) : (
-            <>
-              {/* Trash */}
-              <button
-                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
-                onClick={(e) => handleRemove(impression, e)}
-              >
-                <Trash2 className={cn("text-[#CF0202]", iconSize)} strokeWidth={1.83} />
-              </button>
-
-              {/* Minus — only when qty > 1 */}
-              {qty > 1 && (
-                <button
-                  className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
-                  onClick={(e) => handleDecrement(impression, e)}
-                >
-                  <span className={cn("font-['Verdana'] font-normal text-black text-center leading-none", qtyTextSize)}>−</span>
-                </button>
-              )}
-
-              {/* Quantity */}
-              <span className={cn("font-['Verdana'] font-normal text-black text-center", qtyTextSize)}>
-                {qty}
-              </span>
-
-              {/* Plus */}
-              <button
-                className={cn("flex items-center justify-center flex-shrink-0", controlSize)}
-                onClick={(e) => handleIncrement(impression, e)}
-              >
-                <Plus className={cn("text-[#1D1B20]", iconSize)} strokeWidth={1.83} />
-              </button>
-
-              {showCheck && (
-                <button
-                  type="button"
-                  className={cn(
-                    "flex items-center justify-center flex-shrink-0 rounded hover:bg-green-50",
-                    controlSize
-                  )}
-                  title={
-                    isValidationComplete
-                      ? "Save all impressions and close"
-                      : "Save impression for this arch"
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (isValidationComplete) {
-                      onConfirmAllAndClose()
-                    } else {
-                      onSaveArchSelection?.(arch)
-                    }
-                  }}
-                >
-                  <Check className={cn("text-[#22c55e]", iconSize)} strokeWidth={2.5} />
-                </button>
-              )}
-            </>
-          )}
+        <div className="mt-auto w-full">
+          {renderQtyControls(impression, compact, "center")}
         </div>
       </div>
     )
@@ -330,49 +393,41 @@ function ImpressionGrid({
     isValidationComplete &&
     impressions.some((imp) => getKey(imp) === lastTouchedKey)
 
-  // Responsive wrapping grid: auto-fill wraps when N cards exceed the section
-  // width (instead of overflowing the green/red border). maxWidth keeps a
-  // single / few cards from stretching to the full modal width.
+  // Single row filling available width. Cap only for few cards so 1–3 items
+  // don't stretch full-bleed; 4+ use the full section width.
   const colCount = impressions.length
-  const CARD_MIN_PX = 112
-  const CARD_MAX_PX = 168
-  const GAP_PX = 12
-  const cappedGridStyle = {
-    gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_MIN_PX}px), 1fr))`,
-    maxWidth: `min(100%, calc(${colCount} * ${CARD_MAX_PX}px + ${Math.max(colCount - 1, 0)} * ${GAP_PX}px))`,
+  const CARD_MAX_PX = 220
+  const GAP_PX = 10
+  const singleRowGridStyle = {
+    gridTemplateColumns: `repeat(${Math.max(colCount, 1)}, minmax(0, 1fr))`,
+    maxWidth:
+      colCount > 0 && colCount <= 3
+        ? `min(100%, calc(${colCount} * ${CARD_MAX_PX}px + ${Math.max(colCount - 1, 0)} * ${GAP_PX}px))`
+        : "100%",
   }
 
   return (
     <>
-      {/* Small screens: side-by-side when only a couple options; otherwise 2-column grid */}
+      {/* Mobile: vertical list with thumbnail + name + qty controls */}
+      <div className="w-full min-w-0 sm:hidden flex flex-col gap-2">
+        {impressions?.map((impression) => renderListRow(impression))}
+      </div>
+
+      {/* sm+: single full-width row — cards grow into available space */}
       <div
-        className={cn(
-          "w-full min-w-0 sm:hidden",
-          colCount <= 2 ? "flex justify-center gap-2" : "grid grid-cols-2 gap-2"
-        )}
+        className="hidden sm:grid gap-2 md:gap-2.5 lg:gap-3 w-full mx-auto min-w-0"
+        style={singleRowGridStyle}
       >
         {impressions?.map((impression) => (
-          <div
-            key={impression.id}
-            className={cn(colCount <= 2 ? "w-[46%] max-w-[148px] flex-shrink-0" : "min-w-0")}
-          >
-            {renderCard(impression, true)}
-          </div>
-        ))}
-      </div>
-
-      {/* sm+: wrapping capped grid — stays inside the section border */}
-      <div className="hidden sm:grid gap-2 md:gap-3 w-full mx-auto min-w-0" style={cappedGridStyle}>
-        {impressions?.map((impression) => (
           <div key={impression.id} className="min-w-0">
-            {renderCard(impression, false)}
+            {renderCard(impression, colCount >= 7)}
           </div>
         ))}
       </div>
 
-      {/* Done centered under the grid so it stays in-bounds when cards wrap */}
+      {/* Done under the grid */}
       {showDoneInThisSection && (
-        <div className="flex justify-center mt-3 py-2 overflow-visible">
+        <div className="flex justify-center mt-2 py-1 overflow-visible">
           <DoneTransitionButton
             className="whitespace-nowrap px-10 py-2"
             onComplete={onConfirmAllAndClose}
@@ -532,9 +587,9 @@ export function ImpressionSelectionModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="w-[92vw] max-w-[1080px] h-auto max-h-[min(92dvh,calc(100dvh-1rem))] overflow-y-auto overflow-x-hidden p-0 border-0 rounded-[10px] max-sm:top-3 max-sm:translate-y-0 flex flex-col"
+        className="w-[96vw] max-w-[1360px] h-auto max-h-[min(94dvh,calc(100dvh-0.75rem))] overflow-y-auto overflow-x-hidden p-0 border-0 rounded-[10px] max-sm:top-3 max-sm:translate-y-0 flex flex-col"
       >
-        <div className="flex flex-col gap-2 sm:gap-3 px-3 sm:px-5 md:px-8 lg:px-10 py-3 sm:py-4 bg-white w-full">
+        <div className="flex flex-col gap-2 sm:gap-2.5 px-2.5 sm:px-4 md:px-5 lg:px-6 py-2.5 sm:py-3 bg-white w-full">
 
           {modalHeading ? (
             <h2 className="font-['Verdana'] font-bold text-base sm:text-xl text-center text-[#1d1d1b] tracking-wide">
@@ -545,7 +600,7 @@ export function ImpressionSelectionModal({
           {/* Top arch section */}
           <div
             className={cn(
-              "relative rounded-[12px] px-2 sm:px-6 pt-5 pb-2 sm:pb-3 border-2 transition-colors min-w-0",
+              "relative rounded-[12px] px-1.5 sm:px-2 md:px-3 pt-4 sm:pt-5 pb-1.5 sm:pb-2 border-2 transition-colors min-w-0",
               hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]"
             )}
           >
@@ -573,7 +628,7 @@ export function ImpressionSelectionModal({
           {showBottomSection && bottomArch && (
             <div
               className={cn(
-                "relative rounded-[12px] px-2 sm:px-6 pt-5 pb-2 sm:pb-3 border-2 transition-colors min-w-0",
+                "relative rounded-[12px] px-1.5 sm:px-2 md:px-3 pt-4 sm:pt-5 pb-1.5 sm:pb-2 border-2 transition-colors min-w-0",
                 hasBottomSelection ? "border-[#22c55e]" : "border-[#CF0202]"
               )}
             >

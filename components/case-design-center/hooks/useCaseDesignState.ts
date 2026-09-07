@@ -53,6 +53,7 @@ import {
 import { productSupportsAddons, hasVisibleAddonDisplay, resolveRemovableAddonDisplay, buildDefaultSeedEntriesFromProduct } from "../utils/addonDisplayHelpers";
 import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
+  findRemovableCardFieldValue,
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
 } from "../utils/archSharedRemovable";
@@ -2304,6 +2305,28 @@ export function useCaseDesignState(props: CaseDesignProps) {
     []
   );
 
+  /** Keep shade-picker selectedShades in sync when teeth_shade is mirrored. */
+  const syncMirroredTeethShadeSelection = useCallback(
+    (arch: Arch, toothNumber: number, shadeFieldValue: string) => {
+      let shadeName = shadeFieldValue.trim();
+      if (shadeName.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(shadeName) as { name?: string };
+          if (parsed?.name) shadeName = String(parsed.name);
+        } catch {
+          /* keep raw */
+        }
+      }
+      if (!shadeName) return;
+      const key = buildShadeSelectionKey(`prep_${toothNumber}`, arch, "tooth_shade");
+      shades.setSelectedShades((prev) => {
+        if (prev[key]) return prev;
+        return { ...prev, [key]: shadeName };
+      });
+    },
+    [shades.setSelectedShades]
+  );
+
   /**
    * Backfill removable fields for a newly-added product from an already-configured
    * removable product on the same arch (derive defaults; target can still override).
@@ -2322,37 +2345,54 @@ export function useCaseDesignState(props: CaseDesignProps) {
       const targetStageKey = `${arch}_prep_${targetTooth}`;
 
       for (const donorCardId of cardIds) {
-        const donorTooth = getRepToothForRemovableCard(
-          arch,
-          donorCardId,
-          allTeeth,
-          toothFieldProgress.getToothProductCard,
-          toothFieldProgress.getToothProduct
-        );
-
         for (const step of REMOVABLE_MIRROR_STEPS) {
           const fieldStep = step as FieldStep;
           const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
           const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
           if (targetCompleted || targetValue) continue;
 
-          const donorCompleted = toothFieldProgress.isFieldCompleted(arch, donorTooth, fieldStep);
-          const donorValue = toothFieldProgress.getFieldValue(arch, donorTooth, fieldStep);
-          if (!donorCompleted && !donorValue) continue;
+          const donor = findRemovableCardFieldValue(
+            arch,
+            donorCardId,
+            allTeeth,
+            fieldStep,
+            toothFieldProgress.getToothProductCard,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.getFieldValue,
+            toothFieldProgress.isFieldCompleted
+          );
+          if (!donor) continue;
           const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
-          if (!shouldBackfillRemovableStep(fieldStep, donorValue || "", targetProduct)) {
+          if (!shouldBackfillRemovableStep(fieldStep, donor.value || "", targetProduct)) {
             continue;
           }
 
-          if (donorCompleted) {
-            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, donorValue || "");
-          } else if (donorValue) {
-            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, donorValue);
+          if (donor.completed) {
+            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, donor.value || "");
+          } else if (donor.value) {
+            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, donor.value);
+          }
+          if (fieldStep === "teeth_shade" && donor.value) {
+            syncMirroredTeethShadeSelection(arch, targetTooth, donor.value);
           }
         }
 
-        const donorStageKey = `${arch}_prep_${donorTooth}`;
-        const donorStage = modals.selectedStages[donorStageKey];
+        const donorStageField = findRemovableCardFieldValue(
+          arch,
+          donorCardId,
+          allTeeth,
+          "stage",
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct,
+          toothFieldProgress.getFieldValue,
+          toothFieldProgress.isFieldCompleted
+        );
+        const donorStageKey = donorStageField
+          ? `${arch}_prep_${donorStageField.tooth}`
+          : null;
+        const donorStage = donorStageKey
+          ? modals.selectedStages[donorStageKey]
+          : undefined;
         const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
         if (
           donorStage &&
@@ -2375,12 +2415,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
       props.addedProducts,
       toothFieldProgress,
       shouldBackfillRemovableStep,
+      syncMirroredTeethShadeSelection,
     ]
   );
 
   /**
-   * Backfill removable fields from the opposite arch (upper <-> lower) for both-arch cases.
-   * This keeps teeth/gum shade (and related removable defaults) mirrored when adding products later.
+   * Backfill removable fields from the opposite arch (upper <-> lower).
+   * Teeth shade (and related removable defaults) should mirror when adding the
+   * second-arch product after the first arch was configured.
    */
   const backfillRemovableFromOppositeArch = useCallback(
     (arch: Arch, targetTooth: number) => {
@@ -2394,39 +2436,57 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (sourceCardIds.length === 0) return;
 
       for (const sourceCardId of sourceCardIds) {
-        const sourceTooth = getRepToothForRemovableCard(
-          oppositeArch,
-          sourceCardId,
-          sourceAllTeeth,
-          toothFieldProgress.getToothProductCard,
-          toothFieldProgress.getToothProduct
-        );
-        if (sourceTooth == null) continue;
-
         for (const step of REMOVABLE_MIRROR_STEPS) {
           const fieldStep = step as FieldStep;
           const targetCompleted = toothFieldProgress.isFieldCompleted(arch, targetTooth, fieldStep);
           const targetValue = toothFieldProgress.getFieldValue(arch, targetTooth, fieldStep);
           if (targetCompleted || targetValue) continue;
 
-          const sourceCompleted = toothFieldProgress.isFieldCompleted(oppositeArch, sourceTooth, fieldStep);
-          const sourceValue = toothFieldProgress.getFieldValue(oppositeArch, sourceTooth, fieldStep);
-          if (!sourceCompleted && !sourceValue) continue;
+          // Scan all teeth on the source card — shade is stored on chart-selected
+          // teeth, not the card-0 sentinel used only to render the accordion.
+          const source = findRemovableCardFieldValue(
+            oppositeArch,
+            sourceCardId,
+            sourceAllTeeth,
+            fieldStep,
+            toothFieldProgress.getToothProductCard,
+            toothFieldProgress.getToothProduct,
+            toothFieldProgress.getFieldValue,
+            toothFieldProgress.isFieldCompleted
+          );
+          if (!source) continue;
           const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
-          if (!shouldBackfillRemovableStep(fieldStep, sourceValue || "", targetProduct)) {
+          if (!shouldBackfillRemovableStep(fieldStep, source.value || "", targetProduct)) {
             continue;
           }
 
-          if (sourceCompleted) {
-            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, sourceValue || "");
-          } else if (sourceValue) {
-            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, sourceValue);
+          if (source.completed) {
+            toothFieldProgress.completeFieldStep(arch, targetTooth, fieldStep, source.value || "");
+          } else if (source.value) {
+            toothFieldProgress.storeFieldValue(arch, targetTooth, fieldStep, source.value);
+          }
+          if (fieldStep === "teeth_shade" && source.value) {
+            syncMirroredTeethShadeSelection(arch, targetTooth, source.value);
           }
         }
 
-        const sourceStageKey = `${oppositeArch}_prep_${sourceTooth}`;
+        const sourceStageField = findRemovableCardFieldValue(
+          oppositeArch,
+          sourceCardId,
+          sourceAllTeeth,
+          "stage",
+          toothFieldProgress.getToothProductCard,
+          toothFieldProgress.getToothProduct,
+          toothFieldProgress.getFieldValue,
+          toothFieldProgress.isFieldCompleted
+        );
+        const sourceStageKey = sourceStageField
+          ? `${oppositeArch}_prep_${sourceStageField.tooth}`
+          : null;
         const targetStageKey = `${arch}_prep_${targetTooth}`;
-        const sourceStage = modals.selectedStages[sourceStageKey];
+        const sourceStage = sourceStageKey
+          ? modals.selectedStages[sourceStageKey]
+          : undefined;
         const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
         if (
           sourceStage &&
@@ -2440,15 +2500,16 @@ export function useCaseDesignState(props: CaseDesignProps) {
       }
     },
     [
-      props.initialArch,
       props.addedProducts,
       MAXILLARY_ALL,
       MANDIBULAR_ALL,
       REMOVABLE_MIRROR_STEPS,
       isCard0RemovableOnArch,
-      activeProductCardId,
       toothFieldProgress,
       shouldBackfillRemovableStep,
+      syncMirroredTeethShadeSelection,
+      modals.selectedStages,
+      modals.setSelectedStages,
     ]
   );
 
