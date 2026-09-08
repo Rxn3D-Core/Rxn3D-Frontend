@@ -24,6 +24,10 @@ export interface V2CaseRowData {
   doctor?: string
   user?: string
   productType?: string
+  /** Distinct catalog product names on the slip (for advanced product filter). */
+  productNames?: string[]
+  /** Distinct stage names on the slip (for advanced stage filter). */
+  stageNames?: string[]
 }
 
 export interface V2VisibleColumns {

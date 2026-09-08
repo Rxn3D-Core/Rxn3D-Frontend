@@ -980,7 +980,7 @@ export function SlipCreationHeader({
   patientData,
   editablePatientData,
   patientFieldSettings,
-  containerClassName = "container mx-auto px-6 max-w-[1400px] pt-8",
+  containerClassName = "container mx-auto px-6 max-w-[1400px] pt-4",
   headerClassName = "",
   hideSecondHeader = false,
 }: SlipCreationHeaderProps) {

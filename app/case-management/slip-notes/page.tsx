@@ -272,7 +272,7 @@ export default function SlipNoteTable() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="px-6 py-4 bg-gray-50 min-h-screen">
       {/* Filter Bar */}
       <div className="flex flex-wrap gap-2 items-center mb-2">
         <Input className="w-96" placeholder="Search by patient, office, doctor, case..." value={filterText} onChange={e => setFilterText(e.target.value)} />

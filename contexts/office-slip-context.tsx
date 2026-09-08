@@ -142,6 +142,10 @@ export interface UISlip {
   labName?: string;
   doctorName?: string;
   slipNumber?: string;
+  /** Distinct catalog product names on the slip (for advanced product filter). */
+  productNames?: string[];
+  /** Distinct stage names on the slip (for advanced stage filter). */
+  stageNames?: string[];
 }
 
 type OfficeSlipContextType = {
@@ -237,6 +241,20 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
       labName: apiCase.lab?.name,
       doctorName: apiCase.doctor?.name,
       slipNumber: slip.slip_number,
+      productNames: Array.from(
+        new Set(
+          (Array.isArray(slip.products) ? slip.products : [])
+            .map((p) => String(p?.product_name || "").trim())
+            .filter(Boolean)
+        )
+      ),
+      stageNames: Array.from(
+        new Set(
+          (Array.isArray(slip.products) ? slip.products : [])
+            .map((p) => String(p?.stage_name || "").trim())
+            .filter(Boolean)
+        )
+      ),
     }));
   };
 

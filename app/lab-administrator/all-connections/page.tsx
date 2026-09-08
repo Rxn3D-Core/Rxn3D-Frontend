@@ -232,7 +232,7 @@ export default function AllConnections() {
 
       <ConnectionTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         {isLoading ? (
           <div className="space-y-4">
             {Array.from({ length: 5 }).map((_, index) => (

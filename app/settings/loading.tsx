@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export default function SettingsLoading() {
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-4">
       <Skeleton className="h-8 w-48 mb-6" />
 
       <div className="grid gap-8">

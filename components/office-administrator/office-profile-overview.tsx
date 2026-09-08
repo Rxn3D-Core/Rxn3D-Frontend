@@ -198,7 +198,7 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
   }
 
   return (
-    <div className="p-6">
+    <div className="px-6 py-4">
       <Card className="">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">

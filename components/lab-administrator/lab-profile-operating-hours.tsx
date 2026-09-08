@@ -190,7 +190,7 @@ export function OperatingHoursTab({ hoursData, customerId, customerType = "lab",
   }
 
   return (
-    <div className="p-6 bg-gray-50">
+    <div className="px-6 py-4 bg-gray-50">
       <div className="bg-white rounded-lg border">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4 mb-6">

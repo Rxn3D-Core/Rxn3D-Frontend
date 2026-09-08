@@ -241,7 +241,7 @@ export default function SlipPage() {
   }
 
   return (
-    <div className="w-full p-6 space-y-4 bg-gray-50 min-h-screen overflow-x-auto">
+    <div className="w-full px-6 py-4 space-y-4 bg-gray-50 min-h-screen overflow-x-auto">
       {/* Filter Bar */}
       <div className="flex flex-wrap gap-3 items-center mb-4 rounded-lg bg-white shadow-sm px-4 py-3">
         <Input

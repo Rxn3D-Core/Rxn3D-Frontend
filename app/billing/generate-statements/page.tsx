@@ -896,13 +896,13 @@ export default function GenerateStatementsPage() {
   }
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Generate Statements</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 rounded-lg mr-4">
               <div className="text-green-600 text-xl">↗</div>
@@ -917,7 +917,7 @@ export default function GenerateStatementsPage() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center">
             <div className="p-2 bg-red-100 rounded-lg mr-4">
               <div className="text-red-600 text-xl">⚠</div>

@@ -234,9 +234,9 @@ export function DashboardSettingsPage() {
 
   return (
     <div className="h-full w-full bg-[#F9F9F9] overflow-auto">
-      <div className="w-full h-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="w-full h-full px-4 sm:px-6 lg:px-8 py-4">
         {/* Header */}
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-4">
           <div className="bg-[#1162a8] text-white rounded-lg p-6 sm:p-8 shadow-sm">
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">Dashboard Settings</h1>
             <p className="text-blue-100 text-sm sm:text-base">

@@ -3,7 +3,7 @@ import { TechnicianBillingTable } from "@/components/technician-billing/technici
 
 export default function TechnicianBillingPage() {
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-4 space-y-6">
       <h1 className="text-3xl font-bold">Technician Billing</h1>
       <ReduxProvider>
         <TechnicianBillingTable />

@@ -95,7 +95,7 @@ export default function InvoicingPage() {
     .reduce((sum, i) => sum + Number(i.amount_due ?? 0), 0)
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6 px-6 py-4">
       <BreadcrumbBar
         items={[
           { label: "Billing & Subscription Control", href: "/billing-subscription/billing-configuration" },

@@ -9,11 +9,11 @@ export default function SettingsPage() {
   const [autoRenew, setAutoRenew] = useState(true)
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-0">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <div className="mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

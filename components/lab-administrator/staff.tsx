@@ -342,7 +342,7 @@ export function Staff() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-4 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Staff</h1>
         <div className="flex gap-2">
