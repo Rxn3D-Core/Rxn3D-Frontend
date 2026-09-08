@@ -802,7 +802,7 @@ export default function SubscriptionsPage() {
   // Plan Selection View
   if (view === "plans") {
     return (
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 max-w-[1400px]">
         {renderPlanSelectionContent({ onClose: () => setView("overview"), showBackButton: true })}
       </div>
     )
@@ -814,7 +814,7 @@ export default function SubscriptionsPage() {
   // Error state
   if (subscriptionState === "error") {
     return (
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 max-w-[1400px]">
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
@@ -907,7 +907,7 @@ export default function SubscriptionsPage() {
     const highlights = collectCatalogHighlights(catalogPlans)
 
     return (
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-5 max-w-[1400px]">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 max-w-[1400px]">
 
         {/* No Subscription Card */}
         <div className="border-2 border-blue-500 rounded-xl bg-white">

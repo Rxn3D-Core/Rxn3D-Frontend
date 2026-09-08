@@ -237,7 +237,7 @@ export default function ProductConfigurationsPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         <div className="max-w-3xl mx-auto">
           {error && (
             <Alert className="mb-6 border-red-200 bg-red-50">

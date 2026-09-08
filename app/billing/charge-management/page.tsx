@@ -1975,7 +1975,7 @@ export default function ChargeManagementPage() {
 
   return (
     <div className="w-full min-h-full bg-white">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
         <LabBillingPageHeader />
 
         {!customerId && (
@@ -1989,7 +1989,7 @@ export default function ChargeManagementPage() {
         {customerId && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {/* Total invoices card hidden for now — restore this card and set grid back to sm:grid-cols-3 to bring it back:
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalInvoices", { defaultValue: "Total invoices" })}
               </p>
@@ -1997,7 +1997,7 @@ export default function ChargeManagementPage() {
                 {statsFetching ? "—" : stats?.total_invoices ?? "—"}
               </p>
             </div> */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsTotalAmount", { defaultValue: "Total amount" })}
               </p>
@@ -2005,7 +2005,7 @@ export default function ChargeManagementPage() {
                 {statsFetching ? "—" : formatMoney(stats?.total_amount as number | string | undefined)}
               </p>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
               <p className="text-sm font-medium text-gray-600 mb-1">
                 {t("chargeManagement.statsAverage", { defaultValue: "Average invoice" })}
               </p>

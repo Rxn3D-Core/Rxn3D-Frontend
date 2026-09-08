@@ -84,7 +84,7 @@ export default function ActivityLogTab({ customerId, hideTechnicalDetails = fals
   const to = Math.min(currentPage * Number(entriesPerPage), totalEntries)
 
   return (
-    <div className="p-6">
+    <div className="px-6 py-4">
       <AuditEntryDetailsDialog
         entry={selectedAudit}
         open={selectedAudit !== null}

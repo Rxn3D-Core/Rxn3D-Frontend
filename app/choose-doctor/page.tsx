@@ -537,7 +537,7 @@ export default function ChooseDoctorPage() {
         hideSecondHeader={true}
       />
 
-      <div className="container mx-auto px-6 max-w-[1400px] pt-8">
+      <div className="container mx-auto px-6 max-w-[1400px] pt-4">
         <div className="">
           {/* Title */}
           <h1 className="text-xl font-semibold text-center mb-8">Choose a Doctor</h1>

@@ -45,7 +45,7 @@ export default function ActivityLogTab({ activities }: ActivityLogTabProps) {
   const totalPages = Math.ceil(filteredActivities.length / Number.parseInt(entriesPerPage))
 
   return (
-    <div className="p-6">
+    <div className="px-6 py-4">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600">Show</span>

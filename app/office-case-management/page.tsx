@@ -5,12 +5,8 @@ import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { X } from "lucide-react"
-import { format } from "date-fns"
 import { useOfficeSlipContext, type UISlip } from "@/contexts/office-slip-context"
 import { SlipProvider, useSlipContext } from "@/app/lab-case-management/SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
@@ -30,15 +26,14 @@ import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation }
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
   SLIP_LISTING_DEFAULT_PER_PAGE,
-  SLIP_LOCATION_FILTER_OPTIONS,
 } from "@/app/lab-case-management/lab-slip-listing-constants"
 import {
-  SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS,
   SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
 import { slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
 import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
-import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import { useConnectedOfficesOrLabs } from "@/hooks/use-connected-offices"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import {
@@ -77,6 +72,8 @@ function toCaseRowData(slip: UISlip): V2CaseRowData {
     attachment: slip.attachment,
     dueDate: slip.dueDate,
     doctor: slip.doctorName,
+    productNames: slip.productNames,
+    stageNames: slip.stageNames,
   }
 }
 
@@ -162,12 +159,10 @@ function OfficeCaseManagementPage() {
   const [archiveConfirm, setArchiveConfirm] = useState<number | null>(null)
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
-  const [dateRange, setDateRange] = useState<{ start?: Date; end?: Date }>({})
   const [officeFilter, setOfficeFilter] = useState("All")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
   const [stageFilter, setStageFilter] = useState("All")
-  const [officeLabFilter, setOfficeLabFilter] = useState("All")
   const [showWithAttachments, setShowWithAttachments] = useState(false)
   const [sortKey, setSortKey] = useState<ColumnKey | null>("dueDate")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -203,6 +198,11 @@ function OfficeCaseManagementPage() {
 
   const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
 
+  // Office listing always loads connected labs (non-lab_admin role path).
+  const { officesAsLabs: connectedLabs } = useConnectedOfficesOrLabs("office_admin", {
+    enabled: showAdvancedFilter,
+  })
+
   const { slips: officeSlips, loading, pagination, fetchOfficeSlips } = useOfficeSlipContext()
   const { fetchDriverPrintData, readyToSend } = useSlipContext()
   const { fetchProductAddons, cancelSlip, softDeleteSlip, restoreSlip, holdSlip } = useSlipCreation()
@@ -230,11 +230,65 @@ function OfficeCaseManagementPage() {
     })
   }, [fetchOfficeSlips, currentPage, itemsPerPage, selectedStatuses])
 
-  const allOffices = useMemo(() => Array.from(new Set(slips.map((s) => s.officeCode).filter(Boolean))), [slips])
-  const allStatuses = useMemo(() => Array.from(new Set(slips.map((s) => s.status).filter(Boolean))), [slips])
   const allDoctors = useMemo(() => Array.from(new Set(slips.map((s) => s.doctor || "Unknown"))), [slips])
-  const allProductTypes = useMemo(() => Array.from(new Set(slips.map((s) => s.productType || "Unknown"))), [slips])
-  const allStages = useMemo(() => Array.from(new Set(slips.map((s) => s.product).filter(Boolean))), [slips])
+  const allProductNames = useMemo(() => {
+    const names = new Set<string>()
+    slips.forEach((slip) => {
+      ;(slip.productNames || []).forEach((name) => {
+        const normalized = name.trim()
+        if (!normalized || /^(upper|lower)$/i.test(normalized)) return
+        names.add(normalized)
+      })
+    })
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [slips])
+  const allStages = useMemo(() => {
+    const names = new Set<string>()
+    slips.forEach((slip) => {
+      ;(slip.stageNames || []).forEach((name) => {
+        const normalized = name.trim()
+        if (normalized) names.add(normalized)
+      })
+    })
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [slips])
+
+  const labFilterOptions = useMemo(() => {
+    const fromConnections = connectedLabs
+      .map((lab) => {
+        const value = (lab.name || "").trim()
+        if (!value) return null
+        return { value, label: value }
+      })
+      .filter((option): option is { value: string; label: string } => Boolean(option))
+
+    const seen = new Set(fromConnections.map((option) => option.value))
+    const fromSlips = Array.from(new Set(slips.map((s) => s.officeCode).filter(Boolean)))
+      .filter((name) => name && !seen.has(name))
+      .map((name) => ({ value: name, label: name }))
+
+    return [
+      { value: "All", label: "All Labs" },
+      ...fromConnections,
+      ...fromSlips,
+    ]
+  }, [connectedLabs, slips])
+
+  const doctorFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All Doctors" },
+      ...allDoctors.filter(Boolean).map((doctor) => ({ value: doctor, label: doctor })),
+    ],
+    [allDoctors]
+  )
+
+  const productFilterOptions = useMemo(
+    () => [
+      { value: "All", label: "All products" },
+      ...allProductNames.map((product) => ({ value: product, label: product })),
+    ],
+    [allProductNames]
+  )
 
   const slipsPage = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase()
@@ -252,12 +306,13 @@ function OfficeCaseManagementPage() {
       }
       if (officeFilter !== "All" && slip.officeCode !== officeFilter) return false
       if (doctorFilter !== "All" && slip.doctor !== doctorFilter) return false
-      if (stageFilter !== "All" && slip.product !== stageFilter) return false
+      if (stageFilter !== "All" && !(slip.stageNames || []).includes(stageFilter)) return false
+      if (productType !== "All" && !(slip.productNames || []).includes(productType)) return false
       if (showWithAttachments && !slip.attachment) return false
       return true
     })
     return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
-  }, [slips, debouncedSearch, selectedLocations, selectedStatuses, officeFilter, doctorFilter, stageFilter, showWithAttachments, sortKey, sortDirection])
+  }, [slips, debouncedSearch, selectedLocations, selectedStatuses, officeFilter, doctorFilter, stageFilter, productType, showWithAttachments, sortKey, sortDirection])
 
   const handleSortChange = useCallback((key: ColumnKey) => {
     if (sortKey === key) {
@@ -299,16 +354,11 @@ function OfficeCaseManagementPage() {
   }
 
   const handleClearAdvancedFilters = () => {
-    setDateRange({})
-    setSearch("")
     setProductType("All")
     setDoctorFilter("All")
     setStageFilter("All")
-    setOfficeLabFilter("All")
     setOfficeFilter("All")
     setShowWithAttachments(false)
-    setSelectedLocations([])
-    setSelectedStatuses([])
   }
 
   const allOnPageSelected = slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
@@ -571,91 +621,26 @@ function OfficeCaseManagementPage() {
         </Button>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-6">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
-              <SlipListingCalendarIcon className="mr-2" />
-              {dateRange.start ? format(dateRange.start, "PPP") : <span className="text-gray-500">Start Date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={dateRange.start}
-              onSelect={(date) => setDateRange((prev) => ({ ...prev, start: date }))}
-              disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="group w-full justify-start text-left text-xs font-normal">
-              <SlipListingCalendarIcon className="mr-2" />
-              {dateRange.end ? format(dateRange.end, "PPP") : <span className="text-gray-500">End Date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="single"
-              selected={dateRange.end}
-              onSelect={(date) => setDateRange((prev) => ({ ...prev, end: date }))}
-              disabled={(date) =>
-                date > new Date() ||
-                date < new Date("1900-01-01") ||
-                Boolean(dateRange.start && date < dateRange.start)
-              }
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
-
-        <Input
-          placeholder="Search patient name, slip #..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="text-xs"
+      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <SearchableSelect
+          value={officeFilter}
+          onValueChange={(value) => setOfficeFilter(value || "All")}
+          placeholder="All Labs"
+          searchPlaceholder="Search labs..."
+          emptyMessage="No labs found."
+          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          options={labFilterOptions}
         />
 
-        <Select value={selectedStatuses[0] ?? "All"} onValueChange={(value) => setSelectedStatuses(value === "All" ? [] : [value])}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Status</SelectItem>
-            {allStatuses.filter(Boolean).map((status) => (
-              <SelectItem key={status} value={status}>{status}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={officeFilter} onValueChange={setOfficeFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Offices/Lab" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Offices/Lab</SelectItem>
-            {allOffices.filter(Boolean).map((office) => (
-              <SelectItem key={office} value={office}>{office}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <Select value={productType} onValueChange={setProductType}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <span className="text-sm">{productType === "All" ? "All product type" : productType}</span>
-          </SelectTrigger>
-          <SelectContent className="[&_[data-radix-select-item-indicator]]:hidden [&_[role=option]]:pl-2">
-            <SelectItem value="All">All product type</SelectItem>
-            {allProductTypes.filter((product) => product && product !== "Unknown").map((product) => (
-              <SelectItem key={product} value={product}>{product}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          value={productType}
+          onValueChange={(value) => setProductType(value || "All")}
+          placeholder="All products"
+          searchPlaceholder="Search products..."
+          emptyMessage="No products found."
+          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          options={productFilterOptions}
+        />
 
         <Select value={stageFilter} onValueChange={setStageFilter}>
           <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
@@ -668,46 +653,18 @@ function OfficeCaseManagementPage() {
             ))}
           </SelectContent>
         </Select>
-
-        <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Doctors" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Doctors</SelectItem>
-            {allDoctors.filter(Boolean).map((doctor) => (
-              <SelectItem key={doctor} value={doctor}>{doctor}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={officeLabFilter} onValueChange={setOfficeLabFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Office & Lab" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Office & Lab</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
-      <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-        <Select
-          value={selectedLocations.length === 1 ? selectedLocations[0] : "All"}
-          onValueChange={(value) => setSelectedLocations(value === "All" ? [] : [value])}
-        >
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_LOCATION_SELECT_TRIGGER_CLASS}>
-            <SelectValue placeholder="All Location" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="All">All Location</SelectItem>
-            {SLIP_LOCATION_FILTER_OPTIONS.map((loc) => (
-              <SelectItem key={loc.id} value={String(loc.id)}>
-                {loc.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <SearchableSelect
+          value={doctorFilter}
+          onValueChange={(value) => setDoctorFilter(value || "All")}
+          placeholder="All Doctors"
+          searchPlaceholder="Search doctors..."
+          emptyMessage="No doctors found."
+          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          options={doctorFilterOptions}
+        />
 
         <label className="flex items-center gap-2 text-base">
           <span className="relative">

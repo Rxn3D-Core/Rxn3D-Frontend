@@ -19,7 +19,7 @@ export default function PermissionLayout({
         <DashboardSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header />
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-auto px-6 py-4">
             {children}
           </div>
         </div>

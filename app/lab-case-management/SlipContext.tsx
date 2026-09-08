@@ -35,6 +35,10 @@ type Slip = {
   doctor?: string;
   user?: string;
   productType?: string;
+  /** Distinct catalog product names on the slip (for advanced product filter). */
+  productNames?: string[];
+  /** Distinct stage names on the slip (for advanced stage filter). */
+  stageNames?: string[];
   /** `location.current.id` from API — use for reliable location UI vs string name */
   locationId?: number;
   // ...add more fields as needed
@@ -218,6 +222,24 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     doctor: apiSlip.case?.doctor?.name || apiSlip.doctor || undefined,
     user: apiSlip.user?.name || apiSlip.user || undefined,
     productType: apiSlip.products?.[0]?.type || apiSlip.productType || undefined,
+    productNames: Array.from(
+      new Set(
+        (Array.isArray(apiSlip.products) ? apiSlip.products : [])
+          .map((p: { product_name?: string; name?: string; product?: { name?: string } }) =>
+            String(p?.product_name || p?.name || p?.product?.name || "").trim()
+          )
+          .filter(Boolean)
+      )
+    ),
+    stageNames: Array.from(
+      new Set(
+        (Array.isArray(apiSlip.products) ? apiSlip.products : [])
+          .map((p: { stage_name?: string; stage?: { name?: string } }) =>
+            String(p?.stage_name || p?.stage?.name || "").trim()
+          )
+          .filter(Boolean)
+      )
+    ),
     locationId: typeof apiSlip.location?.current?.id === "number" ? apiSlip.location.current.id : undefined,
     // ...add more fields as needed
   });

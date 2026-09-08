@@ -215,7 +215,7 @@ export function PickupDeliveryTab({
   )
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50">
+    <div className="px-4 py-3 sm:px-6 sm:py-4 bg-gray-50">
       <div className="space-y-6">
         {/* Pick Up Options */}
         <div className="bg-white rounded-lg border">

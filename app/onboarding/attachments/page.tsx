@@ -385,7 +385,7 @@ export default function AttachmentsPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 px-6 py-4">
         <div className="max-w-3xl mx-auto">
           <div className="bg-white rounded-lg shadow p-8 mb-6">
             <div className="text-center mb-6">

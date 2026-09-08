@@ -319,7 +319,7 @@ export function LabAdminDashboard() {
   )
 
   return (
-    <div className="sm:p-4 bg-white min-h-screen">
+    <div className="sm:px-4 sm:pt-3 sm:pb-4 bg-white min-h-screen">
       <div className="space-y-4 sm:space-y-6 lg:space-y-8">
         {/* Header Section */}
         <div className="mb-4 sm:mb-6">
