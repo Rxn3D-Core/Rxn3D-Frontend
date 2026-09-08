@@ -413,7 +413,7 @@ export function V3CaseTable(props: Props) {
       </div>
 
       {/* ── Desktop table (≥ md) ── */}
-      <div className="hidden md:block" style={{ overflowX: "auto", overflowY: "visible" }}>
+      <div className="hidden md:block" >
       <table
         className="w-full text-left"
         style={{
