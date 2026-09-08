@@ -37,6 +37,7 @@ import {
 } from "../utils/gradeHelpers";
 import { buildRemovableAddonFieldContext } from "../utils/addonDisplayHelpers";
 import type { StoredAddonEntry } from "../utils/addonDisplayHelpers";
+import { getProductAdvanceFieldsForSlip } from "../utils/advanceFieldStepHelpers";
 import type { SlipImpressionSelections } from "../utils/impressionStorage";
 import {
   ARCH_IMPRESSION_PRODUCT_ID,
@@ -676,7 +677,7 @@ export function SelectionProductFields({
         implantDetailCompleteByTooth={implantDetailCompleteByTooth}
         setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
         caseSubmitted={caseSubmitted}
-        advanceFields={selectedProduct?.advance_fields}
+        advanceFields={getProductAdvanceFieldsForSlip(selectedProduct)}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
         labCustomerId={labCustomerId}

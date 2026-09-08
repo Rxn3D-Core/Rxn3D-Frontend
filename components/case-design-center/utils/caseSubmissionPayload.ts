@@ -33,6 +33,7 @@ import { mergeDefaultToothChartIntoSlipPayloadMaps } from "@/lib/product-default
 import type { RetentionChartType } from "./retentionOptionChartType";
 import {
   formatAdvanceFieldPayloadValue,
+  getProductAdvanceFieldsForSlip,
   isFileUploadAdvanceField,
   type StoredAdvanceSelection,
 } from "./advanceFieldStepHelpers";
@@ -475,7 +476,8 @@ export function snapshotToProduct(
     const fixedShadeProductId = product?.id
       ? `fixed_p_${product.id}`
       : `fixed_${snap.repToothNumber}`;
-    const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
+    const slipAdvanceFields = getProductAdvanceFieldsForSlip(product);
+    const shadeGuideFields = getShadeGuideAdvanceFields(slipAdvanceFields);
 
     if (shadeGuideFields.length > 0) {
       for (const field of shadeGuideFields) {
@@ -511,7 +513,7 @@ export function snapshotToProduct(
     }
 
     const emittedAdvanceFieldIds = new Set<number>();
-    const productAdvanceFields = (product?.advance_fields ?? []).filter(
+    const productAdvanceFields = slipAdvanceFields.filter(
       (af: { field_type?: string }) =>
         !(shadeGuideFields.length > 0 && af.field_type === "shade_guide"),
     );
@@ -618,8 +620,8 @@ export function snapshotToProduct(
       for (const [fieldIdKey, file] of Object.entries(snap.advanceFieldFiles)) {
         const fieldId = Number(fieldIdKey);
         const advField = Number.isInteger(fieldId)
-          ? product?.advance_fields?.find((af: { id: number }) => af.id === fieldId)
-          : product?.advance_fields?.find(
+          ? slipAdvanceFields.find((af: { id: number }) => af.id === fieldId)
+          : slipAdvanceFields.find(
               (af: { name?: string; field_type?: string }) =>
                 (af.field_type ?? "").toLowerCase() === "file_upload" ||
                 (af.field_type ?? "").toLowerCase() === "file" ||
@@ -636,7 +638,7 @@ export function snapshotToProduct(
       }
     }
 
-    const implantLibraryField = product?.advance_fields?.find(
+    const implantLibraryField = slipAdvanceFields.find(
       (af: { field_type?: string }) => (af.field_type ?? "").toLowerCase() === "implant_library"
     );
     if (implantLibraryField && snap.implantDetailByTooth) {
