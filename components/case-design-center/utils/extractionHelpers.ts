@@ -116,6 +116,70 @@ function isDefaultExtractionRow(e: ExtractionLike): boolean {
   return String(e.is_default ?? "").trim().toLowerCase() === "yes";
 }
 
+/**
+ * Immediate Full Denture-style chart: exactly two active exclusive extractions,
+ * one marked default, and no retention layer. Tooth clicks toggle default ↔
+ * the single non-default without opening the status popover.
+ *
+ * Primary-arch removable path only — callers must not apply this for opposing.
+ */
+export function isDirectTwoExtractionToggleEligible(
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null,
+  options?: { hasRetention?: boolean }
+): boolean {
+  if (options?.hasRetention) return false;
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  if (active.length !== 2) return false;
+  if (active.some(isOverlayExtractionByFlag)) return false;
+  return active.filter(isDefaultExtractionRow).length === 1;
+}
+
+/**
+ * Next extraction code when {@link isDirectTwoExtractionToggleEligible} is true.
+ * Unmapped / default-stamped teeth flip to the non-default; non-default flips back.
+ */
+export function resolveDirectTwoExtractionToggleCode(
+  currentCode: string | undefined,
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+): string | null {
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  if (active.length !== 2) return null;
+  const defaultRow = active.find(isDefaultExtractionRow);
+  const nonDefaultRow = active.find((e) => !isDefaultExtractionRow(e));
+  const defaultCode = defaultRow?.code ? String(defaultRow.code).trim() : "";
+  const nonDefaultCode = nonDefaultRow?.code ? String(nonDefaultRow.code).trim() : "";
+  if (!defaultCode || !nonDefaultCode) return null;
+
+  if (!currentCode || currentCode === defaultCode) return nonDefaultCode;
+  if (currentCode === nonDefaultCode) return defaultCode;
+  return nonDefaultCode;
+}
+
+/**
+ * How to apply a direct two-extraction toggle.
+ * TIM defaults stay unmapped — clearing the non-default code returns to TIM.
+ * Non-TIM defaults (e.g. Will extract) are explicitly re-stamped.
+ */
+export function resolveDirectTwoExtractionToggleAction(
+  currentCode: string | undefined,
+  extractions: ReadonlyArray<ExtractionLike> | undefined | null
+): { type: "assign"; code: string } | { type: "clear"; code: string } | null {
+  const nextCode = resolveDirectTwoExtractionToggleCode(currentCode, extractions);
+  if (!nextCode) return null;
+
+  const active = (extractions ?? []).filter(isActiveExtractionRow);
+  const defaultRow = active.find(isDefaultExtractionRow);
+  if (
+    defaultRow &&
+    nextCode === defaultRow.code &&
+    isTimExtractionByFlag(defaultRow) &&
+    currentCode
+  ) {
+    return { type: "clear", code: currentCode };
+  }
+  return { type: "assign", code: nextCode };
+}
+
 /** A non-default extraction the user is not required to apply. */
 function isOptionalNonDefaultRow(e: ExtractionLike): boolean {
   if (String(e.is_optional ?? "").trim().toLowerCase() === "yes") return true;

@@ -91,6 +91,8 @@ import {
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
   toothHasTimBaseExtraction,
+  isDirectTwoExtractionToggleEligible,
+  resolveDirectTwoExtractionToggleAction,
 } from "../utils/extractionHelpers";
 import { isArchRemovableProductDetailPending } from "../utils/productDetailLoading";
 import { useExtractionsAcknowledged } from "../hooks/useExtractionsAcknowledged";
@@ -2175,6 +2177,30 @@ export function MandibularPanel({
                       if (isSingleDefaultOnlyExtractionList(exts)) return;
                       if (!hasConfiguredExtractions(exts)) return;
                       if (canUseToothForActiveProduct && !canUseToothForActiveProduct("mandibular", toothNumber)) {
+                        return;
+                      }
+                      // 2 extractions + one default + no retention: toggle default ↔ non-default (no popover).
+                      // Primary arch only — opposing keeps the popover path below.
+                      if (isDirectTwoExtractionToggleEligible(exts, { hasRetention: false })) {
+                        const action = resolveDirectTwoExtractionToggleAction(
+                          mandibularToothExtractionMap[toothNumber],
+                          exts
+                        );
+                        if (!action) return;
+                        if (action.type === "assign") {
+                          const nextExt = exts.find((e) => e.code === action.code);
+                          const maxTeeth = nextExt?.max_teeth && nextExt.max_teeth > 0 ? nextExt.max_teeth : null;
+                          const currentCount = Object.values(mandibularToothExtractionMap).filter(
+                            (c) => c === action.code
+                          ).length;
+                          const alreadyAssigned = mandibularToothExtractionMap[toothNumber] === action.code;
+                          if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) return;
+                        }
+                        selectAllMandibularTeeth([toothNumber]);
+                        handleToothExtractionToggle("mandibular", toothNumber, action.code, exts);
+                        setMandibularNoActiveBoxTeeth?.((prev) =>
+                          prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+                        );
                         return;
                       }
                       setToothStatusPopoverTooth(toothNumber);

@@ -1,4 +1,5 @@
 import {
+  isDirectTwoExtractionToggleEligible,
   isSingleDefaultOnlyExtractionList,
   type ExtractionLike,
 } from "./extractionHelpers";
@@ -15,13 +16,17 @@ export function isFlipperOrStayplateProduct(
 /**
  * Removable chart Rule 2: tooth click opens the status popover when no
  * extraction box is active and the product has multiple status options.
+ * Skips the 2-extraction direct-toggle case (default ↔ sole non-default).
  */
 export function isRemovableToothStatusPopoverEligible(
   extractions: ReadonlyArray<ExtractionLike> | undefined | null,
-  activeExtractionCode: string | null
+  activeExtractionCode: string | null,
+  options?: { hasRetention?: boolean }
 ): boolean {
   if (activeExtractionCode !== null) return false;
-  return !isSingleDefaultOnlyExtractionList(extractions);
+  if (isSingleDefaultOnlyExtractionList(extractions)) return false;
+  if (isDirectTwoExtractionToggleEligible(extractions, options)) return false;
+  return true;
 }
 
 export function isRemovableToothSelectionFocused({
