@@ -10,6 +10,7 @@ import {
   isTimExtractionByFlag,
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
+import { areExtractionRequirementsSatisfied } from "../utils/extractionRequirementHelpers";
 
 interface ToothStatusBoxesProps {
   extractions: ProductExtraction[];
@@ -436,12 +437,14 @@ export function ToothStatusBoxes({
         })}
       </div>
 
-      {/* Done — only when a non-overlay (non-clasp) status has teeth; clasps alone are not product selection */}
+      {/* Done — only when required/optional + min/max rules are satisfied */}
       {!acknowledged &&
         onAcknowledgedChange &&
-        activeExtractions.some(
-          (e) => !isClaspExtraction(e) && getTeethForBox(e).length > 0
-        ) && (
+        areExtractionRequirementsSatisfied(allActiveExtractions, {
+          selectedTeeth,
+          toothExtractionMap,
+          claspTeeth,
+        }) && (
         <div className="w-full flex justify-center py-1 overflow-visible">
           <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
         </div>
