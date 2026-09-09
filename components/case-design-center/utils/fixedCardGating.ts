@@ -27,6 +27,7 @@ import {
   resolveFixedShadeProductId,
   shouldUseAccordionOnlyFixedShades,
 } from "./shadeGuideAdvanceFields";
+import { getProductAdvanceFieldsForSlip } from "./advanceFieldStepHelpers";
 
 type FixedCardProduct = Partial<ProductApiData> | null | undefined;
 
@@ -121,7 +122,7 @@ function matchesShadeName(
   product: FixedCardProduct,
   predicate: (name: string) => boolean
 ): boolean {
-  return (product?.advance_fields || []).some((f) =>
+  return getProductAdvanceFieldsForSlip(product).some((f) =>
     predicate((f.name || "").toLowerCase())
   );
 }
@@ -146,14 +147,15 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
   } = input;
   const shadeToothNumber = input.shadeToothNumber ?? stageToothNumber;
 
-  const fixedChain = getRetentionFieldChain(product?.advance_fields, product);
+  const slipAdvanceFields = getProductAdvanceFieldsForSlip(product);
+  const fixedChain = getRetentionFieldChain(slipAdvanceFields, product);
   const isFixedStep = (step: FieldStep) =>
     isFieldVisible(arch, stageToothNumber, step, fixedChain);
 
   const fixedShadeProductId = resolveFixedShadeProductId(product?.id, shadeToothNumber);
-  const namedShadeFields = getShadeGuideAdvanceFields(product?.advance_fields);
+  const namedShadeFields = getShadeGuideAdvanceFields(slipAdvanceFields);
   const firstMissingShadeField = getFirstMissingShadeGuideField(
-    product?.advance_fields,
+    slipAdvanceFields,
     fixedShadeProductId,
     arch,
     getSelectedShade
@@ -263,7 +265,7 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
   const toothShadeSatisfiedForGum = !needsToothShade || toothShadeFieldDone;
 
   const fixedShadesComplete = areFixedProductShadesComplete(
-    product?.advance_fields,
+    slipAdvanceFields,
     fixedShadeProductId,
     arch,
     getSelectedShade,
@@ -275,7 +277,7 @@ export function resolveFixedCardGating(input: FixedCardGatingInput): FixedCardGa
   );
   // Named shade_guide fields still use the accordion picker; classic Teeth/Gum render
   // alongside them and gate completeness via classicShadeFlags.
-  const usesAccordionShadePicker = shouldUseAccordionOnlyFixedShades(product?.advance_fields);
+  const usesAccordionShadePicker = shouldUseAccordionOnlyFixedShades(slipAdvanceFields);
 
   // isFixedRetentionSetupComplete answers "true" for a null product ("nothing to
   // acknowledge"), so a card whose details are still loading would unlock the field

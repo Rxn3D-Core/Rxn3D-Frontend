@@ -1,4 +1,5 @@
 import type { ProductApiData } from "../types";
+import { productSupportsAdvanceFields } from "./advanceFieldStepHelpers";
 import { productSupportsAddons } from "./addonDisplayHelpers";
 
 export interface ProductFormFlags {
@@ -37,7 +38,7 @@ export function getProductFormFlags(product: ProductApiData | null): ProductForm
     hasTeethShade: product.has_teeth_shade === "Yes",
     hasGumShade: product.has_gum_shade === "Yes",
     hasVariations: product.has_variation === "Yes" || product.has_variation === true,
-    hasAdvanceFields: product.has_advance_field === "Yes",
+    hasAdvanceFields: productSupportsAdvanceFields(product),
     hasImpressions: product.has_impression === "Yes",
     hasAddons: productSupportsAddons(product),
   };

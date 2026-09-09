@@ -1,3 +1,28 @@
+/**
+ * Slip visibility for advance fields — driven by product `has_advance_field`.
+ * Explicit `No` hides them even when catalog links still exist; unset defaults to shown
+ * (same as backend product_configurations default).
+ */
+export function productSupportsAdvanceFields(
+  product: { has_advance_field?: string | boolean | null } | null | undefined,
+): boolean {
+  if (!product) return false;
+  const v = product.has_advance_field;
+  if (v === "No" || v === false || v === "no") return false;
+  return true;
+}
+
+/** Advance field defs for slip create/edit UI; empty when `has_advance_field` is No. */
+export function getProductAdvanceFieldsForSlip<T>(
+  product:
+    | { has_advance_field?: string | boolean | null; advance_fields?: T[] | null }
+    | null
+    | undefined,
+): T[] {
+  if (!productSupportsAdvanceFields(product)) return [];
+  return Array.isArray(product?.advance_fields) ? product.advance_fields : [];
+}
+
 /** Stored selection for a single advance field within a fixed-restoration step JSON blob. */
 export type StoredAdvanceSelection = {
   name: string;
@@ -55,7 +80,7 @@ export function isSpecialAdvanceField(field?: { field_type?: string } | null): b
 export function getActiveAdvanceOptions<T extends { status?: string }>(
   field: AdvanceFieldLike | undefined,
 ): T[] {
-  return ((field?.options ?? []) as T[]).filter(
+  return ((field?.options ?? []) as unknown as T[]).filter(
     (opt) => opt.status === "Active" || opt.status === undefined,
   );
 }

@@ -85,6 +85,10 @@ import {
   buildRemovableAddonFieldContext,
   productSupportsAddons,
 } from "../utils/addonDisplayHelpers";
+import {
+  getProductAdvanceFieldsForSlip,
+  productSupportsAdvanceFields,
+} from "../utils/advanceFieldStepHelpers";
 import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   isSingleDefaultOnlyExtractionList,
@@ -94,6 +98,8 @@ import {
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
   toothHasTimBaseExtraction,
+  isDirectTwoExtractionToggleEligible,
+  resolveDirectTwoExtractionToggleAction,
 } from "../utils/extractionHelpers";
 import { isArchRemovableProductDetailPending } from "../utils/productDetailLoading";
 import { useExtractionsAcknowledged } from "../hooks/useExtractionsAcknowledged";
@@ -721,7 +727,15 @@ function isFullDentureProduct(extractions: Array<{ code: string; name: string; s
 function hasAdvanceField(
   step: string,
   advanceFields: Array<{ name: string; field_type: string }> | undefined,
-  product?: { has_impression?: "Yes" | "No" | null; has_teeth_shade?: string | null; has_gum_shade?: string | null; is_single_stage?: string | boolean; has_stage?: string | boolean; stages?: unknown[] }
+  product?: {
+    has_impression?: "Yes" | "No" | null;
+    has_teeth_shade?: string | null;
+    has_gum_shade?: string | null;
+    has_advance_field?: string | boolean | null;
+    is_single_stage?: string | boolean;
+    has_stage?: string | boolean;
+    stages?: unknown[];
+  }
 ): boolean {
   if (
     (step === "stage" || step === "fixed_stage") &&
@@ -744,9 +758,25 @@ function hasAdvanceField(
   if (step === "fixed_stump_shade" && product?.has_gum_shade === "Yes") return true;
   if (step === "fixed_shade_trio" && product?.has_teeth_shade === "Yes") return true;
 
-  if (!advanceFields || advanceFields.length === 0) return true;
+  const effectiveFields = productSupportsAdvanceFields(product) ? advanceFields : undefined;
 
-  const names = advanceFields.map((f) => (f.name || "").toLowerCase());
+  // No linked AFs (or flag off): keep removable/core steps; hide AF-only fixed steps
+  if (!effectiveFields || effectiveFields.length === 0) {
+    if (
+      step === "fixed_characterization" ||
+      step === "fixed_contact_icons" ||
+      step === "fixed_margin" ||
+      step === "fixed_metal" ||
+      step === "fixed_proximal_contact" ||
+      step === "fixed_stump_shade" ||
+      step === "fixed_shade_trio"
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  const names = effectiveFields.map((f) => (f.name || "").toLowerCase());
 
   switch (step) {
     // Fixed restoration steps
@@ -2198,6 +2228,30 @@ export function MaxillaryPanel({
                       if (canUseToothForActiveProduct && !canUseToothForActiveProduct("maxillary", toothNumber)) {
                         return;
                       }
+                      // 2 extractions + one default + no retention: toggle default ↔ non-default (no popover).
+                      // Primary arch only — opposing keeps the popover path below.
+                      if (isDirectTwoExtractionToggleEligible(exts, { hasRetention: false })) {
+                        const action = resolveDirectTwoExtractionToggleAction(
+                          maxillaryToothExtractionMap[toothNumber],
+                          exts
+                        );
+                        if (!action) return;
+                        if (action.type === "assign") {
+                          const nextExt = exts.find((e) => e.code === action.code);
+                          const maxTeeth = nextExt?.max_teeth && nextExt.max_teeth > 0 ? nextExt.max_teeth : null;
+                          const currentCount = Object.values(maxillaryToothExtractionMap).filter(
+                            (c) => c === action.code
+                          ).length;
+                          const alreadyAssigned = maxillaryToothExtractionMap[toothNumber] === action.code;
+                          if (maxTeeth !== null && currentCount >= maxTeeth && !alreadyAssigned) return;
+                        }
+                        selectAllMaxillaryTeeth([toothNumber]);
+                        handleToothExtractionToggle("maxillary", toothNumber, action.code, exts);
+                        setMaxillaryNoActiveBoxTeeth?.((prev) =>
+                          prev.includes(toothNumber) ? prev : [...prev, toothNumber]
+                        );
+                        return;
+                      }
                       setToothStatusPopoverTooth(toothNumber);
                       setToothStatusPopoverExtractions(exts);
                       return;
@@ -2585,7 +2639,7 @@ export function MaxillaryPanel({
                 })();
             if (
               isFixedProductShadeStorageId(pid) &&
-              shouldUseAccordionOnlyFixedShades(shadeProduct?.advance_fields)
+              shouldUseAccordionOnlyFixedShades(getProductAdvanceFieldsForSlip(shadeProduct))
             ) {
               return null;
             }
@@ -2601,7 +2655,7 @@ export function MaxillaryPanel({
                 shadeGuideOptions={shadeGuideOptions}
                 getSelectedShade={getSelectedShade}
                 handleShadeSelect={handleShadeSelect}
-                advanceFields={shadeProduct?.advance_fields}
+                advanceFields={getProductAdvanceFieldsForSlip(shadeProduct)}
                 hasGumShadeFlag={shadeProduct?.has_gum_shade === "Yes"}
                 hasTeethShadeFlag={shadeProduct?.has_teeth_shade === "Yes"}
                 productForShades={shadeProduct}
@@ -3450,7 +3504,10 @@ export function MaxillaryPanel({
                 }
 
                 // Build product-aware chain for Fixed Restoration fields
-                const fixedChain = getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct);
+                const fixedChain = getRetentionFieldChain(
+                  getProductAdvanceFieldsForSlip(selectedProduct),
+                  selectedProduct
+                );
                 // Stable key: keep the tooth that already has field progress when a lower tooth joins
                 const groupStageToothNumber = resolveGroupStageToothNumber(
                   toothNumbers,
@@ -4136,7 +4193,7 @@ export function MaxillaryPanel({
                   {(() => {
                     const repTn = cardTeeth[0];
                     const toothProduct = getCardToothProduct(repTn);
-                    const advFields = toothProduct?.advance_fields;
+                    const advFields = getProductAdvanceFieldsForSlip(toothProduct);
                     const removableChain = getSelectionFieldChain(toothProduct);
                     const isF = (step: string) =>
                       hasAdvanceField(step, advFields, toothProduct ?? undefined) &&

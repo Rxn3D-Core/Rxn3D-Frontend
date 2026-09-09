@@ -71,6 +71,10 @@ import {
 } from "../utils/impressionFieldSync";
 import { AdvanceFieldStepGrid, parseStepStoredValues } from "./AdvanceFieldStepGrid";
 import { useAutoOpenSuppressed } from "./auto-open-suppression";
+import {
+  getProductAdvanceFieldsForSlip,
+  productSupportsAdvanceFields,
+} from "../utils/advanceFieldStepHelpers";
 
 /** Removaables-style display name from a field value (plain string or JSON `{ name }`). */
 function parseShadeFieldDisplayName(raw: string | undefined | null): string {
@@ -169,15 +173,15 @@ function ArticulatorIcon({ arch }: { arch: "mandibular" | "maxillary" }) {
 type ProductShadeFlags = {
   has_teeth_shade?: string | null;
   has_gum_shade?: string | null;
+  has_advance_field?: string | boolean | null;
   advance_fields?: Array<{ name: string; field_type: string }>;
 };
 
 /**
  * Check whether a FIXED_FIELD_STEPS key has a matching advance_field in the product API response.
  * Returns true (show the field) when:
- *  - No advance_fields on the product (show all — no gating)
  *  - The step always shows regardless of advance_fields (stage, impression, addons, notes)
- *  - A matching advance_field name is found
+ *  - A matching advance_field name is found and has_advance_field is not No
  *  - For shade steps: has_teeth_shade or has_gum_shade flag is "Yes" (overrides advance_fields)
  */
 export function hasAdvanceField(
@@ -206,11 +210,15 @@ export function hasAdvanceField(
     if (hasTeethShadeFlag) return true;
   }
 
-  if (!advanceFields || advanceFields.length === 0) {
+  const effectiveFields = productSupportsAdvanceFields(product)
+    ? advanceFields
+    : undefined;
+
+  if (!effectiveFields || effectiveFields.length === 0) {
     return false;
   }
 
-  const names = advanceFields.map((f) => (f.name || "").toLowerCase());
+  const names = effectiveFields.map((f) => (f.name || "").toLowerCase());
 
   switch (step) {
     // Fixed restoration steps
@@ -430,9 +438,13 @@ export function RetentionProductFields({
     implantDetailCompleteByTooth,
     implantDetailByTooth
   );
-  const fixedChain = useMemo(
-    () => getRetentionFieldChain(selectedProduct?.advance_fields, selectedProduct),
+  const slipAdvanceFields = useMemo(
+    () => getProductAdvanceFieldsForSlip(selectedProduct),
     [selectedProduct]
+  );
+  const fixedChain = useMemo(
+    () => getRetentionFieldChain(slipAdvanceFields, selectedProduct),
+    [slipAdvanceFields, selectedProduct]
   );
   const hasPostImplantProgress = useMemo(
     () =>
@@ -502,7 +514,7 @@ export function RetentionProductFields({
     arch,
     toothNumbers.join(","),
   ]);
-  const namedShadeGuideFields = getShadeGuideAdvanceFields(selectedProduct?.advance_fields);
+  const namedShadeGuideFields = getShadeGuideAdvanceFields(slipAdvanceFields);
   const namedStumpShadeFields = namedShadeGuideFields.filter((field) => isStumpLikeShadeField(field));
   const namedToothShadeFields = namedShadeGuideFields.filter((field) => !isStumpLikeShadeField(field));
   const isAccordionShadePickerActive =
@@ -536,7 +548,7 @@ export function RetentionProductFields({
   const namedShadesComplete =
     namedShadeGuideFields.length > 0 &&
     areFixedProductShadesComplete(
-      selectedProduct?.advance_fields,
+      slipAdvanceFields,
       fixedShadeProductId,
       arch,
       getSelectedShadeForDisplay,
@@ -773,7 +785,7 @@ export function RetentionProductFields({
     const firstMissingNamed =
       !hasClassicShadeFlags && usesNamedShadeGuideFields
         ? getFirstMissingShadeGuideField(
-            selectedProduct?.advance_fields,
+            slipAdvanceFields,
             fixedShadeProductId,
             arch,
             getSelectedShadeForDisplay
@@ -783,7 +795,7 @@ export function RetentionProductFields({
       !hasClassicTeethShadeFlag &&
       !usesNamedShadeGuideFields &&
       isFixed("fixed_shade_trio") &&
-      hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) &&
+      hasAdvanceField("fixed_shade_trio", slipAdvanceFields, selectedProduct) &&
       !getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
 
     const target = classicTeethMissing
@@ -861,8 +873,8 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_characterization")) return;
-    if (!hasAdvanceField("fixed_characterization", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_characterization", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_characterization", slipAdvanceFields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_characterization", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_characterization")) {
       completeFieldStep(arch, firstToothNumber, "fixed_characterization", "auto");
     }
@@ -871,8 +883,8 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_margin")) return;
-    if (!hasAdvanceField("fixed_margin", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_margin", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_margin", slipAdvanceFields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_margin", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_margin")) {
       completeFieldStep(arch, firstToothNumber, "fixed_margin", "auto");
     }
@@ -881,8 +893,8 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_metal")) return;
-    if (!hasAdvanceField("fixed_metal", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_metal", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_metal", slipAdvanceFields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_metal", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_metal")) {
       completeFieldStep(arch, firstToothNumber, "fixed_metal", "auto");
     }
@@ -891,8 +903,8 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_contact_icons")) return;
-    if (!hasAdvanceField("fixed_contact_icons", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_contact_icons", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_contact_icons", slipAdvanceFields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_contact_icons", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
       completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
     }
@@ -901,8 +913,8 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_proximal_contact")) return;
-    if (!hasAdvanceField("fixed_proximal_contact", selectedProduct?.advance_fields)) return;
-    const fields = getAdvanceFieldsForStep("fixed_proximal_contact", selectedProduct?.advance_fields);
+    if (!hasAdvanceField("fixed_proximal_contact", slipAdvanceFields)) return;
+    const fields = getAdvanceFieldsForStep("fixed_proximal_contact", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
       completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
     }
@@ -998,10 +1010,10 @@ export function RetentionProductFields({
     serializeRetentionMechanismSelection(availableRetentionMechanismTypes);
 
   const renderAdvanceFieldStep = (stepKey: FieldStep) => {
-    if (!isFixedAfterImplant(stepKey) || !hasAdvanceField(stepKey, selectedProduct?.advance_fields)) {
+    if (!isFixedAfterImplant(stepKey) || !hasAdvanceField(stepKey, slipAdvanceFields)) {
       return null;
     }
-    const stepFields = getAdvanceFieldsForStep(stepKey, selectedProduct?.advance_fields);
+    const stepFields = getAdvanceFieldsForStep(stepKey, slipAdvanceFields);
     if (stepFields.length === 0) return null;
     const storedValues = parseStepStoredValues(getFieldValue(arch, firstToothNumber, stepKey));
     return (
@@ -1135,7 +1147,7 @@ export function RetentionProductFields({
       {(() => {
         // Stage already renders standalone when named shade guides are present.
         const showStage = showFixedStage && !usesNamedShadeGuideFields;
-        const af = selectedProduct?.advance_fields || [];
+        const af = slipAdvanceFields;
         const hasTeethFlag = hasClassicTeethShadeFlag;
         const hasGumFlag = hasClassicGumShadeFlag;
 
@@ -1362,10 +1374,10 @@ export function RetentionProductFields({
       )}
 
       {/* Step 3: Shade trio fields driven entirely by advance_fields — no static fallback */}
-      {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", selectedProduct?.advance_fields, selectedProduct) && (() => {
+      {isFixed("fixed_shade_trio") && hasAdvanceField("fixed_shade_trio", slipAdvanceFields, selectedProduct) && (() => {
         if (usesNamedShadeGuideFields) return null;
 
-        const af = selectedProduct?.advance_fields || [];
+        const af = slipAdvanceFields;
         const trioFields = af.filter((f) => {
           const n = (f.name || "").toLowerCase();
           return (
@@ -1440,7 +1452,7 @@ export function RetentionProductFields({
         implantDetailCompleteByTooth={implantDetailCompleteByTooth}
         setImplantDetailCompleteByTooth={setImplantDetailCompleteByTooth}
         caseSubmitted={caseSubmitted}
-        advanceFields={selectedProduct?.advance_fields}
+        advanceFields={slipAdvanceFields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
         labCustomerId={labCustomerId}
