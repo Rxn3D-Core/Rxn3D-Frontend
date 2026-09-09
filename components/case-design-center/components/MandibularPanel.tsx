@@ -85,7 +85,6 @@ import {
 } from "../utils/removableSelectionHints";
 import {
   isSingleDefaultOnlyExtractionList,
-  isExtractionSelectionOptional,
   hasConfiguredExtractions,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
@@ -94,6 +93,7 @@ import {
   isDirectTwoExtractionToggleEligible,
   resolveDirectTwoExtractionToggleAction,
 } from "../utils/extractionHelpers";
+import { areExtractionRequirementsSatisfied } from "../utils/extractionRequirementHelpers";
 import { isArchRemovableProductDetailPending } from "../utils/productDetailLoading";
 import { useExtractionsAcknowledged } from "../hooks/useExtractionsAcknowledged";
 import {
@@ -2910,13 +2910,18 @@ export function MandibularPanel({
                               ? mandibularMergedExtractions
                               : apExtractions
                             ).length > 0 &&
-                            // Selected teeth, or selection optional (default + optional-only) so
-                            // the user can click Done without selecting (e.g. night guard).
+                            // Selected teeth, or requirements already met / nothing required
+                            // (e.g. default required stamped, or night guard with no hard required).
                             (mandibularTeeth.length > 0 ||
-                              isExtractionSelectionOptional(
+                              areExtractionRequirementsSatisfied(
                                 useMandibularArchSharedRemovable
                                   ? mandibularMergedExtractions
-                                  : apExtractions
+                                  : apExtractions,
+                                {
+                                  selectedTeeth: statusBoxSelectedTeeth,
+                                  toothExtractionMap: mandibularToothExtractionMap,
+                                  claspTeeth: mandibularClaspTeeth,
+                                }
                               )) ? (
                               <>
                               {mandibularToothHint && mandibularToothHint.kind === "reference" && (
@@ -4066,14 +4071,18 @@ export function MandibularPanel({
                             ? mandibularMergedExtractions
                             : cardExtractions
                         ) &&
-                        // Show the extraction boxes + Done button once teeth are selected,
-                        // or immediately when selection is optional (default + optional-only,
-                        // e.g. night guard) so the user can click Done without selecting.
+                        // Show the extraction boxes + Done once teeth are selected,
+                        // or immediately when requirements are already met / nothing required.
                         (mandibularTeeth.length > 0 ||
-                          isExtractionSelectionOptional(
+                          areExtractionRequirementsSatisfied(
                             useMandibularArchSharedRemovable
                               ? mandibularMergedExtractions
-                              : cardExtractions
+                              : cardExtractions,
+                            {
+                              selectedTeeth: statusBoxSelectedTeeth,
+                              toothExtractionMap: mandibularToothExtractionMap,
+                              claspTeeth: mandibularClaspTeeth,
+                            }
                           )) ? (
                           <>
                           {mandibularToothHint && mandibularToothHint.kind === "reference" && (

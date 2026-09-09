@@ -24,6 +24,8 @@ export type ExtractionLike = {
   is_optional?: string;
   is_required?: string;
   overlay?: string;
+  min_teeth?: number | null;
+  max_teeth?: number | null;
 };
 
 export function isTimExtractionByFlag(extraction: ExtractionLike | undefined | null): boolean {

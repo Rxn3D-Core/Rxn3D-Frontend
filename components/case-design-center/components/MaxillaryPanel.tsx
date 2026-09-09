@@ -92,7 +92,6 @@ import {
 import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   isSingleDefaultOnlyExtractionList,
-  isExtractionSelectionOptional,
   hasConfiguredExtractions,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
@@ -101,6 +100,7 @@ import {
   isDirectTwoExtractionToggleEligible,
   resolveDirectTwoExtractionToggleAction,
 } from "../utils/extractionHelpers";
+import { areExtractionRequirementsSatisfied } from "../utils/extractionRequirementHelpers";
 import { isArchRemovableProductDetailPending } from "../utils/productDetailLoading";
 import { useExtractionsAcknowledged } from "../hooks/useExtractionsAcknowledged";
 import { AccordionHeaderActions } from "./ExtractionsDoneAcknowledgement";
@@ -2945,13 +2945,18 @@ export function MaxillaryPanel({
                               ? maxillaryMergedExtractions
                               : removableCardExtractions
                             ).length > 0 &&
-                            // Selected teeth, or selection optional (default + optional-only) so
-                            // the user can click Done without selecting (e.g. night guard).
+                            // Selected teeth, or requirements already met / nothing required
+                            // (e.g. default required stamped, or night guard with no hard required).
                             (maxillaryTeeth.length > 0 ||
-                              isExtractionSelectionOptional(
+                              areExtractionRequirementsSatisfied(
                                 useMaxillaryArchSharedRemovable
                                   ? maxillaryMergedExtractions
-                                  : removableCardExtractions
+                                  : removableCardExtractions,
+                                {
+                                  selectedTeeth: statusBoxSelectedTeeth,
+                                  toothExtractionMap: maxillaryToothExtractionMap,
+                                  claspTeeth: maxillaryClaspTeeth,
+                                }
                               )) ? (
                               <>
                               {maxillaryToothHint && maxillaryToothHint.kind === "reference" && (
@@ -4102,14 +4107,18 @@ export function MaxillaryPanel({
                             ? maxillaryMergedExtractions
                             : cardExtractions
                         ) &&
-                        // Show the extraction boxes + Done button once teeth are selected,
-                        // or immediately when selection is optional (default + optional-only,
-                        // e.g. night guard) so the user can click Done without selecting.
+                        // Show the extraction boxes + Done once teeth are selected,
+                        // or immediately when requirements are already met / nothing required.
                         (maxillaryTeeth.length > 0 ||
-                          isExtractionSelectionOptional(
+                          areExtractionRequirementsSatisfied(
                             useMaxillaryArchSharedRemovable
                               ? maxillaryMergedExtractions
-                              : cardExtractions
+                              : cardExtractions,
+                            {
+                              selectedTeeth: statusBoxSelectedTeeth,
+                              toothExtractionMap: maxillaryToothExtractionMap,
+                              claspTeeth: maxillaryClaspTeeth,
+                            }
                           )) ? (
                           <>
                           {/* "Select teeth for reference" hint — directly above the status boxes. */}
