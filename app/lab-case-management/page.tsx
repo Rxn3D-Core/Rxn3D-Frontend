@@ -1017,7 +1017,7 @@ export default function LabSlipV3Page() {
           onSubmit={handleConfirmHoldCase}
           actionType="hold"
           title="Put Case On Hold"
-          description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+          description="You are putting this case on hold. The delivery date will be paused and adjusted when the case is resumed based on remaining days."
           icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
           iconBgColor="#FFF3DF"
           iconColor="#FFB400"
