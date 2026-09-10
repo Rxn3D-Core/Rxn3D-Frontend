@@ -47,6 +47,11 @@ interface ToothStatusBoxesProps {
   /** Optional acknowledgement props to control Done button display */
   acknowledged?: boolean;
   onAcknowledgedChange?: (value: boolean) => void;
+  /**
+   * When true, hide the tooth status / reference-teeth icons but keep Done
+   * acknowledgement (product flag hide_reference_teeth_selection).
+   */
+  hideReferenceTeethSelection?: boolean;
   /** Smaller icons and tighter boxes (virtual slip read-only view). */
   compact?: boolean;
 }
@@ -166,6 +171,7 @@ export function ToothStatusBoxes({
   displayTeethByCode,
   acknowledged = false,
   onAcknowledgedChange,
+  hideReferenceTeethSelection = false,
   compact = false,
 }: ToothStatusBoxesProps) {
   const allActiveExtractions = extractions
@@ -224,6 +230,20 @@ export function ToothStatusBoxes({
   }, [hasRequiredValidation, onRequiredValidationChange]);
 
   const isInteractive = !submitted && !grayed;
+  const showDoneButton =
+    !acknowledged &&
+    !!onAcknowledgedChange &&
+    areExtractionRequirementsSatisfied(allActiveExtractions, {
+      selectedTeeth,
+      toothExtractionMap,
+      claspTeeth,
+    });
+
+  // Product flag hides status icons; if Done is not needed either, render nothing.
+  if (hideReferenceTeethSelection && !showDoneButton) {
+    return null;
+  }
+
   const iconWidth = compact ? 26 : 40;
   const iconHeight = compact ? 30 : 50;
   const iconLeft = compact ? -10 : -18;
@@ -245,6 +265,7 @@ export function ToothStatusBoxes({
       }`}
     >
       {/* Horizontally centered row of extraction options */}
+      {!hideReferenceTeethSelection && (
       <div
         className={`flex flex-wrap items-center ${
           compact ? "justify-start gap-3" : "justify-center gap-x-6 gap-y-2"
@@ -436,17 +457,12 @@ export function ToothStatusBoxes({
           );
         })}
       </div>
+      )}
 
       {/* Done — only when required/optional + min/max rules are satisfied */}
-      {!acknowledged &&
-        onAcknowledgedChange &&
-        areExtractionRequirementsSatisfied(allActiveExtractions, {
-          selectedTeeth,
-          toothExtractionMap,
-          claspTeeth,
-        }) && (
+      {showDoneButton && (
         <div className="w-full flex justify-center py-1 overflow-visible">
-          <DoneTransitionButton onComplete={() => onAcknowledgedChange(true)} />
+          <DoneTransitionButton onComplete={() => onAcknowledgedChange?.(true)} />
         </div>
       )}
       {/* Temporarily hidden: floating cursor tooltip on extraction boxes was too distracting

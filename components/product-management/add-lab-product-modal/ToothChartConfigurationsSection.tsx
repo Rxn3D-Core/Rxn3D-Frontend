@@ -86,6 +86,7 @@ export function ToothChartConfigurationsSection({
   const allowSelectOnlyImplant = watch("allow_select_only_implant") === "Yes"
   const customLabelEnabled = watch("enable_custom_label") === "Yes"
   const customLabel = (watch("custom_label") as string | undefined) ?? ""
+  const hideReferenceTeethSelection = watch("hide_reference_teeth_selection") === "Yes"
 
   const retentionEnabled = sections.retention !== false
   const extractionsEnabled = sections.extractions !== false
@@ -118,6 +119,13 @@ export function ToothChartConfigurationsSection({
     allowSelectOnlyImplant,
     setValue,
   ])
+
+  // Hide-reference flag only applies when extractions are enabled.
+  useEffect(() => {
+    if (!extractionsEnabled && hideReferenceTeethSelection) {
+      setValue("hide_reference_teeth_selection", "No", { shouldDirty: true })
+    }
+  }, [extractionsEnabled, hideReferenceTeethSelection, setValue])
 
   const resolvedExtractionsForInit = useMemo(
     () =>

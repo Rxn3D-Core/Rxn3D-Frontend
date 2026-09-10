@@ -72,6 +72,7 @@ export const PRODUCT_MODAL_TAB_FIELD_PREFIXES: Record<string, string[]> = {
     "enable_default_tooth_chart",
     "allow_select_only_implant",
     "enable_custom_label",
+    "hide_reference_teeth_selection",
     "custom_label",
     "default_tooth_chart",
   ],

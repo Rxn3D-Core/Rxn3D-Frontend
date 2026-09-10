@@ -631,6 +631,11 @@ export const ProductCreateFormSchema = z
      * Defaults to No for all products.
      */
     enable_custom_label: z.enum(["Yes", "No"]).default("No").optional(),
+    /**
+     * When Yes, slip creation hides the reference teeth / tooth status boxes
+     * for this product. Only meaningful when extractions are enabled.
+     */
+    hide_reference_teeth_selection: z.enum(["Yes", "No"]).default("No").optional(),
     /** Free-text custom label; only meaningful when enable_custom_label is Yes. */
     custom_label: z.string().optional(),
     default_tooth_chart: z
