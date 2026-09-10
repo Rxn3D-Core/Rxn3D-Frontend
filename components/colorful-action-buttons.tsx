@@ -471,7 +471,7 @@ export default function ColorfulActionButtons({
         onSubmit={handleHold}
         actionType="hold"
         title="Put Case On Hold"
-        description="You are putting this case on hold. The delivery date will be recalculated when the case is resumed."
+        description="You are putting this case on hold. The delivery date will be paused and adjusted when the case is resumed based on remaining days."
         icon={<Pause />}
         iconBgColor="#FFF3DF"
         iconColor="#FFB400"
@@ -487,7 +487,7 @@ export default function ColorfulActionButtons({
         onSubmit={handleResume}
         actionType="resume"
         title="Resume Case"
-        description="You are resuming a case that was previously on hold. The delivery date will be updated from today’s date."
+        description="You are resuming a case that was previously on hold. The delivery date will be adjusted to preserve the remaining days from when the case was put on hold."
         icon={<Play />}
         iconBgColor="#EAF7EA"
         iconColor="#43A047"
