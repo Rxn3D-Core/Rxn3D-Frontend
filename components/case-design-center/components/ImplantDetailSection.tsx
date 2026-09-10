@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { CardGallery, type CardGalleryItem } from "./fields/CardGallery";
 import { CardSelectorField } from "./fields/CardSelectorField";
 import { SelectField } from "./fields/SelectField";
@@ -243,6 +243,7 @@ export function ImplantDetailSection({
   const [sizeDropdownOpen, setSizeDropdownOpen] = useState(false);
   const [abutmentCategoryOpen, setAbutmentCategoryOpen] = useState(false);
   const [abutmentTypeOpen, setAbutmentTypeOpen] = useState(false);
+  const [implantSearch, setImplantSearch] = useState("");
 
   const brand = data.brand;
   const systemName = data.systemName;
@@ -272,12 +273,26 @@ export function ImplantDetailSection({
     if (match?.system_name) update({ systemName: match.system_name });
   }, [brand, systemName, apiImplants]);
 
-  const brandSystemItems: CardGalleryItem[] = apiImplants.map((i) => ({
-    value: String(i.id),
-    label: i.brand_name,
-    subtitle: i.system_name,
-    imageUrl: i.image_url,
-  }));
+  const brandSystemItems: CardGalleryItem[] = useMemo(
+    () =>
+      apiImplants.map((i) => ({
+        value: String(i.id),
+        label: i.brand_name,
+        subtitle: i.system_name,
+        imageUrl: i.image_url,
+      })),
+    [apiImplants]
+  );
+
+  const filteredBrandSystemItems = useMemo(() => {
+    const q = implantSearch.trim().toLowerCase();
+    if (!q) return brandSystemItems;
+    return brandSystemItems.filter((item) => {
+      const label = item.label.toLowerCase();
+      const subtitle = (item.subtitle ?? "").toLowerCase();
+      return label.includes(q) || subtitle.includes(q);
+    });
+  }, [brandSystemItems, implantSearch]);
 
   const platformOptions: string[] = selectedImplant
     ? (selectedImplant.platforms ?? [])
@@ -364,6 +379,7 @@ export function ImplantDetailSection({
   const selectBrandSystem = (implantId: string) => {
     const implant = apiImplants.find((i) => String(i.id) === implantId);
     if (!implant) return;
+    setImplantSearch("");
     update({
       brand: implant.brand_name,
       systemName: implant.system_name,
@@ -391,20 +407,40 @@ export function ImplantDetailSection({
 
       {isExpanded && (
         <div
-          className={`border-t ${borderColor} flex flex-col sm:flex-row${caseSubmitted ? " pointer-events-none select-none" : ""}`}
+          className={`border-t ${borderColor}${caseSubmitted ? " pointer-events-none select-none" : ""}`}
         >
-          <div className="flex justify-center items-center sm:w-[90px] shrink-0 py-2 sm:py-0">
-            <span className="text-xl text-[#7f7f7f] text-center">#{toothNumber}</span>
-          </div>
-
-          <div className="flex flex-col p-2.5 sm:pl-0 sm:pr-2.5 sm:py-2.5 gap-3 flex-1 min-w-0">
+          <div className="flex flex-col p-2.5 gap-3 flex-1 min-w-0">
             {/* —— Implant (4 fields) —— */}
             {!brandSystemComplete && (
-              <CardGallery
-                options={brandSystemItems}
-                value={selectedImplant ? String(selectedImplant.id) : ""}
-                onChange={selectBrandSystem}
-              />
+              <>
+                <div className="relative">
+                  <Search
+                    size={14}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#9ba5b7] pointer-events-none"
+                  />
+                  <input
+                    type="search"
+                    value={implantSearch}
+                    onChange={(e) => setImplantSearch(e.target.value)}
+                    placeholder="Search implant brand or system..."
+                    aria-label="Search implant brands"
+                    className="w-full h-9 pl-8 pr-3 rounded-md border border-[#d9d9d9] bg-white text-sm text-[#000000] placeholder:text-[#9ba5b7] focus:outline-none focus:ring-2 focus:ring-[#1162a8]/30 focus:border-[#1162a8]"
+                  />
+                </div>
+                {filteredBrandSystemItems.length > 0 ? (
+                  <CardGallery
+                    options={filteredBrandSystemItems}
+                    value={selectedImplant ? String(selectedImplant.id) : ""}
+                    onChange={selectBrandSystem}
+                  />
+                ) : (
+                  <p className="text-sm text-[#7f7f7f] px-1 py-2">
+                    {brandSystemItems.length === 0
+                      ? "No implants available for this product."
+                      : "No implants match your search."}
+                  </p>
+                )}
+              </>
             )}
 
             {brandSystemComplete && (
@@ -413,9 +449,10 @@ export function ImplantDetailSection({
                   label={labels.brandSystem}
                   value={brandSystemDisplay}
                   caseSubmitted={caseSubmitted}
-                  onClick={() =>
-                    update({ brand: "", systemName: "", platform: "", size: "" })
-                  }
+                  onClick={() => {
+                    setImplantSearch("");
+                    update({ brand: "", systemName: "", platform: "", size: "" });
+                  }}
                 />
                 {platformComplete ? (
                   <CardSelectorField

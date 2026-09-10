@@ -2626,8 +2626,8 @@ export function MandibularPanel({
             </div>
           )}
 
-          {/* Product accordions — scroll with the page; avoid nested overflow scrollbars */}
-          <div className="space-y-2 min-w-0 overflow-x-hidden">
+          {/* Product accordions — scroll with the page; min-w-0 keeps flex children from overflowing */}
+          <div className="space-y-2 min-w-0">
 
             {/* Added product accordions — full field workflow, teeth owned by each card */}
             {showDetails && addedProducts
