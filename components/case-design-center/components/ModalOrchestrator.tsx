@@ -433,6 +433,11 @@ export function ModalOrchestrator({
                   : "Lower"
                 : undefined
             }
+            productName={
+              disableStageAutoSelect
+                ? currentStageProduct?.name?.trim() || undefined
+                : undefined
+            }
             lastCompletedStageId={(() => {
               if (!disableStageAutoSelect || !stageHistory?.length) return undefined;
               return stageHistory.reduce((best, h) =>
