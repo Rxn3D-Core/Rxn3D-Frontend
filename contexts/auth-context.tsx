@@ -145,6 +145,12 @@ type AuthContextType = {
     license_number?: string
     signature?: File | null
   }) => Promise<any>
+  /** Per-organization membership status only — does not change global users.status */
+  updateMembershipStatus: (
+    userId: number,
+    customerId: number,
+    status: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded",
+  ) => Promise<any>
   createUser: (userData: FormData | {
     first_name: string;
     last_name: string;
@@ -1038,6 +1044,40 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     }
   }, [handleUnauthorized]);
 
+  const updateMembershipStatus = useCallback(async (
+    userId: number,
+    customerId: number,
+    status: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded",
+  ): Promise<any> => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/users/${userId}/customers/${customerId}/membership-status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ status }),
+        },
+      )
+
+      if (response.status === 401) {
+        handleUnauthorized()
+        throw new Error("Unauthorized")
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to update membership status")
+      }
+
+      return await response.json()
+    } catch (error) {
+      throw error
+    }
+  }, [handleUnauthorized])
+
   const deleteUser = useCallback(async (userId: number): Promise<any> => {
     try {
       const customerId = localStorage.getItem("customerId")
@@ -1572,6 +1612,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         setupAccount,
         fetchUsers,
         updateUser,
+        updateMembershipStatus,
         createUser,
         updateUserDetails,
         deleteUser,

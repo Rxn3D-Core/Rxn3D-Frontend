@@ -6,15 +6,27 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Filter, Plus, ChevronDown, ChevronUp, Edit, Lock } from "lucide-react"
+import { Search, Filter, Plus, ChevronDown, ChevronUp, Edit, Lock, UserMinus } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
+import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { CreateUserModal } from "./create-user-modal"
+import { SearchInviteUserModal } from "./search-invite-user-modal"
 import { UpdateUserModal } from "./update-user-modal"
 import { ResetUserPasswordModal } from "./reset-user-password-modal"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import ReactDOM from "react-dom"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   getAddUserButtonLabel,
   resolveLockedRole,
@@ -37,6 +49,7 @@ interface ApiUser {
     id: number
     name: string
     is_primary: number
+    status?: string
     role: {
       id: number
       name: string
@@ -56,6 +69,7 @@ interface StaffUser {
   userType: string
   joinDate: string
   status: "Active" | "Inactive" | "Suspended" | "Archived"
+  membershipStatus?: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded"
   avatar?: string
   avatarColor?: string
   role?: string
@@ -69,7 +83,8 @@ interface UserListTableProps {
 }
 
 export function UserListTable({ roleFilter, title, description }: UserListTableProps) {
-  const { user, fetchUsers, updateUser } = useAuth()
+  const { user, fetchUsers, updateUser, updateMembershipStatus } = useAuth()
+  const { removeCustomerRoleFromUser } = useCustomer()
   const { toast } = useToast()
   const lockedRole = resolveLockedRole(roleFilter)
   const addButtonLabel = getAddUserButtonLabel(lockedRole)
@@ -80,11 +95,15 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
   const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
+  const [userToOffboard, setUserToOffboard] = useState<StaffUser | null>(null)
+  const [isOffboarding, setIsOffboarding] = useState(false)
 
   const [entriesPerPage, setEntriesPerPage] = useState("20")
   const [selectedRows, setSelectedRows] = useState<number[]>([])
@@ -106,9 +125,19 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
 
   // Transform API user data to component format
   const transformApiUser = (apiUser: ApiUser, index: number): StaffUser => {
-    const primaryCustomer = apiUser.customers.find(c => c.is_primary === 1) || apiUser.customers[0]
-    const userType = primaryCustomer?.role?.name.replace("_", " ") || "N/A"
-    
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    const scopedCustomer =
+      apiUser.customers.find((c) => Number(c.id) === customerId) ||
+      apiUser.customers.find((c) => c.is_primary === 1) ||
+      apiUser.customers[0]
+    const userType = scopedCustomer?.role?.name.replace("_", " ") || "N/A"
+    const membershipRaw = scopedCustomer?.status || "Active"
+    const membershipStatus = (
+      ["Active", "Inactive", "Suspended", "Archived", "Offboarded"].includes(membershipRaw)
+        ? membershipRaw
+        : "Active"
+    ) as StaffUser["membershipStatus"]
+
     return {
       id: apiUser.id,
       name: `${apiUser.first_name} ${apiUser.last_name}`,
@@ -117,9 +146,10 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
       userType,
       joinDate: new Date(apiUser.created_at).toISOString().split("T")[0],
       status: apiUser.status as "Active" | "Inactive" | "Suspended" | "Archived",
+      membershipStatus,
       avatarColor: avatarColors[index % avatarColors.length],
-      role: primaryCustomer?.role?.name || "Unknown",
-      customerName: primaryCustomer?.name || "Unknown",
+      role: scopedCustomer?.role?.name || "Unknown",
+      customerName: scopedCustomer?.name || "Unknown",
     }
   }
 
@@ -193,7 +223,9 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phone.includes(searchTerm)
     
-    const matchesStatus = statusFilter === "all" || user.status.toLowerCase() === statusFilter.toLowerCase()
+    const matchesStatus =
+      statusFilter === "all" ||
+      (user.membershipStatus || user.status).toLowerCase() === statusFilter.toLowerCase()
     const matchesUserType = userTypeFilter === "all" || user.userType === userTypeFilter
     
     return matchesSearch && matchesStatus && matchesUserType
@@ -282,38 +314,47 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         return "bg-[#fff3e1] text-[#ff9500]"
       case "Archived":
         return "bg-[#f8dddd] text-[#eb0303]"
+      case "Offboarded":
+        return "bg-[#f3f4f6] text-[#6b7280] border border-[#d1d5db]"
       default:
         return "bg-[#eeeeee] text-[#a19d9d]"
     }
   }
 
-  // Handle status change
+  // Handle membership status change for THIS organization only (not global users.status)
   const handleStatusChange = async (userId: number, newStatus: string) => {
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "No organization selected.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      const apiStatusMap: Record<string, string> = {
-        Active: "active",
-        Inactive: "inactive",
-        Suspended: "suspended",
-        Archived: "archived",
-      }
-      const result = await updateUser(userId, { status: apiStatusMap[newStatus] || "inactive" })
-      if (!result?.status && result?.success === false) {
-        throw new Error(result?.message || "Failed to update status")
-      }
+      const membershipStatus = newStatus as
+        | "Active"
+        | "Inactive"
+        | "Suspended"
+        | "Archived"
+        | "Offboarded"
+      await updateMembershipStatus(userId, customerId, membershipStatus)
 
       setStaffUsers((prevUsers) =>
         prevUsers.map((user) =>
-          user.id === userId ? { ...user, status: newStatus as "Active" | "Inactive" | "Suspended" | "Archived" } : user,
+          user.id === userId ? { ...user, membershipStatus } : user,
         ),
       )
       toast({
         title: "Status Updated",
-        description: `User status changed to ${newStatus}.`,
+        description: `Status for this organization changed to ${newStatus}.`,
       })
     } catch (error: any) {
       toast({
         title: "Update Failed",
-        description: error?.message || "Could not update user status.",
+        description: error?.message || "Could not update membership status.",
         variant: "destructive",
       })
     } finally {
@@ -376,6 +417,39 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
   // Handle update user success
   const handleUpdateUserSuccess = () => {
     loadUsers() // Reload the user list
+  }
+
+  // Soft-offboard: keep the row and history, mark membership Offboarded
+  const handleOffboardUser = async () => {
+    if (!userToOffboard) return
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "No organization selected.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsOffboarding(true)
+    try {
+      const success = await removeCustomerRoleFromUser(customerId, userToOffboard.id)
+      if (success) {
+        toast({
+          title: "Offboarded",
+          description: `${userToOffboard.name} is marked Offboarded for this organization. History stays intact.`,
+        })
+        setStaffUsers((prev) =>
+          prev.map((u) =>
+            u.id === userToOffboard.id ? { ...u, membershipStatus: "Offboarded" } : u,
+          ),
+        )
+        setUserToOffboard(null)
+      }
+    } finally {
+      setIsOffboarding(false)
+    }
   }
 
   // Handle edit user
@@ -487,7 +561,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                 </PopoverContent>
               </Popover>
 
-              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={() => setShowAddUser(true)}>
+              <Button className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white px-3 py-1.5 rounded text-sm" onClick={() => setShowSearchInvite(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 {addButtonLabel}
               </Button>
@@ -626,12 +700,12 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                     <td className="px-4 py-4 text-gray-700">{user.phone}</td>
                     <td className="px-4 py-4 text-gray-700">{user.joinDate}</td>
                     <td className="px-4 py-4 relative">
-                      <div className="relative">
+                      <div className="relative flex flex-col gap-1 items-start">
                         <button
                           onClick={(e) => handleStatusDropdown(user.id, e)}
-                          className={`${getStatusBadgeClass(user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
+                          className={`${getStatusBadgeClass(user.membershipStatus || user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
                         >
-                          <span className="mr-1">•</span> {user.status}
+                          <span className="mr-1">•</span> {user.membershipStatus || user.status}
                           <ChevronDown className="h-4 w-4 ml-1" />
                         </button>
                         {/* Dropdown is now rendered via portal */}
@@ -675,6 +749,13 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                                   <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
                                   Archived
                                 </button>
+                                <button
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
+                                  onClick={() => handleStatusChange(user.id, "Offboarded")}
+                                >
+                                  <span className="w-2 h-2 rounded-full bg-slate-500 mr-2"></span>
+                                  Offboarded
+                                </button>
                               </div>
                             </div>,
                             document.body
@@ -701,6 +782,16 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
                           title="Set password"
                         >
                           <Lock className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setUserToOffboard(user)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Offboard from this organization"
+                          disabled={user.membershipStatus === "Offboarded"}
+                        >
+                          <UserMinus className="h-5 w-5" />
                         </Button>
                       </div>
                     </td>
@@ -738,12 +829,29 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         </div>
       </div>
 
+      {/* Search existing user → invite, or fall through to create */}
+      <SearchInviteUserModal
+        isOpen={showSearchInvite}
+        onClose={() => setShowSearchInvite(false)}
+        onInviteSuccess={handleCreateUserSuccess}
+        onCreateNew={(prefill) => {
+          setCreatePrefill(prefill || {})
+          setShowSearchInvite(false)
+          setShowAddUser(true)
+        }}
+        lockedRole={lockedRole}
+      />
+
       {/* Create User Modal — role locked to this listing page */}
       <CreateUserModal
         isOpen={showAddUser}
-        onClose={() => setShowAddUser(false)}
+        onClose={() => {
+          setShowAddUser(false)
+          setCreatePrefill({})
+        }}
         onSuccess={handleCreateUserSuccess}
         lockedRole={lockedRole}
+        initialPrefill={createPrefill}
       />
 
 
@@ -757,6 +865,31 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
         onSuccess={handleUpdateUserSuccess}
         user={userToUpdate}
       />
+
+      <AlertDialog open={!!userToOffboard} onOpenChange={(open) => !open && setUserToOffboard(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Offboarded?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToOffboard?.name} will be marked Offboarded for this organization. Their profile
+              connection and history stay intact, and they can be invited again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isOffboarding}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void handleOffboardUser()
+              }}
+              disabled={isOffboarding}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isOffboarding ? "Offboarding…" : "Offboard"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ResetUserPasswordModal
         isOpen={showResetPassword}

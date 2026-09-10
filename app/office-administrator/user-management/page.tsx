@@ -2,17 +2,29 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Filter, Search, Plus, ChevronDown, ChevronUp, Pencil, Lock } from "lucide-react"
+import { Filter, Search, Plus, ChevronDown, ChevronUp, Pencil, Lock, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
+import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
 import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import { useAuth } from "@/contexts/auth-context"
+import { useCustomer } from "@/contexts/customer-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { normalizeUserStatus, type UserStatus } from "@/lib/user-status"
@@ -25,22 +37,28 @@ interface StaffUser {
   userType: string
   joinDate: string
   status: UserStatus
+  membershipStatus?: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded"
   avatar?: string
   avatarColor?: string
 }
 
 export default function UserOfficeManagement() {
   const router = useRouter()
-  const { user, fetchUsers, updateUser, hasPermission } = useAuth()
+  const { user, fetchUsers, updateUser, updateMembershipStatus, hasPermission } = useAuth()
+  const { removeCustomerRoleFromUser } = useCustomer()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all")
+  const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
   const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
   const [showResetPassword, setShowResetPassword] = useState(false)
   const [userToResetPassword, setUserToResetPassword] = useState<StaffUser | null>(null)
+  const [userToOffboard, setUserToOffboard] = useState<StaffUser | null>(null)
+  const [isOffboarding, setIsOffboarding] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
@@ -107,6 +125,13 @@ export default function UserOfficeManagement() {
       )
     )
     const userType = roleNames.length > 0 ? roleNames.join(", ") : "User"
+    const scopedCustomer = scopedCustomerUsers[0]
+    const membershipRaw = scopedCustomer?.status || "Active"
+    const membershipStatus = (
+      ["Active", "Inactive", "Suspended", "Archived", "Offboarded"].includes(membershipRaw)
+        ? membershipRaw
+        : "Active"
+    ) as StaffUser["membershipStatus"]
 
     return {
       id: apiUser.id,
@@ -116,6 +141,7 @@ export default function UserOfficeManagement() {
       userType: userType,
       joinDate: apiUser.created_at ? new Date(apiUser.created_at).toISOString().split('T')[0] : '',
       status: normalizeUserStatus(apiUser.status),
+      membershipStatus,
       avatarColor: avatarColors[index % avatarColors.length],
     }
   }
@@ -185,7 +211,9 @@ export default function UserOfficeManagement() {
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phone.includes(searchTerm)
 
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
+    const matchesStatus =
+      statusFilter === "all" ||
+      (user.membershipStatus || user.status) === statusFilter
     const matchesUserType = userTypeFilter === "all" || user.userType === userTypeFilter
 
     return matchesSearch && matchesStatus && matchesUserType
@@ -278,9 +306,9 @@ export default function UserOfficeManagement() {
     setAllSelected(!allSelected)
   }
 
-  // Handle add new user – same Create User modal as superadmin
+  // Handle add new user – search existing first, then create
   const handleAddUser = () => {
-    setShowAddUser(true)
+    setShowSearchInvite(true)
   }
 
   const handleEditUser = (user: StaffUser) => {
@@ -302,8 +330,37 @@ export default function UserOfficeManagement() {
   }
 
   const handleAddUserSuccess = () => {
+    setShowSearchInvite(false)
     setShowAddUser(false)
     loadStaffUsers()
+  }
+
+  const handleOffboardUser = async () => {
+    if (!userToOffboard || !hasPermission("delete_user")) return
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "No organization selected.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsOffboarding(true)
+    try {
+      const success = await removeCustomerRoleFromUser(customerId, userToOffboard.id)
+      if (success) {
+        toast({
+          title: "Offboarded",
+          description: `${userToOffboard.name} is marked Offboarded for this organization. History stays intact.`,
+        })
+        loadStaffUsers()
+        setUserToOffboard(null)
+      }
+    } finally {
+      setIsOffboarding(false)
+    }
   }
 
   // Get status badge class
@@ -317,6 +374,8 @@ export default function UserOfficeManagement() {
         return "bg-[#fff3e1] text-[#ff9500]"
       case "Archived":
         return "bg-[#f8dddd] text-[#eb0303]"
+      case "Offboarded":
+        return "bg-[#f3f4f6] text-[#6b7280] border border-[#d1d5db]"
       default:
         return "bg-[#eeeeee] text-[#a19d9d]"
     }
@@ -337,46 +396,52 @@ export default function UserOfficeManagement() {
     }
   }
 
-  // Handle status change with API integration
+  // Per-organization membership status only (not global users.status)
   const handleStatusChange = async (userId: number, newStatus: string) => {
+    const customerId = Number(localStorage.getItem("customerId") || 0)
+    if (!customerId) {
+      toast({
+        title: "Error",
+        description: "No organization selected.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      // Map our status types to API status
-      const apiStatusMap: { [key: string]: string } = {
-        'Active': 'active',
-        'Inactive': 'inactive', 
-        'Suspended': 'suspended',
-        'Archived': 'archived'
-      }
+      const membershipStatus = newStatus as
+        | "Active"
+        | "Inactive"
+        | "Suspended"
+        | "Archived"
+        | "Offboarded"
+      await updateMembershipStatus(userId, customerId, membershipStatus)
 
-      const apiStatus = apiStatusMap[newStatus]
-      if (!apiStatus) {
-        throw new Error('Invalid status')
-      }
+      setStaffUsers((prevUsers) =>
+        prevUsers.map((user) =>
+          user.id === userId
+            ? {
+                ...user,
+                membershipStatus,
+                status:
+                  membershipStatus === "Offboarded"
+                    ? user.status
+                    : (membershipStatus as StaffUser["status"]),
+              }
+            : user,
+        ),
+      )
 
-      // Update user status via API
-      const result = await updateUser(userId, { status: apiStatus })
-      
-      if (result.success) {
-        // Update local state
-        setStaffUsers((prevUsers) =>
-          prevUsers.map((user) =>
-            user.id === userId ? { ...user, status: newStatus as "Active" | "Inactive" | "Suspended" | "Archived" } : user,
-          ),
-        )
-        
-        toast({
-          title: "Status Updated",
-          description: `User status has been updated to ${newStatus}.`,
-          variant: "default",
-        })
-      } else {
-        throw new Error(result.message || 'Failed to update user status')
-      }
+      toast({
+        title: "Status Updated",
+        description: `Status for this organization changed to ${newStatus}.`,
+        variant: "default",
+      })
     } catch (error: any) {
-      console.error("Failed to update user status:", error)
+      console.error("Failed to update membership status:", error)
       toast({
         title: "Update Failed",
-        description: error.message || "Failed to update user status. Please try again.",
+        description: error?.message || "Failed to update status. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -613,9 +678,9 @@ export default function UserOfficeManagement() {
                         <button
                           data-status-dropdown={user.id}
                           onClick={(e) => handleStatusDropdownToggle(user.id, e)}
-                          className={`${getStatusBadgeClass(user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
+                          className={`${getStatusBadgeClass(user.membershipStatus || user.status)} px-3 py-1 rounded-md text-sm flex items-center`}
                         >
-                          <span className="mr-1">•</span> {user.status}
+                          <span className="mr-1">•</span> {user.membershipStatus || user.status}
                           <ChevronDown className="h-4 w-4 ml-1" />
                         </button>
                       </div>
@@ -641,6 +706,16 @@ export default function UserOfficeManagement() {
                           disabled={!hasPermission("edit_user")}
                         >
                           <Lock className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setUserToOffboard(user)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Offboard from this organization"
+                          disabled={!hasPermission("delete_user")}
+                        >
+                          <UserMinus className="h-5 w-5" />
                         </Button>
                       </div>
                     </td>
@@ -707,6 +782,17 @@ export default function UserOfficeManagement() {
                   <span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
                   Archived
                 </button>
+                <button
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleStatusChange(showStatusDropdown!, "Offboarded");
+                  }}
+                >
+                  <span className="w-2 h-2 rounded-full bg-slate-500 mr-2"></span>
+                  Offboarded
+                </button>
               </div>
             </div>
           </div>
@@ -732,10 +818,25 @@ export default function UserOfficeManagement() {
         </div>
       </div>
 
+      <SearchInviteUserModal
+        isOpen={showSearchInvite}
+        onClose={() => setShowSearchInvite(false)}
+        onInviteSuccess={handleAddUserSuccess}
+        onCreateNew={(prefill) => {
+          setCreatePrefill(prefill || {})
+          setShowSearchInvite(false)
+          setShowAddUser(true)
+        }}
+      />
+
       <CreateUserModal
         isOpen={showAddUser}
-        onClose={() => setShowAddUser(false)}
+        onClose={() => {
+          setShowAddUser(false)
+          setCreatePrefill({})
+        }}
         onSuccess={handleAddUserSuccess}
+        initialPrefill={createPrefill}
       />
 
       <UpdateUserModal
@@ -747,6 +848,31 @@ export default function UserOfficeManagement() {
         onSuccess={handleUpdateUserSuccess}
         user={userToUpdate}
       />
+
+      <AlertDialog open={!!userToOffboard} onOpenChange={(open) => !open && setUserToOffboard(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Offboarded?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {userToOffboard?.name} will be marked Offboarded for this organization. Their profile
+              connection and history stay intact, and they can be invited again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isOffboarding}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void handleOffboardUser()
+              }}
+              disabled={isOffboarding}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isOffboarding ? "Offboarding…" : "Offboard"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ResetUserPasswordModal
         isOpen={showResetPassword}
