@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Avatar } from "@/components/ui/avatar"
 import ReactDOM from "react-dom"
 import { CreateUserModal } from "@/components/office-administrator/create-user-modal"
+import { SearchInviteUserModal } from "@/components/office-administrator/search-invite-user-modal"
 import { UpdateUserModal } from "@/components/office-administrator/update-user-modal"
 import { ResetUserPasswordModal } from "@/components/office-administrator/reset-user-password-modal"
 import {
@@ -82,7 +83,9 @@ export default function AllUsers() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedUser, setSelectedUser] = useState<StaffUser | null>(null)
+  const [showSearchInvite, setShowSearchInvite] = useState(false)
   const [showAddUser, setShowAddUser] = useState(false)
+  const [createPrefill, setCreatePrefill] = useState<{ first_name?: string; last_name?: string; email?: string }>({})
   const [showUpdateUser, setShowUpdateUser] = useState(false)
   const [userToUpdate, setUserToUpdate] = useState<StaffUser | null>(null)
   const [showResetPassword, setShowResetPassword] = useState(false)
@@ -277,7 +280,7 @@ export default function AllUsers() {
 
   const handleAddUser = () => {
     if (!canCreateUser) return
-    setShowAddUser(true)
+    setShowSearchInvite(true)
     setSelectedUser(null)
   }
 
@@ -307,6 +310,7 @@ export default function AllUsers() {
   // Handle back to list
   const handleBackToList = () => {
     setSelectedUser(null)
+    setShowSearchInvite(false)
     setShowAddUser(false)
   }
 
@@ -769,16 +773,38 @@ export default function AllUsers() {
         </div>
       </div>
 
+      <SearchInviteUserModal
+        isOpen={showSearchInvite}
+        onClose={() => setShowSearchInvite(false)}
+        onInviteSuccess={() => {
+          setShowSearchInvite(false)
+          loadUsers()
+        }}
+        onCreateNew={(prefill) => {
+          setCreatePrefill(prefill || {})
+          setShowSearchInvite(false)
+          setShowAddUser(true)
+        }}
+        lockedRole={lockedRole}
+        requireCustomerSelection
+        customerOptions={customerOptions}
+      />
+
       <CreateUserModal
         isOpen={showAddUser}
-        onClose={() => setShowAddUser(false)}
+        onClose={() => {
+          setShowAddUser(false)
+          setCreatePrefill({})
+        }}
         onSuccess={() => {
           setShowAddUser(false)
+          setCreatePrefill({})
           loadUsers()
         }}
         lockedRole={lockedRole}
         requireCustomerSelection
         customerOptions={customerOptions}
+        initialPrefill={createPrefill}
       />
 
       <UpdateUserModal

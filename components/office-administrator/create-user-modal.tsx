@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
-import { Check, Upload, X } from "lucide-react"
+import { Check, Loader2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import {
@@ -25,8 +25,11 @@ import {
   resolveOfficeMixedRole,
 } from "@/lib/user-role-labels"
 import { roleSelectOptionsForCustomerType } from "@/lib/user-customer-roles"
+import {
+  isEmailAlreadyRegistered,
+  type CreateUserPrefill,
+} from "@/services/user-lookup-service"
 
-// Form schema based on the API examples
 const passwordStrengthSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
@@ -71,14 +74,11 @@ interface CreateUserModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-  /** When set, role is fixed to this page context — no role picker. */
   lockedRole?: string
-  /**
-   * Superadmin All Users: require picking a customer to create into.
-   * Not used on lab/office scoped create pages (they use the active customer).
-   */
   requireCustomerSelection?: boolean
   customerOptions?: CustomerOption[]
+  /** Prefill from invite-search “Create new instead”. */
+  initialPrefill?: CreateUserPrefill
 }
 
 interface Department {
@@ -86,10 +86,11 @@ interface Department {
   name: string
 }
 
-interface Department {
-  id: number
-  name: string
-}
+const EMAIL_TAKEN_MSG =
+  "This email is already registered. Invite them from search instead of creating a new account."
+
+const PRIMARY_BTN =
+  "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110 text-white"
 
 export function CreateUserModal({
   isOpen,
@@ -98,6 +99,7 @@ export function CreateUserModal({
   lockedRole,
   requireCustomerSelection = false,
   customerOptions = [],
+  initialPrefill,
 }: CreateUserModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -106,12 +108,14 @@ export function CreateUserModal({
   const [signatureMessage, setSignatureMessage] = useState("")
   const signatureRef = useRef<SignatureCanvas>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
   const [selectedDepartments, setSelectedDepartments] = useState<number[]>([])
   const [isLoadingDepartments, setIsLoadingDepartments] = useState(false)
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const [emailTaken, setEmailTaken] = useState(false)
   const roleIsLocked = Boolean(lockedRole)
 
-  // Get auth context
   const authContext = useAuth()
 
   const form = useForm<CreateUserFormValues>({
@@ -155,6 +159,7 @@ export function CreateUserModal({
   const isAlsoAdmin = form.watch("is_also_admin")
   const selectedRole = form.watch("role")
   const selectedCustomerId = form.watch("customer_id")
+  const watchedEmail = form.watch("email")
 
   const localCustomerType = typeof window !== "undefined" ? localStorage.getItem("customerType")?.toLowerCase() : null
   const selectedCustomer = customerOptions.find((option) => option.value === selectedCustomerId)
@@ -186,7 +191,6 @@ export function CreateUserModal({
     if (effectiveCustomerType === "lab" || effectiveCustomerType === "office") {
       return roleSelectOptionsForCustomerType(effectiveCustomerType)
     }
-    // Locked role pages still need a coherent list if type is briefly missing
     if (lockedRole) {
       if (["lab_admin", "lab_user"].includes(lockedRole)) {
         return roleSelectOptionsForCustomerType("lab")
@@ -197,7 +201,12 @@ export function CreateUserModal({
     }
     return []
   }, [requireCustomerSelection, effectiveCustomerType, lockedRole])
-  // Drop a lab role that is no longer selectable in an office context (only when role is choosable)
+
+  const resolveCustomerIdForChecks = () => {
+    if (requireCustomerSelection) return selectedCustomerId?.trim() || ""
+    return typeof window !== "undefined" ? localStorage.getItem("customerId") || "" : ""
+  }
+
   useEffect(() => {
     if (roleIsLocked || !selectedRole) return
     if (!availableRoles.some((role) => role.value === selectedRole)) {
@@ -205,7 +214,6 @@ export function CreateUserModal({
     }
   }, [availableRoles, selectedRole, form, roleIsLocked])
 
-  // Clear doctor field errors when both are filled or when not a doctor — never auto-error on open
   useEffect(() => {
     if (!treatingAsDoctor) {
       form.clearErrors("license_number")
@@ -220,8 +228,51 @@ export function CreateUserModal({
     }
   }, [licenseNumber, signatureFile, treatingAsDoctor, form])
 
-  /** Show valid/error borders only after the field has been changed by the user. */
+  // Debounced email uniqueness check
+  useEffect(() => {
+    if (!isOpen) return
+
+    const email = (watchedEmail || "").trim()
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const customerId = resolveCustomerIdForChecks()
+
+    if (!email || !emailRegex.test(email) || !customerId) {
+      setEmailTaken(false)
+      setIsCheckingEmail(false)
+      if (form.formState.errors.email?.message === EMAIL_TAKEN_MSG) {
+        form.clearErrors("email")
+      }
+      return
+    }
+
+    let cancelled = false
+    setIsCheckingEmail(true)
+    const timeoutId = setTimeout(async () => {
+      try {
+        const taken = await isEmailAlreadyRegistered(email, customerId)
+        if (cancelled) return
+        setEmailTaken(taken)
+        if (taken) {
+          form.setError("email", { type: "manual", message: EMAIL_TAKEN_MSG })
+        } else if (form.formState.errors.email?.message === EMAIL_TAKEN_MSG) {
+          form.clearErrors("email")
+        }
+      } catch {
+        if (!cancelled) setEmailTaken(false)
+      } finally {
+        if (!cancelled) setIsCheckingEmail(false)
+      }
+    }, 400)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedEmail, selectedCustomerId, isOpen, requireCustomerSelection])
+
   const getValidationState = (fieldName: keyof CreateUserFormValues): "default" | "valid" | "warning" | "error" => {
+    if (fieldName === "email" && emailTaken) return "error"
     const isDirty = Boolean(form.formState.dirtyFields[fieldName])
     const hasError = Boolean(form.formState.errors[fieldName])
     if (!isDirty && !hasError) return "default"
@@ -280,13 +331,12 @@ export function CreateUserModal({
     }
   }
 
-  // Reset form when modal opens/closes; seed locked role from page context
   useEffect(() => {
     if (isOpen) {
       form.reset({
-        first_name: "",
-        last_name: "",
-        email: "",
+        first_name: initialPrefill?.first_name || "",
+        last_name: initialPrefill?.last_name || "",
+        email: initialPrefill?.email || "",
         phone: "",
         work_number: "",
         customer_id: "",
@@ -306,16 +356,18 @@ export function CreateUserModal({
       setSignatureMessage("")
       signatureRef.current?.clear()
       setAvatarFile(null)
+      setAvatarPreviewUrl(null)
       setSelectedDepartments([])
       setDepartments([])
+      setEmailTaken(false)
+      setIsCheckingEmail(false)
       if (isLabCustomer && !requireCustomerSelection) {
         void fetchDepartments()
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, form, lockedRole, requireCustomerSelection])
+  }, [isOpen, form, lockedRole, requireCustomerSelection, initialPrefill])
 
-  // When superadmin picks a customer, load departments for lab customers and clear incompatible role
   useEffect(() => {
     if (!requireCustomerSelection || !isOpen) return
     setSelectedDepartments([])
@@ -334,7 +386,6 @@ export function CreateUserModal({
     form.setValue("department_ids", selectedDepartments, { shouldValidate: false, shouldDirty: false })
   }, [selectedDepartments, form])
 
-  // Keep is_doctor true for doctor role; do not clear the “also Doctor” checkbox when role is locked
   useEffect(() => {
     if (isDoctorRole(selectedRole) || isDoctorRole(lockedRole)) {
       form.setValue("is_doctor", true, { shouldValidate: false })
@@ -346,16 +397,23 @@ export function CreateUserModal({
     }
   }, [selectedRole, form, roleIsLocked, lockedRole])
 
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(avatarFile)
+    setAvatarPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [avatarFile])
+
   if (!authContext?.createUser) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
         <div className="bg-white p-6 rounded-lg max-w-md">
           <h2 className="text-xl font-bold mb-4 text-red-600">Error</h2>
           <p>Auth context is not available. Please refresh the page.</p>
-          <button
-            onClick={onClose}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-          >
+          <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">
             Close
           </button>
         </div>
@@ -369,17 +427,14 @@ export function CreateUserModal({
     )
   }
 
-
   const dataURLtoFile = (dataURL: string, filename: string): File => {
     const arr = dataURL.split(",")
     const mime = arr[0].match(/:(.*?);/)![1]
     const bstr = atob(arr[1])
     const u8arr = new Uint8Array(bstr.length)
-
     for (let i = 0; i < bstr.length; i++) {
       u8arr[i] = bstr.charCodeAt(i)
     }
-
     return new File([u8arr], filename, { type: mime })
   }
 
@@ -403,12 +458,10 @@ export function CreateUserModal({
       showSignatureMessage("Please draw your signature before saving")
       return
     }
-
     try {
       const quality = signatureRef.current.toDataURL().length > 1024 ? 0.5 : 1
       const signatureData = signatureRef.current.toDataURL("image/png", quality)
-      const file = dataURLtoFile(signatureData, "signature.png")
-      applySignatureFile(file)
+      applySignatureFile(dataURLtoFile(signatureData, "signature.png"))
       showSignatureMessage("Signature saved")
     } catch {
       showSignatureMessage("Error saving signature")
@@ -423,75 +476,101 @@ export function CreateUserModal({
     showSignatureMessage("Signature cleared")
   }
 
-  // Handle signature file upload
   const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // Validate file type (only JPG, JPEG, PNG as per backend requirements)
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png']
-      if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload an image in JPG, JPEG, or PNG format.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload a file smaller than 5MB.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      signatureRef.current?.clear()
-      applySignatureFile(file)
-      showSignatureMessage("Signature uploaded")
+    if (!file) return
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image in JPG, JPEG, or PNG format.",
+        variant: "destructive",
+      })
+      return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+    signatureRef.current?.clear()
+    applySignatureFile(file)
+    showSignatureMessage("Signature uploaded")
   }
 
-  // Handle avatar file upload
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // Validate file type (only JPG, JPEG, PNG as per backend requirements)
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png']
-      if (!allowedTypes.includes(file.type)) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload an image in JPG, JPEG, or PNG format.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please upload a file smaller than 5MB.",
-          variant: "destructive",
-        })
-        return
-      }
-      
-      setAvatarFile(file)
-      form.setValue("avatar", file)
+    if (!file) return
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image in JPG, JPEG, or PNG format.",
+        variant: "destructive",
+      })
+      return
     }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB.",
+        variant: "destructive",
+      })
+      return
+    }
+    setAvatarFile(file)
+    form.setValue("avatar", file)
   }
 
-  // Remove avatar file
   const removeAvatarFile = () => {
     setAvatarFile(null)
     form.setValue("avatar", null)
   }
 
-
   const onSubmit = async (data: CreateUserFormValues) => {
+    if (emailTaken) {
+      form.setError("email", { type: "manual", message: EMAIL_TAKEN_MSG })
+      toast({
+        title: "Email already registered",
+        description: "Use Invite from search to add this person.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const customerId = requireCustomerSelection
+      ? data.customer_id?.trim()
+      : localStorage.getItem("customerId")
+
+    if (!customerId) {
+      toast({
+        title: "Validation Error",
+        description: requireCustomerSelection ? "Please select a customer" : "No active customer selected",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Final email uniqueness check before create
+    try {
+      const taken = await isEmailAlreadyRegistered(data.email, customerId)
+      if (taken) {
+        setEmailTaken(true)
+        form.setError("email", { type: "manual", message: EMAIL_TAKEN_MSG })
+        toast({
+          title: "Email already registered",
+          description: "Use Invite from search to add this person.",
+          variant: "destructive",
+        })
+        return
+      }
+    } catch {
+      // Allow submit; backend unique constraint is the final guard
+    }
+
     const baseRole = lockedRole || data.role
     const effectiveRole = resolveOfficeMixedRole({
       baseRole,
@@ -501,82 +580,55 @@ export function CreateUserModal({
     const treatingAsDoctorOnSubmit =
       requiresDoctorCredentials(effectiveRole) || isDoctorRole(baseRole) || Boolean(data.is_doctor)
 
-    // Validate doctor fields before submission
     if (treatingAsDoctorOnSubmit) {
       const hasLicense = data.license_number && data.license_number.trim() !== ""
       const hasSignature = signatureFile !== null
-      
       if (!hasLicense || !hasSignature) {
         form.setError("license_number", {
           type: "manual",
-          message: "License number and signature are required for doctors"
+          message: "License number and signature are required for doctors",
         })
         toast({
           title: "Validation Error",
           description: "License number and signature are required for doctors",
           variant: "destructive",
         })
-        setIsSubmitting(false)
         return
       }
     }
+
     setIsSubmitting(true)
     try {
-      const customerId = requireCustomerSelection
-        ? data.customer_id?.trim()
-        : localStorage.getItem("customerId")
-
-      if (!customerId) {
-        toast({
-          title: "Validation Error",
-          description: requireCustomerSelection
-            ? "Please select a customer"
-            : "No active customer selected",
-          variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
-      }
-
-      // Create FormData for multipart form submission
       const formData = new FormData()
+      formData.append("first_name", data.first_name)
+      formData.append("last_name", data.last_name)
+      formData.append("email", data.email)
+      formData.append("phone", data.phone)
+      formData.append("work_number", data.work_number || data.phone)
+      formData.append("customer_id", customerId)
+      formData.append("role", effectiveRole)
+      formData.append("is_doctor", treatingAsDoctorOnSubmit ? "1" : "0")
+      formData.append("status", "Pending")
+      formData.append("password", data.password)
+      formData.append("password_confirmation", data.password_confirmation)
 
-      // Add basic user data
-      formData.append('first_name', data.first_name)
-      formData.append('last_name', data.last_name)
-      formData.append('email', data.email)
-      formData.append('phone', data.phone)
-      formData.append('work_number', data.work_number || data.phone)
-      formData.append('customer_id', customerId)
-      formData.append('role', effectiveRole)
-      formData.append('is_doctor', treatingAsDoctorOnSubmit ? "1" : "0")
-      formData.append('status', "Pending")
-      formData.append('password', data.password)
-      formData.append('password_confirmation', data.password_confirmation)
-      
-      // Add department_ids only for lab customers
       if (isLabCustomer && selectedDepartments.length > 0) {
         selectedDepartments.forEach((id) => {
-          formData.append('department_ids[]', id.toString())
+          formData.append("department_ids[]", id.toString())
         })
       }
-      
-      // Add doctor-specific fields
+
       if (treatingAsDoctorOnSubmit && data.license_number) {
-        formData.append('license_number', data.license_number)
+        formData.append("license_number", data.license_number)
       }
-      
-      // Add signature file if it exists
       if (treatingAsDoctorOnSubmit && signatureFile) {
-        formData.append('signature', signatureFile)
+        formData.append("signature", signatureFile)
       }
-      
-      // Add avatar file if it exists
       if (avatarFile) {
-        formData.append('avatar', avatarFile)
+        formData.append("avatar", avatarFile)
       }
 
-      const createResult = await authContext.createUser(formData)
+      await authContext.createUser(formData)
 
       toast({
         title: "Success",
@@ -586,7 +638,6 @@ export function CreateUserModal({
       onSuccess()
       onClose()
     } catch (error: any) {
-      console.error("Error creating user:", error)
       toast({
         title: "Error",
         description: error.message || "Failed to create user. Please try again.",
@@ -597,11 +648,13 @@ export function CreateUserModal({
     }
   }
 
+  const fieldClass = "h-10 text-sm"
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-5 flex flex-col">
-        <DialogHeader className="pb-3 flex-shrink-0">
-          <DialogTitle className="text-xl font-semibold">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="w-[calc(100%-1.5rem)] sm:max-w-xl max-h-[min(92dvh,720px)] p-0 gap-0 overflow-hidden rounded-2xl flex flex-col">
+        <DialogHeader className="px-5 pt-4 pb-3 border-b border-[#f0f0f0] flex-shrink-0">
+          <DialogTitle className="text-[15px] font-semibold tracking-tight">
             {getCreateUserTitle(lockedRole || selectedRole)}
           </DialogTitle>
         </DialogHeader>
@@ -609,27 +662,189 @@ export function CreateUserModal({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-4 flex flex-col max-h-[calc(90vh-120px)]"
+            className="flex flex-col min-h-0 flex-1"
             autoComplete="off"
           >
-            <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-4">
-            {requireCustomerSelection && (
-              <div className="space-y-2 pb-3 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-900">Customer *</h3>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4">
+              {requireCustomerSelection && (
                 <FormField
                   control={form.control}
                   name="customer_id"
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel className="text-xs text-[#6b7280]">Organization *</FormLabel>
                       <FormControl>
                         <SearchableSelect
                           options={customerOptions}
                           value={field.value || ""}
                           onValueChange={field.onChange}
-                          placeholder="Select a customer"
-                          searchPlaceholder="Search customers…"
+                          placeholder="Select office or lab"
+                          searchPlaceholder="Search…"
                           emptyMessage="No customers found"
-                          className="h-12"
+                          className="h-10"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Profile + identity */}
+              <div className="flex gap-3 items-start">
+                <FormField
+                  control={form.control}
+                  name="avatar"
+                  render={() => (
+                    <FormItem className="m-0 shrink-0">
+                      <FormControl>
+                        <div className="relative">
+                          {avatarPreviewUrl ? (
+                            <div className="relative h-14 w-14">
+                              <img
+                                src={avatarPreviewUrl}
+                                alt="Avatar preview"
+                                className="h-14 w-14 rounded-full object-cover border border-[#e5e7eb]"
+                              />
+                              <button
+                                type="button"
+                                onClick={removeAvatarFile}
+                                className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png"
+                                onChange={handleAvatarUpload}
+                                className="hidden"
+                                id="avatar-upload"
+                              />
+                              <label
+                                htmlFor="avatar-upload"
+                                className="h-14 w-14 rounded-full border border-dashed border-[#d1d5db] bg-[#fafafa] flex flex-col items-center justify-center cursor-pointer hover:border-[#9ca3af] transition-colors"
+                              >
+                                <Upload className="h-4 w-4 text-[#9ca3af]" />
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 min-w-0">
+                  <FormField
+                    control={form.control}
+                    name="first_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            label="First name *"
+                            placeholder="First name"
+                            validationState={getValidationState("first_name")}
+                            errorMessage={form.formState.errors.first_name?.message as string}
+                            className={fieldClass}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="last_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Input
+                            label="Last name *"
+                            placeholder="Last name"
+                            validationState={getValidationState("last_name")}
+                            errorMessage={form.formState.errors.last_name?.message as string}
+                            className={fieldClass}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type="email"
+                            label="Email *"
+                            placeholder="name@example.com"
+                            autoComplete="off"
+                            data-1p-ignore
+                            data-lpignore="true"
+                            validationState={getValidationState("email")}
+                            className={cn(fieldClass, "pr-9")}
+                            {...field}
+                          />
+                          {isCheckingEmail && (
+                            <Loader2 className="absolute right-3 bottom-3 h-3.5 w-3.5 animate-spin text-[#9ca3af]" />
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          label="Phone *"
+                          placeholder="Phone number"
+                          validationState={getValidationState("phone")}
+                          errorMessage={form.formState.errors.phone?.message as string}
+                          className={fieldClass}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e.target.value.replace(/[^0-9+]/g, ""))
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="work_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          label="Work number"
+                          placeholder="Optional"
+                          validationState={getValidationState("work_number")}
+                          className={fieldClass}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e.target.value.replace(/[^0-9+]/g, ""))
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -637,192 +852,135 @@ export function CreateUserModal({
                   )}
                 />
               </div>
-            )}
-            {/* Avatar Section */}
-            <div className="flex items-start gap-4 pb-3 border-b border-gray-100">
-              <FormField
-                control={form.control}
-                name="avatar"
-                render={({ field }) => (
-                  <FormItem className="m-0">
-                    <FormLabel className="text-xs font-medium text-gray-700 mb-1.5 block">Profile Photo</FormLabel>
-                    <FormControl>
-                      <div className="w-32">
-                        {avatarFile ? (
-                          <div className="relative">
-                            <img
-                              src={URL.createObjectURL(avatarFile)}
-                              alt="Avatar preview"
-                              className="h-32 w-32 rounded-lg object-cover border border-gray-200"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={removeAvatarFile}
-                              className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-red-500 hover:bg-red-600 text-white p-0"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-gray-400 transition-all h-32 w-32 flex items-center justify-center bg-gray-50">
-                            <input
-                              type="file"
-                              accept="image/jpeg,image/jpg,image/png"
-                              onChange={handleAvatarUpload}
-                              className="hidden"
-                              id="avatar-upload"
-                            />
-                            <label
-                              htmlFor="avatar-upload"
-                              className="cursor-pointer flex flex-col items-center space-y-2"
-                            >
-                              <Upload className="h-6 w-6 text-gray-400" />
-                              <div className="text-xs text-gray-600 text-center font-medium">
-                                Upload
-                              </div>
-                            </label>
-                          </div>
+
+              {/* Role */}
+              <div className="space-y-2">
+                {roleIsLocked ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-[#f3f4f6] px-2.5 py-1 text-xs font-medium text-[#374151]">
+                      {getRoleDisplayLabel(lockedRole)}
+                      {resolvedCreateRole === "doctor_admin" ? " · Admin" : ""}
+                    </span>
+                    {showAlsoDoctorCheckbox && (
+                      <FormField
+                        control={form.control}
+                        name="is_doctor"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                            <FormControl>
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                            <FormLabel className="text-xs font-medium cursor-pointer">Also Doctor</FormLabel>
+                          </FormItem>
                         )}
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Basic Information Section */}
-              <div className="flex-1 space-y-3">
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-900 mb-2">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="first_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input 
-                              label="First Name *"
-                              placeholder="Enter first name" 
-                              validationState={getValidationState("first_name")}
-                              errorMessage={form.formState.errors.first_name?.message as string}
-                              className="h-12"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="last_name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input 
-                              label="Last Name *"
-                              placeholder="Enter last name" 
-                              validationState={getValidationState("last_name")}
-                              errorMessage={form.formState.errors.last_name?.message as string}
-                              className="h-12"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      />
+                    )}
+                    {showAlsoAdminCheckbox && (
+                      <FormField
+                        control={form.control}
+                        name="is_also_admin"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                            <FormControl>
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                            <FormLabel className="text-xs font-medium cursor-pointer">Also Admin</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    )}
                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-center">
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs text-[#6b7280]">Role *</FormLabel>
+                          <FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <SelectTrigger className={cn(fieldClass, "border")}>
+                                <SelectValue
+                                  placeholder={
+                                    requireCustomerSelection && !effectiveCustomerType
+                                      ? "Select organization first"
+                                      : "Select role"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableRoles.map((role) => (
+                                  <SelectItem key={role.value} value={role.value}>
+                                    {role.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="flex flex-wrap gap-3 pt-5">
+                      {showAlsoDoctorCheckbox && (
+                        <FormField
+                          control={form.control}
+                          name="is_doctor"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <FormLabel className="text-xs font-medium cursor-pointer">Also Doctor</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                      {showAlsoAdminCheckbox && (
+                        <FormField
+                          control={form.control}
+                          name="is_also_admin"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center space-x-2 space-y-0 m-0">
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <FormLabel className="text-xs font-medium cursor-pointer">Also Admin</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {isLabCustomer && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-[#6b7280]">Departments</p>
+                  {isLoadingDepartments ? (
+                    <p className="text-xs text-[#9ca3af]">Loading…</p>
+                  ) : departments.length === 0 ? (
+                    <p className="text-xs text-[#9ca3af]">No departments available.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {departments.map((department) => (
+                        <label key={department.id} className="flex items-center gap-1.5 text-xs text-[#374151]">
+                          <Checkbox
+                            checked={selectedDepartments.includes(department.id)}
+                            onCheckedChange={() => handleDepartmentToggle(department.id)}
+                          />
+                          {department.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
+              )}
 
-            {/* Contact Information Section */}
-            <div className="space-y-3 pb-3 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-900">Contact Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            label="Email Address *"
-                            placeholder="Enter email address"
-                            autoComplete="off"
-                            data-1p-ignore
-                            data-lpignore="true"
-                            validationState={getValidationState("email")}
-                            className="h-12"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input 
-                            label="Phone Number *"
-                            placeholder="Enter phone number" 
-                            validationState={getValidationState("phone")}
-                            errorMessage={form.formState.errors.phone?.message as string}
-                            className="h-12"
-                            {...field}
-                            onChange={(e) => {
-                              // Only allow numbers and + sign
-                              const value = e.target.value.replace(/[^0-9+]/g, '')
-                              field.onChange(value)
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="work_number"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Input 
-                            label="Work Number"
-                            placeholder="Enter work number" 
-                            validationState={getValidationState("work_number")}
-                            className="h-12"
-                            {...field}
-                            onChange={(e) => {
-                              // Only allow numbers and + sign
-                              const value = e.target.value.replace(/[^0-9+]/g, '')
-                              field.onChange(value)
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-              </div>
-            </div>
-
-            {/* Account Security */}
-            <div className="space-y-3 pb-3 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-900">Account Security</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Security */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <FormField
                   control={form.control}
                   name="password"
@@ -832,13 +990,13 @@ export function CreateUserModal({
                         <Input
                           type="password"
                           label="Password *"
-                          placeholder="Enter password"
+                          placeholder="Create password"
                           revealToggle
                           autoComplete="new-password"
                           data-1p-ignore
                           data-lpignore="true"
                           validationState={getValidationState("password")}
-                          className="h-12"
+                          className={fieldClass}
                           {...field}
                         />
                       </FormControl>
@@ -846,7 +1004,6 @@ export function CreateUserModal({
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="password_confirmation"
@@ -855,14 +1012,14 @@ export function CreateUserModal({
                       <FormControl>
                         <Input
                           type="password"
-                          label="Confirm Password *"
-                          placeholder="Re-enter password"
+                          label="Confirm *"
+                          placeholder="Confirm password"
                           revealToggle
                           autoComplete="new-password"
                           data-1p-ignore
                           data-lpignore="true"
                           validationState={getValidationState("password_confirmation")}
-                          className="h-12"
+                          className={fieldClass}
                           {...field}
                         />
                       </FormControl>
@@ -871,196 +1028,25 @@ export function CreateUserModal({
                   )}
                 />
               </div>
-            </div>
 
-            {/* Role Section — hidden picker when page locks the role */}
-            <div className="space-y-3 pb-3 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-900">
-                {roleIsLocked ? "User Type" : "Role"}
-              </h3>
-              {roleIsLocked ? (
-                <div className="space-y-3">
-                  <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
-                    Creating as <span className="font-medium">{getRoleDisplayLabel(lockedRole)}</span>
-                    {resolvedCreateRole === "doctor_admin" && (
-                      <span className="ml-2 text-xs text-[#1162a8]">(+ mixed Doctor Admin)</span>
-                    )}
-                  </div>
-                  {showAlsoDoctorCheckbox && (
-                    <FormField
-                      control={form.control}
-                      name="is_doctor"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div className="leading-none">
-                            <FormLabel className="text-xs font-medium cursor-pointer">
-                              User is also a Doctor
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  {showAlsoAdminCheckbox && (
-                    <FormField
-                      control={form.control}
-                      name="is_also_admin"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div className="leading-none">
-                            <FormLabel className="text-xs font-medium cursor-pointer">
-                              User is also an Admin
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="role"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <SelectTrigger className={cn(
-                              "h-12 border-2 text-sm",
-                              form.formState.dirtyFields.role && !field.value
-                                ? "border-[#CF0202]"
-                                : form.formState.dirtyFields.role && field.value
-                                  ? "border-[#119933]"
-                                  : "border-gray-200"
-                            )}>
-                              <SelectValue
-                                placeholder={
-                                  requireCustomerSelection && !effectiveCustomerType
-                                    ? "Select a customer first"
-                                    : "Select a role"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableRoles.map((role) => (
-                                <SelectItem key={role.value} value={role.value}>
-                                  {role.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {showAlsoDoctorCheckbox && (
-                    <FormField
-                      control={form.control}
-                      name="is_doctor"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50 h-12">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div className="leading-none">
-                            <FormLabel className="text-xs font-medium cursor-pointer">
-                              User is also a Doctor
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  {showAlsoAdminCheckbox && (
-                    <FormField
-                      control={form.control}
-                      name="is_also_admin"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0 rounded-md border border-gray-200 p-2.5 bg-gray-50 h-12">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                          <div className="leading-none">
-                            <FormLabel className="text-xs font-medium cursor-pointer">
-                              User is also an Admin
-                            </FormLabel>
-                          </div>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-
-            {isLabCustomer && (
-              <div className="space-y-3 pb-3 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-900">Departments</h3>
-                {isLoadingDepartments ? (
-                  <div className="text-xs text-gray-500">Loading departments...</div>
-                ) : departments.length === 0 ? (
-                  <div className="text-xs text-gray-500">No departments available for this lab customer.</div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {departments.map((department) => (
-                      <label key={department.id} className="flex items-center space-x-2 text-sm">
-                        <Checkbox
-                          checked={selectedDepartments.includes(department.id)}
-                          onCheckedChange={() => handleDepartmentToggle(department.id)}
-                        />
-                        <span>{department.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                {form.formState.errors.department_ids && (
-                  <p className="text-xs text-red-500">{form.formState.errors.department_ids.message as string}</p>
-                )}
-              </div>
-            )}
-
-            {/* Doctor-Specific Fields */}
-            {treatingAsDoctor && (
-              <div className="space-y-3 pb-3 border-b border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-900">Doctor Information</h3>
-                <div className="space-y-3">
+              {treatingAsDoctor && (
+                <div className="space-y-2.5 rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-3">
+                  <p className="text-xs font-semibold text-[#374151]">Doctor credentials</p>
                   <FormField
                     control={form.control}
                     name="license_number"
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
-                          <Input 
-                            label="License Number *"
-                            placeholder="Enter license number" 
+                          <Input
+                            label="License number *"
+                            placeholder="License number"
                             validationState={getValidationState("license_number")}
                             errorMessage={form.formState.errors.license_number?.message as string}
-                            className="h-12"
+                            className={cn(fieldClass, "bg-white")}
                             {...field}
                             onChange={(e) => {
                               field.onChange(e)
-                              // Clear validation error if signature also has value
                               if (signatureFile && e.target.value.trim() !== "") {
                                 form.clearErrors("license_number")
                               }
@@ -1071,61 +1057,56 @@ export function CreateUserModal({
                       </FormItem>
                     )}
                   />
-
                   <FormField
                     control={form.control}
                     name="signature"
                     render={() => (
                       <FormItem>
                         <FormControl>
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <div
                               className={cn(
-                                "border rounded-lg overflow-hidden",
-                                form.formState.errors.signature
-                                  ? "border-red-500"
-                                  : "border-gray-200",
+                                "border rounded-lg overflow-hidden bg-white",
+                                form.formState.errors.signature ? "border-red-500" : "border-[#e5e7eb]",
                               )}
                             >
-                              <div className="p-2 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                                <div className="flex items-center">
-                                  <span className="text-xs font-medium text-gray-700">Signature *</span>
+                              <div className="px-2.5 py-1.5 border-b border-[#f0f0f0] flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-medium text-[#374151]">Signature *</span>
                                   {hasSignature && (
-                                    <span className="ml-2 text-[10px] text-green-600 flex items-center">
-                                      <Check className="h-3 w-3 mr-1" />
+                                    <span className="text-[10px] text-green-600 flex items-center">
+                                      <Check className="h-3 w-3 mr-0.5" />
                                       Saved
                                     </span>
                                   )}
                                 </div>
-                                <Button
+                                <button
                                   type="button"
-                                  variant="ghost"
-                                  size="sm"
                                   onClick={handleClearSignature}
-                                  className="h-7 px-2 text-xs text-gray-600 hover:text-gray-900"
+                                  className="text-[11px] text-[#6b7280] hover:text-[#111827]"
                                 >
                                   Clear
-                                </Button>
+                                </button>
                               </div>
-                              <div className="p-2 bg-white relative">
+                              <div className="p-2 relative">
                                 <SignatureCanvas
                                   ref={signatureRef}
                                   penColor="black"
                                   canvasProps={{
-                                    className: "w-full border border-dashed border-gray-300 h-36",
-                                    style: { width: "100%", height: "144px" },
+                                    className: "w-full border border-dashed border-[#e5e7eb] h-28 rounded",
+                                    style: { width: "100%", height: "112px" },
                                   }}
                                   onEnd={handleSaveSignature}
                                 />
                                 {!hasSignature && (
-                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-400 text-sm">
+                                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-[#9ca3af] text-xs">
                                     Sign here
                                   </div>
                                 )}
                                 {signatureMessage && (
                                   <div
                                     className={cn(
-                                      "absolute bottom-2 left-2 right-2 p-1.5 rounded text-xs text-center",
+                                      "absolute bottom-2 left-2 right-2 p-1 rounded text-[11px] text-center",
                                       signatureMessage.includes("Error") || signatureMessage.includes("Please")
                                         ? "bg-red-100 text-red-700"
                                         : "bg-green-100 text-green-700",
@@ -1136,18 +1117,16 @@ export function CreateUserModal({
                                 )}
                               </div>
                             </div>
-                            <div className="flex justify-end">
-                              <label className="text-[#1162a8] px-2 py-1 rounded flex items-center cursor-pointer text-xs font-medium hover:text-[#0d5999]">
-                                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                                Upload Signature
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  accept="image/jpeg,image/jpg,image/png"
-                                  onChange={handleSignatureUpload}
-                                />
-                              </label>
-                            </div>
+                            <label className="inline-flex items-center gap-1 text-[#1162a8] text-xs font-medium cursor-pointer hover:underline">
+                              <Upload className="h-3 w-3" />
+                              Upload signature
+                              <input
+                                type="file"
+                                className="hidden"
+                                accept="image/jpeg,image/jpg,image/png"
+                                onChange={handleSignatureUpload}
+                              />
+                            </label>
                           </div>
                         </FormControl>
                         <FormMessage />
@@ -1155,27 +1134,19 @@ export function CreateUserModal({
                     )}
                   />
                 </div>
-              </div>
-            )}
-
+              )}
             </div>
 
-            <DialogFooter className="pt-3 border-t border-gray-100 flex-shrink-0">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose} 
-                disabled={isSubmitting}
-                className="px-6"
-              >
+            <DialogFooter className="px-5 py-3 border-t border-[#f0f0f0] flex-shrink-0 gap-2 sm:justify-end">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting} className="h-9">
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="px-6"
+              <Button
+                type="submit"
+                disabled={isSubmitting || emailTaken || isCheckingEmail}
+                className={cn("h-9 px-5", PRIMARY_BTN)}
               >
-                {isSubmitting ? "Creating..." : getCreateUserTitle(lockedRole || selectedRole)}
+                {isSubmitting ? "Creating…" : getCreateUserTitle(lockedRole || selectedRole)}
               </Button>
             </DialogFooter>
           </form>
