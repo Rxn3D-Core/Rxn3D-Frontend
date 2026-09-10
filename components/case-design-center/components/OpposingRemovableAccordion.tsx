@@ -10,7 +10,7 @@ import { ProductImagePreview, productAccordionLargeImageContainerClass } from ".
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
 import { RushIcon } from "./CenterActionIcons";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
-import { isSingleDefaultOnlyExtractionList } from "../utils/extractionHelpers";
+import { isSingleDefaultOnlyExtractionList, shouldHideReferenceTeethSelection } from "../utils/extractionHelpers";
 import { mapOppositeExtractionsToProductExtractions } from "../utils/opposingExtractionHelpers";
 import {
   caseDesignInter,
@@ -291,7 +291,10 @@ export function OpposingRemovableAccordion({
   const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;
   const hasOpposingImpressionConfigured = opposingProductData.opposite_impression === "Yes";
   const showOpposingExtractions =
-    hasOpposingExtractionsConfigured && opposingExtractions.length > 0 && !opposingIsSingleDefaultOnly;
+    hasOpposingExtractionsConfigured &&
+    opposingExtractions.length > 0 &&
+    !opposingIsSingleDefaultOnly &&
+    !shouldHideReferenceTeethSelection(opposingProductData as Record<string, unknown>);
   const showOpposingImpressionField =
     hasOpposingImpressionConfigured && (opposingOnlyLayout ? true : isF("impression"));
 

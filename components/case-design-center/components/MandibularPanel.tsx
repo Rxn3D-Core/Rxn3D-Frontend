@@ -89,6 +89,7 @@ import {
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
+  shouldHideReferenceTeethSelection,
   toothHasTimBaseExtraction,
   isDirectTwoExtractionToggleEligible,
   resolveDirectTwoExtractionToggleAction,
@@ -1692,6 +1693,7 @@ export function MandibularPanel({
     groupTeeth: number[]
   ) => {
     if (product?.has_extraction !== "Yes") return undefined;
+    if (shouldHideReferenceTeethSelection(product as Record<string, unknown>)) return undefined;
     const extractions = product.extractions ?? [];
     if (extractions.length === 0) return undefined;
     if (isSingleDefaultOnlyExtractionList(extractions)) return undefined;
@@ -2924,7 +2926,8 @@ export function MandibularPanel({
                                 }
                               )) ? (
                               <>
-                              {mandibularToothHint && mandibularToothHint.kind === "reference" && (
+                              {mandibularToothHint && mandibularToothHint.kind === "reference" &&
+                                !shouldHideReferenceTeethSelection(apProduct as Record<string, unknown>) && (
                                 <p className={mandibularToothHint.className}>{mandibularToothHint.text}</p>
                               )}
                               <ToothStatusBoxes
@@ -2939,6 +2942,9 @@ export function MandibularPanel({
                                 claspTeeth={mandibularClaspTeeth}
                                 skipDefaultAutoSelect={shouldSkipLegacyDefaultExtractionAutoSelect(
                                   apProduct as Record<string, unknown> | null,
+                                )}
+                                hideReferenceTeethSelection={shouldHideReferenceTeethSelection(
+                                  apProduct as Record<string, unknown>,
                                 )}
                                 displayTeethByCode={getToothStatusBoxDisplayMap({
                                   extractions: useMandibularArchSharedRemovable
@@ -4085,7 +4091,8 @@ export function MandibularPanel({
                             }
                           )) ? (
                           <>
-                          {mandibularToothHint && mandibularToothHint.kind === "reference" && (
+                          {mandibularToothHint && mandibularToothHint.kind === "reference" &&
+                            !shouldHideReferenceTeethSelection(cardProduct as Record<string, unknown>) && (
                             <p className={mandibularToothHint.className}>{mandibularToothHint.text}</p>
                           )}
                           <ToothStatusBoxes
@@ -4099,6 +4106,9 @@ export function MandibularPanel({
                             toothExtractionMap={mandibularToothExtractionMap}
                             claspTeeth={mandibularClaspTeeth}
                             skipDefaultAutoSelect={card0SkipsLegacyDefaults}
+                            hideReferenceTeethSelection={shouldHideReferenceTeethSelection(
+                              cardProduct as Record<string, unknown>,
+                            )}
                             displayTeethByCode={getToothStatusBoxDisplayMap({
                               extractions: useMandibularArchSharedRemovable
                                 ? mandibularMergedExtractions

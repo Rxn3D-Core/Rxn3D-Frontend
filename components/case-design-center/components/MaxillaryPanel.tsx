@@ -96,6 +96,7 @@ import {
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
+  shouldHideReferenceTeethSelection,
   toothHasTimBaseExtraction,
   isDirectTwoExtractionToggleEligible,
   resolveDirectTwoExtractionToggleAction,
@@ -1724,6 +1725,7 @@ export function MaxillaryPanel({
     groupTeeth: number[]
   ) => {
     if (product?.has_extraction !== "Yes") return undefined;
+    if (shouldHideReferenceTeethSelection(product as Record<string, unknown>)) return undefined;
     const extractions = product.extractions ?? [];
     if (extractions.length === 0) return undefined;
     if (isSingleDefaultOnlyExtractionList(extractions)) return undefined;
@@ -2959,7 +2961,8 @@ export function MaxillaryPanel({
                                 }
                               )) ? (
                               <>
-                              {maxillaryToothHint && maxillaryToothHint.kind === "reference" && (
+                              {maxillaryToothHint && maxillaryToothHint.kind === "reference" &&
+                                !shouldHideReferenceTeethSelection(apProduct as Record<string, unknown>) && (
                                 <p className={maxillaryToothHint.className}>{maxillaryToothHint.text}</p>
                               )}
                               <ToothStatusBoxes
@@ -2974,6 +2977,9 @@ export function MaxillaryPanel({
                                 claspTeeth={maxillaryClaspTeeth}
                                 skipDefaultAutoSelect={shouldSkipLegacyDefaultExtractionAutoSelect(
                                   apProduct as Record<string, unknown> | null,
+                                )}
+                                hideReferenceTeethSelection={shouldHideReferenceTeethSelection(
+                                  apProduct as Record<string, unknown>,
                                 )}
                                 displayTeethByCode={getToothStatusBoxDisplayMap({
                                   extractions: useMaxillaryArchSharedRemovable
@@ -4122,7 +4128,8 @@ export function MaxillaryPanel({
                           )) ? (
                           <>
                           {/* "Select teeth for reference" hint — directly above the status boxes. */}
-                          {maxillaryToothHint && maxillaryToothHint.kind === "reference" && (
+                          {maxillaryToothHint && maxillaryToothHint.kind === "reference" &&
+                            !shouldHideReferenceTeethSelection(cardProduct as Record<string, unknown>) && (
                             <p className={maxillaryToothHint.className}>{maxillaryToothHint.text}</p>
                           )}
                           <ToothStatusBoxes
@@ -4136,6 +4143,9 @@ export function MaxillaryPanel({
                             toothExtractionMap={maxillaryToothExtractionMap}
                             claspTeeth={maxillaryClaspTeeth}
                             skipDefaultAutoSelect={card0SkipsLegacyDefaults}
+                            hideReferenceTeethSelection={shouldHideReferenceTeethSelection(
+                              cardProduct as Record<string, unknown>,
+                            )}
                             displayTeethByCode={getToothStatusBoxDisplayMap({
                               extractions: useMaxillaryArchSharedRemovable
                                 ? maxillaryMergedExtractions

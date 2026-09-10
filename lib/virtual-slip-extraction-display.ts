@@ -1019,6 +1019,14 @@ export function buildVirtualSlipStatusBoxProps(
     return null;
   }
 
+  if (
+    String(apiProduct?.hide_reference_teeth_selection ?? "")
+      .trim()
+      .toLowerCase() === "yes"
+  ) {
+    return null;
+  }
+
   const scopeAnchor =
     productTeeth.length > 0
       ? productTeeth

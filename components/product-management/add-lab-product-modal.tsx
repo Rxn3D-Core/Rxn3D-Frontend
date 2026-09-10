@@ -534,6 +534,7 @@ export function AddLabProductModal({
     enable_default_tooth_chart: "No",
     allow_select_only_implant: "No",
     enable_custom_label: "No",
+    hide_reference_teeth_selection: "No",
     custom_label: "",
     default_tooth_chart: [],
   }), [officeCustomers, stages])
@@ -1696,6 +1697,8 @@ export function AddLabProductModal({
           editingProduct.allow_select_only_implant === "Yes" ? "Yes" : "No",
         enable_custom_label:
           editingProduct.enable_custom_label === "Yes" ? "Yes" : "No",
+        hide_reference_teeth_selection:
+          editingProduct.hide_reference_teeth_selection === "Yes" ? "Yes" : "No",
         custom_label:
           typeof editingProduct.custom_label === "string" ? editingProduct.custom_label : "",
         default_tooth_chart: hydrateDefaultToothChartFromProduct(
@@ -2337,6 +2340,7 @@ export function AddLabProductModal({
     if (!sections.extractions) {
       payload.extractions = []
       payload.opposite_extractions = []
+      payload.hide_reference_teeth_selection = "No"
     }
     if (!sections.grades) payload.grades = []
     if (!sections.stages) payload.stages = []
@@ -2526,12 +2530,13 @@ export function AddLabProductModal({
         "enable_default_tooth_chart",
         "allow_select_only_implant",
         "enable_custom_label",
+        "hide_reference_teeth_selection",
         "custom_label",
         "default_tooth_chart",
       ],
       retention: ["retentions", "retention_options", "apply_retention_mechanism", "retention_type"],
       advanceFields: ["advance_fields"],
-      extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing"],
+      extractions: ["extractions", "opposite_extractions", "apply_same_status_to_opposing", "hide_reference_teeth_selection"],
       visibility: ["show_to_all_lab", "office_visibilities"],
     }
     return fieldMap[tabId] || []
@@ -3141,6 +3146,7 @@ export function AddLabProductModal({
       if (!sections.extractions) {
         payload.extractions = []
         payload.opposite_extractions = []
+        payload.hide_reference_teeth_selection = "No"
       }
       if (!sections.grades) payload.grades = []
       if (!sections.impressions) payload.impressions = []

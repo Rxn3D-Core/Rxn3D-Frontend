@@ -628,6 +628,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       "has_impression", "has_extraction", "has_retention", "has_material", "has_addon",
       "has_advance_field", "has_variation", "has_default_tooth_chart",
       "allow_select_only_implant",
+      "enable_custom_label",
+      "hide_reference_teeth_selection",
     ] as const
     for (const flag of sectionFlags) {
       if (form[flag] !== undefined) {
