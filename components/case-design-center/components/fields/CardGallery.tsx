@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ChevronDown } from "lucide-react";
 import Image from "next/image";
 
-const PAGE_SIZE = 4;
+/** Approximate card width + gap used when scrolling via chevrons. */
+const CARD_SCROLL_STEP = 146;
 
 export interface CardGalleryItem {
   value: string;
@@ -28,29 +29,66 @@ function normalizeOptions(options: string[] | CardGalleryItem[]): CardGalleryIte
 }
 
 export function CardGallery({ options, value, onChange }: CardGalleryProps) {
-  const [page, setPage] = useState(0);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [canPrev, setCanPrev] = useState(false);
+  const [canNext, setCanNext] = useState(false);
 
   const items = normalizeOptions(options);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) {
+      setCanPrev(false);
+      setCanNext(false);
+      return;
+    }
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setCanPrev(el.scrollLeft > 2);
+    setCanNext(maxScroll - el.scrollLeft > 2);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    el.scrollLeft = 0;
+    updateScrollState();
+
+    const ro = new ResizeObserver(() => updateScrollState());
+    ro.observe(el);
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", updateScrollState);
+    };
+  }, [items, updateScrollState]);
+
   if (items.length === 0) return null;
 
-  const totalPages = Math.ceil(items.length / PAGE_SIZE);
-  const visible = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-  const canPrev = page > 0;
-  const canNext = page < totalPages - 1;
+  const scrollByDir = (dir: -1 | 1) => {
+    scrollerRef.current?.scrollBy({
+      left: dir * CARD_SCROLL_STEP * 2,
+      behavior: "smooth",
+    });
+  };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2 min-w-0 w-full">
       <button
         type="button"
-        onClick={() => setPage((p) => p - 1)}
+        onClick={() => scrollByDir(-1)}
         disabled={!canPrev}
-        className="flex-shrink-0 w-10 h-10 rounded-full bg-white shadow-md hover:shadow-lg flex items-center justify-center transition-shadow disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="Scroll implant brands left"
+        className="flex-shrink-0 w-9 h-9 rounded-full bg-white shadow-md hover:shadow-lg flex items-center justify-center transition-shadow disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        <ChevronDown size={20} className="text-[#7f7f7f] rotate-90" />
+        <ChevronDown size={18} className="text-[#7f7f7f] rotate-90" />
       </button>
 
-      <div className="flex gap-3 flex-1 justify-center">
-        {visible.map((item) => (
+      <div
+        ref={scrollerRef}
+        className="flex gap-3 flex-1 min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth py-1 [scrollbar-width:thin]"
+      >
+        {items.map((item) => (
           <button
             key={item.value}
             type="button"
@@ -98,11 +136,12 @@ export function CardGallery({ options, value, onChange }: CardGalleryProps) {
 
       <button
         type="button"
-        onClick={() => setPage((p) => p + 1)}
+        onClick={() => scrollByDir(1)}
         disabled={!canNext}
-        className="flex-shrink-0 w-10 h-10 rounded-full bg-white shadow-md hover:shadow-lg flex items-center justify-center transition-shadow disabled:opacity-30 disabled:cursor-not-allowed"
+        aria-label="Scroll implant brands right"
+        className="flex-shrink-0 w-9 h-9 rounded-full bg-white shadow-md hover:shadow-lg flex items-center justify-center transition-shadow disabled:opacity-30 disabled:cursor-not-allowed"
       >
-        <ChevronDown size={20} className="text-[#7f7f7f] -rotate-90" />
+        <ChevronDown size={18} className="text-[#7f7f7f] -rotate-90" />
       </button>
     </div>
   );

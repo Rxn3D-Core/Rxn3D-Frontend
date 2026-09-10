@@ -12,8 +12,8 @@ export default function CaseDesignCenterLayout({
     <ProtectedRoute>
       <PermissionRoute permissions={[...ROUTE_PERMISSIONS.caseDesign]}>
       <div className="flex h-[100dvh] overflow-hidden bg-white">
-        <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          <main className="flex-1 overflow-auto bg-white">
+        <div className="flex-1 flex flex-col overflow-hidden bg-white min-h-0">
+          <main className="flex-1 overflow-auto bg-white min-h-0">
             {children}
           </main>
         </div>

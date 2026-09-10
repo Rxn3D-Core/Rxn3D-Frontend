@@ -133,8 +133,8 @@ export default function Page() {
   }, [completedLab?.id]);
 
   return (
-    <div className={`${caseDesignInter.className} flex h-screen bg-white overflow-hidden`}>
-      <main className="flex-1 flex flex-col overflow-auto min-w-0">
+    <div className={`${caseDesignInter.className} flex h-full min-h-0 bg-white overflow-hidden`}>
+      <main className="flex-1 flex flex-col overflow-auto min-w-0 min-h-0">
         {!wizardComplete && (
           <NewCaseWizard
             key={wizardKey}
