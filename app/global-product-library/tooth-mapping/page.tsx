@@ -13,6 +13,7 @@ import { DiscardChangesDialog } from "@/components/product-management/discard-ch
 import { useLanguage } from "@/contexts/language-context"
 import { useExtractionsData, useExtractionForm, useDeleteExtraction, useExtraction } from "@/hooks/use-extractions"
 import type { Extraction, ExtractionsFilters } from "@/lib/schemas"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 interface ToothStatusGroup {
   id: number
@@ -412,7 +413,11 @@ export default function ToothMappingPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{status.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        <TableNameWithImage src={status.image_url} alt={status.name}>
+                          {status.name}
+                        </TableNameWithImage>
+                      </TableCell>
                       <TableCell>
                         <div 
                           className="w-6 h-6 rounded border border-gray-300"

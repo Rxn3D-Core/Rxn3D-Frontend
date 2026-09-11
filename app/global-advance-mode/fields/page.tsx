@@ -24,6 +24,7 @@ import {
   AdvanceField
 } from "@/lib/api/advance-mode-query"
 import { normalizeAdvanceFieldChargeScopeForSubmit } from "@/lib/advance-field-charge-scope"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function FieldsPage() {
   const { t } = useTranslation()
@@ -347,6 +348,7 @@ export default function FieldsPage() {
                     <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
                   </TableCell>
                   <TableCell className="py-2 px-2">
+                    <TableNameWithImage src={item.image_url} alt={item.name}>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium">{item.name}</span>
                       {item.is_system_default === 'Yes' && (
@@ -356,6 +358,7 @@ export default function FieldsPage() {
                         </svg>
                       )}
                     </div>
+                    </TableNameWithImage>
                   </TableCell>
                   <TableCell className="py-2 px-2">
                     <span className="text-xs">{item.advance_subcategory?.name || item.subcategory?.name || '-'}</span>

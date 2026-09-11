@@ -36,6 +36,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 import { useAdvanceModeCustomerScope, advanceCustomerListQueriesEnabled } from "@/hooks/use-advance-mode-customer-scope"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function SubCategoryPage() {
   const { t } = useTranslation()
@@ -414,7 +415,9 @@ export default function SubCategoryPage() {
                         <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
                       </TableCell>
                       <TableCell className="py-2 px-2">
-                        <span className="text-xs font-medium">{item.name}</span>
+                        <TableNameWithImage src={item.image_url} alt={item.name}>
+                          <span className="text-xs font-medium">{item.name}</span>
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell className="py-2 px-2">
                         <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">

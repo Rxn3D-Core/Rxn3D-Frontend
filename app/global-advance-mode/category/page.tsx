@@ -14,6 +14,7 @@ import { LoadingDots } from "@/components/ui/loading-dots"
 import { useAdvanceCategories, useUpdateCategoryStatus, useCreateAdvanceCategory, useDeleteAdvanceCategory, useDuplicateAdvanceCategory, useUpdateAdvanceCategory, useAdvanceCategory } from "@/lib/api/advance-mode-query"
 import { useQueryClient } from "@tanstack/react-query"
 import { useDebounce } from "@/lib/performance-utils"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function CategoryPage() {
   const { t } = useTranslation()
@@ -385,6 +386,7 @@ export default function CategoryPage() {
                         <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
                       </TableCell>
                       <TableCell className="py-2 px-2">
+                        <TableNameWithImage src={item.image_url} alt={item.name}>
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-medium">{item.name}</span>
                           {item.is_custom === 'No' && (
@@ -394,6 +396,7 @@ export default function CategoryPage() {
                             </svg>
                           )}
                         </div>
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell className="py-2 px-2">
                         <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">

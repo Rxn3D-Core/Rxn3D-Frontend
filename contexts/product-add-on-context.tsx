@@ -24,6 +24,7 @@ export interface AddOn {
   subcategory?: AddOnSubCategory
   category_name?: string
   subcategory_name?: string
+  image_url?: string | null
 }
 
 export interface AddOnSubCategory {

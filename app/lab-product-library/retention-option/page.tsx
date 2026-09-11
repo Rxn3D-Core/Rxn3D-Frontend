@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useToast } from "@/hooks/use-toast"
 import { getPrimaryRole } from "@/lib/get-primary-role"
 import { normalizeRoleSlug } from "@/lib/role-utils"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 type SortField = "name" | "code" | "status" | "linked_retention"
 type SortDirection = "asc" | "desc"
@@ -436,6 +437,7 @@ export default function RetentionOptionPage() {
                       ) : null}
                     </TableCell>
                     <TableCell className="py-2 px-2">
+                      <TableNameWithImage src={option.image_url || option.sample_image_url} alt={option.name}>
                       <div className="flex items-center gap-1.5">
                         {(() => {
                           const tooltipData = getGlobalRetentionOptionTooltipData(option as Record<string, unknown>)
@@ -484,6 +486,7 @@ export default function RetentionOptionPage() {
                           </svg>
                         )}
                       </div>
+                      </TableNameWithImage>
                     </TableCell>
                     <TableCell className="py-2 px-2">
                       <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-gray-800 inline-block">
