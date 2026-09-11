@@ -313,6 +313,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
           params.append("order_by", orderBy)
           params.append("sort_by", sortDir)
         }
+        params.append("addon_type", "regular")
         if (customerId) {
           params.append("customer_id", customerId.toString())
         }
@@ -403,6 +404,7 @@ export function AddOnsProvider({ children }: { children: ReactNode }) {
           })
           if (search) params.append("q", search)
           appendSortParams(params)
+          params.append("addon_type", "regular")
           if (customerId) {
             params.append("customer_id", customerId.toString())
           }
