@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { X, HelpCircle, Copy, Trash2, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,9 +10,16 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import type { Abutment } from "@/lib/api/advance-mode-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
+import { resolveLibraryCustomerId } from "@/lib/customer-scope"
+import type { LibraryCategoryApi } from "@/hooks/use-library-categories"
+import {
+  MainCategoryMultiSelect,
+  formatAbutmentOptionCategoryIds,
+  parseAbutmentOptionCategoryIds,
+} from "@/components/advance-mode/main-category-multi-select"
 
 interface AddAbutmentModalProps {
   isOpen: boolean
@@ -31,6 +39,7 @@ interface PlatformOption {
   isDefault: boolean
   status: boolean
   price?: string
+  categoryIds: number[]
 }
 
 function abutmentToPlatformOptions(abutment: Abutment): PlatformOption[] {
@@ -43,6 +52,7 @@ function abutmentToPlatformOptions(abutment: Abutment): PlatformOption[] {
     isDefault: opt.is_default === "Yes",
     status: opt.status === "Active",
     price: opt.price != null ? String(opt.price) : "0.00",
+    categoryIds: parseAbutmentOptionCategoryIds(opt.category_ids),
   }))
 }
 
@@ -62,14 +72,60 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
   })
 
   const [platforms, setPlatforms] = useState<PlatformOption[]>([
-    { id: "1", image: null, platformName: "Narrow CrossFit® BL Tapered", isDefault: true, status: true, price: "99" },
-    { id: "2", image: null, platformName: "Narrow CrossFit® BL Tapered, Guided", isDefault: false, status: true, price: "99" },
+    { id: "1", image: null, platformName: "Narrow CrossFit® BL Tapered", isDefault: true, status: true, price: "99", categoryIds: [] },
+    { id: "2", image: null, platformName: "Narrow CrossFit® BL Tapered, Guided", isDefault: false, status: true, price: "99", categoryIds: [] },
   ])
 
   const [currentPage, setCurrentPage] = useState(1)
   const [isSaving, setIsSaving] = useState(false)
   const itemsPerPage = 10
   const totalPages = Math.ceil(platforms.length / itemsPerPage)
+  const customerId = typeof window === "undefined" ? null : resolveLibraryCustomerId()
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+  const { data: mainCategories = [] } = useQuery({
+    queryKey: ["abutment-option-main-categories", customerId],
+    queryFn: async (): Promise<LibraryCategoryApi[]> => {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+      if (!apiBaseUrl) {
+        throw new Error("API_BASE_URL is not configured")
+      }
+      const baseUrl = apiBaseUrl.endsWith("/") ? apiBaseUrl.slice(0, -1) : apiBaseUrl
+      const url = new URL(`${baseUrl}/library/categories`)
+      url.searchParams.set("status", "Active")
+      url.searchParams.set("per_page", "100")
+      url.searchParams.set("lang", "en")
+      if (customerId) {
+        url.searchParams.set("customer_id", String(customerId))
+      }
+      const res = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
+      if (!res.ok) {
+        throw new Error(`Failed to fetch categories: ${res.status}`)
+      }
+      const json = await res.json()
+      return Array.isArray(json.data?.data) ? json.data.data : []
+    },
+    enabled: isOpen,
+    retry: 1,
+    ...FRESH_LIST_QUERY_OPTIONS,
+  })
+
+  const categoryOptions = useMemo(
+    () =>
+      mainCategories
+        .filter((category) => String(category.status ?? "Active").trim() === "Active")
+        .map((category) => ({ id: category.id, name: category.name })),
+    [mainCategories]
+  )
 
   // Reset or hydrate when modal opens
   useEffect(() => {
@@ -139,12 +195,14 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
           is_default: "Yes" | "No"
           price: number | null
           sequence: number
+          category_ids: string
         } = {
           name: platform.platformName?.trim() ?? "",
           status: platform.status ? "Active" : "Inactive",
           is_default: platform.isDefault ? "Yes" : "No",
           price: pricingData.chargeType === "per_option" ? (parseFloat(platform.price || "0") || 0) : null,
           sequence: index + 1,
+          category_ids: formatAbutmentOptionCategoryIds(platform.categoryIds ?? []),
         }
         if (platform.serverId != null) {
           row.id = platform.serverId
@@ -191,6 +249,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
       isDefault: false,
       status: true,
       price: "0.00",
+      categoryIds: [],
     }
     setPlatforms([...platforms, newPlatform])
   }
@@ -207,6 +266,14 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
     setPlatforms(
       platforms.map((plat) =>
         plat.id === id ? { ...plat, price } : plat
+      )
+    )
+  }
+
+  const handleUpdatePlatformCategories = (id: string, categoryIds: number[]) => {
+    setPlatforms(
+      platforms.map((plat) =>
+        plat.id === id ? { ...plat, categoryIds } : plat
       )
     )
   }
@@ -257,7 +324,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-2 sm:p-3">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-5xl h-full max-h-[94vh] sm:h-auto sm:max-h-[88vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-lg w-full max-w-6xl h-full max-h-[94vh] sm:h-auto sm:max-h-[88vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
@@ -396,7 +463,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
 
               {/* Platforms Table */}
               <div className="border border-gray-200 rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[600px]">
+                <table className="w-full min-w-[760px]">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-2 sm:px-3 py-2 text-left">
@@ -404,6 +471,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                       </th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Image</th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Platform Name</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Main Category</th>
                   {pricingData.chargeType === "per_option" && (
                         <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Price</th>
                       )}
@@ -427,6 +495,13 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                             onChange={(e) => handleUpdatePlatformName(platform.id, e.target.value)}
                             placeholder="Option name"
                             className="h-8 text-xs"
+                          />
+                        </td>
+                        <td className="px-2 sm:px-3 py-2">
+                          <MainCategoryMultiSelect
+                            value={platform.categoryIds ?? []}
+                            onChange={(ids) => handleUpdatePlatformCategories(platform.id, ids)}
+                            options={categoryOptions}
                           />
                         </td>
                         {pricingData.chargeType === "per_option" && (
