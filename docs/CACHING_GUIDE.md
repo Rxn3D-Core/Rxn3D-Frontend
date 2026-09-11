@@ -2,12 +2,12 @@
 
 ## Overview
 
-The RXN3D dashboard now implements comprehensive caching using **TanStack Query** with **localStorage persistence**. This means:
+The RXN3D dashboard implements caching using **TanStack Query** with **localStorage persistence**. This means:
 
-✅ **Instant dashboard loads** - Data loads from cache immediately on page refresh
-✅ **Reduced API calls** - Fresh data is reused for 10 minutes without re-fetching
-✅ **Offline resilience** - Cached data available even when offline
-✅ **Smart invalidation** - Cache updates automatically after mutations
+✅ **Instant paints** - Cached data still shows immediately while a refetch runs
+✅ **Fresh lists on reopen** - Reopening a screen (New Slip, library pickers, connections) hits the API again
+✅ **Offline resilience** - Non-transactional cached data is available even when offline
+✅ **Smart invalidation** - Cache updates automatically after mutations, and on New Slip / cancel / logout
 
 ---
 
@@ -15,9 +15,11 @@ The RXN3D dashboard now implements comprehensive caching using **TanStack Query*
 
 ### 1. **Cache Storage**
 
-All dashboard data is stored in two places:
+Dashboard data is stored in two places:
 - **Memory Cache**: Fast, in-memory storage (cleared on page refresh)
-- **localStorage**: Persistent storage (survives page refresh)
+- **localStorage**: Persistent storage for non-list snapshots (survives page refresh)
+
+Doctors, offices/labs, library products/categories, and product-detail Maps are **not** treated as long-lived snapshots. They refetch when the screen remounts so API updates are visible.
 
 ### 2. **Cache Lifecycle**
 
@@ -26,23 +28,29 @@ All dashboard data is stored in two places:
 │  First Visit                                │
 │  └─> API Call -> Cache -> Display          │
 ├─────────────────────────────────────────────┤
-│  Refresh Page (within 10 min)              │
-│  └─> localStorage -> Display (no API call) │
+│  Reopen the same screen                    │
+│  └─> Display cached -> refetch from API    │
 ├─────────────────────────────────────────────┤
-│  After 10 minutes                           │
+│  After 30 seconds (default staleTime)      │
 │  └─> Display cached -> Background refetch  │
 └─────────────────────────────────────────────┘
 ```
 
 ### 3. **Cache Configuration**
 
+Defaults live in `components/ReactQueryProvider.tsx` and `lib/cache/frontend-list-cache.ts`.
+
 | Setting | Value | Purpose |
 |---------|-------|---------|
-| `staleTime` | 10 minutes | Data considered fresh for 10 min |
-| `gcTime` | 24 hours | Keep in cache for 24 hours |
-| `refetchOnMount` | false | Don't refetch on component mount |
+| `staleTime` | 30 seconds | Default freshness window for most queries |
+| `gcTime` | 30 minutes | Keep unused queries in memory |
+| `refetchOnMount` | true | Refetch stale queries when a screen remounts |
 | `refetchOnWindowFocus` | false | Don't refetch on window focus |
-| `refetchOnReconnect` | false | Don't refetch on reconnect |
+| `refetchOnReconnect` | true | Refetch when the browser reconnects |
+
+List hooks used by create-slip (doctors, offices/labs, categories, products) use `FRESH_LIST_QUERY_OPTIONS`: `staleTime: 0` and `refetchOnMount: "always"`.
+
+Starting or cancelling a slip also calls `resetFrontendListCaches()`, which invalidates those query keys and clears in-memory product-detail Maps.
 
 ---
 
@@ -267,6 +275,7 @@ useDeleteInvitation() // Auto-invalidates: invitations
 ```typescript
 import { useQueryClient } from '@tanstack/react-query'
 import { connectionKeys, invitationKeys } from '@/hooks/use-connections'
+import { resetFrontendListCaches } from '@/lib/cache/frontend-list-cache'
 
 export function ManualInvalidation() {
   const queryClient = useQueryClient()
@@ -276,7 +285,16 @@ export function ManualInvalidation() {
     queryClient.invalidateQueries({ queryKey: invitationKeys.all })
   }
 
-  return <button onClick={clearAllCache}>Clear All Cache</button>
+  const refreshSlipLists = () => {
+    resetFrontendListCaches(queryClient)
+  }
+
+  return (
+    <>
+      <button onClick={clearAllCache}>Clear All Cache</button>
+      <button onClick={refreshSlipLists}>Refresh Slip Lists</button>
+    </>
+  )
 }
 ```
 

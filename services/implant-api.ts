@@ -1,3 +1,5 @@
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 const getToken = (): string | null =>
@@ -72,6 +74,13 @@ export interface ProductAbutment {
 // Module-level cache to avoid duplicate API calls per product+customer combo
 const _implantsCache = new Map<string, ProductImplant[]>();
 const _implantsInflight = new Map<string, Promise<ProductImplant[]>>();
+
+export function clearProductImplantsCache() {
+  _implantsCache.clear();
+  _implantsInflight.clear();
+}
+
+registerInMemoryCacheClearer(clearProductImplantsCache);
 
 export async function fetchProductImplants(
   productId: number,

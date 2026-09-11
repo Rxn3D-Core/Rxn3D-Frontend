@@ -9,6 +9,7 @@ import {
   type ConnectionsQueryParams,
   DEFAULT_CONNECTIONS_PER_PAGE,
 } from '@/lib/connection-api'
+import { FRESH_LIST_QUERY_OPTIONS } from '@/lib/cache/frontend-list-cache'
 
 /**
  * Query Keys for cache management
@@ -41,8 +42,7 @@ export function useConnections(userId?: number, options?: UseConnectionsOptions)
     queryKey: connectionKeys.list(customerId, { page, perPage, search, userId }),
     queryFn: () => fetchConnectionsApi({ userId, page, perPage, search }),
     enabled: enabled && !!localStorage.getItem('token'),
-    staleTime: 1000 * 60 * 10,
-    gcTime: 1000 * 60 * 60 * 24,
+    ...FRESH_LIST_QUERY_OPTIONS,
     select: (data) => {
       const { practices, labs } = categorizeConnectionsForUser(data.data || [], user)
       const pagination = normalizeConnectionsPagination(data, page, perPage)

@@ -27,6 +27,17 @@ import {
 } from "@/lib/api/slip-case-actions"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
 import { getSlipLabIdForCurrentProfile } from "@/lib/customer-lab-scope"
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache"
+
+const productDetailsCache = new Map<string, any>()
+const productDetailsInflight = new Map<string, Promise<any>>()
+
+export function clearSlipCreationProductDetailsCache() {
+  productDetailsCache.clear()
+  productDetailsInflight.clear()
+}
+
+registerInMemoryCacheClearer(clearSlipCreationProductDetailsCache)
 
 // --- Types based on sample payload ---
 export interface SlipCreationCase {
@@ -472,10 +483,6 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
   }, [token])
 
   // Module-level cache & in-flight dedup for product details
-  const productDetailsCacheRef = useRef<Map<string, any>>(new Map());
-  const productDetailsInflightRef = useRef<Map<string, Promise<any>>>(new Map());
-
-  // Add function to fetch individual product details from library API
   const fetchProductDetails = useCallback(async (productId: number, labId?: number) => {
     try {
       const effectiveCustomerId = resolveLibraryCustomerId(labId) ?? null;
@@ -483,11 +490,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
       const cacheKey = `${productId}_${effectiveCustomerId ?? 0}`;
 
       // Return from cache
-      const cached = productDetailsCacheRef.current.get(cacheKey);
+      const cached = productDetailsCache.get(cacheKey);
       if (cached) return cached;
 
       // Deduplicate in-flight requests
-      const inflight = productDetailsInflightRef.current.get(cacheKey);
+      const inflight = productDetailsInflight.get(cacheKey);
       if (inflight) return inflight;
 
       // Build URL with required parameters
@@ -522,7 +529,7 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
           const json = await res.json();
           const data = json.data || json;
-          if (data) productDetailsCacheRef.current.set(cacheKey, data);
+          if (data) productDetailsCache.set(cacheKey, data);
           return data;
         } catch (e: any) {
           clearTimeout(timeoutId);
@@ -533,11 +540,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
           }
           return null;
         } finally {
-          productDetailsInflightRef.current.delete(cacheKey);
+          productDetailsInflight.delete(cacheKey);
         }
       })();
 
-      productDetailsInflightRef.current.set(cacheKey, promise);
+      productDetailsInflight.set(cacheKey, promise);
       return promise;
     } catch (e) {
       console.error('Error fetching product details:', e);

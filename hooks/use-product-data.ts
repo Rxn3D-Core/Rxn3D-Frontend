@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { ProductApi } from '@/lib/api-service'
+import { FRESH_LIST_QUERY_OPTIONS } from '@/lib/cache/frontend-list-cache'
 
 interface ProductData {
   id: number
@@ -61,8 +62,7 @@ export function useProductTeethShades(productId: number | null) {
       return result
     },
     enabled: !!productId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 
@@ -79,8 +79,7 @@ export function useProductGumShades(productId: number | null) {
       return result
     },
     enabled: !!productId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 
@@ -94,8 +93,7 @@ export function useProductImpressions(productId: number | null) {
       return ProductApi.getImpressions(productId)
     },
     enabled: !!productId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 

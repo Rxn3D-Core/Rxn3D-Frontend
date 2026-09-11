@@ -43,8 +43,8 @@ If 100 products: 100 individual requests
 New file: `hooks/use-slip-data.ts`
 
 #### **Features:**
-1. ✅ Automatic caching with 10-minute stale time
-2. ✅ localStorage persistence (24-hour retention)
+1. ✅ In-session caching with in-flight request dedupe
+2. ✅ Refetch on remount so reopen shows API updates
 3. ✅ Lazy loading for shades (only fetch when needed)
 4. ✅ Prefetching capability
 5. ✅ Role-based data fetching
@@ -71,8 +71,8 @@ useEffect(() => {
 import { useConnectedOfficesOrLabs } from '@/hooks/use-slip-data'
 
 const { data: offices, isLoading } = useConnectedOfficesOrLabs()
-// ✅ Auto-fetches once, caches for 10 min
-// ✅ Loads instantly from cache on reopen
+// ✅ Dedupes in-flight requests during the same screen
+// ✅ Refetches from the API when the screen is opened again
 ```
 
 ---
@@ -375,13 +375,13 @@ const addOfficeMutation = useMutation({
 - ❌ Fetches everything immediately
 
 ### After:
-- ✅ 2-5 requests on reopen (within 10 min)
-- ✅ 50-100ms load time from cache
-- ✅ Persistent caching (localStorage)
-- ✅ Shades fetched once, cached
+- ✅ Cached data paints immediately, then lists refetch on reopen
+- ✅ In-flight requests are still deduped during the same screen
+- ✅ Shades fetched once per session (30-minute stale time)
 - ✅ Lazy loading for non-critical data
+- ✅ New Slip / cancel clears list + product-detail caches
 
-### **Performance Gain: ~98% reduction in requests after first load** 🚀
+### **Performance Gain: duplicate in-screen requests are still avoided; reopen now stays in sync with the API**
 
 ---
 

@@ -1,9 +1,17 @@
 import { resolveLibraryCustomerId } from "./libraryCustomerId";
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 const productCache = new Map<string, any>();
 const productInflight = new Map<string, Promise<any>>();
+
+export function clearCaseDesignProductDetailsCache() {
+  productCache.clear();
+  productInflight.clear();
+}
+
+registerInMemoryCacheClearer(clearCaseDesignProductDetailsCache);
 
 export interface CaseDesignProductDetails {
   id?: number;

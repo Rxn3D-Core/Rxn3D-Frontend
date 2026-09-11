@@ -1,3 +1,5 @@
+import { resetFrontendListCaches } from "@/lib/cache/frontend-list-cache"
+
 /**
  * Utility functions for managing slip creation storage
  * Clears all localStorage and sessionStorage items related to slip creation
@@ -11,6 +13,7 @@
  * - Case design state (caseDesignCenterState, cachedAllCategories, cachedSubcategoriesByCategory)
  * - Slip drafts and pending slips (caseDesignCache, slipDraft, etc.)
  * - Product selections (savedProducts, selectedProduct, productDetails_*, etc.)
+ * - React Query list caches (doctors, offices/labs, library products) and in-memory product details
  * - Any other slip creation state
  *
  * Does NOT clear auth/session keys (user, token, role, customerId).
@@ -93,6 +96,8 @@ export function clearSlipCreationStorage() {
   } catch (error) {
     console.error("Error clearing slip store:", error)
   }
+
+  resetFrontendListCaches()
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -167,10 +168,8 @@ export function useConnectedOffices(options?: { enabled?: boolean }) {
     queryKey: connectedOfficesQueryKey,
     queryFn: fetchConnectedOffices,
     enabled,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const officesAsLabs: ConnectedOfficeLabShape[] =
@@ -204,10 +203,8 @@ export function useConnectedOfficesOrLabs(role: string | null, options?: { enabl
       return fetchConnectedLabs()
     },
     enabled,
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const officesAsLabs: ConnectedOfficeLabShape[] = query.data ?? []

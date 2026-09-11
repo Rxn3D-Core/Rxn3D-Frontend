@@ -3,31 +3,43 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import React, { useState } from 'react'
+import {
+  DEFAULT_QUERY_GC_TIME_MS,
+  DEFAULT_QUERY_STALE_TIME_MS,
+  QUERY_CACHE_STORAGE_KEY,
+  QUERY_PERSIST_MAX_AGE_MS,
+  registerAppQueryClient,
+  shouldPersistQuery,
+} from '@/lib/cache/frontend-list-cache'
 
 export default function ReactQueryProvider({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        // Cache configuration for dashboard data
-        staleTime: 1000 * 60 * 10, // 10 minutes - data is considered fresh for 10 min
-        gcTime: 1000 * 60 * 60 * 24, // 24 hours - keep in cache for 24 hours (formerly cacheTime)
-        retry: 1,
-        refetchOnWindowFocus: false, // Don't refetch on window focus
-        refetchOnMount: false, // Don't refetch on component mount if data is fresh
-        refetchOnReconnect: false, // Don't refetch on reconnect if data is fresh
+  const [queryClient] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          // Show cached data immediately, then refetch when a screen remounts after staleTime.
+          staleTime: DEFAULT_QUERY_STALE_TIME_MS,
+          gcTime: DEFAULT_QUERY_GC_TIME_MS,
+          retry: 1,
+          refetchOnWindowFocus: false,
+          refetchOnMount: true,
+          refetchOnReconnect: true,
+        },
+        mutations: {
+          retry: 0,
+        },
       },
-      mutations: {
-        retry: 0,
-      },
-    },
-  }))
+    })
+    registerAppQueryClient(client)
+    return client
+  })
 
   // Create persister for localStorage caching
   const [persister] = useState(() => {
     if (typeof window !== 'undefined') {
       return createSyncStoragePersister({
         storage: window.localStorage,
-        key: 'rxn3d-query-cache', // Key for localStorage
+        key: QUERY_CACHE_STORAGE_KEY,
       })
     }
     return undefined
@@ -40,11 +52,10 @@ export default function ReactQueryProvider({ children }: { children: React.React
         client={queryClient}
         persistOptions={{
           persister,
-          maxAge: 1000 * 60 * 60 * 24, // 24 hours
+          maxAge: QUERY_PERSIST_MAX_AGE_MS,
           dehydrateOptions: {
-            // Only persist successful queries
             shouldDehydrateQuery: (query) => {
-              return query.state.status === 'success'
+              return query.state.status === 'success' && shouldPersistQuery(query.queryKey)
             },
           },
         }}
