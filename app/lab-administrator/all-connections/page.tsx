@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ConnectionTabs } from "@/components/lab-administrator/connections/connection-tabs"
 import { ConnectionsTable } from "@/components/lab-administrator/connections/connections-table"
 import { NewConnectionModal } from "@/components/lab-administrator/connections/new-connection-modal"
-import { ProfileModal } from "@/components/lab-administrator/connections/profile-modal"
+import { ProfileModal, type ProfileData } from "@/components/profile-modal"
 import { useInvitation } from "@/contexts/invitation-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
@@ -32,7 +32,7 @@ export default function AllConnections() {
   const [activeTab, setActiveTab] = useState<"connected" | "sent" | "received">("connected")
   const [showNewConnectionModal, setShowNewConnectionModal] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
-  const [selectedProfile, setSelectedProfile] = useState<any>(null)
+  const [selectedProfile, setSelectedProfile] = useState<ProfileData | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [connectedPage, setConnectedPage] = useState(1)
@@ -85,7 +85,7 @@ export default function AllConnections() {
       if (connection.type === "Lab") profileType = "Lab"
 
       const profileData = await fetchProfileData(connection.id, profileType)
-      setSelectedProfile({ ...profileData, type: profileType === "Office" ? "Office" : "Lab" })
+      setSelectedProfile(profileData)
     } catch (error) {
       console.error("Error fetching profile:", error)
       toast({
@@ -292,9 +292,9 @@ export default function AllConnections() {
       />
 
       <ProfileModal
-        open={showProfileModal}
-        onOpenChange={setShowProfileModal}
-        profile={selectedProfile}
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        data={selectedProfile}
         isLoading={isLoadingProfile}
       />
     </div>

@@ -1,14 +1,11 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type React from "react"
-import { useState, useEffect } from "react"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Building2, Clock, Globe, Mail, MapPin, Phone, UserRound, Users, X } from "lucide-react"
 
-// Update the ProfileData interface to match the API structure
 export interface BusinessHours {
   monday: string
   tuesday: string
@@ -17,6 +14,28 @@ export interface BusinessHours {
   friday: string
   saturday: string
   sunday: string
+}
+
+export interface ProfileStaffMember {
+  id: number
+  name: string
+  email: string
+  phone?: string
+  status?: string
+  role?: string
+  isPrimary?: boolean
+  avatar?: string
+}
+
+export interface ProfileHoursData {
+  workingDays: Array<{
+    day: string
+    enabled: boolean
+    startTime: string
+    endTime: string
+  }>
+  timezone: string
+  holidays: string
 }
 
 export interface ProfileData {
@@ -35,245 +54,312 @@ export interface ProfileData {
   business_hours?: BusinessHours
   notes?: string
   website?: string | null
-  status?: number
+  status?: string | number
   unique_code?: string
   country?: { id: number; name: string }
   departments?: any[]
   users?: any[]
   created_at?: string
   updated_at?: string
+  code?: string
+  release_casepan?: string
+  contact_email?: string
+  lab_number?: string
+  formatted_address?: string
+  join_date?: string
+  hoursData?: ProfileHoursData
+  pickupData?: {
+    serviceArea: string
+    pickupDays: string
+    cutOffTime: string
+    frequency: string
+    window: string
+  }
+  deliveryData?: {
+    serviceArea: string
+    deliveryDays: string
+    defaultTime: string
+    window: string
+  }
+  rushSettings?: {
+    enabled: boolean
+    description: string
+    rush_type?: "fixed" | "flexible"
+    fixed_turnaround_days?: number
+    fixed_rush_fee_percentage?: string
+  }
+  labAdmins?: ProfileStaffMember[]
+  officeAdmins?: ProfileStaffMember[]
+  doctors?: ProfileStaffMember[]
 }
 
-// Update the ProfileModalProps interface
 interface ProfileModalProps {
   isOpen: boolean
   onClose: () => void
   data: ProfileData | null
   isLoading: boolean
-  onSave: (data: ProfileData) => Promise<void>
+  onSave?: (data: ProfileData) => Promise<void>
 }
 
-// Define day names for business hours
-const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-// Update the ProfileModal component to match the new design
-export function ProfileModal({ isOpen, onClose, data, isLoading, onSave }: ProfileModalProps) {
-  const [profile, setProfile] = useState<ProfileData | null>(data)
-  const [isSaving, setIsSaving] = useState(false)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(data?.logo_url || null)
+function statusBadgeClass(status?: string | number) {
+  const value = String(status || "").toLowerCase()
+  if (value === "active" || value === "1") return "bg-[#c3f2cf] text-[#119933]"
+  if (value === "inactive" || value === "3") return "bg-[#eeeeee] text-[#a19d9d]"
+  if (value === "suspended") return "bg-[#fff3e1] text-[#ff9500]"
+  if (value === "archived" || value === "offboarded") return "bg-[#f8dddd] text-[#eb0303]"
+  if (value === "on hold" || value === "2") return "bg-[#fff3e1] text-[#ff9500]"
+  return "bg-[#eeeeee] text-[#a19d9d]"
+}
 
-  // Update state when data changes
-  useEffect(() => {
-    if (data) {
-      setProfile(data)
-      setLogoPreview(data.logo_url || null)
-    }
-  }, [data])
-
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      setLogoFile(file)
-      setLogoPreview(URL.createObjectURL(file))
-    }
+function statusLabel(status?: string | number) {
+  if (status == null || status === "") return ""
+  if (typeof status === "number") {
+    if (status === 1) return "Active"
+    if (status === 2) return "On Hold"
+    if (status === 3) return "Inactive"
+    return String(status)
   }
+  return status
+}
 
-  const handleSave = async () => {
-    if (!profile) return
+function initials(name?: string) {
+  return (name || "?")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase()
+}
 
-    setIsSaving(true)
-    try {
-      const updatedProfile = {
-        ...profile,
-        logo_url: logoPreview,
-      }
+function prettyTime(value?: string) {
+  if (!value) return ""
+  return value
+    .replace(/^0(\d)/, "$1")
+    .replace(/\s*(am|pm)$/i, (_, period: string) => ` ${period.toUpperCase()}`)
+}
 
-      await onSave(updatedProfile)
-      onClose()
-    } catch (error) {
-      console.error("Error saving profile:", error)
-    } finally {
-      setIsSaving(false)
-    }
-  }
+function displayValue(value?: string | null) {
+  const trimmed = String(value || "").trim()
+  return trimmed || "—"
+}
 
-  // Helper function to format business hours for display
-  const getBusinessHourDisplay = (day: keyof BusinessHours) => {
-    if (!profile?.business_hours) return "Not set"
-    return profile.business_hours[day]
-  }
+function Field({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 text-sm text-gray-900 break-words">{displayValue(value)}</p>
+    </div>
+  )
+}
+
+function StaffCard({ member }: { member: ProfileStaffMember }) {
+  const photoLabel = member.name || member.email || "Admin"
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3">
+      <Avatar className="h-11 w-11 shrink-0">
+        <AvatarImage src={member.avatar || undefined} alt={photoLabel} />
+        <AvatarFallback className="bg-[#e8f4fd] text-[#1162a8] text-sm font-semibold">
+          {initials(member.name || member.email)}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-gray-900 truncate">{displayValue(member.name)}</p>
+        <p className="text-sm text-gray-600 truncate">{displayValue(member.email)}</p>
+      </div>
+    </div>
+  )
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="p-6 space-y-5">
+      <div className="flex gap-5">
+        <Skeleton className="h-28 w-28 rounded-2xl shrink-0" />
+        <div className="flex-1 space-y-3">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      </div>
+      <div className="grid md:grid-cols-3 gap-4">
+        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl md:col-span-2" />
+      </div>
+      <Skeleton className="h-32 w-full rounded-xl" />
+    </div>
+  )
+}
+
+export function ProfileModal({ isOpen, onClose, data, isLoading }: ProfileModalProps) {
+  const isLab = String(data?.type || "").toLowerCase() === "lab"
+  const entityLabel = isLab ? "Lab" : "Practice"
+  const typeLabel = isLab ? "Laboratory" : "Dental Practice"
+  const statusText = statusLabel(data?.status)
+  const admins = isLab ? data?.labAdmins || [] : data?.officeAdmins || []
+  const hours = [...(data?.hoursData?.workingDays || [])].sort(
+    (a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day)
+  )
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton className="sm:max-w-[1100px] p-0 overflow-hidden max-h-[90vh]">
-        <DialogHeader className="px-6 py-5 border-b bg-gray-50">
-          <DialogTitle className="text-2xl font-bold text-gray-800">
-            {profile?.type === "lab" ? "Lab Profile" : "Practice Profile"}
-          </DialogTitle>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className="p-6 space-y-4">
-            <Skeleton className="h-[150px] w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-20 w-full" />
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-[95vw] w-[980px] p-0 overflow-hidden flex flex-col gap-0 max-h-[90vh]"
+      >
+        <div className="shrink-0 border-b bg-white px-5 py-3.5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <DialogTitle className="text-lg font-semibold text-gray-900">
+              {entityLabel} Profile
+            </DialogTitle>
+            {data?.unique_code || data?.code ? (
+              <p className="text-xs text-gray-500 mt-0.5">
+                {[data.unique_code, data.code ? `Code ${data.code}` : null].filter(Boolean).join(" · ")}
+              </p>
+            ) : null}
           </div>
-        ) : profile ? (
-          <div className="p-6 overflow-y-auto">
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* Logo Upload */}
-              <div className="w-full md:w-72">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">Logo</h3>
-                <label className="relative border-2 border-dashed border-gray-300 rounded-lg h-48 w-full flex flex-col items-center justify-center overflow-hidden bg-[#f8f9fb] cursor-pointer hover:border-blue-400 transition-colors group">
-                  {logoPreview ? (
-                    <div className="relative w-full h-full">
-                      <img 
-                        src={logoPreview || "/placeholder.svg"} 
-                        alt="Logo" 
-                        className="object-contain w-full h-full p-2" 
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="bg-white px-3 py-1 rounded-md text-sm font-medium">Change</span>
+          <div className="flex items-center gap-2 shrink-0">
+            {statusText ? (
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(data?.status)}`}>
+                {statusText}
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8"
+              aria-label="Close profile"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto bg-[#f7f9fc]">
+          {isLoading ? (
+            <ProfileSkeleton />
+          ) : data ? (
+            <div className="p-5 space-y-5">
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <div className="flex flex-col sm:flex-row gap-5">
+                  <div className="h-28 w-28 shrink-0 rounded-2xl border border-gray-100 bg-[#f8fafc] overflow-hidden flex items-center justify-center">
+                    {data.logo_url ? (
+                      <img src={data.logo_url} alt={`${data.name} logo`} className="h-full w-full object-contain p-2" />
+                    ) : (
+                      <span className="text-2xl font-semibold text-[#1162a8]">{initials(data.name)}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h2 className="text-xl font-semibold text-gray-900 truncate">{data.name || "—"}</h2>
+                        <p className="text-sm text-gray-500 mt-0.5">{typeLabel}</p>
                       </div>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e8f4fd] text-[#1162a8] px-2.5 py-1 text-xs font-medium shrink-0">
+                        {isLab ? <Building2 className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}
+                        {entityLabel}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm text-gray-700">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                        <span className="break-words">{displayValue(data.formatted_address || data.address)}</span>
+                      </div>
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Mail className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                        <span className="break-all">{displayValue(data.email)}</span>
+                      </div>
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Phone className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                        <span>{displayValue(data.contact_number || data.lab_number)}</span>
+                      </div>
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Globe className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+                        <span className="break-all">{displayValue(data.website)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-2 rounded-2xl border border-gray-100 bg-white p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Details</h3>
+                  <div className="grid sm:grid-cols-2 gap-x-8 gap-y-4">
+                    <Field label="Contact person" value={data.contact_person} />
+                    <Field label="Position" value={data.position} />
+                    <Field label="Contact email" value={data.contact_email || data.email} />
+                    <Field label="Contact number" value={data.contact_number || data.lab_number} />
+                    <Field label="City" value={data.city} />
+                    <Field label="State" value={data.state?.name} />
+                    <Field label="Postal code" value={data.postal_code} />
+                    <Field label="Country" value={data.country?.name} />
+                    {data.join_date ? <Field label="Joined" value={data.join_date} /> : null}
+                    {isLab && data.release_casepan ? <Field label="Release casepan" value={data.release_casepan} /> : null}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Clock className="h-4 w-4 text-[#1162a8]" />
+                    <h3 className="text-sm font-semibold text-gray-900">Business Hours</h3>
+                  </div>
+                  {hours.length > 0 ? (
+                    <div className="space-y-2">
+                      {hours.map((hour) => (
+                        <div key={hour.day} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="font-medium text-gray-700">{hour.day}</span>
+                          <span className={hour.enabled ? "text-gray-900" : "text-gray-400"}>
+                            {hour.enabled
+                              ? `${prettyTime(hour.startTime)} – ${prettyTime(hour.endTime)}`
+                              : "Closed"}
+                          </span>
+                        </div>
+                      ))}
+                      {data.hoursData?.timezone ? (
+                        <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+                          {data.hoursData.timezone}
+                        </p>
+                      ) : null}
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full w-full">
-                      <div className="text-[#6b7280] mb-2">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                          <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                          <polyline points="21 15 16 10 5 21"></polyline>
-                        </svg>
-                      </div>
-                      <p className="text-sm text-[#6b7280] font-medium">Click or drag file to upload</p>
-                      <p className="text-xs text-gray-400 mt-1">PNG, JPG, GIF up to 5MB</p>
-                    </div>
+                    <p className="text-sm text-gray-500">No business hours specified</p>
                   )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="absolute top-0 left-0 w-full h-full opacity-0"
-                    onChange={handleLogoChange}
-                  />
-                </label>
-              </div>
-
-              {/* Practice/Lab details */}
-              <div className="flex-1">
-                <div className="space-y-5">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3 text-gray-700">Details</h3>
-                    <div className="bg-gray-50 p-5 rounded-lg border border-gray-100">
-                      <h4 className="text-xl font-semibold text-gray-800 mb-4">
-                        {profile.name}
-                        <span className="text-sm font-normal ml-2 text-gray-500">
-                          ({profile.type === "lab" ? "Laboratory" : "Medical Practice"})
-                        </span>
-                      </h4>
-                      
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-500 mb-1">Address</p>
-                          <p className="text-base">{profile.address}, {profile.city}, {profile.state?.name}, {profile.postal_code}</p>
-                        </div>
-                        
-                        <div>
-                          <p className="text-sm font-medium text-gray-500 mb-1">Email</p>
-                          <p className="text-base">{profile.email}</p>
-                        </div>
-                        
-                        <div>
-                          <p className="text-sm font-medium text-gray-500 mb-1">Contact Person</p>
-                          <p className="text-base">{profile.contact_person || "Not specified"}</p>
-                        </div>
-                        
-                        <div>
-                          <p className="text-sm font-medium text-gray-500 mb-1">Position</p>
-                          <p className="text-base">{profile.position || "Not specified"}</p>
-                        </div>
-                        
-                        <div>
-                          <p className="text-sm font-medium text-gray-500 mb-1">Contact Number</p>
-                          <p className="text-base">{profile.contact_number || "Not specified"}</p>
-                        </div>
-                        
-                        {profile.website && (
-                          <div>
-                            <p className="text-sm font-medium text-gray-500 mb-1">Website</p>
-                            <p className="text-base">{profile.website}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Business Hours and Notes */}
-            <div className="mt-8 grid md:grid-cols-3 gap-6">
-              {/* Business Hours */}
-              <div className="bg-gray-50 p-5 rounded-lg border border-gray-100 col-span-1">
-              <h3 className="text-lg font-semibold mb-3 text-gray-700">Business Hours</h3>
-              {profile.business_hours ? (
-                <div className="space-y-3">
-                {Object.entries(profile.business_hours).map(([day, hours]) => (
-                  <div key={day} className="flex justify-between items-center border-b border-gray-100 pb-2 last:border-0">
-                  <span className="font-medium capitalize text-gray-700">{dayNames[Number(day)]}</span>
-                  <span className="text-gray-800">
-                    {hours.is_open
-                    ? `${new Date(hours.open_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(hours.close_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                    : "Closed"}
-                  </span>
-                  </div>
-                ))}
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users className="h-4 w-4 text-[#1162a8]" />
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    {isLab ? "Lab Admins" : "Office Admins"}
+                  </h3>
+                  <span className="text-xs text-gray-400">{admins.length}</span>
                 </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No business hours specified</p>
-              )}
-              </div>
-
-              {/* Notes */}
-              <div className="bg-gray-50 p-5 rounded-lg border border-gray-100 md:col-span-2">
-              <h3 className="text-lg font-semibold mb-3 text-gray-700">Notes</h3>
-              <Textarea
-                id="notes"
-                className="min-h-[180px] resize-none border-gray-200 p-4 w-full bg-white focus:ring-blue-500 focus:border-blue-500"
-                value={profile.notes || ""}
-                onChange={(e) => setProfile({ ...profile, notes: e.target.value })}
-                placeholder="Add notes about this practice..."
-              />
-              <p className="text-sm text-gray-500 mt-2 italic">Notes are only visible to you.</p>
+                {admins.length > 0 ? (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {admins.map((admin) => (
+                      <StaffCard key={admin.id} member={admin} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No {isLab ? "lab" : "office"} admins attached.</p>
+                )}
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="py-8 text-center text-gray-500">No profile data available</div>
-        )}
+          ) : (
+            <div className="py-16 text-center text-gray-500">No profile data available</div>
+          )}
+        </div>
 
-        <div className="flex justify-end gap-4 p-4 border-t bg-gray-50">
-          <Button variant="outline" onClick={onClose} className="px-6 py-2 border-gray-300 text-gray-700 hover:bg-gray-100">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isLoading || isSaving || !profile}
-            className="px-6 py-2 hover:bg-[#0d4f8c] h-10 bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
-          >
-            Save Changes
+        <div className="shrink-0 border-t bg-white px-5 py-3 flex justify-end">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
           </Button>
         </div>
       </DialogContent>
