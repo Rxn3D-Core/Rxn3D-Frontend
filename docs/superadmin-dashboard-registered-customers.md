@@ -23,7 +23,8 @@ Default list options on the dashboard: `per_page=100`, `order_by=name`, `sort_by
 2. Each panel has its own loading and error state (`isLoadingPractices` / `practicesError`, `isLoadingLabs` / `labsError`).
 3. **Connected** tab: registered customers with `status === "Active"`.
 4. **Request Sent** tab: still sourced from invitations (`useInvitation`), filtered by `Office` / `Lab`.
-5. Connections context (`fetchConnections`) is **not** used on this dashboard.
+5. Clicking a practice or lab opens the shared customer profile modal (`components/profile-modal.tsx`) via `GET /customers/{id}`. See `docs/dashboard-customer-profile-modal.md`.
+6. Connections context (`fetchConnections`) is **not** used on this dashboard.
 
 ## Backend
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent } from "@/components/ui/card"
-import { Edit, Mail, MapPin, Phone, Search, Filter } from "lucide-react"
+import { Edit, Globe, Mail, MapPin, Phone, Search, Filter } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { OperatingHoursTab } from "@/components/lab-administrator/lab-profile-operating-hours"
@@ -39,6 +39,7 @@ interface User {
   contactNumber?: string
   release_casepan?: string
   code?: string
+  uniqueCode?: string
   logo_url?: string | null
   dateOfBirth?: string
   payType?: string
@@ -100,6 +101,8 @@ interface StaffUserDetailProps {
     phone?: string
     status?: string
     role?: string
+    isPrimary?: boolean
+    avatar?: string
   }>
   officeAdmins?: Array<{
     id: number
@@ -108,6 +111,8 @@ interface StaffUserDetailProps {
     phone?: string
     status?: string
     role?: string
+    isPrimary?: boolean
+    avatar?: string
   }>
   doctors?: Array<{
     id: number
@@ -116,7 +121,25 @@ interface StaffUserDetailProps {
     phone?: string
     status?: string
     role?: string
+    isPrimary?: boolean
+    avatar?: string
   }>
+}
+
+function formatRoleLabel(role?: string) {
+  if (!role) return "-"
+  return role
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function membershipStatusClass(status?: string) {
+  const value = String(status || "").toLowerCase()
+  if (value === "active") return "bg-[#c3f2cf] text-[#119933]"
+  if (value === "inactive") return "bg-[#eeeeee] text-[#a19d9d]"
+  if (value === "suspended") return "bg-[#fff3e1] text-[#ff9500]"
+  if (value === "archived" || value === "offboarded") return "bg-[#f8dddd] text-[#eb0303]"
+  return "bg-[#eeeeee] text-[#a19d9d]"
 }
 
 export function StaffUserDetail({
@@ -248,14 +271,21 @@ export function StaffUserDetail({
                 .toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <h2 className="text-xl font-bold mb-1">{displayUser.name}</h2>
-          <p className="text-gray-500 mb-6">{displayUser.userType}</p>
+          <h2 className="text-xl font-bold mb-1 text-center">{displayUser.name}</h2>
+          <p className="text-gray-500 mb-2">{displayUser.userType}</p>
+          {displayUser.status ? (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium mb-4 ${membershipStatusClass(displayUser.status)}`}>
+              {displayUser.status}
+            </span>
+          ) : (
+            <div className="mb-6" />
+          )}
 
           <div className="w-full space-y-4">
             <div className="flex items-start gap-3">
               <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm">{displayUser.email}</p>
+                <p className="text-sm">{displayUser.email || "-"}</p>
               </div>
             </div>
 
@@ -272,6 +302,15 @@ export function StaffUserDetail({
                 <p className="text-sm">{sidebarPhone}</p>
               </div>
             </div>
+
+            {(isLabMode || isOfficeMode) && displayUser.website ? (
+              <div className="flex items-start gap-3">
+                <Globe className="h-5 w-5 text-gray-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm break-all">{displayUser.website}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {canEditProfile && (
@@ -363,6 +402,16 @@ export function StaffUserDetail({
                 >
                   Doctors
                 </button>
+                <button
+                  className={`px-8 py-4 font-medium ${
+                    activeTab === "operating_hours"
+                      ? "bg-[#e8f4fd] text-[#1162a8] border-b-2 border-[#1162a8]"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                  onClick={() => setActiveTab("operating_hours")}
+                >
+                  Operating Hours
+                </button>
               </>
             ) : (
               <button
@@ -380,7 +429,7 @@ export function StaffUserDetail({
         </div>
 
         {/* Tab content */}
-        <div className={isLabMode && (activeTab === "operating_hours" || activeTab === "pickup_delivery") ? "" : "p-6"}>
+        <div className={(isLabMode || isOfficeMode) && (activeTab === "operating_hours" || activeTab === "pickup_delivery") ? "" : "p-6"}>
           {activeTab === "details" ? (
             <Card>
               <CardContent className="p-6">
@@ -424,6 +473,7 @@ export function StaffUserDetail({
                     <div><p className="text-sm text-gray-500 mb-1">Contact Number:</p><p className="font-medium">{displayUser.contactNumber || "-"}</p></div>
                     <div><p className="text-sm text-gray-500 mb-1">Joining Date:</p><p className="font-medium">{displayUser.joinDate || "-"}</p></div>
                     <div><p className="text-sm text-gray-500 mb-1">{isLabMode ? "Lab Code:" : "Office Code:"}</p><p className="font-medium">{displayUser.code || "-"}</p></div>
+                    <div><p className="text-sm text-gray-500 mb-1">Unique Code:</p><p className="font-medium">{displayUser.uniqueCode || "-"}</p></div>
                     {isLabMode && <div><p className="text-sm text-gray-500 mb-1">Release Casepan:</p><p className="font-medium">{displayUser.release_casepan || "-"}</p></div>}
                   </div>
                 ) : (
@@ -497,11 +547,43 @@ export function StaffUserDetail({
                       ) : (
                         filteredStaff.slice(0, Number(entriesPerPage)).map((admin) => (
                           <tr key={admin.id} className="border-b hover:bg-gray-50">
-                            <td className="px-6 py-4 text-sm">{admin.name}</td>
-                            <td className="px-6 py-4 text-sm">{admin.email}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={admin.avatar || "/placeholder.svg"} alt={admin.name} />
+                                  <AvatarFallback className="text-xs bg-blue-100 text-blue-600">
+                                    {(admin.name || "?")
+                                      .split(" ")
+                                      .map((word) => word[0])
+                                      .slice(0, 2)
+                                      .join("")
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium text-gray-900">{admin.name}</p>
+                                  {admin.isPrimary ? (
+                                    <span className="inline-flex mt-0.5 items-center rounded-full bg-[#e8f4fd] text-[#1162a8] px-2 py-0.5 text-[11px] font-medium">
+                                      Primary
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm">{admin.email || "-"}</td>
                             <td className="px-6 py-4 text-sm">{admin.phone || "-"}</td>
-                            <td className="px-6 py-4 text-sm">{admin.role || (isLabMode ? "lab_admin" : activeTab === "office_admins" ? "office_admin" : "doctor")}</td>
-                            <td className="px-6 py-4 text-sm">{admin.status || "-"}</td>
+                            <td className="px-6 py-4 text-sm">
+                              {formatRoleLabel(admin.role || (isLabMode ? "lab_admin" : activeTab === "office_admins" ? "office_admin" : "doctor"))}
+                            </td>
+                            <td className="px-6 py-4 text-sm">
+                              {admin.status ? (
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${membershipStatusClass(admin.status)}`}>
+                                  {admin.status}
+                                </span>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
                           </tr>
                         ))
                       )}
@@ -510,7 +592,7 @@ export function StaffUserDetail({
                 </div>
               </CardContent>
             </Card>
-          ) : isLabMode && activeTab === "operating_hours" ? (
+          ) : (isLabMode || isOfficeMode) && activeTab === "operating_hours" ? (
             <OperatingHoursTab
               hoursData={
                 hoursData || {
