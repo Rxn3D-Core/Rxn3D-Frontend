@@ -37,6 +37,7 @@ import {
   serializeStageSelectionFromProduct,
 } from "../utils/categoryHelpers";
 import { addedProductAppliesToArch } from "../utils/activeProductChartMode";
+import { registerInMemoryCacheClearer } from "@/lib/cache/frontend-list-cache";
 import {
   resolveActiveAddedProductOnArch,
   resolveAddedCardProduct,
@@ -169,6 +170,13 @@ async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
 /** Module-level cache & in-flight dedup for product details to avoid duplicate API calls */
 const _productDetailsCache = new Map<string, ProductApiData>();
 const _productDetailsInflight = new Map<string, Promise<ProductApiData | null>>();
+
+export function clearCaseDesignStateProductDetailsCache() {
+  _productDetailsCache.clear();
+  _productDetailsInflight.clear();
+}
+
+registerInMemoryCacheClearer(clearCaseDesignStateProductDetailsCache);
 
 /** Fetch full product details (stages, impressions, gum_shades, etc.) */
 async function fetchProductDetails(productId: number, customerId: number): Promise<ProductApiData | null> {

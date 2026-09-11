@@ -1,5 +1,6 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { FRESH_LIST_QUERY_OPTIONS } from "@/lib/cache/frontend-list-cache"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -186,10 +187,8 @@ export function useLibraryCategories(options: {
     queryKey: libraryCategoriesQueryKey(customerId, lang),
     queryFn: () => fetchLibraryCategories(customerId!, lang),
     enabled: effectiveEnabled,
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
     retry: 1,
-    refetchOnWindowFocus: false,
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 
   const categoriesAsWizard: WizardCategoryShape[] = useMemo(

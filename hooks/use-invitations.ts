@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { FRESH_LIST_QUERY_OPTIONS } from '@/lib/cache/frontend-list-cache'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ''
 
@@ -188,18 +189,14 @@ async function resendInvitation(invitationId: number) {
 /**
  * Hook to fetch and cache invitations
  *
- * Features:
- * - Automatic caching with 5-minute stale time
- * - Persists to localStorage
- * - Separates sent and received invitations
+ * Cached data paints immediately; the list refetches whenever the screen remounts.
  */
 export function useInvitations(invitedBy?: number) {
   return useQuery({
     queryKey: invitationKeys.list(invitedBy),
     queryFn: () => fetchInvitations(invitedBy),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 60 * 24, // 24 hours
     enabled: !!invitedBy, // Only fetch if invitedBy is provided
+    ...FRESH_LIST_QUERY_OPTIONS,
   })
 }
 

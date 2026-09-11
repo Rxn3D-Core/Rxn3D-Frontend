@@ -1,3 +1,5 @@
+import { clearPersistedQueryCache } from "@/lib/cache/frontend-list-cache"
+
 /**
  * Utility function to clear all session-related localStorage items
  * This should be called when user logs out or is redirected to login
@@ -49,4 +51,6 @@ export function clearSessionStorage(): void {
   } catch (error) {
     console.error("Error clearing auth cookie:", error)
   }
+
+  clearPersistedQueryCache()
 }
