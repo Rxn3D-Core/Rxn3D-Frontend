@@ -187,6 +187,17 @@ export interface AbutmentPlatform {
   sequence: number
 }
 
+export interface AbutmentAddon {
+  id?: number
+  name: string
+  code?: string
+  price?: number | null
+  status: 'Active' | 'Inactive'
+  sequence: number
+  addon_type?: 'regular' | 'abutment'
+  abutment_type_id?: number | null
+}
+
 export interface Abutment {
   id: number
   type: string
@@ -199,6 +210,7 @@ export interface Abutment {
   options?: AbutmentPlatform[]
   // Keep for backward compatibility with older payloads.
   platforms?: AbutmentPlatform[]
+  addons?: AbutmentAddon[]
   customer_id?: number | null
   is_custom?: 'Yes' | 'No'
   sequence?: number
@@ -2633,6 +2645,13 @@ export const useCreateAbutment = () => {
         price?: number
         sequence?: number
       }>
+      addons?: Array<{
+        name: string
+        code?: string
+        price?: number | null
+        status?: 'Active' | 'Inactive'
+        sequence?: number
+      }>
     }) => {
       const response = await fetch(ensureAbsoluteUrl('/library/abutments'), {
         method: 'POST',
@@ -2679,6 +2698,14 @@ export const useUpdateAbutment = () => {
         is_default?: 'Yes' | 'No'
         category_ids?: string | null
         price?: number | null
+        sequence?: number
+      }>
+      addons?: Array<{
+        id?: number
+        name?: string
+        code?: string
+        price?: number | null
+        status?: 'Active' | 'Inactive'
         sequence?: number
       }>
     }) => {
@@ -2803,6 +2830,15 @@ export const useDuplicateAbutment = () => {
           category_ids: platform.category_ids ?? "",
           price: platform.price,
           sequence: platform.sequence,
+        }))
+      }
+
+      if (abutment.addons && abutment.addons.length > 0) {
+        duplicateData.addons = abutment.addons.map((addon) => ({
+          name: addon.name,
+          price: addon.price,
+          status: addon.status,
+          sequence: addon.sequence,
         }))
       }
 

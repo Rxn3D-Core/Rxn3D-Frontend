@@ -131,6 +131,14 @@ export interface Abutment {
   options?: AbutmentPlatform[]
   // Backward-compatible alias for older payloads.
   platforms?: AbutmentPlatform[]
+  addons?: Array<{
+    id?: number
+    name: string
+    code?: string
+    price?: number | null
+    status: 'Active' | 'Inactive'
+    sequence: number
+  }>
   customer_id?: number | null
   is_custom?: 'Yes' | 'No'
   created_at: string
@@ -774,6 +782,12 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         price?: number
         sequence?: number
       }>
+      addons?: Array<{
+        name: string
+        price?: number | null
+        status?: 'Active' | 'Inactive'
+        sequence?: number
+      }>
     }>({
       query: (data) => ({
         url: '/library/abutments',
@@ -799,6 +813,13 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         is_default?: 'Yes' | 'No'
         category_ids?: string | null
         price?: number | null
+        sequence?: number
+      }>
+      addons?: Array<{
+        id?: number
+        name?: string
+        price?: number | null
+        status?: 'Active' | 'Inactive'
         sequence?: number
       }>
     }>({
