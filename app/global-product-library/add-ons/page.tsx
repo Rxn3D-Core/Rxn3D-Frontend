@@ -14,6 +14,7 @@ import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-mod
 import { useAddOns } from "@/contexts/product-add-on-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function AddOnsPage() {
   const {
@@ -366,7 +367,11 @@ export default function AddOnsPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{addOn.name}</TableCell>
+                      <TableCell className="font-medium text-gray-900">
+                        <TableNameWithImage src={addOn.image_url} alt={addOn.name}>
+                          {addOn.name}
+                        </TableNameWithImage>
+                      </TableCell>
                       <TableCell className="font-medium text-gray-900">{addOn.category_name}</TableCell>
                       <TableCell className="text-gray-600">{addOn.subcategory?.category?.code || "N/A"}</TableCell>
                       <TableCell className="text-gray-600">{addOn.subcategory_name}</TableCell>

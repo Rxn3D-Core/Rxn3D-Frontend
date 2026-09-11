@@ -13,6 +13,7 @@ import { useImplants, useUpdateImplantStatus, useDeleteImplant, useCreateImplant
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/lib/performance-utils"
 import { LoadingDots } from "@/components/ui/loading-dots"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function ImplantLibraryPage() {
   const { t } = useTranslation()
@@ -286,6 +287,7 @@ export default function ImplantLibraryPage() {
                     <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8] h-4 w-4" />
                   </TableCell>
                   <TableCell className="py-2 px-2">
+                    <TableNameWithImage src={item.image_url} alt={item.brand_name}>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-medium">{item.brand_name}</span>
                       {item.brand_name === 'Other' && (
@@ -295,6 +297,7 @@ export default function ImplantLibraryPage() {
                         </svg>
                       )}
                     </div>
+                    </TableNameWithImage>
                   </TableCell>
                   <TableCell className="py-2 px-2">
                     <span className="text-xs">{item.system_name || '-'}</span>

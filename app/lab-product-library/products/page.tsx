@@ -19,6 +19,7 @@ import { useProductCategory } from "@/contexts/product-category-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
@@ -594,7 +595,9 @@ export default function ProductsPage() {
                         />
                       </TableCell>
                       <TableCell className="py-2 px-2">
-                        <span className="truncate block text-xs max-w-[180px]">{productName}</span>
+                        <TableNameWithImage src={product.image_url} alt={productName}>
+                          <span className="truncate block text-xs max-w-[180px]">{productName}</span>
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell className="py-2 px-2">
                         <span className="inline-flex items-center gap-1.5">

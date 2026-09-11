@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 export default function ProductSubCategoryPage() {
   const {
@@ -441,7 +442,9 @@ export default function ProductSubCategoryPage() {
                     />
                   </TableCell>
                   <TableCell className="text-gray-600 font-medium" id={`subcategory-name-${subcategory.id}`}>
-                    {subcategory.sub_name || subcategory.name || "-"}
+                    <TableNameWithImage src={subcategory.image_url} alt={subcategory.sub_name || subcategory.name || "Sub category"}>
+                      {subcategory.sub_name || subcategory.name || "-"}
+                    </TableNameWithImage>
                   </TableCell>
                   <TableCell>
                     <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">

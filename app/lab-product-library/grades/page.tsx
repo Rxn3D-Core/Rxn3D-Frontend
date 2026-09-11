@@ -14,6 +14,7 @@ import { CreateGradeGroupModal } from "@/components/product-management/create-gr
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useGrades, type Grade } from "@/contexts/product-grades-context"
 import { useLanguage } from "@/contexts/language-context"
+import { TableNameWithImage } from "@/components/product-management/table-image-preview"
 
 const mockGradeGroups = [
   { id: 1, name: "All Complete denture" },
@@ -320,7 +321,9 @@ export default function GradesPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">
-                        {grade.name}
+                        <TableNameWithImage src={grade.image_url} alt={grade.name}>
+                          {grade.name}
+                        </TableNameWithImage>
                       </TableCell>
                       <TableCell className="text-gray-600">{grade.code}</TableCell>
                       <TableCell className="text-gray-600 text-center">
