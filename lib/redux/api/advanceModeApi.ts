@@ -114,6 +114,7 @@ export interface AbutmentPlatform {
   image_url?: string | null
   status: 'Active' | 'Inactive'
   is_default: 'Yes' | 'No'
+  category_ids?: string | null
   price?: number | null
   sequence: number
 }
@@ -769,6 +770,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         name: string
         image?: string
         is_default?: 'Yes' | 'No'
+        category_ids?: string | null
         price?: number
         sequence?: number
       }>
@@ -795,6 +797,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         name?: string
         image?: string
         is_default?: 'Yes' | 'No'
+        category_ids?: string | null
         price?: number | null
         sequence?: number
       }>

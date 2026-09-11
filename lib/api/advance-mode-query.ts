@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/rea
 
 import type { AdvanceFieldChargeScope } from '@/lib/advance-field-charge-scope'
 import { hydrateAdvanceFieldsFormFromProduct } from '@/lib/product-advance-fields-form'
+import { isLabLibraryRole, resolveLibraryCustomerId } from '@/lib/customer-scope'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -180,6 +181,8 @@ export interface AbutmentPlatform {
   image_url?: string | null
   status: 'Active' | 'Inactive'
   is_default: 'Yes' | 'No'
+  /** Comma-separated library_categories ids, e.g. "1,2". Empty/omitted = all main categories. */
+  category_ids?: string | null
   price?: number | null
   sequence: number
 }
@@ -2530,17 +2533,19 @@ export const useAbutments = (params?: PaginationParams) => {
       if (params?.order_by) queryParams.append('order_by', params.order_by)
       if (params?.sort_by) queryParams.append('sort_by', params.sort_by)
 
-      // Use customer_id for lab context, and explicit global filter otherwise.
-      if (typeof window !== 'undefined') {
-        const role = localStorage.getItem('role')
-        if (role === 'lab_admin') {
-          const customerId = localStorage.getItem('customerId')
-          if (customerId) {
-            queryParams.append('customer_id', customerId)
-          }
-        } else {
-          queryParams.append('customer_id_filter', 'global')
-        }
+      const explicitCustomerId =
+        typeof params?.customer_id === 'number' && Number.isFinite(params.customer_id) && params.customer_id > 0
+          ? params.customer_id
+          : null
+      const role = typeof window !== 'undefined' ? localStorage.getItem('role') : null
+      const scopedCustomerId =
+        explicitCustomerId ??
+        (isLabLibraryRole(role) ? resolveLibraryCustomerId() : null)
+
+      if (scopedCustomerId) {
+        queryParams.append('customer_id', String(scopedCustomerId))
+      } else {
+        queryParams.append('customer_id_filter', 'global')
       }
 
       const response = await fetch(`${ensureAbsoluteUrl('/library/abutments')}?${queryParams.toString()}`, {
@@ -2581,15 +2586,12 @@ export const useAbutment = (id: number) => {
     queryKey: ['abutment', id],
     queryFn: async () => {
       const queryParams = new URLSearchParams()
-      
-      // Add customer_id only if role is lab_admin
+
       if (typeof window !== 'undefined') {
         const role = localStorage.getItem('role')
-        if (role === 'lab_admin') {
-          const customerId = localStorage.getItem('customerId')
-          if (customerId) {
-            queryParams.append('customer_id', customerId)
-          }
+        const customerId = isLabLibraryRole(role) ? resolveLibraryCustomerId() : null
+        if (customerId) {
+          queryParams.append('customer_id', String(customerId))
         }
       }
 
@@ -2627,6 +2629,7 @@ export const useCreateAbutment = () => {
         image?: string
         status?: 'Active' | 'Inactive'
         is_default?: 'Yes' | 'No'
+        category_ids?: string | null
         price?: number
         sequence?: number
       }>
@@ -2674,6 +2677,7 @@ export const useUpdateAbutment = () => {
         image?: string
         status?: 'Active' | 'Inactive'
         is_default?: 'Yes' | 'No'
+        category_ids?: string | null
         price?: number | null
         sequence?: number
       }>
@@ -2796,6 +2800,7 @@ export const useDuplicateAbutment = () => {
           name: platform.name,
           status: platform.status,
           is_default: platform.is_default,
+          category_ids: platform.category_ids ?? "",
           price: platform.price,
           sequence: platform.sequence,
         }))

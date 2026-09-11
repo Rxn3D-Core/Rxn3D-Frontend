@@ -55,6 +55,7 @@ export interface AbutmentOption {
   image_url: string | null;
   status: string;
   is_default: string;
+  category_ids?: string | null;
   price: string | null;
   sequence: number;
 }
