@@ -267,7 +267,11 @@ export function LabImplantSelectionModal({
     const qtyByName = new Map<string, number>();
     for (const [productId, details] of byProduct.entries()) {
       const product = productById[productId];
-      const entries = buildAbutmentAddonEntries(details, product?.abutments ?? []);
+      const entries = buildAbutmentAddonEntries(
+        details,
+        product?.abutments ?? [],
+        product?.subcategory?.category_id ?? product?.subcategory?.category?.id ?? null
+      );
       for (const entry of entries) {
         qtyByName.set(entry.name, (qtyByName.get(entry.name) ?? 0) + entry.qty);
       }

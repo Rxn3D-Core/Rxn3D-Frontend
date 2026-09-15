@@ -373,7 +373,8 @@ export function snapshotToProduct(
   const addonItems = snap.selectedAddonsByTooth?.[addonKey] ?? [];
   const abutmentAddonItems = buildAbutmentAddonEntries(
     snap.implantDetailByTooth ?? {},
-    product?.abutments ?? []
+    product?.abutments ?? [],
+    product?.subcategory?.category_id ?? product?.subcategory?.category?.id ?? null
   );
   const addonById = new Map<number, number>();
   for (const item of [...addonItems, ...abutmentAddonItems]) {

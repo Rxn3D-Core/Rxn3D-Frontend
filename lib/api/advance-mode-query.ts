@@ -196,6 +196,8 @@ export interface AbutmentAddon {
   sequence: number
   addon_type?: 'regular' | 'abutment'
   abutment_type_id?: number | null
+  /** Comma-separated library_categories ids. Empty/omitted = all main categories. */
+  category_ids?: string | null
 }
 
 export interface Abutment {
@@ -2839,6 +2841,7 @@ export const useDuplicateAbutment = () => {
           price: addon.price,
           status: addon.status,
           sequence: addon.sequence,
+          category_ids: addon.category_ids ?? "",
         }))
       }
 

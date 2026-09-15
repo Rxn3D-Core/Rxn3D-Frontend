@@ -48,6 +48,7 @@ interface AbutmentAddonRow {
   name: string
   price: string
   status: boolean
+  categoryIds: number[]
 }
 
 function abutmentToAddonRows(abutment: Abutment): AbutmentAddonRow[] {
@@ -57,6 +58,7 @@ function abutmentToAddonRows(abutment: Abutment): AbutmentAddonRow[] {
     name: addon.name ?? "",
     price: addon.price != null ? String(addon.price) : "0.00",
     status: addon.status !== "Inactive",
+    categoryIds: parseAbutmentOptionCategoryIds(addon.category_ids),
   }))
 }
 
@@ -260,11 +262,13 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
           price: number
           status: "Active" | "Inactive"
           sequence: number
+          category_ids: string
         } = {
           name: addon.name?.trim() ?? "",
           price: parseFloat(addon.price || "0") || 0,
           status: addon.status ? "Active" : "Inactive",
           sequence: index + 1,
+          category_ids: formatAbutmentOptionCategoryIds(addon.categoryIds ?? []),
         }
         if (addon.serverId != null) {
           row.id = addon.serverId
@@ -351,6 +355,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
         name: "",
         price: "0.00",
         status: true,
+        categoryIds: [],
       },
     ])
   }
@@ -790,7 +795,8 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
             <div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-3">
                 <p className="text-xs text-gray-600">
-                  Add or remove abutment addons and set a price. These are saved in the addons catalog as abutment addons.
+                  Add or remove abutment addons and set a price. Link main categories so default
+                  addons only apply for matching products. Empty category = all categories.
                 </p>
                 <Button
                   onClick={handleAddAddon}
@@ -801,10 +807,11 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                 </Button>
               </div>
               <div className="border border-gray-200 rounded-lg overflow-x-auto">
-                <table className="w-full min-w-[520px]">
+                <table className="w-full min-w-[680px]">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Addon name</th>
+                      <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Main Category</th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Price</th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Status</th>
                       <th className="px-2 sm:px-3 py-2 text-left text-xs font-semibold text-gray-900">Actions</th>
@@ -813,7 +820,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                   <tbody className="bg-white divide-y divide-gray-200">
                     {addonRows.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-3 py-6 text-center text-xs text-gray-500">
+                        <td colSpan={5} className="px-3 py-6 text-center text-xs text-gray-500">
                           No abutment addons yet. Click Add addon to create one.
                         </td>
                       </tr>
@@ -829,6 +836,13 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                               onChange={(e) => handleUpdateAddon(addon.id, { name: e.target.value })}
                               placeholder="Addon name"
                               className="h-8 text-xs"
+                            />
+                          </td>
+                          <td className="px-2 sm:px-3 py-2">
+                            <MainCategoryMultiSelect
+                              value={addon.categoryIds ?? []}
+                              onChange={(ids) => handleUpdateAddon(addon.id, { categoryIds: ids })}
+                              options={categoryOptions}
                             />
                           </td>
                           <td className="px-2 sm:px-3 py-2">
