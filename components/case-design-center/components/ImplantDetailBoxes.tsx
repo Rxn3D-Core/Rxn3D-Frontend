@@ -20,6 +20,7 @@ import {
   cloneImplantDetailData,
   isCompleteLabRecommendation,
   isImplantDetailFormComplete,
+  isSameImplantDetailData,
 } from "../utils/implantDetailHelpers";
 import { selectedAbutmentHasTypeOptions } from "../utils/implantDetailAbutmentOptions";
 
@@ -211,28 +212,45 @@ export function ImplantDetailBoxes({
                 return { ...prev, [implantToothNumber]: merged };
               }
               const next = { ...prev };
-              const cloned = cloneImplantDetailData(merged);
+              let changed = false;
               for (const tn of implantTeeth) {
-                next[tn] = cloneImplantDetailData(cloned);
+                if (tn === implantToothNumber) {
+                  if (!isSameImplantDetailData(prev[tn], merged)) {
+                    next[tn] = merged;
+                    changed = true;
+                  }
+                  continue;
+                }
+                if (isSameImplantDetailData(prev[tn], merged)) continue;
+                next[tn] = cloneImplantDetailData(merged);
+                changed = true;
               }
-              return next;
+              return changed ? next : prev;
             });
 
             if (isCompleteLabRecommendation(merged)) {
               setImplantDetailCompleteByTooth((prev) => {
+                let changed = false;
                 const next = { ...prev };
                 for (const tn of implantTeeth) {
-                  next[tn] = true;
+                  if (prev[tn] !== true) {
+                    next[tn] = true;
+                    changed = true;
+                  }
                 }
-                return next;
+                return changed ? next : prev;
               });
             } else if (clearingLabRec) {
               setImplantDetailCompleteByTooth((prev) => {
+                let changed = false;
                 const next = { ...prev };
                 for (const tn of implantTeeth) {
-                  next[tn] = false;
+                  if (prev[tn] !== false) {
+                    next[tn] = false;
+                    changed = true;
+                  }
                 }
-                return next;
+                return changed ? next : prev;
               });
             }
           }}

@@ -8,6 +8,7 @@ import {
   getSequentialVisibleImplantTeeth,
   isCompleteLabRecommendation,
   isImplantDetailFilled,
+  isSameImplantDetailData,
 } from "../utils/implantDetailHelpers";
 
 /** One implant box at a time; later teeth mirror the first completed implant. */
@@ -74,6 +75,8 @@ export function useSequentialImplantDetails({
           (!!existing?.labRecommendationRequested &&
             !(existing.referencePhoto || existing.referencePhotoUrl));
         if (!shouldOverwrite) continue;
+        // Lab-rec with photo used to reclone every run (forceLabRecGroup=true) → #185.
+        if (isSameImplantDetailData(existing, source)) continue;
         next[tn] = cloneImplantDetailData(source!);
         changed = true;
       }

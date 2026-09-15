@@ -21,6 +21,35 @@ import {
 
 export const LAB_RECOMMENDATION_VALUE = "__lab_recommendation__";
 
+/** Shrink large phone photos before storing as data-URL in React state. */
+async function compressImageToDataUrl(
+  file: File,
+  maxEdge = 1600,
+  quality = 0.72
+): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Failed to load image"));
+      el.src = objectUrl;
+    });
+    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas unsupported");
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", quality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export interface ImplantDetailData {
   brand: string;
   /** Implant system name (paired with brand in field 1). */
@@ -603,17 +632,28 @@ export function ImplantDetailSection({
     });
   };
 
-  const readPhotoFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
+  const readPhotoFile = async (file: File) => {
+    try {
+      const referencePhoto = await compressImageToDataUrl(file);
       update({
         labRecommendationRequested: true,
-        referencePhoto: typeof reader.result === "string" ? reader.result : null,
+        referencePhoto,
         referencePhotoUrl: null,
       });
       setPhotoModalOpen(false);
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      // Fall back to raw FileReader if canvas compress fails (rare).
+      const reader = new FileReader();
+      reader.onload = () => {
+        update({
+          labRecommendationRequested: true,
+          referencePhoto: typeof reader.result === "string" ? reader.result : null,
+          referencePhotoUrl: null,
+        });
+        setPhotoModalOpen(false);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
