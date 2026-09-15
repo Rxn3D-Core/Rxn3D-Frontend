@@ -136,6 +136,34 @@ export function cloneImplantDetailData(data: ImplantDetailData): ImplantDetailDa
   };
 }
 
+/** True when mirroring can skip — avoids recloning lab-rec photos every effect (React #185). */
+export function isSameImplantDetailData(
+  a: ImplantDetailData | undefined,
+  b: ImplantDetailData | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.labRecommendationRequested === b.labRecommendationRequested &&
+    a.referencePhoto === b.referencePhoto &&
+    a.referencePhotoUrl === b.referencePhotoUrl &&
+    a.brand === b.brand &&
+    a.systemName === b.systemName &&
+    a.platform === b.platform &&
+    a.size === b.size &&
+    a.inclusions === b.inclusions &&
+    a.inclusionQty === b.inclusionQty &&
+    a.abutmentType === b.abutmentType &&
+    a.abutmentDetail === b.abutmentDetail &&
+    a.implantId === b.implantId &&
+    a.platformId === b.platformId &&
+    a.sizeId === b.sizeId &&
+    a.abutmentId === b.abutmentId &&
+    a.abutmentOptionId === b.abutmentOptionId &&
+    JSON.stringify(a.dynamicFields ?? {}) === JSON.stringify(b.dynamicFields ?? {})
+  );
+}
+
 export function areAllImplantDetailsComplete(
   implantTeeth: number[],
   completeByTooth: Record<number, boolean>,
