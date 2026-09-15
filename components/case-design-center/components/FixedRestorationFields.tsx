@@ -210,9 +210,14 @@ export function hasAdvanceField(
     if (hasTeethShadeFlag) return true;
   }
 
-  const effectiveFields = productSupportsAdvanceFields(product)
-    ? advanceFields
-    : undefined;
+  // When product is omitted, trust the caller's advanceFields (already slip-filtered).
+  // When product is passed, honor has_advance_field=No.
+  const effectiveFields =
+    product == null
+      ? advanceFields
+      : productSupportsAdvanceFields(product)
+        ? advanceFields
+        : undefined;
 
   if (!effectiveFields || effectiveFields.length === 0) {
     return false;
@@ -234,7 +239,14 @@ export function hasAdvanceField(
           n.includes("body shade")
       );
     case "fixed_characterization":
-      return names.some((n) => n.includes("characterization") || n.includes("character"));
+      return names.some(
+        (n) =>
+          n.includes("characterization") ||
+          n.includes("character") ||
+          n.includes("intensity") ||
+          n.includes("surface finish") ||
+          n.includes("surface_finish")
+      );
     case "fixed_contact_icons":
       return names.some(
         (n) =>
@@ -576,6 +588,14 @@ export function RetentionProductFields({
   const displayGumShades = resolveGumShadesForDisplay(selectedProduct);
   const showFixedStage =
     !shouldSkipStageSelection(selectedProduct) && isFixed("fixed_stage");
+  const labRecPhotoPending = implantTeeth.some((tn) => {
+    const detail = implantDetailByTooth[tn];
+    return (
+      !!detail?.labRecommendationRequested &&
+      !detail.referencePhoto &&
+      !detail.referencePhotoUrl
+    );
+  });
   const impressionVisible =
     isFixedAfterImplant("fixed_impression") && showImpressionAndAddons;
   const hasAutoOpenedImpressionRef = useRef(false);
@@ -628,21 +648,23 @@ export function RetentionProductFields({
 
     if (hasClassicTeethShadeFlag) {
       const raw = getFieldValue(arch, firstToothNumber, "fixed_shade_trio");
-      const hasReal =
-        isRealShadeDisplayValue(raw) ||
-        !!getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+      const selected = getSelectedShade(fixedShadeProductId, arch, "tooth_shade");
+      const hasReal = isRealShadeDisplayValue(raw) || !!selected;
       if (!hasReal && isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")) {
         uncompleteFieldStep(arch, firstToothNumber, "fixed_shade_trio");
+      } else if (hasReal && !isFieldCompleted(arch, firstToothNumber, "fixed_shade_trio")) {
+        completeFieldStep(arch, firstToothNumber, "fixed_shade_trio", raw || selected);
       }
     }
 
     if (hasClassicGumShadeFlag) {
       const raw = getFieldValue(arch, firstToothNumber, "fixed_stump_shade");
-      const hasReal =
-        isRealShadeDisplayValue(raw) ||
-        !!getSelectedShade(fixedShadeProductId, arch, "stump_shade");
+      const selected = getSelectedShade(fixedShadeProductId, arch, "stump_shade");
+      const hasReal = isRealShadeDisplayValue(raw) || !!selected;
       if (!hasReal && isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")) {
         uncompleteFieldStep(arch, firstToothNumber, "fixed_stump_shade");
+      } else if (hasReal && !isFieldCompleted(arch, firstToothNumber, "fixed_stump_shade")) {
+        completeFieldStep(arch, firstToothNumber, "fixed_stump_shade", raw || selected);
       }
     }
   }, [
@@ -656,6 +678,7 @@ export function RetentionProductFields({
     hasClassicShadeFlags,
     hasClassicTeethShadeFlag,
     isFieldCompleted,
+    completeFieldStep,
     uncompleteFieldStep,
   ]);
 
@@ -702,8 +725,10 @@ export function RetentionProductFields({
       }
       return;
     }
-    if (!impressionVisible || !impressionEmpty) {
-      hasAutoOpenedImpressionRef.current = false;
+    if (!impressionVisible || !impressionEmpty || labRecPhotoPending) {
+      if (!labRecPhotoPending) {
+        hasAutoOpenedImpressionRef.current = false;
+      }
       if (impressionTimerRef.current) {
         clearTimeout(impressionTimerRef.current);
         impressionTimerRef.current = null;
@@ -727,6 +752,7 @@ export function RetentionProductFields({
     impressionModalProductId,
     impressionVisible,
     isExpanded,
+    labRecPhotoPending,
   ]);
 
   /**
@@ -873,52 +899,52 @@ export function RetentionProductFields({
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_characterization")) return;
-    if (!hasAdvanceField("fixed_characterization", slipAdvanceFields)) return;
+    if (!hasAdvanceField("fixed_characterization", slipAdvanceFields, selectedProduct)) return;
     const fields = getAdvanceFieldsForStep("fixed_characterization", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_characterization")) {
       completeFieldStep(arch, firstToothNumber, "fixed_characterization", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_margin")) return;
-    if (!hasAdvanceField("fixed_margin", slipAdvanceFields)) return;
+    if (!hasAdvanceField("fixed_margin", slipAdvanceFields, selectedProduct)) return;
     const fields = getAdvanceFieldsForStep("fixed_margin", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_margin")) {
       completeFieldStep(arch, firstToothNumber, "fixed_margin", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_metal")) return;
-    if (!hasAdvanceField("fixed_metal", slipAdvanceFields)) return;
+    if (!hasAdvanceField("fixed_metal", slipAdvanceFields, selectedProduct)) return;
     const fields = getAdvanceFieldsForStep("fixed_metal", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_metal")) {
       completeFieldStep(arch, firstToothNumber, "fixed_metal", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_contact_icons")) return;
-    if (!hasAdvanceField("fixed_contact_icons", slipAdvanceFields)) return;
+    if (!hasAdvanceField("fixed_contact_icons", slipAdvanceFields, selectedProduct)) return;
     const fields = getAdvanceFieldsForStep("fixed_contact_icons", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_contact_icons")) {
       completeFieldStep(arch, firstToothNumber, "fixed_contact_icons", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   useEffect(() => {
     if (!showPostImplantFields) return;
     if (!isFixed("fixed_proximal_contact")) return;
-    if (!hasAdvanceField("fixed_proximal_contact", slipAdvanceFields)) return;
+    if (!hasAdvanceField("fixed_proximal_contact", slipAdvanceFields, selectedProduct)) return;
     const fields = getAdvanceFieldsForStep("fixed_proximal_contact", slipAdvanceFields);
     if (fields.length === 0 && !isFieldCompleted(arch, firstToothNumber, "fixed_proximal_contact")) {
       completeFieldStep(arch, firstToothNumber, "fixed_proximal_contact", "auto");
     }
-  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields]);
+  }, [arch, firstToothNumber, selectedProduct, isFixed, isFieldCompleted, completeFieldStep, showPostImplantFields, slipAdvanceFields]);
 
   const toothNumbersKey = useMemo(
     () => [...toothNumbers].sort((a, b) => a - b).join(","),
@@ -1010,7 +1036,10 @@ export function RetentionProductFields({
     serializeRetentionMechanismSelection(availableRetentionMechanismTypes);
 
   const renderAdvanceFieldStep = (stepKey: FieldStep) => {
-    if (!isFixedAfterImplant(stepKey) || !hasAdvanceField(stepKey, slipAdvanceFields)) {
+    if (
+      !isFixedAfterImplant(stepKey) ||
+      !hasAdvanceField(stepKey, slipAdvanceFields, selectedProduct)
+    ) {
       return null;
     }
     const stepFields = getAdvanceFieldsForStep(stepKey, slipAdvanceFields);
@@ -1455,6 +1484,15 @@ export function RetentionProductFields({
         advanceFields={slipAdvanceFields}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        categoryId={selectedProduct?.subcategory?.category_id ?? selectedProduct?.subcategory?.category?.id}
+        onAbutmentAddonsChange={(entries) => {
+          const addonKey = `${arch}_${firstToothNumber}`;
+          const display = entries.map((e) => `${e.qty}x ${e.name}`).join(", ");
+          if (display) {
+            completeFieldStep(arch, firstToothNumber, "fixed_addons", display);
+          }
+          // structured qty is stored via parent selectedAddonsByTooth when available
+        }}
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}

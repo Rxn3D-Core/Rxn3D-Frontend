@@ -303,6 +303,9 @@ function buildImplantDetailsByTooth(apiProduct: any): Record<number, ImplantDeta
           abutment?.abutment_option?.id ??
           abutment?.option?.id
       ),
+      labRecommendationRequested: Boolean(row?.lab_recommendation_requested),
+      referencePhotoUrl: firstNonEmptyString(row?.reference_photo_url) || null,
+      referencePhoto: null,
     };
   }
 

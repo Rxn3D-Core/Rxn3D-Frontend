@@ -23,13 +23,13 @@ export function CardSelectorField({
 
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 w-full overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
       onClick={onClick}
     >
       <legend className={`text-sm px-1 leading-none whitespace-nowrap ${legendColor}`}>
         {label}
       </legend>
-      <div className="flex items-center gap-2 w-full">
+      <div className="flex items-center gap-2 w-full min-w-0">
         <span className="text-[14px] sm:text-lg leading-tight text-[#000000] flex-1 min-w-0 truncate">{value}</span>
         {hasValue && !caseSubmitted && <Check size={16} className="text-[#34a853] flex-shrink-0" />}
       </div>

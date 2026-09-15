@@ -680,6 +680,7 @@ export function SelectionProductFields({
         advanceFields={getProductAdvanceFieldsForSlip(selectedProduct)}
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
+        categoryId={selectedProduct?.subcategory?.category_id ?? selectedProduct?.subcategory?.category?.id}
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}

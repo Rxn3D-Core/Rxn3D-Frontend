@@ -109,9 +109,11 @@ export interface SlipCreationTeethSelection {
 
 export interface SlipCreationImplantDetail {
   teeth_number: number;
-  implant_id: number;
+  implant_id?: number;
   implant_platform_id?: number;
   implant_platform_size_id?: number;
+  lab_recommendation_requested?: boolean;
+  reference_photo?: string;
 }
 
 export interface SlipCreationAbutmentDetail {

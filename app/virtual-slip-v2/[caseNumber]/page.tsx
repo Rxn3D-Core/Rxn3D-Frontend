@@ -23,7 +23,14 @@ import {
   slipShowsPickupDropoff,
 } from "@/lib/slip-location";
 import { fetchNewStageEligibility } from "@/lib/api/slip-new-stage-eligibility";
-import { buildVirtualSlipVM } from "@/lib/virtual-slip-view-model";
+import {
+  buildVirtualSlipVM,
+  collectPendingLabRecommendationImplants,
+  isEditableVirtualSlipImplant,
+  isPendingLabRecommendationImplant,
+  type ImplantVM,
+  type ProductVM,
+} from "@/lib/virtual-slip-view-model";
 import { resolveSlipDeliveryDates } from "@/lib/virtual-slip-rush-dates";
 import { useToast } from "@/components/ui/use-toast";
 import { VirtualSlipHeader } from "@/components/virtual-slip/VirtualSlipHeader";
@@ -60,6 +67,7 @@ import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 import { useBusinessSettingsQuery } from "@/hooks/use-business-settings";
 import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state";
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId";
+import { LabImplantSelectionModal } from "@/components/virtual-slip/LabImplantSelectionModal";
 import { isPlaceholderDeliveryTime } from "@/utils/time-utils";
 
 type CaseStatusModal = "hold" | "resume" | "cancel" | null;
@@ -100,6 +108,8 @@ export default function VirtualSlipV2Page() {
   const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] =
     useState(false);
   const [changeDateOpen, setChangeDateOpen] = useState(false);
+  const [labImplantModalOpen, setLabImplantModalOpen] = useState(false);
+  const [labImplantModalTargets, setLabImplantModalTargets] = useState<ImplantVM[]>([]);
   const [addStageEligible, setAddStageEligible] = useState(false);
   const [notesRefreshKey, setNotesRefreshKey] = useState(0);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -171,6 +181,26 @@ export default function VirtualSlipV2Page() {
       }),
     [virtualSlipDetails, rushCaseSchedule?.default_delivery_time]
   );
+
+  const pendingLabImplants = useMemo(
+    () => collectPendingLabRecommendationImplants(vm),
+    [vm]
+  );
+  const hasPendingLabImplants = pendingLabImplants.length > 0;
+
+  const openLabImplantModal = (implants: ImplantVM[]) => {
+    if (implants.length === 0) return;
+    setLabImplantModalTargets(implants);
+    setLabImplantModalOpen(true);
+  };
+
+  const openSelectLabImplantsForProduct = (product: ProductVM) => {
+    openLabImplantModal(product.implants.filter(isPendingLabRecommendationImplant));
+  };
+
+  const openEditLabImplantsForProduct = (product: ProductVM) => {
+    openLabImplantModal(product.implants.filter(isEditableVirtualSlipImplant));
+  };
 
   const caseId = useMemo(
     () => resolveVirtualSlipCaseId(virtualSlipDetails),
@@ -525,7 +555,21 @@ export default function VirtualSlipV2Page() {
             canRunLabDriverActions ? () => setPickupDropoffOpen(true) : undefined,
           showReadyToSend: canRunLabDriverActions && showReadyToSendFab,
           onReadyToSend:
-            canRunLabDriverActions ? () => setReadyToSendOpen(true) : undefined,
+            canRunLabDriverActions
+              ? () => {
+                  if (hasPendingLabImplants) {
+                    toast({
+                      title: "Implant details required",
+                      description:
+                        "Complete lab implant recommendations before marking ready to send.",
+                      variant: "destructive",
+                    });
+                    openLabImplantModal(pendingLabImplants);
+                    return;
+                  }
+                  setReadyToSendOpen(true);
+                }
+              : undefined,
           showAddStage: showAddStageFab,
           onAddStage: handleAddStage,
           disabled: caseBlocked,
@@ -574,6 +618,20 @@ export default function VirtualSlipV2Page() {
             </div>
           </>
         ) : null}
+        {canRunLabDriverActions && hasPendingLabImplants ? (
+          <div className="relative z-10 mx-6 mt-3 flex items-center justify-between gap-3 rounded-md border border-[#f3d48a] bg-[#fff8e8] px-4 py-3">
+            <p className="text-sm text-[#4C4D55]">
+              Lab recommendation requested. Select implant details before sending this case.
+            </p>
+            <button
+              type="button"
+              className="shrink-0 rounded-md bg-[#1162a8] px-3 py-1.5 text-sm font-medium text-white"
+              onClick={() => openLabImplantModal(pendingLabImplants)}
+            >
+              Select implant
+            </button>
+          </div>
+        ) : null}
         {/* Column headers */}
         <div className="relative flex gap-[120px] px-6 pt-1">
           <div className="min-w-0 flex-1 text-center font-sans text-[20px] font-bold leading-[21px] tracking-[-0.02em] text-[#4C4D55]">
@@ -594,10 +652,30 @@ export default function VirtualSlipV2Page() {
         {/* Column content */}
         <div className="flex gap-[120px] px-6 pb-1 pt-1">
           <div className="min-w-0 flex-1">
-            {maxillary ? <VirtualSlipArch data={maxillary} /> : null}
+            {maxillary ? (
+              <VirtualSlipArch
+                data={maxillary}
+                onSelectLabImplants={
+                  canRunLabDriverActions ? openSelectLabImplantsForProduct : undefined
+                }
+                onEditLabImplants={
+                  canRunLabDriverActions ? openEditLabImplantsForProduct : undefined
+                }
+              />
+            ) : null}
           </div>
           <div className="min-w-0 flex-1">
-            {mandibular ? <VirtualSlipArch data={mandibular} /> : null}
+            {mandibular ? (
+              <VirtualSlipArch
+                data={mandibular}
+                onSelectLabImplants={
+                  canRunLabDriverActions ? openSelectLabImplantsForProduct : undefined
+                }
+                onEditLabImplants={
+                  canRunLabDriverActions ? openEditLabImplantsForProduct : undefined
+                }
+              />
+            ) : null}
           </div>
         </div>
       </div>
@@ -785,6 +863,20 @@ export default function VirtualSlipV2Page() {
         buttonColor="error"
         reasonPlaceholder="Please provide a reason for case cancellation."
         warning="This action cannot be undone and will archive the case."
+      />
+
+      <LabImplantSelectionModal
+        open={labImplantModalOpen}
+        slipId={slipId}
+        implants={labImplantModalTargets}
+        labCustomerId={labCustomerId}
+        onClose={() => {
+          setLabImplantModalOpen(false);
+          setLabImplantModalTargets([]);
+        }}
+        onSaved={() => {
+          if (slipId && !isNaN(slipId)) void fetchVirtualSlipDetails(slipId);
+        }}
       />
 
       <ReadyToSendModal

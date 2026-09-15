@@ -61,7 +61,15 @@ function AdvanceFieldDetail({ label, value }: { label: string; value: string }) 
   return <Detail label={label} value={value} />;
 }
 
-export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
+export function VirtualSlipProductSummary({
+  product,
+  onSelectLabImplants,
+  onEditLabImplants,
+}: {
+  product: ProductVM;
+  onSelectLabImplants?: () => void;
+  onEditLabImplants?: () => void;
+}) {
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const showImplantColumn = product.isImplant && product.implants.length > 0;
   const statusBoxProps = buildVirtualSlipStatusBoxProps(
@@ -133,7 +141,13 @@ export function VirtualSlipProductSummary({ product }: { product: ProductVM }) {
         </div>
 
         {showImplantColumn && (
-          <VirtualSlipImplantDetailsAccordion implants={product.implants} />
+          <div className="min-w-0">
+            <VirtualSlipImplantDetailsAccordion
+              implants={product.implants}
+              onSelectLabImplants={onSelectLabImplants}
+              onEditLabImplants={onEditLabImplants}
+            />
+          </div>
         )}
       </div>
 

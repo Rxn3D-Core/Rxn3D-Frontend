@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Upload } from "lucide-react";
 import Image from "next/image";
 
 /** Approximate card width + gap used when scrolling via chevrons. */
@@ -12,6 +12,7 @@ export interface CardGalleryItem {
   label: string;
   subtitle?: string;
   imageUrl?: string | null;
+  variant?: "default" | "upload";
 }
 
 interface CardGalleryProps {
@@ -104,7 +105,9 @@ export function CardGallery({ options, value, onChange }: CardGalleryProps) {
           >
             <div className="flex flex-col items-center">
               <div className="w-full h-[80px] bg-gray-100 flex items-center justify-center overflow-hidden">
-                {item.imageUrl ? (
+                {item.variant === "upload" ? (
+                  <Upload size={28} className="text-gray-500" />
+                ) : item.imageUrl ? (
                   <Image
                     src={item.imageUrl}
                     alt={item.label}

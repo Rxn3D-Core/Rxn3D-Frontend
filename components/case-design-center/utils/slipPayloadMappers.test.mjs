@@ -340,8 +340,64 @@ test("buildImplantAndAbutmentDetails sends abutment type and option IDs", () => 
     {
       teeth_number: 8,
       abutment_id: 11,
-      abutment_type_id: 33,
+      abutment_type_id: 11,
       abutment_option_id: 22,
+    },
+  ]);
+});
+
+test("buildImplantAndAbutmentDetails sends abutment category without option", () => {
+  const product = {
+    abutments: [
+      {
+        id: 11,
+        type: "Office Provided",
+        options: [
+          { id: 22, abutment_type_id: 11, name: "Stock Abutment" },
+        ],
+        addons: [{ id: 91, name: "Analog", status: "Active" }],
+      },
+    ],
+  };
+  const implantDetailByTooth = {
+    8: {
+      brand: "Brand A",
+      systemName: "System X",
+      platform: "NP",
+      size: "3.5 x 10",
+      inclusions: "No inclusion",
+      inclusionQty: 0,
+      abutmentType: "Office Provided",
+      abutmentDetail: "",
+      abutmentId: 11,
+      dynamicFields: {},
+    },
+  };
+  const implantCatalog = [
+    {
+      id: 100,
+      brand_name: "Brand A",
+      system_name: "System X",
+      platforms: [
+        {
+          id: 200,
+          name: "NP",
+          sizes: [{ id: 300, label: "3.5 x 10" }],
+        },
+      ],
+    },
+  ];
+
+  const { abutment_details } = buildImplantAndAbutmentDetails(
+    product,
+    implantDetailByTooth,
+    implantCatalog
+  );
+  assert.deepEqual(abutment_details, [
+    {
+      teeth_number: 8,
+      abutment_id: 11,
+      abutment_type_id: 11,
     },
   ]);
 });

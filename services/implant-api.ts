@@ -70,6 +70,14 @@ export interface ProductAbutment {
   sequence: number;
   customer_id: number;
   options: AbutmentOption[];
+  addons?: Array<{
+    id: number;
+    name: string;
+    code?: string;
+    price?: number | string | null;
+    status?: string;
+    sequence?: number;
+  }>;
 }
 
 // Module-level cache to avoid duplicate API calls per product+customer combo

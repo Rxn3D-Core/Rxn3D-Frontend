@@ -514,6 +514,10 @@ function buildImplantDetailSummary(
   for (const tn of [...teeth].sort((a, b) => a - b)) {
     const detail = implantDetailByTooth[tn];
     if (!detail) continue;
+    if (detail.labRecommendationRequested && !detail.brand) {
+      lines.push(`#${tn}: Lab recommendation requested`);
+      continue;
+    }
     const bits: string[] = [];
     if (detail.brand) bits.push(detail.brand);
     if (detail.systemName) bits.push(detail.systemName);

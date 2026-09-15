@@ -304,7 +304,15 @@ export function useSlipProductCollector({
         const relevantImplantDetail: Record<number, import("../components/ImplantDetailSection").ImplantDetailData> = {};
         for (const tn of productTeeth) {
           const detail = implantDetailMap[tn];
-          if (detail && (detail.brand || detail.platform || detail.size)) {
+          // Lab recommendation has no brand/platform/size — still must ship on create.
+          if (
+            detail &&
+            (detail.labRecommendationRequested ||
+              detail.brand ||
+              detail.platform ||
+              detail.size ||
+              detail.implantId)
+          ) {
             relevantImplantDetail[tn] = detail;
           }
         }
