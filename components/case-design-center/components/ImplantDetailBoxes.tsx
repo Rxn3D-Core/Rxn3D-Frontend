@@ -144,12 +144,16 @@ export function ImplantDetailBoxes({
   const lastAddonSig = useRef("");
   useEffect(() => {
     if (!onAbutmentAddonsChange) return;
-    const entries = buildAbutmentAddonEntries(implantDetailByTooth, productAbutments ?? []);
+    const entries = buildAbutmentAddonEntries(
+      implantDetailByTooth,
+      productAbutments ?? [],
+      categoryId
+    );
     const sig = entries.map((e) => `${e.addon_id}:${e.qty}`).join("|");
     if (sig === lastAddonSig.current) return;
     lastAddonSig.current = sig;
     onAbutmentAddonsChange(entries);
-  }, [implantDetailByTooth, productAbutments, onAbutmentAddonsChange]);
+  }, [implantDetailByTooth, productAbutments, categoryId, onAbutmentAddonsChange]);
 
   if (visibleImplantTeeth.length === 0) return null;
 

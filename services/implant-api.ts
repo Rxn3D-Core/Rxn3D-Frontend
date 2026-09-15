@@ -77,6 +77,7 @@ export interface ProductAbutment {
     price?: number | string | null;
     status?: string;
     sequence?: number;
+    category_ids?: string | null;
   }>;
 }
 
