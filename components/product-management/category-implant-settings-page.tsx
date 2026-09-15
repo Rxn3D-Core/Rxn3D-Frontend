@@ -124,8 +124,8 @@ export function CategoryImplantSettingsPage({
   )
 
   return (
-    <div className="p-6 max-w-4xl">
-      <div className="mb-6">
+    <div className="p-6 max-w-3xl">
+      <div className="mb-4">
         <h1 className="text-xl font-semibold text-gray-900">Implant settings</h1>
         <p className="text-sm text-gray-600 mt-1">
           Choose which implant fields to ask for on the slip, per product category. Each field is
@@ -143,13 +143,13 @@ export function CategoryImplantSettingsPage({
         <p className="text-sm text-gray-500">No product categories found.</p>
       ) : (
         <>
-          <div className="flex gap-2 overflow-x-auto border-b border-gray-200 mb-5">
+          <div className="flex gap-1 overflow-x-auto border-b border-gray-200 mb-3">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveCategoryId(tab.id)}
-                className={`px-3 py-2 text-sm whitespace-nowrap border-b-2 ${
+                className={`px-3 py-1.5 text-sm whitespace-nowrap border-b-2 ${
                   activeCategoryId === tab.id
                     ? "border-[#1162a8] text-[#1162a8] font-medium"
                     : "border-transparent text-gray-500 hover:text-gray-800"
@@ -161,19 +161,29 @@ export function CategoryImplantSettingsPage({
           </div>
 
           {activeFields && (
-            <div className="space-y-4">
+            <div className="rounded-md border border-gray-200 bg-white divide-y divide-gray-100">
               {IMPLANT_FIELD_KEYS.map((key) => (
-                <div key={key} className="rounded-lg border border-gray-200 bg-white p-4">
-                  <p className="text-sm font-medium text-gray-900 mb-3">{IMPLANT_FIELD_LABELS[key]}</p>
+                <div
+                  key={key}
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2.5"
+                >
+                  <p className="text-sm font-medium text-gray-900 shrink-0">
+                    {IMPLANT_FIELD_LABELS[key]}
+                  </p>
                   <RadioGroup
                     value={activeFields[key]}
-                    onValueChange={(value) => handleFieldChange(key, value as ImplantFieldRequirement)}
-                    className="flex flex-wrap gap-4"
+                    onValueChange={(value) =>
+                      handleFieldChange(key, value as ImplantFieldRequirement)
+                    }
+                    className="flex items-center gap-4"
                   >
                     {REQUIREMENT_OPTIONS.map((option) => (
-                      <div key={option.value} className="flex items-center gap-2">
+                      <div key={option.value} className="flex items-center gap-1.5">
                         <RadioGroupItem value={option.value} id={`${key}-${option.value}`} />
-                        <Label htmlFor={`${key}-${option.value}`} className="text-sm font-normal cursor-pointer">
+                        <Label
+                          htmlFor={`${key}-${option.value}`}
+                          className="text-sm font-normal cursor-pointer whitespace-nowrap"
+                        >
                           {option.label}
                         </Label>
                       </div>
@@ -184,7 +194,7 @@ export function CategoryImplantSettingsPage({
             </div>
           )}
 
-          <div className="mt-6">
+          <div className="mt-4">
             <Button
               onClick={handleSave}
               disabled={saving || (requireCustomerId && !customerId)}
