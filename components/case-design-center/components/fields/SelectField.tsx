@@ -44,7 +44,7 @@ export function SelectField({
   const legendColor = hasValue && !caseSubmitted ? "text-[#34a853]" : hasValue ? "text-[#7f7f7f]" : emptyLegend;
   const displayLabel = !hasValue && emptyLabel ? emptyLabel : label;
   return (
-    <fieldset className={`border rounded px-3 py-0 relative min-w-0 w-full overflow-hidden h-[42px] flex items-center ${borderColor} ${className}`}>
+    <fieldset className={`border rounded px-3 py-0 relative min-w-0 h-[42px] flex items-center ${borderColor} ${className}`}>
       <legend className={`text-sm px-1 leading-none whitespace-nowrap ${legendColor}`}>
         {displayLabel}
       </legend>

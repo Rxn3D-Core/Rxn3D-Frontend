@@ -48,7 +48,7 @@ export function ShadeField({
         : "text-[#7f7f7f]";
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 w-full overflow-hidden ${borderColor} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${isActive ? "hover:bg-[#f0f7fc]" : ""} ${className}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 ${borderColor} ${onClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${isActive ? "hover:bg-[#f0f7fc]" : ""} ${className}`}
       onClick={onClick}
       aria-current={isActive ? "true" : undefined}
     >
