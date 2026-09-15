@@ -23,7 +23,7 @@ export function CardSelectorField({
 
   return (
     <fieldset
-      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 w-full overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
+      className={`border rounded px-3 py-0 relative h-[42px] flex items-center min-w-0 cursor-pointer hover:bg-gray-50 transition-colors ${borderColor}`}
       onClick={onClick}
     >
       <legend className={`text-sm px-1 leading-none whitespace-nowrap ${legendColor}`}>

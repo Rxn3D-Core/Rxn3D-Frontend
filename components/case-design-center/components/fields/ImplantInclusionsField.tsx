@@ -205,7 +205,7 @@ export function ImplantInclusionsField({
       <fieldset
         ref={triggerRef}
         className={cn(
-          "border rounded px-3 py-0 relative min-w-0 w-full overflow-hidden cursor-pointer h-[42px] flex items-center",
+          "border rounded px-3 py-0 relative min-w-0 cursor-pointer h-[42px] flex items-center",
           borderColor
         )}
         onClick={() => setShowDropdown((prev) => !prev)}
