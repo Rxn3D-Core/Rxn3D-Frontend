@@ -1,4 +1,12 @@
-import { getMe, updateMe, type MeProfile, type UpdateMeProfileInput } from "@/lib/api/me"
+import {
+  getMe,
+  updateMe,
+  sendEmailChangeOtp as sendEmailChangeOtpApi,
+  confirmEmailChange as confirmEmailChangeApi,
+  leaveCustomer as leaveCustomerApi,
+  type MeProfile,
+  type UpdateMeProfileInput,
+} from "@/lib/api/me"
 
 export type { MeProfile, UpdateMeProfileInput }
 
@@ -32,6 +40,7 @@ export interface UserProfileData {
     role_permissions?: string[]
     department_id?: number
     is_primary?: boolean
+    status?: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded"
     onboarding_completed?: boolean
     onboarding_completed_at?: string | null
     onboarding_completed_by?: number | null
@@ -88,5 +97,31 @@ export async function updateCurrentUserProfile(
   input: UpdateMeProfileInput
 ): Promise<UserProfileData> {
   const profile = await updateMe(input)
+  return mapMeToUserProfile(profile)
+}
+
+/**
+ * Send OTP to a proposed new account email.
+ */
+export async function sendCurrentUserEmailChangeOtp(email: string): Promise<void> {
+  await sendEmailChangeOtpApi(email)
+}
+
+/**
+ * Confirm OTP and update the logged-in user's email.
+ */
+export async function confirmCurrentUserEmailChange(
+  email: string,
+  otp: string
+): Promise<UserProfileData> {
+  const profile = await confirmEmailChangeApi(email, otp)
+  return mapMeToUserProfile(profile)
+}
+
+/**
+ * Soft-offboard the logged-in user from one organization.
+ */
+export async function leaveCurrentUserCustomer(customerId: number): Promise<UserProfileData> {
+  const profile = await leaveCustomerApi(customerId)
   return mapMeToUserProfile(profile)
 }

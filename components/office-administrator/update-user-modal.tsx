@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils"
 const updateUserSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
+  email: z.string().email("Enter a valid email address").optional(),
   phone: z.string().min(1, "Phone number is required"),
   work_number: z.string().optional(),
   status: z.string().min(1, "Please select a status"),
@@ -130,12 +131,14 @@ export function UpdateUserModal({
   /** Only lab admins (including superadmin acting as lab admin) may change role on edit. */
   const canChangeUserRole =
     isLabCustomer && (actorRole === "lab_admin" || authContext.isActingAsLabAdmin)
+  const canEditEmail = Boolean(authContext.isSuperadmin)
 
   const form = useForm<UpdateUserFormValues>({
     resolver: zodResolver(updateUserSchema),
     defaultValues: {
       first_name: "",
       last_name: "",
+      email: "",
       phone: "",
       work_number: "",
       status: "Active",
@@ -263,6 +266,7 @@ export function UpdateUserModal({
       form.reset({
         first_name: firstName || "",
         last_name: lastName || "",
+        email: user.email || "",
         phone: user.phone || "",
         work_number: user.phone || "",
         status: normalizeUserStatus(user.status),
@@ -491,6 +495,9 @@ export function UpdateUserModal({
         phone: data.phone,
         work_number: data.work_number || data.phone,
         status: normalizeUserStatus(data.status),
+        ...(canEditEmail && data.email
+          ? { email: data.email.trim().toLowerCase() }
+          : {}),
         ...(isLabCustomer ? { department_ids: selectedDepartments } : {}),
         ...(canChangeUserRole && data.role
           ? { role: data.role }
@@ -567,6 +574,30 @@ export function UpdateUserModal({
                 )}
               />
             </div>
+
+            {canEditEmail ? (
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email *</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="Enter email address" autoComplete="off" {...field} />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Superadmin can change email without OTP verification.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Email</p>
+                <p className="mt-1 break-all text-sm text-slate-900">{user.email}</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -832,6 +863,32 @@ export function UpdateUserModal({
                           <div className="text-xs text-gray-500 capitalize">
                             {link.customerType || "customer"}
                             {link.isPrimary ? " · primary" : ""}
+                          </div>
+                          <div className="mt-1">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium",
+                                String(link.status || "Active").toLowerCase() === "active" &&
+                                  "bg-[#c3f2cf] text-[#119933]",
+                                String(link.status || "").toLowerCase() === "inactive" &&
+                                  "bg-[#eeeeee] text-[#a19d9d]",
+                                String(link.status || "").toLowerCase() === "suspended" &&
+                                  "bg-[#fff3e1] text-[#ff9500]",
+                                ["archived", "offboarded"].includes(
+                                  String(link.status || "").toLowerCase(),
+                                ) && "bg-[#f8dddd] text-[#eb0303]",
+                                ![
+                                  "active",
+                                  "inactive",
+                                  "suspended",
+                                  "archived",
+                                  "offboarded",
+                                ].includes(String(link.status || "Active").toLowerCase()) &&
+                                  "bg-[#eeeeee] text-[#a19d9d]",
+                              )}
+                            >
+                              {link.status || "Active"}
+                            </span>
                           </div>
                         </div>
 

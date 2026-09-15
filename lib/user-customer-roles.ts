@@ -8,6 +8,8 @@ export interface UserCustomerRoleLink {
   roleName: string
   departments: string[]
   isPrimary?: boolean
+  /** Per-organization membership status (Active / Inactive / Offboarded / …) */
+  status?: "Active" | "Inactive" | "Suspended" | "Archived" | "Offboarded" | string
 }
 
 export interface UserCustomerRoleDisplay {
@@ -42,9 +44,15 @@ const extractRoleId = (role: unknown): number | null => {
   return typeof id === "number" ? id : null
 }
 
+const normalizeMembershipStatus = (status: unknown): string => {
+  const value = String(status || "Active").trim()
+  if (!value) return "Active"
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 /**
  * Normalize UserResource / legacy payloads into customer–role links.
- * List/show API uses `customers[]` (id, name, type, role, departments).
+ * List/show API uses `customers[]` (id, name, type, role, departments, status).
  * Older shapes may use `customer_users[]`.
  */
 export function extractUserCustomerRoleLinks(
@@ -77,6 +85,7 @@ export function extractUserCustomerRoleLinks(
             roleName,
             departments,
             isPrimary: Boolean(c?.is_primary ?? c?.pivot?.is_primary),
+            status: normalizeMembershipStatus(c?.status ?? c?.pivot?.status),
           } satisfies UserCustomerRoleLink
         })
         .filter(Boolean)
@@ -114,6 +123,7 @@ export function extractUserCustomerRoleLinks(
         roleName,
         departments,
         isPrimary: Boolean(cu?.is_primary),
+        status: normalizeMembershipStatus(cu?.status),
       } satisfies UserCustomerRoleLink
     })
     .filter(Boolean) as UserCustomerRoleLink[]
@@ -150,7 +160,9 @@ export function buildUserCustomerRoleDisplay(
 
   const associationHoverLines = mapped.map((item) => {
     const roleLabel = item.roleName ? getRoleDisplayLabel(item.roleName) : "No role"
-    return `${item.customerName} — ${roleLabel}`
+    const typeLabel = item.customerType ? String(item.customerType) : "customer"
+    const statusLabel = item.status || "Active"
+    return `${item.customerName} (${typeLabel}) — ${roleLabel} — ${statusLabel}`
   })
 
   return {
