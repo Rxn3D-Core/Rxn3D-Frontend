@@ -21,6 +21,7 @@ import {
   isCompleteLabRecommendation,
   isImplantDetailFormComplete,
 } from "../utils/implantDetailHelpers";
+import { selectedAbutmentHasTypeOptions } from "../utils/implantDetailAbutmentOptions";
 
 interface ImplantDetailBoxesProps {
   toothNumbers: number[];
@@ -80,6 +81,8 @@ export function ImplantDetailBoxes({
     activeImplantTooth
   );
   const expandedTooth = isExpansionControlled ? expandedImplantTooth : internalExpandedTooth;
+  const expandedToothRef = useRef(expandedTooth);
+  expandedToothRef.current = expandedTooth;
   const setExpandedTooth = (tooth: number | undefined) => {
     if (isExpansionControlled) {
       onExpandedImplantToothChange(tooth);
@@ -90,10 +93,11 @@ export function ImplantDetailBoxes({
 
   // Auto-open the current incomplete implant tooth. Do not force-close: selecting
   // brand must keep the box open so platform / size / abutment can be chosen.
+  // Skip when already open so controlled setState does not nest-update needlessly.
   useEffect(() => {
-    if (activeImplantTooth != null) {
-      setExpandedTooth(activeImplantTooth);
-    }
+    if (activeImplantTooth == null) return;
+    if (expandedToothRef.current === activeImplantTooth) return;
+    setExpandedTooth(activeImplantTooth);
   }, [activeImplantTooth]);
 
   const implantCustomerId = useMemo(
@@ -114,8 +118,12 @@ export function ImplantDetailBoxes({
 
   const hasAbutmentOptions = (productAbutments?.length ?? 0) > 0;
   const effectiveFieldSettings = fieldSettings ?? DEFAULT_IMPLANT_FIELD_SETTINGS;
+  const hasAbutmentTypeOptionsFor = (data: ImplantDetailData | undefined) =>
+    selectedAbutmentHasTypeOptions(data, productAbutments);
   // Keep the parent complete flag in sync with the filled form. Relying only on
   // ImplantDetailSection's onCompleteChange effect can lag or miss a render.
+  // Only promote to complete — never clear here — so we cannot fight Section's
+  // onCompleteChange(false) and blow the nested-update limit (React #185).
   useEffect(() => {
     setImplantDetailCompleteByTooth((prev) => {
       let changed = false;
@@ -124,7 +132,8 @@ export function ImplantDetailBoxes({
         const done = isImplantDetailFormComplete(
           implantDetailByTooth[tn],
           effectiveFieldSettings,
-          hasAbutmentOptions
+          hasAbutmentOptions,
+          hasAbutmentTypeOptionsFor(implantDetailByTooth[tn])
         );
         if (done && prev[tn] !== true) {
           next[tn] = true;
@@ -138,6 +147,7 @@ export function ImplantDetailBoxes({
     implantDetailByTooth,
     effectiveFieldSettings,
     hasAbutmentOptions,
+    productAbutments,
     setImplantDetailCompleteByTooth,
   ]);
 
@@ -149,7 +159,7 @@ export function ImplantDetailBoxes({
       productAbutments ?? [],
       categoryId
     );
-    const sig = entries.map((e) => `${e.addon_id}:${e.qty}`).join("|");
+    const sig = entries.map((e: { addon_id: number; qty: number }) => `${e.addon_id}:${e.qty}`).join("|");
     if (sig === lastAddonSig.current) return;
     lastAddonSig.current = sig;
     onAbutmentAddonsChange(entries);
@@ -229,6 +239,19 @@ export function ImplantDetailBoxes({
           onCompleteChange={(complete) =>
             setImplantDetailCompleteByTooth((prev) => {
               if (prev[implantToothNumber] === complete) return prev;
+              // Section can briefly report incomplete while brand→system resolves.
+              // Ignore that downgrade when the shared form helper still says done.
+              if (
+                !complete &&
+                isImplantDetailFormComplete(
+                  implantDetailByTooth[implantToothNumber],
+                  effectiveFieldSettings,
+                  hasAbutmentOptions,
+                  hasAbutmentTypeOptionsFor(implantDetailByTooth[implantToothNumber])
+                )
+              ) {
+                return prev;
+              }
               return { ...prev, [implantToothNumber]: complete };
             })
           }

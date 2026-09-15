@@ -406,19 +406,20 @@ export function ImplantDetailSection({
     labRecommendationRequested ||
     !abutmentApplicable ||
     (inclusionComplete && !!abutmentCategory);
+  const abutmentTypeOptions = abutmentCategory
+    ? abutmentConfig.getAbutmentTypeOptions(abutmentCategory)
+    : [];
+  const hasAbutmentTypeChoices = abutmentTypeOptions.length > 0;
   const abutmentTypeComplete =
     labRecommendationRequested ||
     !abutmentApplicable ||
     !showAbutmentType ||
+    !hasAbutmentTypeChoices ||
     (abutmentCategoryComplete && !!abutmentSpecificType);
 
   const isComplete = labRecommendationRequested
     ? labRecommendationComplete
     : abutmentTypeComplete && inclusionComplete && sizeComplete && platformComplete && brandSystemComplete;
-
-  const abutmentTypeOptions = abutmentCategory
-    ? abutmentConfig.getAbutmentTypeOptions(abutmentCategory)
-    : [];
 
   // Latch progressive unlock — never hide a step that was already shown.
   useEffect(() => {
@@ -879,6 +880,7 @@ export function ImplantDetailSection({
                   />
                 )}
                 {showAbutmentType &&
+                  hasAbutmentTypeChoices &&
                   (abutmentCategoryComplete || unlockedAbutment) &&
                   (abutmentSpecificType && !editingAbutmentType ? (
                     <CardSelectorField

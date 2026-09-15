@@ -23,6 +23,7 @@ import {
 import { putSlipImplantDetails } from "@/lib/api/slip-implant-details";
 import { buildImplantAndAbutmentDetails } from "@/components/case-design-center/utils/slipPayloadMappers";
 import { buildAbutmentAddonEntries } from "@/components/case-design-center/utils/abutmentAddonSync";
+import { selectedAbutmentHasTypeOptions } from "@/components/case-design-center/utils/implantDetailAbutmentOptions";
 import {
   cloneImplantDetailData,
   isImplantDetailFilled,
@@ -205,7 +206,11 @@ export function LabImplantSelectionModal({
     return isImplantDetailFormComplete(
       detailByTooth[firstRow.toothNumber],
       fieldSettings,
-      hasAbutments
+      hasAbutments,
+      selectedAbutmentHasTypeOptions(
+        detailByTooth[firstRow.toothNumber],
+        product?.abutments
+      )
     );
   }, [firstRow, detailByTooth, productById, fieldSettingsByCategory]);
 
@@ -249,7 +254,11 @@ export function LabImplantSelectionModal({
         return isImplantDetailFormComplete(
           detailByTooth[row.toothNumber],
           fieldSettings,
-          hasAbutments
+          hasAbutments,
+          selectedAbutmentHasTypeOptions(
+            detailByTooth[row.toothNumber],
+            product?.abutments
+          )
         );
       }),
     [rows, detailByTooth, productById, fieldSettingsByCategory]
