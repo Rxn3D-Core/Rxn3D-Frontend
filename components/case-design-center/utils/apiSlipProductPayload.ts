@@ -176,17 +176,26 @@ function parseApiShadeDetails(rows: unknown): SlipCreationShadeDetail[] {
 function parseApiImplantDetails(rows: unknown): SlipCreationImplantDetail[] {
   if (!Array.isArray(rows)) return [];
   return rows
-    .map((row: Record<string, unknown>) => ({
-      teeth_number: Number(row.teeth_number ?? row.tooth_number ?? 0),
-      implant_id: Number(row.implant_id ?? 0),
-      ...(positiveId(row.implant_platform_id)
-        ? { implant_platform_id: positiveId(row.implant_platform_id) }
-        : {}),
-      ...(positiveId(row.implant_platform_size_id)
-        ? { implant_platform_size_id: positiveId(row.implant_platform_size_id) }
-        : {}),
-    }))
-    .filter((row) => row.teeth_number > 0 && row.implant_id > 0);
+    .map((row: Record<string, unknown>) => {
+      const labRec = Boolean(row.lab_recommendation_requested);
+      const implantId = Number(row.implant_id ?? 0);
+      return {
+        teeth_number: Number(row.teeth_number ?? row.tooth_number ?? 0),
+        ...(implantId > 0 ? { implant_id: implantId } : {}),
+        ...(positiveId(row.implant_platform_id)
+          ? { implant_platform_id: positiveId(row.implant_platform_id) }
+          : {}),
+        ...(positiveId(row.implant_platform_size_id)
+          ? { implant_platform_size_id: positiveId(row.implant_platform_size_id) }
+          : {}),
+        ...(labRec ? { lab_recommendation_requested: true } : {}),
+      };
+    })
+    .filter(
+      (row) =>
+        row.teeth_number > 0 &&
+        (Boolean(row.implant_id) || Boolean(row.lab_recommendation_requested))
+    );
 }
 
 function parseApiAbutmentDetails(rows: unknown): SlipCreationAbutmentDetail[] {

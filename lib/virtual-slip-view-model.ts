@@ -28,11 +28,31 @@ export interface ToothVM {
 export interface ImplantVM {
   toothNumber: number;
   brand: string;
+  /** Implant system name when available from slip details. */
+  systemName?: string;
   platform: string;
   size: string;
   abutmentType: string;
   abutmentOption: string;
   retentionMechanism: string;
+  labRecommendationRequested?: boolean;
+  implantDetailId?: number | null;
+  referencePhotoUrl?: string | null;
+  productId?: number | null;
+  categoryId?: number | null;
+  implantId?: number | null;
+  platformId?: number | null;
+  sizeId?: number | null;
+  abutmentId?: number | null;
+  abutmentOptionId?: number | null;
+}
+
+export function isPendingLabRecommendationImplant(row: ImplantVM): boolean {
+  return Boolean(row.labRecommendationRequested && !row.brand);
+}
+
+export function isEditableVirtualSlipImplant(row: ImplantVM): boolean {
+  return Boolean(row.brand || row.implantId || row.platform || row.abutmentType);
 }
 
 export interface ProductVM {
@@ -69,6 +89,18 @@ export interface ProductVM {
   implants: ImplantVM[];
   /** Advance Mode configuration fields. */
   advanceFields: Array<{ label: string; value: string }>;
+}
+
+export function collectPendingLabRecommendationImplants(vm: {
+  arches: {
+    maxillary?: { products?: ProductVM[] };
+    mandibular?: { products?: ProductVM[] };
+  };
+}): ImplantVM[] {
+  return [
+    ...(vm.arches.maxillary?.products ?? []),
+    ...(vm.arches.mandibular?.products ?? []),
+  ].flatMap((product) => product.implants.filter(isPendingLabRecommendationImplant));
 }
 
 import type { ExtractionDisplayVM } from "./virtual-slip-extraction-display";
@@ -254,6 +286,97 @@ function firstStr(...vals: Array<unknown>): string {
   return "";
 }
 
+/** True when a display string is only one or more numeric option ids. */
+function looksLikeOptionIdList(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^\d+$/.test(trimmed)) return true;
+  if (/^\[\s*\d+(?:\s*,\s*\d+)*\s*\]$/.test(trimmed)) return true;
+  return /^\d+(?:\s*,\s*\d+)+$/.test(trimmed);
+}
+
+function parseAdvanceOptionIds(raw: unknown): number[] {
+  if (raw === null || raw === undefined) return [];
+  const trimmed = String(raw).trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0);
+      }
+    } catch {
+      return [];
+    }
+  }
+  if (/^\d+(?:\s*,\s*\d+)*$/.test(trimmed)) {
+    return trimmed
+      .split(",")
+      .map((part) => Number(part.trim()))
+      .filter((id) => Number.isInteger(id) && id > 0);
+  }
+  return [];
+}
+
+function resolveOptionNamesFromIds(
+  ids: number[],
+  options: Array<{ id?: number; name?: string }> | undefined
+): string {
+  if (!ids.length || !Array.isArray(options) || options.length === 0) return "";
+  const names = ids
+    .map((id) => options.find((opt) => Number(opt?.id) === id)?.name)
+    .map((name) => String(name ?? "").trim())
+    .filter(Boolean);
+  return names.length > 0 ? names.join(", ") : "";
+}
+
+/**
+ * Prefer API display_value / selected option name; when multi-select still
+ * arrives as option ids, map them through advance_field.options.
+ */
+function resolveAdvanceFieldValue(saved: any): string {
+  const options =
+    (Array.isArray(saved?.advance_field?.options)
+      ? saved.advance_field.options
+      : Array.isArray(saved?.options)
+        ? saved.options
+        : []) as Array<{ id?: number; name?: string }>;
+
+  const candidates = [
+    saved?.display_value,
+    saved?.advance_field?.selected_option?.name,
+    saved?.selected_option?.name,
+    saved?.teeth_shade?.name,
+    saved?.file?.name,
+  ];
+
+  for (const candidate of candidates) {
+    const text = firstStr(candidate);
+    if (!text) continue;
+    if (!looksLikeOptionIdList(text)) return text;
+    const fromIds = resolveOptionNamesFromIds(parseAdvanceOptionIds(text), options);
+    if (fromIds) return fromIds;
+  }
+
+  const rawValue = saved?.advance_field_value;
+  const fromRawIds = resolveOptionNamesFromIds(parseAdvanceOptionIds(rawValue), options);
+  if (fromRawIds) return fromRawIds;
+
+  // Plain non-numeric / non-JSON scalar only — never dump blobs or bare option ids.
+  if (
+    typeof rawValue === "string" &&
+    !rawValue.trim().startsWith("{") &&
+    !rawValue.trim().startsWith("[") &&
+    !looksLikeOptionIdList(rawValue)
+  ) {
+    return rawValue.trim();
+  }
+
+  return "";
+}
+
 /**
  * Format an ISO date string to MM/DD/YY. Parses the date components directly
  * from the string (rather than via `new Date()`) so the calendar day is not
@@ -336,11 +459,15 @@ function buildImplantRow(
       impRow?.brand,
       impRow?.brand_name,
     ),
+    systemName: firstStr(
+      impRow?.implant?.system_name,
+      impRow?.system_name,
+      impRow?.systemName,
+    ),
     platform: firstStr(
       impRow?.platform?.name,
       impRow?.implant_platform?.name,
       impRow?.platform_name,
-      impRow?.system_name,
     ),
     size,
     abutmentType: firstStr(
@@ -353,6 +480,29 @@ function buildImplantRow(
       abRow?.abutmentOption,
     ),
     retentionMechanism,
+    labRecommendationRequested: Boolean(impRow?.lab_recommendation_requested),
+    implantDetailId: Number(impRow?.id ?? 0) || null,
+    referencePhotoUrl: firstStr(impRow?.reference_photo_url) || null,
+    implantId:
+      Number(impRow?.implant_id ?? impRow?.implant?.id ?? 0) || null,
+    platformId:
+      Number(
+        impRow?.implant_platform_id ??
+          impRow?.platform?.id ??
+          impRow?.implant_platform?.id ??
+          0
+      ) || null,
+    sizeId:
+      Number(
+        impRow?.implant_platform_size_id ??
+          sizeObj?.id ??
+          impRow?.size?.id ??
+          0
+      ) || null,
+    abutmentId:
+      Number(abRow?.abutment_type_id ?? abRow?.abutment_type?.id ?? 0) || null,
+    abutmentOptionId:
+      Number(abRow?.abutment_option_id ?? abRow?.abutment_option?.id ?? 0) || null,
   };
 }
 
@@ -385,7 +535,24 @@ function buildImplants(apiProduct: any): ImplantVM[] {
       .map((imp) => {
         const tn = Number(imp?.tooth_number);
         if (!Number.isFinite(tn)) return null;
-        return buildImplantRow(imp, abutmentByTooth[tn] ?? {}, tn, retentionByTooth[tn] ?? "");
+        return {
+          ...buildImplantRow(imp, abutmentByTooth[tn] ?? {}, tn, retentionByTooth[tn] ?? ""),
+          productId:
+            Number(
+              apiProduct?.product?.id ??
+                apiProduct?.product_id ??
+                apiProduct?.library_product_id ??
+                0
+            ) || null,
+          categoryId:
+            Number(
+              apiProduct?.product?.subcategory?.category_id ??
+                apiProduct?.category?.id ??
+                apiProduct?.subcategory?.category_id ??
+                apiProduct?.category_id ??
+                0
+            ) || null,
+        };
       })
       .filter((v): v is ImplantVM => v !== null);
   }
@@ -469,10 +636,26 @@ function buildProduct(apiProduct: any): ProductVM {
     for (const saved of apiProduct.advance_fields) {
       const selections = Array.isArray(saved?.selections) ? saved.selections : null;
       if (selections && selections.length > 0) {
+        const fieldOptions =
+          (Array.isArray(saved?.advance_field?.options)
+            ? saved.advance_field.options
+            : Array.isArray(saved?.options)
+              ? saved.options
+              : []) as Array<{ id?: number; name?: string }>;
+        const fieldDisplay = resolveAdvanceFieldValue(saved);
+
         for (const selection of selections) {
+          const selectionRaw = firstStr(selection?.value, selection?.display_value);
+          let selectionValue = selectionRaw;
+          if (!selectionValue || looksLikeOptionIdList(selectionValue)) {
+            selectionValue =
+              resolveOptionNamesFromIds(parseAdvanceOptionIds(selectionRaw), fieldOptions) ||
+              (looksLikeOptionIdList(selectionRaw) ? fieldDisplay : selectionRaw) ||
+              fieldDisplay;
+          }
           pushRow(
             firstStr(selection?.field_name, saved?.field_name, saved?.advance_field?.name),
-            firstStr(selection?.value, selection?.display_value),
+            selectionValue,
           );
         }
         continue;
@@ -480,24 +663,10 @@ function buildProduct(apiProduct: any): ProductVM {
 
       pushRow(
         firstStr(saved?.field_name, saved?.advance_field?.name, saved?.name),
-        firstStr(
-          saved?.display_value,
-          saved?.advance_field?.selected_option?.name,
-          saved?.selected_option?.name,
-          saved?.teeth_shade?.name,
-          saved?.file?.name,
-          // Plain non-numeric scalar only — never dump JSON blobs or bare option ids.
-          typeof saved?.advance_field_value === "string" &&
-            !saved.advance_field_value.trim().startsWith("{") &&
-            !saved.advance_field_value.trim().startsWith("[") &&
-            !/^\d+$/.test(saved.advance_field_value.trim())
-            ? saved.advance_field_value
-            : "",
-        ),
+        resolveAdvanceFieldValue(saved),
       );
     }
   }
-
   // Teeth shade: direct field first; fall back to the first shade_guide advance_field
   // (e.g. "Base Shade") when the product stores all shades as advance fields.
   const teethShadeFromAdvance = (() => {

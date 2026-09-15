@@ -1,6 +1,24 @@
 import type { ImplantDetailData } from "../components/ImplantDetailSection";
 import type { Arch } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
+import type { ImplantFieldKey, ImplantFieldSettings } from "@/lib/api/category-implant-settings";
+
+/** Mirrors lib defaults so this helper stays testable without the API module graph. */
+const DEFAULT_IMPLANT_FIELD_SETTINGS: ImplantFieldSettings = {
+  implant_brand_system: "mandatory",
+  implant_platform: "mandatory",
+  implant_size: "hidden",
+  implant_inclusion: "hidden",
+  abutment: "mandatory",
+  abutment_type: "hidden",
+};
+
+function isFieldVisible(
+  settings: ImplantFieldSettings | undefined,
+  key: ImplantFieldKey
+): boolean {
+  return (settings?.[key] ?? DEFAULT_IMPLANT_FIELD_SETTINGS[key]) !== "hidden";
+}
 
 /** Fixed steps after shades / implant detail — used to keep them visible when a new implant is added. */
 export const POST_IMPLANT_FIXED_FIELD_STEPS = [
@@ -25,6 +43,9 @@ export function getImplantTeethInGroup(
 
 export function isImplantDetailFilled(data: ImplantDetailData | undefined): boolean {
   if (!data) return false;
+  if (data.labRecommendationRequested) {
+    return true;
+  }
   return !!(
     data.brand ||
     data.platform ||
@@ -40,6 +61,66 @@ export function isImplantDetailFilled(data: ImplantDetailData | undefined): bool
   );
 }
 
+/** True when every visible implant field on the form has a value (or lab rec + photo). */
+export function isImplantDetailFormComplete(
+  data: ImplantDetailData | undefined,
+  fieldSettings?: ImplantFieldSettings,
+  hasAbutmentOptions = true
+): boolean {
+  if (!data) return false;
+  if (data.labRecommendationRequested) {
+    return !!(data.referencePhoto || data.referencePhotoUrl);
+  }
+
+  const show = (key: ImplantFieldKey) => isFieldVisible(fieldSettings, key);
+
+  if (show("implant_brand_system") && !(data.brand || data.implantId)) return false;
+  if (show("implant_platform") && !(data.platform || data.platformId)) return false;
+  if (show("implant_size") && !(data.size || data.sizeId)) return false;
+  if (show("implant_inclusion")) {
+    const inclusion =
+      data.inclusions?.trim() ||
+      Object.values(data.dynamicFields ?? {}).find((value) => String(value ?? "").trim()) ||
+      "";
+    if (!String(inclusion).trim()) return false;
+  }
+  if (show("abutment") && hasAbutmentOptions && !(data.abutmentType || data.abutmentId)) {
+    return false;
+  }
+  if (
+    show("abutment_type") &&
+    hasAbutmentOptions &&
+    !(data.abutmentDetail || data.abutmentOptionId)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function isCompleteLabRecommendation(data: ImplantDetailData | undefined): boolean {
+  return (
+    !!data?.labRecommendationRequested &&
+    !!(data.referencePhoto || data.referencePhotoUrl)
+  );
+}
+
+/** Lab rec, complete flag, or a fully filled implant form unlocks impression / addons. */
+export function isImplantDetailReadyForLaterFields(
+  complete: boolean | undefined,
+  data?: ImplantDetailData,
+  fieldSettings?: ImplantFieldSettings,
+  hasAbutmentOptions = true
+): boolean {
+  if (complete === true || !!data?.labRecommendationRequested) return true;
+  // Fall back to form completeness even before settings finish loading so a
+  // green implant box cannot strand the rest of the slip behind a stale flag.
+  return isImplantDetailFormComplete(
+    data,
+    fieldSettings ?? DEFAULT_IMPLANT_FIELD_SETTINGS,
+    hasAbutmentOptions
+  );
+}
+
 export function cloneImplantDetailData(data: ImplantDetailData): ImplantDetailData {
   return {
     ...data,
@@ -50,9 +131,13 @@ export function cloneImplantDetailData(data: ImplantDetailData): ImplantDetailDa
 export function areAllImplantDetailsComplete(
   implantTeeth: number[],
   completeByTooth: Record<number, boolean>,
-  detailByTooth?: Record<number, ImplantDetailData>
+  detailByTooth?: Record<number, ImplantDetailData>,
+  _fieldSettings?: ImplantFieldSettings,
+  _hasAbutmentOptions = true
 ): boolean {
   if (implantTeeth.length === 0) return true;
+  // Same unlock as before these category-settings changes:
+  // complete flag OR any filled implant row (or lab recommendation).
   return implantTeeth.every(
     (tn) =>
       completeByTooth[tn] === true || isImplantDetailFilled(detailByTooth?.[tn])

@@ -25,6 +25,7 @@ import {
   resolveMaterialId,
 } from "./slipPayloadMappers";
 import { formatSplintGroupsForApi } from "./splintHelpers";
+import { buildAbutmentAddonEntries } from "./abutmentAddonSync";
 import {
   buildSlipLevelNotes,
   clearProductNotesWhenUsingCaseSummary,
@@ -370,9 +371,20 @@ export function snapshotToProduct(
   const snapArch = snap.type === "Upper" ? "maxillary" : "mandibular";
   const addonKey = `${snapArch}_${snap.repToothNumber}`;
   const addonItems = snap.selectedAddonsByTooth?.[addonKey] ?? [];
-  const addons = addonItems
-    .filter((a) => a.qty > 0)
-    .map((a) => ({ addon_id: a.addon_id, quantity: a.qty }));
+  const abutmentAddonItems = buildAbutmentAddonEntries(
+    snap.implantDetailByTooth ?? {},
+    product?.abutments ?? []
+  );
+  const addonById = new Map<number, number>();
+  for (const item of [...addonItems, ...abutmentAddonItems]) {
+    if (item.qty > 0) {
+      addonById.set(item.addon_id, (addonById.get(item.addon_id) ?? 0) + item.qty);
+    }
+  }
+  const addons = Array.from(addonById.entries()).map(([addon_id, quantity]) => ({
+    addon_id,
+    quantity,
+  }));
 
   const productTeeth = [...snap.teethNumbers].sort((a, b) => a - b);
   const extractionScopeTeeth =

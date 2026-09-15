@@ -1207,10 +1207,22 @@ export function MandibularPanel({
       const needsImplantDetail =
         (mandibularRetentionTypes[toothNumber] || []).includes("Implant") ||
         hasImplantRetention([toothNumber], mandibularRetentionTypes, product?.retention_options);
-      if (needsImplantDetail && implantDetailCompleteByTooth[toothNumber] !== true) return;
+      if (
+        needsImplantDetail &&
+        implantDetailCompleteByTooth[toothNumber] !== true &&
+        !isImplantDetailFilled(implantDetailByTooth[toothNumber])
+      ) {
+        return;
+      }
     }
     handleOpenImpressionModal(arch, productId, toothNumber);
-  }, [getToothProduct, mandibularRetentionTypes, implantDetailCompleteByTooth, handleOpenImpressionModal]);
+  }, [
+    getToothProduct,
+    mandibularRetentionTypes,
+    implantDetailCompleteByTooth,
+    implantDetailByTooth,
+    handleOpenImpressionModal,
+  ]);
   // Auto-select default grade for removable products when product loads
   const autoGradeApplied = useRef<Set<string>>(new Set());
   useEffect(() => {
