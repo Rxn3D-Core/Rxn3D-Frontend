@@ -65,7 +65,9 @@ export function isImplantDetailFilled(data: ImplantDetailData | undefined): bool
 export function isImplantDetailFormComplete(
   data: ImplantDetailData | undefined,
   fieldSettings?: ImplantFieldSettings,
-  hasAbutmentOptions = true
+  hasAbutmentOptions = true,
+  /** False when the selected abutment has no type/options for this category. */
+  hasAbutmentTypeOptions = true
 ): boolean {
   if (!data) return false;
   if (data.labRecommendationRequested) {
@@ -74,7 +76,12 @@ export function isImplantDetailFormComplete(
 
   const show = (key: ImplantFieldKey) => isFieldVisible(fieldSettings, key);
 
-  if (show("implant_brand_system") && !(data.brand || data.implantId)) return false;
+  if (show("implant_brand_system")) {
+    if (!(data.brand || data.implantId)) return false;
+    // Match ImplantDetailSection: brand alone is incomplete until system/implant resolves.
+    // Without this, Boxes can mark complete while Section still reports incomplete → #185 loop.
+    if (!data.implantId && data.brand && !String(data.systemName ?? "").trim()) return false;
+  }
   if (show("implant_platform") && !(data.platform || data.platformId)) return false;
   if (show("implant_size") && !(data.size || data.sizeId)) return false;
   if (show("implant_inclusion")) {
@@ -90,6 +97,7 @@ export function isImplantDetailFormComplete(
   if (
     show("abutment_type") &&
     hasAbutmentOptions &&
+    hasAbutmentTypeOptions &&
     !(data.abutmentDetail || data.abutmentOptionId)
   ) {
     return false;
