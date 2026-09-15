@@ -135,6 +135,7 @@ type AuthContextType = {
   updateUser: (userId: number, data: {
     first_name?: string
     last_name?: string
+    email?: string
     phone?: string
     work_number?: string
     status?: string
@@ -167,6 +168,7 @@ type AuthContextType = {
   updateUserDetails: (userId: number, userData: {
     first_name: string;
     last_name: string;
+    email?: string;
     phone: string;
     work_number?: string;
     status: string;
@@ -987,6 +989,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
   const updateUser = useCallback(async (userId: number, data: {
     first_name?: string
     last_name?: string
+    email?: string
     phone?: string
     work_number?: string
     status?: string
@@ -1322,6 +1325,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
   const updateUserDetails = useCallback(async (userId: number, userData: {
     first_name: string;
     last_name: string;
+    email?: string;
     phone: string;
     work_number?: string;
     status: string;

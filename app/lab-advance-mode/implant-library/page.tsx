@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import { AddImplantModal, LinkImplantModal } from "@/components/advance-mode"
-import { useImplants, useUpdateImplantStatus, useDeleteImplant, useCreateImplant, useUpdateImplant, useDuplicateImplant, useLinkImplantProducts, useImplant } from "@/lib/api/advance-mode-query"
+import { useImplants, useUpdateImplantStatus, useDeleteImplant, useCreateImplant, useUpdateImplant, useDuplicateImplant, useImplant } from "@/lib/api/advance-mode-query"
 import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/lib/performance-utils"
 import { LoadingDots } from "@/components/ui/loading-dots"
@@ -46,7 +46,6 @@ export default function ImplantLibraryPage() {
   const createImplantMutation = useCreateImplant()
   const updateImplantMutation = useUpdateImplant()
   const duplicateImplantMutation = useDuplicateImplant()
-  const linkProductsMutation = useLinkImplantProducts()
   const { data: editingImplantData } = useImplant(editingImplantId || 0)
 
   const handleStatusToggle = async (id: number, currentStatus: 'Active' | 'Inactive') => {
@@ -475,51 +474,6 @@ export default function ImplantLibraryPage() {
         }}
         context="lab"
         implantId={linkingImplantId}
-        onApply={(selectedImplants, selectedProducts) => {
-          const implantsToLink = linkingImplantId ? [linkingImplantId] : selectedImplants
-          
-          if (implantsToLink.length === 0) {
-            toast({
-              title: "Error",
-              description: "Please select at least one implant",
-              variant: "destructive",
-            })
-            return
-          }
-
-          if (selectedProducts.length === 0) {
-            toast({
-              title: "Error",
-              description: "Please select at least one product",
-              variant: "destructive",
-            })
-            return
-          }
-
-          // Link products to each selected implant
-          const linkPromises = implantsToLink.map(implantId =>
-            linkProductsMutation.mutateAsync(
-              { id: implantId, product_ids: selectedProducts },
-            )
-          )
-
-          Promise.all(linkPromises)
-            .then(() => {
-              toast({
-                title: "Success",
-                description: `Products linked to ${implantsToLink.length} implant(s) successfully`,
-              })
-              setIsLinkImplantModalOpen(false)
-              setLinkingImplantId(null)
-            })
-            .catch((error: any) => {
-              toast({
-                title: "Error",
-                description: error.message || "Failed to link products",
-                variant: "destructive",
-              })
-            })
-        }}
       />
     </div>
   )

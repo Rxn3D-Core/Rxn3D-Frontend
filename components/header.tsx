@@ -1215,6 +1215,33 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             throw error
           }
         }}
+        onEmailUpdated={(updated) => {
+          setUserProfileData(updated)
+          updateSessionUser({
+            email: updated.email,
+            is_email_verified: updated.is_email_verified,
+          })
+          toast({
+            title: "Email updated",
+            description: "Your account email has been changed.",
+          })
+        }}
+        onLeftCustomer={(updated, customerId) => {
+          setUserProfileData(updated)
+          updateSessionUser({
+            customers: updated.customers as any,
+          })
+          if (selectedCustomerId && Number(selectedCustomerId) === Number(customerId)) {
+            const nextCustomer = updated.customers?.find((c) => c.id !== customerId)
+            if (nextCustomer) {
+              void setCustomerId(String(nextCustomer.id))
+            }
+          }
+          toast({
+            title: "Left organization",
+            description: "You have been marked Offboarded for that organization.",
+          })
+        }}
       />
 
     </>

@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import {
   Briefcase,
   Building2,
@@ -30,6 +31,11 @@ import {
 } from "lucide-react"
 import type { UpdateMeProfileInput } from "@/lib/api/me"
 import type { UserProfileData } from "@/services/user-profile-service"
+import {
+  confirmCurrentUserEmailChange,
+  leaveCurrentUserCustomer,
+  sendCurrentUserEmailChangeOtp,
+} from "@/services/user-profile-service"
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024
@@ -41,6 +47,8 @@ interface UserProfileModalProps {
   userData: UserProfileData | null
   isLoading: boolean
   onSave?: (input: UpdateMeProfileInput) => Promise<UserProfileData>
+  onEmailUpdated?: (profile: UserProfileData) => void
+  onLeftCustomer?: (profile: UserProfileData, customerId: number) => void
 }
 
 export function UserProfileModal({
@@ -49,11 +57,21 @@ export function UserProfileModal({
   userData,
   isLoading,
   onSave,
+  onEmailUpdated,
+  onLeftCustomer,
 }: UserProfileModalProps) {
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [phone, setPhone] = useState("")
   const [workNumber, setWorkNumber] = useState("")
+  const [email, setEmail] = useState("")
+  const [otp, setOtp] = useState("")
+  const [codeSent, setCodeSent] = useState(false)
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [isConfirmingEmail, setIsConfirmingEmail] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [leavingCustomerId, setLeavingCustomerId] = useState<number | null>(null)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -66,6 +84,12 @@ export function UserProfileModal({
     setLastName(userData.last_name || "")
     setPhone(userData.phone ?? userData.mobile ?? "")
     setWorkNumber(userData.work_number ?? "")
+    setEmail(userData.email || "")
+    setOtp("")
+    setCodeSent(false)
+    setEmailError(null)
+    setLeaveError(null)
+    setLeavingCustomerId(null)
     setAvatarFile(null)
     setAvatarPreview(userData.avatar ?? userData.image ?? null)
     setAvatarError(null)
@@ -134,6 +158,73 @@ export function UserProfileModal({
     setAvatarError(null)
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
+  }
+
+  const normalizedEmail = email.trim().toLowerCase()
+  const currentEmail = (userData?.email || "").trim().toLowerCase()
+  const emailChanged = Boolean(userData && normalizedEmail && normalizedEmail !== currentEmail)
+
+  const handleEmailInputChange = (value: string) => {
+    setEmail(value)
+    setEmailError(null)
+    if (codeSent) {
+      setCodeSent(false)
+      setOtp("")
+    }
+  }
+
+  const handleSendEmailOtp = async () => {
+    if (!emailChanged) return
+
+    setIsSendingOtp(true)
+    setEmailError(null)
+    try {
+      await sendCurrentUserEmailChangeOtp(normalizedEmail)
+      setCodeSent(true)
+      setOtp("")
+    } catch (error) {
+      setEmailError(error instanceof Error ? error.message : "Failed to send verification code.")
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+
+  const handleConfirmEmailChange = async () => {
+    if (!emailChanged || otp.length !== 6) {
+      setEmailError("Enter the 6-digit verification code sent to your new email.")
+      return
+    }
+
+    setIsConfirmingEmail(true)
+    setEmailError(null)
+    try {
+      const updated = await confirmCurrentUserEmailChange(normalizedEmail, otp)
+      setCodeSent(false)
+      setOtp("")
+      onEmailUpdated?.(updated)
+    } catch (error) {
+      setEmailError(error instanceof Error ? error.message : "Failed to update email.")
+    } finally {
+      setIsConfirmingEmail(false)
+    }
+  }
+
+  const handleLeaveCustomer = async (customerId: number, customerName: string) => {
+    const confirmed = window.confirm(
+      `Leave ${customerName}? You will be marked Offboarded for this organization. Your profile and history stay intact.`,
+    )
+    if (!confirmed) return
+
+    setLeavingCustomerId(customerId)
+    setLeaveError(null)
+    try {
+      const updated = await leaveCurrentUserCustomer(customerId)
+      onLeftCustomer?.(updated, customerId)
+    } catch (error) {
+      setLeaveError(error instanceof Error ? error.message : "Failed to leave organization.")
+    } finally {
+      setLeavingCustomerId(null)
+    }
   }
 
   const handleSave = async () => {
@@ -212,35 +303,19 @@ export function UserProfileModal({
           <div className="flex-1 min-h-0 space-y-5 overflow-y-auto overflow-x-hidden bg-[linear-gradient(180deg,#f8fbfd_0%,#ffffff_34%)] p-4 sm:space-y-6 sm:p-6">
             <section className="rounded-[28px] border border-slate-200/70 bg-[linear-gradient(135deg,#fbfdff_0%,#f5f8fc_100%)] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:p-6">
               <div className="flex flex-col gap-5">
-                <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200/60 bg-white/80 p-4 sm:flex-row sm:items-center sm:p-5">
-                  <div className="relative shrink-0">
-                    <Avatar className="h-24 w-24 rounded-full border-[5px] border-white shadow-[0_16px_32px_rgba(17,98,168,0.14)]">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                  <div className="relative mx-auto sm:mx-0">
+                    <Avatar className="h-24 w-24 border-4 border-white shadow-md">
                       <AvatarImage src={displayAvatar} alt={`${firstName} ${lastName}`} />
-                      <AvatarFallback className="bg-[linear-gradient(135deg,#c7d2fe_0%,#93c5fd_100%)] text-2xl font-medium text-slate-900">
+                      <AvatarFallback className="bg-[#1162a8]/20 text-2xl font-semibold text-[#1162a8]">
                         {getInitials(firstName, lastName)}
                       </AvatarFallback>
                     </Avatar>
                     <label
                       htmlFor="profile-avatar-upload"
-                      className="absolute -bottom-1 -right-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-[#1162a8] shadow-sm transition hover:border-slate-300 hover:text-[#0d4f8c]"
+                      className="absolute -bottom-1 -right-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#1162a8] text-white shadow-md transition hover:bg-[#0d4f8c]"
                     >
                       <Camera className="h-4 w-4" />
-                    </label>
-                  </div>
-
-                  <div className="min-w-0 flex-1 text-left">
-                    <h3 className="text-[22px] font-semibold tracking-[-0.03em] text-slate-900">
-                      Profile photo
-                    </h3>
-                    <p className="mt-1 max-w-xl text-sm leading-6 text-slate-500">
-                      Keep your account recognizable across the lab workspace with a clean personal
-                      photo.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:items-end">
-                    <label className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-[#1162a8] transition hover:border-slate-300 hover:text-[#0d4f8c]">
-                      Change photo
                       <input
                         id="profile-avatar-upload"
                         type="file"
@@ -249,51 +324,120 @@ export function UserProfileModal({
                         onChange={handleAvatarChange}
                       />
                     </label>
-                    <p className="text-xs leading-5 text-slate-500">PNG or JPG up to 5 MB</p>
+                    <p className="mt-3 text-center text-xs leading-5 text-slate-500 sm:text-left">
+                      PNG or JPG up to 5 MB
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-[22px] border border-slate-200/70 bg-white/85 p-4 sm:col-span-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          Account email
+                        </p>
+                        <div className="mt-3 space-y-3">
+                          <div className="relative">
+                            <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Input
+                              type="email"
+                              value={email}
+                              onChange={(e) => handleEmailInputChange(e.target.value)}
+                              className="h-12 rounded-[18px] border-slate-200 bg-slate-50/70 pl-11 text-[15px] shadow-none hover:shadow-none focus:bg-white"
+                              autoComplete="email"
+                            />
+                          </div>
+
+                          {emailChanged ? (
+                            <div className="space-y-3 rounded-[18px] border border-sky-100 bg-sky-50/60 p-3">
+                              <p className="text-sm leading-6 text-slate-600">
+                                We will send a verification code to confirm ownership of this new
+                                address.
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => void handleSendEmailOtp()}
+                                  disabled={isSendingOtp || !normalizedEmail}
+                                  className="h-10 rounded-full border-slate-300 px-4"
+                                >
+                                  {isSendingOtp
+                                    ? "Sending..."
+                                    : codeSent
+                                      ? "Resend code"
+                                      : "Send verification code"}
+                                </Button>
+                              </div>
+
+                              {codeSent ? (
+                                <div className="space-y-3">
+                                  <Label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                    Verification code
+                                  </Label>
+                                  <InputOTP
+                                    maxLength={6}
+                                    value={otp}
+                                    onChange={setOtp}
+                                    disabled={isConfirmingEmail}
+                                  >
+                                    <InputOTPGroup className="gap-1.5">
+                                      <InputOTPSlot index={0} />
+                                      <InputOTPSlot index={1} />
+                                      <InputOTPSlot index={2} />
+                                      <InputOTPSlot index={3} />
+                                      <InputOTPSlot index={4} />
+                                      <InputOTPSlot index={5} />
+                                    </InputOTPGroup>
+                                  </InputOTP>
+                                  <Button
+                                    type="button"
+                                    onClick={() => void handleConfirmEmailChange()}
+                                    disabled={isConfirmingEmail || otp.length !== 6}
+                                    className="h-10 rounded-full bg-[#1162a8] px-5 text-white hover:bg-[#0d4f8c]"
+                                  >
+                                    {isConfirmingEmail ? "Updating..." : "Confirm new email"}
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {emailError ? (
+                            <p className="text-xs leading-5 text-red-600">{emailError}</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[22px] border border-slate-200/70 bg-white/85 p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          Role
+                        </p>
+                        <div className="mt-3 flex items-start gap-3">
+                          <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#1162a8]" />
+                          <p className="text-sm font-semibold leading-6 text-slate-900">
+                            {getRoleDisplay(userData.roles)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-[22px] border border-slate-200/70 bg-white/85 p-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          Primary lab
+                        </p>
+                        <div className="mt-3 flex items-start gap-3">
+                          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#1162a8]" />
+                          <p className="text-sm font-semibold leading-6 text-slate-900">
+                            {primaryLocation?.name || "No location"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {avatarError ? (
                   <p className="text-xs leading-5 text-red-600">{avatarError}</p>
                 ) : null}
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-[22px] border border-slate-200/70 bg-white/85 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      Email
-                    </p>
-                    <div className="mt-3 flex items-start gap-3">
-                      <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[#1162a8]" />
-                      <p className="min-w-0 break-all text-sm font-semibold leading-6 text-slate-900">
-                        {userData.email}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[22px] border border-slate-200/70 bg-white/85 p-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      Role
-                    </p>
-                    <div className="mt-3 flex items-start gap-3">
-                      <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#1162a8]" />
-                      <p className="text-sm font-semibold leading-6 text-slate-900">
-                        {getRoleDisplay(userData.roles)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[22px] border border-slate-200/70 bg-white/85 p-4 sm:col-span-2 lg:col-span-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      Primary lab
-                    </p>
-                    <div className="mt-3 flex items-start gap-3">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#1162a8]" />
-                      <p className="text-sm font-semibold leading-6 text-slate-900">
-                        {primaryLocation?.name || "No location"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </div>
             </section>
 
@@ -458,19 +602,22 @@ export function UserProfileModal({
               </div>
             </section>
 
-            {userData.customers && userData.customers.length > 0 ? (
+            {userData.customers && userData.customers.some((c) => (c.status ?? "Active") === "Active") ? (
               <section className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:p-7">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-[24px] font-semibold tracking-[-0.03em] text-slate-900">
                     Locations
                   </h3>
                   <p className="text-sm leading-6 text-slate-500">
-                    Your associated labs and offices within the organization.
+                    Your associated labs and offices. You can leave an organization yourself at any
+                    time.
                   </p>
                 </div>
 
                 <div className="mt-5 grid gap-3">
-                  {userData.customers.map((customer) => (
+                  {userData.customers
+                    .filter((customer) => (customer.status ?? "Active") === "Active")
+                    .map((customer) => (
                     <div
                       key={customer.id}
                       className="flex flex-col gap-3 rounded-[22px] border border-slate-200/70 bg-slate-50/40 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -482,14 +629,28 @@ export function UserProfileModal({
                         </div>
                         <p className="mt-1 text-sm capitalize text-slate-500">{customer.type}</p>
                       </div>
-                      {customer.is_primary ? (
-                        <Badge className="w-fit border-0 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-900">
-                          Primary
-                        </Badge>
-                      ) : null}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {customer.is_primary ? (
+                          <Badge className="w-fit border-0 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-900">
+                            Primary
+                          </Badge>
+                        ) : null}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={leavingCustomerId === customer.id}
+                          onClick={() => void handleLeaveCustomer(customer.id, customer.name)}
+                          className="h-9 rounded-full border-red-200 px-4 text-red-700 hover:bg-red-50"
+                        >
+                          {leavingCustomerId === customer.id ? "Leaving…" : "Leave"}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
+                {leaveError ? (
+                  <p className="mt-3 text-xs leading-5 text-red-600">{leaveError}</p>
+                ) : null}
               </section>
             ) : null}
           </div>
@@ -501,7 +662,7 @@ export function UserProfileModal({
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={isSaving}
+            disabled={isSaving || isConfirmingEmail}
             className="h-11 min-w-[132px] rounded-full border-slate-300 px-6 text-slate-700 hover:border-slate-400 hover:bg-white"
           >
             Cancel

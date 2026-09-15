@@ -911,6 +911,9 @@ export const useLinkImplantProducts = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['implants'] })
       queryClient.invalidateQueries({ queryKey: ['implant', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['implantLinkBrowseByImplant'] })
+      queryClient.invalidateQueries({ queryKey: ['implantLinkBrowseByProduct'] })
+      queryClient.invalidateQueries({ queryKey: ['libraryProductImplantLinkDetail'] })
     },
   })
 }
