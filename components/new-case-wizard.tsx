@@ -2292,6 +2292,7 @@ export default function NewCaseWizard({
   startStep = 1,
   mode = "initial",
   initialLabId = null,
+  officeId = null,
   initialPatientName = "",
   initialGender = "",
   initialAge = "",
@@ -2307,6 +2308,8 @@ export default function NewCaseWizard({
   startStep?: number;
   mode?: "initial" | "addProduct";
   initialLabId?: number | null;
+  /** Office customer id for `GET /v1/slip/office/{id}/doctors`. Required in edit/add-stage for lab_admin (do not pass the lab id). */
+  officeId?: number | null;
   initialPatientName?: string;
   initialGender?: string;
   initialAge?: string;
@@ -2433,12 +2436,14 @@ export default function NewCaseWizard({
     enabled: step === 5 && selectedCategory != null,
   });
 
-  // Office ID for doctors: office_admin = logged-in user's customerId; lab_admin = selected lab (office) id
+  // Office ID for doctors: explicit officeId (edit/add-stage) wins. office_admin uses
+  // their customerId. lab_admin create uses selectedLab because that picker is offices.
   const officeIdForDoctors = useMemo(() => {
+    if (typeof officeId === "number" && officeId > 0) return officeId;
     if (isOfficeAdmin && customerId != null) return customerId;
     if (isLabAdmin && selectedLab != null) return selectedLab;
     return undefined;
-  }, [isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
+  }, [officeId, isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
 
   const {
     data: officeDoctorsRaw = [],

@@ -1659,6 +1659,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
 
       const setupKey = `${arch}_${ap.id}`;
       const applyIfReady = (product: ProductApiData) => {
+        const catalog = getImpressionOptionsForProduct(product);
+        if (catalog.length > 0) {
+          modals.setSelectedImpressions((prev) =>
+            reconcileArchSelectionsWithCatalog(prev, arch, catalog)
+          );
+        }
         if (!addedProductSetupDoneRef.current.has(setupKey)) {
           addedProductSetupDoneRef.current.add(setupKey);
           applyAddedProductDefaultExtractions(product, arch, ap.id);
@@ -1689,21 +1695,18 @@ export function useCaseDesignState(props: CaseDesignProps) {
           const cardTeeth = allTeeth.filter(
             (tn) => (toothFieldProgress.getToothProductCard(arch, tn) ?? -1) === ap.id
           );
-          const hydrationKey = `${arch}_${ap.id}`;
-          if (!preloadCardHydrationDoneRef.current.has(hydrationKey)) {
-            if (cardTeeth.length > 0) {
-              for (const tn of cardTeeth) {
-                const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
-                if (
-                  existingOnTooth?.id === product.id &&
-                  isHydratedProductApiData(existingOnTooth)
-                ) {
-                  continue;
-                }
-                toothFieldProgress.setToothProduct(arch, tn, product);
+          if (cardTeeth.length > 0) {
+            for (const tn of cardTeeth) {
+              const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
+              if (
+                existingOnTooth?.id === product.id &&
+                isHydratedProductApiData(existingOnTooth)
+              ) {
+                continue;
               }
-              preloadCardHydrationDoneRef.current.add(hydrationKey);
+              toothFieldProgress.setToothProduct(arch, tn, product);
             }
+            preloadCardHydrationDoneRef.current.add(`${arch}_${ap.id}`);
           }
 
           // Merge initialSlipState because this effect can run before the mount hydration

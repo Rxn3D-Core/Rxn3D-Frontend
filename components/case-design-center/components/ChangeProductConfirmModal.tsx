@@ -14,17 +14,20 @@ interface ChangeProductConfirmModalProps {
   open: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Edit / add-stage: keep existing values for fields the new product still has. */
+  preserveFields?: boolean;
 }
 
 /**
  * Shown when the user clicks "Back to Products" from the Case Design Center.
- * Warns that the slip product configuration will be lost if a different
- * product is selected.
+ * Create warns that configuration will be lost. Edit keeps values for fields
+ * that still exist on the newly selected product.
  */
 export function ChangeProductConfirmModal({
   open,
   onCancel,
   onConfirm,
+  preserveFields = false,
 }: ChangeProductConfirmModalProps) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
@@ -33,8 +36,9 @@ export function ChangeProductConfirmModal({
         <DialogHeader className="text-center">
           <DialogTitle className="text-2xl font-bold text-gray-900">Change product?</DialogTitle>
           <DialogDescription className="text-gray-500 mt-2">
-            If you go back and select a different product, the details you&apos;ve already filled in
-            for this product will be lost. Choosing the same product keeps your configuration.
+            {preserveFields
+              ? "If you select a different product, fields that also exist on the new product keep their values. Fields the new product does not have will be hidden."
+              : "If you go back and select a different product, the details you've already filled in for this product will be lost. Choosing the same product keeps your configuration."}
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-center gap-4 mt-6">

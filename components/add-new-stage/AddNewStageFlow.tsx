@@ -385,6 +385,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
                 ? wizard.completedLab.id
                 : null
             }
+            officeId={wizard.officeId}
             initialPatientName={
               wizard.labEditMode ||
               wizard.wizardMode === "backToProducts" ||
@@ -420,7 +421,12 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             initialSubProduct={
               wizard.wizardMode === "backToProducts" ? wizard.lastSelectedSubProduct : null
             }
-            forceArch={wizard.wizardMode === "addProduct" ? wizard.pendingProductArch : undefined}
+            forceArch={
+              wizard.wizardMode === "addProduct" ||
+              (wizard.wizardMode === "backToProducts" && wizard.isPreloadedSession)
+                ? wizard.pendingProductArch
+                : undefined
+            }
             editTarget={wizard.labEditMode ? "lab" : undefined}
             onEditDone={wizard.handleEditDone}
           />
