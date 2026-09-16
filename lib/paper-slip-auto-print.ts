@@ -1,9 +1,10 @@
 const STORAGE_KEY = "paperSlipAutoPrintSlipId";
 
 /**
- * Marks a freshly created slip so the virtual slip page auto-opens the paper
- * slip print window once. Uses sessionStorage (not a query param) so a page
- * reload never re-triggers the print.
+ * Marks a slip so the virtual slip page auto-opens the paper
+ * slip print window once. Used after create, add-stage, and edit
+ * when a product is added. Uses sessionStorage (not a query param)
+ * so a page reload never re-triggers the print.
  */
 export function markSlipForAutoPrint(slipId: number): void {
   if (typeof window === "undefined" || !slipId) return;
