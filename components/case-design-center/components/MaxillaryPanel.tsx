@@ -714,6 +714,9 @@ interface MaxillaryPanelProps {
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
   /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  setSelectedAddonsByTooth?: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ addon_id: number; qty: number }>>>
+  >;
 }
 
 /** Returns true if the product is a full-denture type: no TIM extraction, only "Missing teeth" extraction. */
@@ -994,6 +997,7 @@ export function MaxillaryPanel({
   onInlineAddProductComplete,
   onInlineAddProductCancel,
   selectedAddonsByTooth = {},
+  setSelectedAddonsByTooth,
 }: MaxillaryPanelProps) {
   const productAddOns = useCaseDesignStore((s) => s.productAddOns);
   const MAXILLARY_ALL_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -3244,6 +3248,7 @@ export function MaxillaryPanel({
                               onExpandedImplantToothChange={setExpandedImplantTooth}
                               productAddOns={productAddOns}
                               selectedAddonsByTooth={selectedAddonsByTooth}
+                              setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                               selectedShadeGuide={selectedShadeGuide}
                               getToothProduct={getToothProduct}
                             />
@@ -3415,6 +3420,8 @@ export function MaxillaryPanel({
                             peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                             expandedImplantTooth={expandedImplantTooth}
                             onExpandedImplantToothChange={setExpandedImplantTooth}
+                            selectedAddonsByTooth={selectedAddonsByTooth}
+                            setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                           />
                             </>
                           )}
@@ -3848,6 +3855,8 @@ export function MaxillaryPanel({
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                         expandedImplantTooth={expandedImplantTooth}
                         onExpandedImplantToothChange={setExpandedImplantTooth}
+                        selectedAddonsByTooth={selectedAddonsByTooth}
+                        setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                       />
                     ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
@@ -3893,6 +3902,7 @@ export function MaxillaryPanel({
                         onExpandedImplantToothChange={setExpandedImplantTooth}
                         productAddOns={productAddOns}
                         selectedAddonsByTooth={selectedAddonsByTooth}
+                        setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                         selectedShadeGuide={selectedShadeGuide}
                         getToothProduct={getToothProduct}
                       />
@@ -4521,11 +4531,11 @@ export function MaxillaryPanel({
                                 {addonItems.map((item: string, idx: number) => (
                                   <fieldset
                                     key={idx}
-                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
+                                    className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[220px] ${borderClass}`}
                                     onClick={onClickAddon}
                                   >
                                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
-                                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                                    <span className="text-[14px] sm:text-lg text-[#000000] break-words">{item}</span>
                                     {!caseSubmitted && isFComplete("addons") && idx === addonItems.length - 1 && (
                                       <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
                                     )}

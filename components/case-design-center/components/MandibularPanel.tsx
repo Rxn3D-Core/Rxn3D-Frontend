@@ -816,6 +816,9 @@ interface MandibularPanelProps {
   onShowSelectTeethToReplaceChange?: (show: boolean) => void;
   /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  setSelectedAddonsByTooth?: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ addon_id: number; qty: number }>>>
+  >;
   /** When true the footer acknowledgement checkbox is checked — accordion header borders turn green; orange when false. */
   confirmDetailsChecked?: boolean;
   addStageStageHistory?: NewStageEligibilityStageRef[];
@@ -978,6 +981,7 @@ export function MandibularPanel({
   onInlineAddProductComplete,
   onInlineAddProductCancel,
   selectedAddonsByTooth = {},
+  setSelectedAddonsByTooth,
 }: MandibularPanelProps) {
   const productAddOns = useCaseDesignStore((s) => s.productAddOns);
   const MANDIBULAR_ALL_TEETH = [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
@@ -3210,6 +3214,7 @@ export function MandibularPanel({
                               onExpandedImplantToothChange={setExpandedImplantTooth}
                               productAddOns={productAddOns}
                               selectedAddonsByTooth={selectedAddonsByTooth}
+                              setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                               selectedShadeGuide={selectedShadeGuide}
                               getToothProduct={getToothProduct}
                             />
@@ -3381,6 +3386,8 @@ export function MandibularPanel({
                             peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                             expandedImplantTooth={expandedImplantTooth}
                             onExpandedImplantToothChange={setExpandedImplantTooth}
+                            selectedAddonsByTooth={selectedAddonsByTooth}
+                            setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                           />
                             </>
                           )}
@@ -3810,6 +3817,8 @@ export function MandibularPanel({
                         peerImplantCompleteByTooth={peerImplantCompleteByTooth}
                         expandedImplantTooth={expandedImplantTooth}
                         onExpandedImplantToothChange={setExpandedImplantTooth}
+                        selectedAddonsByTooth={selectedAddonsByTooth}
+                        setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                       />
                     ) : card0ShowFixedFieldsContent ? (
                       <SelectionProductFields
@@ -3855,6 +3864,7 @@ export function MandibularPanel({
                         onExpandedImplantToothChange={setExpandedImplantTooth}
                         productAddOns={productAddOns}
                         selectedAddonsByTooth={selectedAddonsByTooth}
+                        setSelectedAddonsByTooth={setSelectedAddonsByTooth}
                         selectedShadeGuide={selectedShadeGuide}
                         getToothProduct={getToothProduct}
                       />
@@ -4488,11 +4498,11 @@ export function MandibularPanel({
                                 {addonItems.map((item: string, idx: number) => (
                                   <fieldset
                                     key={idx}
-                                    className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[200px] ${borderClass}`}
+                                    className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 flex-1 min-w-[220px] ${borderClass}`}
                                     onClick={onClickAddon}
                                   >
                                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
-                                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                                    <span className="text-[14px] sm:text-lg text-[#000000] break-words">{item}</span>
                                     {!caseSubmitted && isFComplete("addons") && idx === addonItems.length - 1 && (
                                       <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
                                     )}

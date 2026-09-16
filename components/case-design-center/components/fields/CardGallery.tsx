@@ -122,12 +122,17 @@ export function CardGallery({ options, value, onChange }: CardGalleryProps) {
                   </span>
                 )}
               </div>
-              <div className="px-2 py-2 text-center w-full">
-                <p className="text-[13px] font-bold text-gray-900 leading-tight truncate">
+              <div className="px-1.5 py-2 text-center w-full">
+                <p
+                  className={`font-bold text-gray-900 leading-[1.15] whitespace-normal break-words ${
+                    item.variant === "upload" ? "text-[11px] min-h-[2.4em]" : "text-[13px]"
+                  }`}
+                  title={item.label}
+                >
                   {item.label}
                 </p>
                 {item.subtitle && (
-                  <p className="text-[11px] text-gray-400 leading-tight truncate mt-0.5">
+                  <p className="text-[11px] text-gray-400 leading-tight truncate mt-0.5" title={item.subtitle}>
                     {item.subtitle}
                   </p>
                 )}

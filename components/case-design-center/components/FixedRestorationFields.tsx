@@ -54,6 +54,10 @@ import {
 import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
 import {
+  mergeProductAndAbutmentAddonEntries,
+} from "../utils/abutmentAddonSync";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
+import {
   getShadeGuideAdvanceFields,
   getShadeFieldType,
   areFixedProductShadesComplete,
@@ -374,6 +378,11 @@ interface FixedRestorationFieldsProps {
   labCustomerId?: number | null;
   /** Product card id for file upload storage keys (0 = initial card). */
   productCardId?: number;
+  /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
+  selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  setSelectedAddonsByTooth?: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ addon_id: number; qty: number }>>>
+  >;
 }
 
 /* ------------------------------------------------------------------ */
@@ -428,6 +437,8 @@ export function RetentionProductFields({
   selectedImpressions = { maxillary: [], mandibular: [] },
   labCustomerId,
   productCardId = 0,
+  selectedAddonsByTooth = {},
+  setSelectedAddonsByTooth,
 }: FixedRestorationFieldsProps) {
   const implantTeeth = useMemo(
     () => getImplantTeethInGroup(toothNumbers, retentionTypesMap),
@@ -1491,7 +1502,57 @@ export function RetentionProductFields({
           if (display) {
             completeFieldStep(arch, firstToothNumber, "fixed_addons", display);
           }
-          // structured qty is stored via parent selectedAddonsByTooth when available
+          if (entries.length === 0) return;
+
+          const existingStructured = selectedAddonsByTooth[addonKey] ?? [];
+          const storeEntries =
+            useCaseDesignStore.getState().productAddOns[String(selectedProduct?.id ?? "")]?.[
+              arch
+            ] ?? [];
+          const existingNamed = existingStructured.map((e) => {
+            const fromStore = storeEntries.find((s) => s.addon_id === e.addon_id);
+            return {
+              addon_id: e.addon_id,
+              qty: e.qty,
+              name: fromStore?.name ?? fromStore?.addOn ?? fromStore?.label,
+            };
+          });
+          const merged = mergeProductAndAbutmentAddonEntries(existingNamed, entries);
+          const structured = merged.map((e) => ({ addon_id: e.addon_id, qty: e.qty }));
+
+          setSelectedAddonsByTooth?.((prev) => {
+            const next = { ...prev };
+            const teethToWrite = [
+              firstToothNumber,
+              productCardId === 0 ? -0 : -productCardId,
+              ...toothNumbers,
+            ];
+            for (const tn of teethToWrite) {
+              next[`${arch}_${tn}`] = structured;
+            }
+            return next;
+          });
+
+          const productId = selectedProduct?.id;
+          if (productId) {
+            const storeState = useCaseDesignStore.getState();
+            const existingStore =
+              storeState.productAddOns[String(productId)] || {
+                maxillary: [],
+                mandibular: [],
+              };
+            storeState.setProductAddOns(String(productId), {
+              ...existingStore,
+              [arch]: merged.map((e) => ({
+                addon_id: e.addon_id,
+                qty: e.qty,
+                quantity: e.qty,
+                name: e.name,
+                addOn: e.name,
+                label: e.name,
+              })),
+            });
+          }
         }}
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
@@ -1537,9 +1598,9 @@ export function RetentionProductFields({
 
             {isFixedAfterImplant("fixed_addons") && addonItems.length > 0 &&
                 addonItems.map((item: string, idx: number) => (
-                  <fieldset key={idx} className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[200px] ${borderClass}`} onClick={onClickAddon}>
+                  <fieldset key={idx} className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[220px] ${borderClass}`} onClick={onClickAddon}>
                     <legend className={`text-sm px-1 leading-none ${legendClass}`}>Add on</legend>
-                    <span className="text-[14px] sm:text-lg text-[#000000] truncate">{item}</span>
+                    <span className="text-[14px] sm:text-lg text-[#000000] break-words">{item}</span>
                     {!caseSubmitted && isFieldCompleted(arch, firstToothNumber, "fixed_addons") && idx === addonItems.length - 1 && (
                       <Check size={14} className="text-[#34a853] ml-2 flex-shrink-0" />
                     )}

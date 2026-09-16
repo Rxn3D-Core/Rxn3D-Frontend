@@ -135,9 +135,6 @@ export function VirtualSlipProductSummary({
           <Detail label="Stump Shade" value={product.stumpShade} />
           <Detail label="Gum Shade" value={product.gumShade} />
           <Detail label="Impression" value={product.impression} />
-          {product.addOns.length > 0 && (
-            <Detail label="Add on" value={product.addOns.join(", ")} />
-          )}
         </div>
 
         {showImplantColumn && (
@@ -150,6 +147,19 @@ export function VirtualSlipProductSummary({
           </div>
         )}
       </div>
+
+      {product.addOns.length > 0 && (
+        <div className="mt-2 flex items-start gap-[14px] py-[1px] font-sans text-[15.4px] tracking-[-0.02em]">
+          <span className="min-w-[129px] shrink-0 font-bold text-[#4C4D55]">Add on:</span>
+          <div className="flex min-w-0 flex-1 flex-wrap gap-x-4 gap-y-1 text-[#4C4D55]">
+            {product.addOns.map((addon) => (
+              <span key={addon} className="whitespace-nowrap">
+                {addon}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Advance Mode configuration expander */}
       {product.advanceFields.length > 0 && (
