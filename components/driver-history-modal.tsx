@@ -163,10 +163,8 @@ export default function DriverHistoryModal({
   const { driverSettings } = useSignatureRequirementSettings(isOpen)
 
   // Whether a manual signature is required for this submit, per the lab's
-  // settings mapped from each selected slip's current location. Single-slip
-  // drop-off auto-signs with the current user's name, so it never requires one.
+  // settings mapped from each selected slip's current location (pickup and drop-off).
   const signatureRequired = useMemo(() => {
-    if (isDropoff) return false
     const relevant = singleSlipMode
       ? deliveryEntries
       : deliveryEntries.filter((entry) => entry.isChecked)
@@ -176,7 +174,7 @@ export default function DriverHistoryModal({
         driverSettings
       )
     )
-  }, [isDropoff, singleSlipMode, deliveryEntries, driverSettings])
+  }, [singleSlipMode, deliveryEntries, driverSettings])
 
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
@@ -194,7 +192,7 @@ export default function DriverHistoryModal({
     [deliveryEntries, isQrScanFlow]
   )
 
-  // Logged-in user's name — used as the drop-off signature (captured automatically).
+  // Logged-in user's name — used as the drop-off signature when settings do not require one.
   const currentUserName = useMemo(() => getCurrentUserName(), [isOpen])
 
   const scrollToBottom = useCallback(() => {
@@ -327,10 +325,14 @@ export default function DriverHistoryModal({
       return
     }
 
-    // Drop off captures the current user's signature automatically; pick up needs a
-    // manual signature only when the lab's settings require it for the slip's location.
-    const effectiveSignature = isDropoff ? currentUserName : signature.trim()
-    if (!isDropoff && signatureRequired && !effectiveSignature) {
+    // When slip settings require a signature for this location, use the pad input.
+    // Drop-off with signature disabled still auto-signs with the current user's name.
+    const effectiveSignature = signatureRequired
+      ? signature.trim()
+      : isDropoff
+        ? currentUserName
+        : signature.trim()
+    if (signatureRequired && !effectiveSignature) {
       toast({ title: "Signature required", description: "Please enter your signature.", variant: "destructive" })
       return
     }
@@ -430,7 +432,7 @@ export default function DriverHistoryModal({
     : []
 
   const confirmDisabled = singleSlipMode
-    ? deliveryEntries.length === 0 || (isPickup && signatureRequired && !signature.trim())
+    ? deliveryEntries.length === 0 || (signatureRequired && !signature.trim())
     : deliveryEntries.filter((e) => e.isChecked).length === 0 || (signatureRequired && !signature.trim())
 
   return (
@@ -484,12 +486,23 @@ export default function DriverHistoryModal({
                     onChange={setImage}
                     onRejected={handleRejectedImages}
                   />
-                  <p className="text-center text-sm text-[#6B7280]">
-                    Signed automatically as{" "}
-                    <span className="font-semibold text-[#111827]">
-                      {currentUserName || "current user"}
-                    </span>
-                  </p>
+                  {signatureRequired ? (
+                    <SignaturePad
+                      value={signature}
+                      onChange={setSignature}
+                      onSubmit={() => {
+                        if (!confirmDisabled && !submitting) void handleSubmit();
+                      }}
+                      placeholder="Receiver's Signature"
+                    />
+                  ) : (
+                    <p className="text-center text-sm text-[#6B7280]">
+                      Signed automatically as{" "}
+                      <span className="font-semibold text-[#111827]">
+                        {currentUserName || "current user"}
+                      </span>
+                    </p>
+                  )}
                 </div>
               ) : signatureRequired ? (
                 <div className="pt-2">
