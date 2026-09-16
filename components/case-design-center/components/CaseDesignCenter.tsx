@@ -1678,6 +1678,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMaxillary}
           selectedAddonsByTooth={state.selectedAddonsByTooth}
+          setSelectedAddonsByTooth={state.setSelectedAddonsByTooth}
         />
 
         {/* CENTER NAVIGATION — default-extraction badge between arch panels */}
@@ -1846,6 +1847,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           onInlineAddProductCancel={props.onInlineAddProductCancel}
           onShowSelectTeethToReplaceChange={setShowSelectTeethToReplaceMandibular}
           selectedAddonsByTooth={state.selectedAddonsByTooth}
+          setSelectedAddonsByTooth={state.setSelectedAddonsByTooth}
         />
       </div>
         </AutoOpenSuppressionContext.Provider>

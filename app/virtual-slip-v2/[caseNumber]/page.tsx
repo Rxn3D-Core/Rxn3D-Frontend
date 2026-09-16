@@ -494,6 +494,17 @@ export default function VirtualSlipV2Page() {
 
   const handleConfirmSendBackToOffice = async (reason: string) => {
     if (!slipId || isNaN(slipId) || !reason.trim()) return;
+    if (hasPendingLabImplants) {
+      toast({
+        title: "Implant details required",
+        description:
+          "Complete lab implant recommendations before sending this case to the next location.",
+        variant: "destructive",
+      });
+      setSendBackToOfficeOpen(false);
+      openLabImplantModal(pendingLabImplants);
+      return;
+    }
 
     setSendBackToOfficeSubmitting(true);
     try {
@@ -618,7 +629,7 @@ export default function VirtualSlipV2Page() {
             </div>
           </>
         ) : null}
-        {canRunLabDriverActions && hasPendingLabImplants ? (
+        {canRunLabDriverActions && slipInLab && hasPendingLabImplants ? (
           <div className="relative z-10 mx-6 mt-3 flex items-center justify-between gap-3 rounded-md border border-[#f3d48a] bg-[#fff8e8] px-4 py-3">
             <p className="text-sm text-[#4C4D55]">
               Lab recommendation requested. Select implant details before sending this case.
@@ -736,7 +747,19 @@ export default function VirtualSlipV2Page() {
           }
           onSendBackToOffice={
             canRunLabDriverActions && canSendBackToOffice && !caseCancelled
-              ? () => setSendBackToOfficeOpen(true)
+              ? () => {
+                  if (hasPendingLabImplants) {
+                    toast({
+                      title: "Implant details required",
+                      description:
+                        "Complete lab implant recommendations before sending this case to the next location.",
+                      variant: "destructive",
+                    });
+                    openLabImplantModal(pendingLabImplants);
+                    return;
+                  }
+                  setSendBackToOfficeOpen(true);
+                }
               : undefined
           }
           allowRush={canRushFromVirtualSlip}

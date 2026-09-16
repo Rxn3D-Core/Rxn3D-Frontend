@@ -158,13 +158,14 @@ export function ImplantDetailBoxes({
     const entries = buildAbutmentAddonEntries(
       implantDetailByTooth,
       productAbutments ?? [],
-      categoryId
+      categoryId,
+      implantTeeth
     );
     const sig = entries.map((e: { addon_id: number; qty: number }) => `${e.addon_id}:${e.qty}`).join("|");
     if (sig === lastAddonSig.current) return;
     lastAddonSig.current = sig;
     onAbutmentAddonsChange(entries);
-  }, [implantDetailByTooth, productAbutments, categoryId, onAbutmentAddonsChange]);
+  }, [implantDetailByTooth, productAbutments, categoryId, implantTeeth, onAbutmentAddonsChange]);
 
   if (visibleImplantTeeth.length === 0) return null;
 

@@ -73,7 +73,10 @@ export function useSequentialImplantDetails({
           forceLabRecGroup ||
           !isImplantDetailFilled(existing) ||
           (!!existing?.labRecommendationRequested &&
-            !(existing.referencePhoto || existing.referencePhotoUrl));
+            !(existing.referencePhoto || existing.referencePhotoUrl)) ||
+          // First tooth gained an abutment after later teeth were already mirrored.
+          ((!!source?.abutmentType || !!source?.abutmentId) &&
+            !(existing?.abutmentType || existing?.abutmentId));
         if (!shouldOverwrite) continue;
         // Lab-rec with photo used to reclone every run (forceLabRecGroup=true) → #185.
         if (isSameImplantDetailData(existing, source)) continue;

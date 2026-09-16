@@ -152,6 +152,20 @@ function getPaginationPages(currentPage: number, totalPages: number) {
   return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2]
 }
 
+function pageSelectChecked(pageIds: number[], selected: number[]): boolean | "indeterminate" {
+  if (pageIds.length === 0) return false
+  const selectedCount = pageIds.filter((id) => selected.includes(id)).length
+  if (selectedCount === 0) return false
+  if (selectedCount === pageIds.length) return true
+  return "indeterminate"
+}
+
+function togglePageIds(prev: number[], pageIds: number[], select: boolean): number[] {
+  if (select) return Array.from(new Set([...prev, ...pageIds]))
+  const remove = new Set(pageIds)
+  return prev.filter((id) => !remove.has(id))
+}
+
 export function LinkImplantModal({
   isOpen,
   onClose,
@@ -607,6 +621,16 @@ export function LinkImplantModal({
     browseSub === "implant" ? browseRowsImplant.length : browseRowsProduct.length
   const browseEmptyLoaded = !browseLoading && browseRowCount === 0
   const bulkMaxPairs = bulkImplantSelection.length * bulkProductSelection.length
+  const bulkImplantPageIds = useMemo(
+    () => bulkImplantsRows.map((imp: Implant) => imp.id),
+    [bulkImplantsRows],
+  )
+  const bulkProductPageIds = useMemo(
+    () => bulkProductRowsFiltered.map((r) => r.id),
+    [bulkProductRowsFiltered],
+  )
+  const bulkImplantSelectAllChecked = pageSelectChecked(bulkImplantPageIds, bulkImplantSelection)
+  const bulkProductSelectAllChecked = pageSelectChecked(bulkProductPageIds, bulkProductSelection)
 
   return (
     <Dialog
@@ -1367,7 +1391,18 @@ export function LinkImplantModal({
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50/80">
-                        <TableHead className="w-10" />
+                        <TableHead className="w-10">
+                          <Checkbox
+                            aria-label="Select all implants on this page"
+                            checked={bulkImplantSelectAllChecked}
+                            disabled={bulkImplantPageIds.length === 0}
+                            onCheckedChange={(c) =>
+                              setBulkImplantSelection((prev) =>
+                                togglePageIds(prev, bulkImplantPageIds, c === true),
+                              )
+                            }
+                          />
+                        </TableHead>
                         <TableHead className="text-xs">Implant</TableHead>
                         <TableHead className="text-xs">Code</TableHead>
                       </TableRow>
@@ -1460,7 +1495,18 @@ export function LinkImplantModal({
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50/80">
-                        <TableHead className="w-10" />
+                        <TableHead className="w-10">
+                          <Checkbox
+                            aria-label="Select all products on this page"
+                            checked={bulkProductSelectAllChecked}
+                            disabled={bulkProductPageIds.length === 0}
+                            onCheckedChange={(c) =>
+                              setBulkProductSelection((prev) =>
+                                togglePageIds(prev, bulkProductPageIds, c === true),
+                              )
+                            }
+                          />
+                        </TableHead>
                         <TableHead className="text-xs">Product name</TableHead>
                         <TableHead className="text-xs">Sub category</TableHead>
                       </TableRow>

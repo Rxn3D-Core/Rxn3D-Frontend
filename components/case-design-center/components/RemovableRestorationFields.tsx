@@ -37,8 +37,12 @@ import {
   findOppositeArchSelectedGrade,
   findOppositeArchGradesDonor,
 } from "../utils/gradeHelpers";
-import { buildRemovableAddonFieldContext } from "../utils/addonDisplayHelpers";
+import { buildRemovableAddonFieldContext, parseAddonDisplayItems } from "../utils/addonDisplayHelpers";
 import type { StoredAddonEntry } from "../utils/addonDisplayHelpers";
+import {
+  mergeProductAndAbutmentAddonEntries,
+} from "../utils/abutmentAddonSync";
+import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import { getProductAdvanceFieldsForSlip } from "../utils/advanceFieldStepHelpers";
 import type { SlipImpressionSelections } from "../utils/impressionStorage";
 import {
@@ -589,6 +593,9 @@ interface RemovableRestorationFieldsProps {
   productAddOns?: Record<string, { maxillary?: StoredAddonEntry[]; mandibular?: StoredAddonEntry[] }>;
   /** Structured add-on selections keyed as `${arch}_${toothNumber}` */
   selectedAddonsByTooth?: Record<string, Array<{ addon_id: number; qty: number }>>;
+  setSelectedAddonsByTooth?: React.Dispatch<
+    React.SetStateAction<Record<string, Array<{ addon_id: number; qty: number }>>>
+  >;
   /** Product card id (0 = initial card). Used to resolve virtual-slot add-on values. */
   productCardId?: number;
   /** Lab customer id owning the product catalog (office flows select the lab in the wizard). */
@@ -634,6 +641,7 @@ export function SelectionProductFields({
   onExpandedImplantToothChange,
   productAddOns = {},
   selectedAddonsByTooth = {},
+  setSelectedAddonsByTooth,
   productCardId = 0,
   labCustomerId,
   selectedShadeGuide,
@@ -749,6 +757,62 @@ export function SelectionProductFields({
         productId={selectedProduct?.id}
         productAbutments={selectedProduct?.abutments}
         categoryId={selectedProduct?.subcategory?.category_id ?? selectedProduct?.subcategory?.category?.id}
+        onAbutmentAddonsChange={(entries) => {
+          const display = entries.map((e) => `${e.qty}x ${e.name}`).join(", ");
+          if (display) {
+            completeFieldStepFn(arch, firstToothNumber, "addons", display);
+          }
+          if (entries.length === 0) return;
+
+          const addonKey = `${arch}_${firstToothNumber}`;
+          const existingStructured = selectedAddonsByTooth[addonKey] ?? [];
+          const existingNamed = existingStructured.map((e) => {
+            const fromStore = productAddOns?.[String(selectedProduct?.id ?? "")]?.[arch]?.find(
+              (s) => s.addon_id === e.addon_id
+            );
+            return {
+              addon_id: e.addon_id,
+              qty: e.qty,
+              name: fromStore?.name ?? fromStore?.addOn ?? fromStore?.label,
+            };
+          });
+          const merged = mergeProductAndAbutmentAddonEntries(existingNamed, entries);
+          const structured = merged.map((e) => ({ addon_id: e.addon_id, qty: e.qty }));
+
+          setSelectedAddonsByTooth?.((prev) => {
+            const next = { ...prev };
+            const teethToWrite = [
+              firstToothNumber,
+              productCardId === 0 ? -0 : -productCardId,
+              ...toothNumbers,
+            ];
+            for (const tn of teethToWrite) {
+              next[`${arch}_${tn}`] = structured;
+            }
+            return next;
+          });
+
+          const productId = selectedProduct?.id;
+          if (productId) {
+            const storeState = useCaseDesignStore.getState();
+            const existingStore =
+              storeState.productAddOns[String(productId)] || {
+                maxillary: [],
+                mandibular: [],
+              };
+            storeState.setProductAddOns(String(productId), {
+              ...existingStore,
+              [arch]: merged.map((e) => ({
+                addon_id: e.addon_id,
+                qty: e.qty,
+                quantity: e.qty,
+                name: e.name,
+                addOn: e.name,
+                label: e.name,
+              })),
+            });
+          }
+        }}
         labCustomerId={labCustomerId}
         expandedImplantTooth={expandedImplantTooth}
         onExpandedImplantToothChange={onExpandedImplantToothChange}
@@ -1038,34 +1102,39 @@ export function SelectionProductFields({
           </fieldset>
 
           {showAddonField ? (
-            <fieldset
-              className={`border rounded px-3 py-0 relative h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors ${
-                isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
-                  ? "border-[#34a853]"
-                  : "border-[#b4b0b0]"
-              }`}
-              onClick={() => {
-                handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
-              }}
-            >
-              <legend
-                className={`text-sm px-1 leading-none ${
-                  isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
-                    ? "text-[#34a853]"
-                    : "text-[#7f7f7f]"
-                }`}
-              >
-                Add ons
-              </legend>
-              <div className="flex items-center gap-2 w-full">
-                <span className="text-[14px] sm:text-lg text-[#000000] truncate">
-                  {addonCtx.display}
-                </span>
-                {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && (
-                  <Check size={16} className="text-[#34a853] ml-auto" />
-                )}
-              </div>
-            </fieldset>
+            <div className="flex flex-wrap gap-3">
+              {parseAddonDisplayItems(addonCtx.display).map((item, idx, items) => (
+                <fieldset
+                  key={`${item}-${idx}`}
+                  className={`border rounded px-3 py-0 relative min-h-[42px] flex items-center cursor-pointer hover:bg-gray-50 transition-colors flex-1 min-w-[220px] ${
+                    isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
+                      ? "border-[#34a853]"
+                      : "border-[#b4b0b0]"
+                  }`}
+                  onClick={() => {
+                    handleOpenAddOnsModal(arch, selectedProduct?.id?.toString() || `prep_${firstToothNumber}`, firstToothNumber);
+                  }}
+                >
+                  <legend
+                    className={`text-sm px-1 leading-none ${
+                      isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted
+                        ? "text-[#34a853]"
+                        : "text-[#7f7f7f]"
+                    }`}
+                  >
+                    Add on
+                  </legend>
+                  <div className="flex items-center gap-2 w-full min-w-0">
+                    <span className="text-[14px] sm:text-lg text-[#000000] break-words">
+                      {item}
+                    </span>
+                    {isFieldCompletedFn(arch, firstToothNumber, "addons") && !caseSubmitted && idx === items.length - 1 && (
+                      <Check size={16} className="text-[#34a853] ml-auto flex-shrink-0" />
+                    )}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
           ) : null}
         </div>
         );

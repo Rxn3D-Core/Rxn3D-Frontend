@@ -26,8 +26,8 @@ import { buildAbutmentAddonEntries } from "@/components/case-design-center/utils
 import { selectedAbutmentHasTypeOptions } from "@/components/case-design-center/utils/implantDetailAbutmentOptions";
 import {
   cloneImplantDetailData,
-  isImplantDetailFilled,
   isImplantDetailFormComplete,
+  isSameImplantDetailData,
 } from "@/components/case-design-center/utils/implantDetailHelpers";
 import { fetchProductImplants } from "@/services/implant-api";
 
@@ -115,6 +115,9 @@ export function LabImplantSelectionModal({
   const [expandedToothNumber, setExpandedToothNumber] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userEditedRestTeeth, setUserEditedRestTeeth] = useState<Set<number>>(
+    () => new Set()
+  );
   const customerId = labCustomerId ?? resolveLibraryCustomerId();
 
   useEffect(() => {
@@ -124,6 +127,7 @@ export function LabImplantSelectionModal({
       next[row.toothNumber] = implantVmToDetail(row);
     });
     setDetailByTooth(next);
+    setUserEditedRestTeeth(new Set());
     setError(null);
     // Edit with existing selections: show all. New lab fill-in: first tooth only.
     const allAlreadyFilled =
@@ -227,9 +231,12 @@ export function LabImplantSelectionModal({
       const next = { ...prev };
       const cloned = cloneImplantDetailData(source);
       for (const row of restRows) {
+        // Keep later teeth in sync with the first completed implant unless the
+        // user has edited that tooth themselves. Otherwise abutment addons stay
+        // at 1x on tooth #2 and 3x on the copied teeth.
+        if (userEditedRestTeeth.has(row.toothNumber)) continue;
         const existing = prev[row.toothNumber];
-        // Match slip: never overwrite a tooth that already has implant details.
-        if (isImplantDetailFilled(existing)) continue;
+        if (isSameImplantDetailData(existing, cloned)) continue;
         next[row.toothNumber] = cloneImplantDetailData(cloned);
         changed = true;
       }
@@ -237,7 +244,7 @@ export function LabImplantSelectionModal({
     });
 
     if (!restRevealed) setRestRevealed(true);
-  }, [open, firstRow, restRows, firstToothComplete, restRevealed]);
+  }, [open, firstRow, restRows, firstToothComplete, restRevealed, userEditedRestTeeth]);
 
   const visibleRows = useMemo(() => {
     if (restRevealed || restRows.length === 0) return rows;
@@ -273,19 +280,24 @@ export function LabImplantSelectionModal({
         detailByTooth[row.toothNumber] ?? defaultImplantDetailData();
       byProduct.set(productId, details);
     }
-    const qtyByName = new Map<string, number>();
+    const qtyByName = new Map<string, { name: string; qty: number }>();
     for (const [productId, details] of byProduct.entries()) {
       const product = productById[productId];
       const entries = buildAbutmentAddonEntries(
         details,
         product?.abutments ?? [],
-        product?.subcategory?.category_id ?? product?.subcategory?.category?.id ?? null
+        product?.subcategory?.category_id ?? product?.subcategory?.category?.id ?? null,
+        Object.keys(details).map(Number)
       );
       for (const entry of entries) {
-        qtyByName.set(entry.name, (qtyByName.get(entry.name) ?? 0) + entry.qty);
+        const key = entry.name.trim().toLowerCase();
+        qtyByName.set(key, {
+          name: entry.name,
+          qty: (qtyByName.get(key)?.qty ?? 0) + entry.qty,
+        });
       }
     }
-    return Array.from(qtyByName.entries()).map(([name, qty]) => `${qty}x ${name}`);
+    return Array.from(qtyByName.values()).map(({ name, qty }) => `${qty}x ${name}`);
   }, [rows, detailByTooth, productById]);
 
   if (!open) return null;
@@ -393,9 +405,24 @@ export function LabImplantSelectionModal({
                 key={row.toothNumber}
                 toothNumber={row.toothNumber}
                 value={detailByTooth[row.toothNumber] ?? defaultImplantDetailData()}
-                onChange={(data) =>
-                  setDetailByTooth((prev) => ({ ...prev, [row.toothNumber]: data }))
-                }
+                onChange={(data) => {
+                  if (
+                    firstRow &&
+                    row.toothNumber !== firstRow.toothNumber &&
+                    !isSameImplantDetailData(
+                      data,
+                      detailByTooth[firstRow.toothNumber]
+                    )
+                  ) {
+                    setUserEditedRestTeeth((prev) => {
+                      if (prev.has(row.toothNumber)) return prev;
+                      const next = new Set(prev);
+                      next.add(row.toothNumber);
+                      return next;
+                    });
+                  }
+                  setDetailByTooth((prev) => ({ ...prev, [row.toothNumber]: data }));
+                }}
                 productId={row.productId ?? product?.id}
                 customerId={customerId ?? undefined}
                 productAbutments={product?.abutments}
@@ -410,9 +437,16 @@ export function LabImplantSelectionModal({
           })}
         </div>
         {defaultAddonPreview.length > 0 ? (
-          <p className="mt-3 text-sm text-gray-700">
-            Default abutment addons: {defaultAddonPreview.join(", ")}
-          </p>
+          <div className="mt-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-800 mb-1">Default abutment addons</p>
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              {defaultAddonPreview.map((item) => (
+                <span key={item} className="whitespace-nowrap rounded-md bg-gray-50 px-2 py-1 border border-gray-200">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
         ) : null}
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
         <div className="mt-4 flex justify-end gap-2">

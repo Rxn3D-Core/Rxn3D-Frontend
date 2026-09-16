@@ -409,18 +409,31 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
     // Show each add-on as "Name xQty" (e.g. "Crown x2"); the per-add-on total
     // is shown, aligned line-for-line, in the Sub Total column.
     const addons = p.addons?.length
-      ? p.addons
-          .map((a) => {
+      ? (() => {
+          const byName = new Map<string, { name: string; qty: number; total: number }>()
+          for (const a of p.addons) {
             const name = (a.addon_name ?? "").trim()
-            if (!name) return ""
+            if (!name) continue
             const qtyNum = a.quantity != null && String(a.quantity) !== "" ? Number(a.quantity) : NaN
             const qty = Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : 1
-            return `${name} x${qty}`
-          })
-          .filter(Boolean)
-          .join("\n") || "—"
-      : "—"
-    const addonSub = p.addons?.map((a) => formatMoney(a.total)).join("\n") || "—"
+            const totalNum = a.total != null && String(a.total) !== "" ? Number(a.total) : 0
+            const key = name.replace(/\s+/g, " ").toLowerCase()
+            const current = byName.get(key)
+            byName.set(key, {
+              name: current?.name ?? name,
+              qty: (current?.qty ?? 0) + qty,
+              total: (current?.total ?? 0) + (Number.isFinite(totalNum) ? totalNum : 0),
+            })
+          }
+          const rows = Array.from(byName.values())
+          if (rows.length === 0) return { label: "—", sub: "—" }
+          return {
+            label: rows.map((r) => `${r.name} x${r.qty}`).join("\n"),
+            sub: rows.map((r) => formatMoney(r.total)).join("\n"),
+          }
+        })()
+      : { label: "—", sub: "—" }
+    const addonSub = addons.sub
     const rush =
       p.rush_percentage != null && p.rush_percentage !== ""
         ? `${Number(p.rush_percentage)}%`
@@ -443,7 +456,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       grade: p.grade_name ?? "—",
       stage: p.stage_name ?? "—",
       baseTotal: formatMoney(p.base_price),
-      addOn: addons || "—",
+      addOn: addons.label,
       subTotal: addonSub,
       rPercent: rush,
       gross: formatMoney(p.total_price),

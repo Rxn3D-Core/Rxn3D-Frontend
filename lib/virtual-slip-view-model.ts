@@ -408,16 +408,24 @@ function formatImpressions(impressions: unknown): string {
   return formatOpposingImpressions(impressions);
 }
 
-/** Format an addons array into ["3x Gold tooth", ...]. */
+/** Format an addons array into ["3x Gold tooth", ...], collapsing same-name rows. */
 function formatAddOns(addons: unknown): string[] {
   if (!Array.isArray(addons)) return [];
-  return addons
-    .map((a: any) => {
-      const qty = a?.quantity ?? a?.qty ?? 1;
-      const name = firstStr(a?.addon?.name, a?.add_on?.name, a?.name);
-      return name ? `${qty}x ${name}` : "";
-    })
-    .filter(Boolean);
+  const byName = new Map<string, { name: string; qty: number }>();
+  for (const a of addons) {
+    const name = firstStr(a?.addon?.name, a?.add_on?.name, a?.name);
+    if (!name) continue;
+    const qtyRaw = a?.quantity ?? a?.qty ?? 1;
+    const qty = Number(qtyRaw);
+    const amount = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    const key = name.trim().replace(/\s+/g, " ").toLowerCase();
+    const current = byName.get(key);
+    byName.set(key, {
+      name: current?.name ?? name,
+      qty: (current?.qty ?? 0) + amount,
+    });
+  }
+  return Array.from(byName.values()).map((row) => `${row.qty}x ${row.name}`);
 }
 
 /**

@@ -563,7 +563,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
               </div>
 
               {/* Platforms Table */}
-              <div className="border border-gray-200 rounded-lg overflow-x-auto">
+              <div className="border border-gray-200 rounded-lg overflow-x-auto overflow-y-clip">
                 <table className="w-full min-w-[760px]">
                   <thead className="bg-gray-50">
                     <tr>
@@ -807,7 +807,7 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
                   Add addon
                 </Button>
               </div>
-              <div className="border border-gray-200 rounded-lg overflow-x-auto">
+              <div className="border border-gray-200 rounded-lg overflow-x-auto overflow-y-clip">
                 <table className="w-full min-w-[680px]">
                   <thead className="bg-gray-50">
                     <tr>

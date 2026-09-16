@@ -25,7 +25,10 @@ import {
   resolveMaterialId,
 } from "./slipPayloadMappers";
 import { formatSplintGroupsForApi } from "./splintHelpers";
-import { buildAbutmentAddonEntries } from "./abutmentAddonSync";
+import {
+  buildAbutmentAddonEntries,
+  mergeProductAndAbutmentAddonEntries,
+} from "./abutmentAddonSync";
 import {
   buildSlipLevelNotes,
   clearProductNotesWhenUsingCaseSummary,
@@ -374,10 +377,22 @@ export function snapshotToProduct(
   const abutmentAddonItems = buildAbutmentAddonEntries(
     snap.implantDetailByTooth ?? {},
     product?.abutments ?? [],
-    product?.subcategory?.category_id ?? product?.subcategory?.category?.id ?? null
+    product?.subcategory?.category_id ?? product?.subcategory?.category?.id ?? null,
+    Object.entries(snap.retentionTypesByTooth ?? {})
+      .filter(([, types]) =>
+        (Array.isArray(types) ? types : []).some(
+          (t) => String(t).toLowerCase() === "implant"
+        )
+      )
+      .map(([tn]) => Number(tn))
+      .filter((n) => Number.isFinite(n) && n > 0)
+  );
+  const mergedAddonItems = mergeProductAndAbutmentAddonEntries(
+    addonItems,
+    abutmentAddonItems
   );
   const addonById = new Map<number, number>();
-  for (const item of [...addonItems, ...abutmentAddonItems]) {
+  for (const item of mergedAddonItems) {
     if (item.qty > 0) {
       addonById.set(item.addon_id, (addonById.get(item.addon_id) ?? 0) + item.qty);
     }
