@@ -60,7 +60,7 @@ function apiDevProxyRewrites() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable standalone output for Docker deployments
-  output: process.env.DOCKER_BUILD === 'true' ? 'standalone' : undefined,
+  output: process.env.NEXT_STANDALONE_BUILD === 'true' ? 'standalone' : undefined,
   eslint: {
     ignoreDuringBuilds: true,
   },

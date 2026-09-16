@@ -82,7 +82,9 @@ jobs:
 
           date
 
-          NODE_ENV=production npm run build
+          NEXT_STANDALONE_BUILD=true \
+          NODE_ENV=production \
+          npm run build
 
           date
 
