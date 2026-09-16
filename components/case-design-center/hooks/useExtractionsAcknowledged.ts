@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import type { Arch } from "../types";
+import { useCallback, useRef, useState } from "react";
+import type { AddedProduct, Arch } from "../types";
 import { hasRetentionOptions } from "../utils/categoryHelpers";
+import { ARCH_SHARED_REMOVABLE_ACK_CARD_ID } from "../utils/archSharedRemovable";
 import {
   fixedRetentionAckKey,
   removableCardAckKey,
@@ -12,11 +13,43 @@ import {
 
 /**
  * @param arch which arch this acknowledgement state belongs to
- * @param preloaded when true (add-new-stage / edit-slip preload), cards the user
- *   hasn't touched default to "acknowledged" so all fields show open on first load
- *   without requiring a Done click. Explicitly toggling a card off still hides it.
+ * @param preloaded when true (add-new-stage / edit-slip preload), cards that
+ *   already existed on load default to "acknowledged" so their fields stay open.
+ *   Products added later on the empty arch still require tooth selection + Done.
+ * @param addedProducts snapshot of cards present when the hook first runs; new
+ *   cards appended after that are not treated as preloaded.
  */
-export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
+export function useExtractionsAcknowledged(
+  arch: Arch,
+  preloaded = false,
+  addedProducts?: ReadonlyArray<Pick<AddedProduct, "id" | "arch">>
+) {
+  const preloadedCardIdsRef = useRef<Set<number> | null>(null);
+  if (preloadedCardIdsRef.current === null) {
+    const hasExistingCards = (addedProducts?.length ?? 0) > 0;
+    if (!preloaded || hasExistingCards) {
+      const ids = new Set<number>([0, ARCH_SHARED_REMOVABLE_ACK_CARD_ID]);
+      if (preloaded) {
+        for (const product of addedProducts ?? []) {
+          if (!product.arch || product.arch === arch || product.arch === "both") {
+            ids.add(product.id);
+          }
+        }
+      }
+      preloadedCardIdsRef.current = ids;
+    }
+  }
+
+  const isPreloadedCard = useCallback(
+    (cardId: number) => {
+      if (!preloaded) return false;
+      // Bootstrap has not hydrated yet — keep existing cards open, don't flash Done.
+      if (preloadedCardIdsRef.current === null) return true;
+      return preloadedCardIdsRef.current.has(cardId);
+    },
+    [preloaded]
+  );
+
   const [acknowledgedByCard, setAcknowledgedByCard] = useState<Record<string, boolean>>({});
   /**
    * Sticky unlock for grade/stage/shade/impression. Once the user clicks Done the
@@ -34,17 +67,18 @@ export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
       if (caseSubmitted) return true;
       if (!requiresExtractionsAcknowledgement(extractions)) return true;
       const ack = acknowledgedByCard[removableCardAckKey(arch, cardId)];
-      return ack === undefined ? preloaded : ack === true;
+      if (ack !== undefined) return ack === true;
+      return isPreloadedCard(cardId);
     },
-    [arch, acknowledgedByCard, preloaded]
+    [arch, acknowledgedByCard, isPreloadedCard]
   );
 
   const areRemovableFieldsUnlocked = useCallback(
     (cardId: number) => {
-      if (preloaded) return true;
+      if (isPreloadedCard(cardId)) return true;
       return fieldsUnlockedByCard[removableCardAckKey(arch, cardId)] === true;
     },
-    [arch, fieldsUnlockedByCard, preloaded]
+    [arch, fieldsUnlockedByCard, isPreloadedCard]
   );
 
   const setExtractionsSetupComplete = useCallback(
@@ -74,9 +108,10 @@ export function useExtractionsAcknowledged(arch: Arch, preloaded = false) {
       if (caseSubmitted) return true;
       if (!product || !hasRetentionOptions(product)) return true;
       const ack = acknowledgedByCard[fixedRetentionAckKey(arch, cardId)];
-      return ack === undefined ? preloaded : ack === true;
+      if (ack !== undefined) return ack === true;
+      return isPreloadedCard(cardId);
     },
-    [arch, acknowledgedByCard, preloaded]
+    [arch, acknowledgedByCard, isPreloadedCard]
   );
 
   const setFixedRetentionSetupComplete = useCallback(

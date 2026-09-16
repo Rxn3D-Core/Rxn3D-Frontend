@@ -11,6 +11,7 @@ import type { Arch, RetentionType } from "@/components/case-design-center/types"
 import type { ImplantDetailData } from "@/components/case-design-center/components/ImplantDetailSection";
 import {
   emptyImpressionSelections,
+  oppositeArch,
   type ArchImpressionEntry,
   type SlipImpressionSelections,
 } from "@/components/case-design-center/utils/impressionStorage";
@@ -66,6 +67,26 @@ function upsertArchImpression(
     };
   } else {
     list.push(entry);
+  }
+}
+
+/** Load slip `impressions` / `opposite_impressions` rows onto a jaw. */
+function ingestImpressionRows(
+  selections: SlipImpressionSelections,
+  arch: Arch,
+  rows: unknown
+) {
+  if (!Array.isArray(rows)) return;
+  for (const imp of rows) {
+    const code = imp?.impression?.code ?? imp?.code ?? String(imp?.impression_id ?? "");
+    const quantity = imp?.quantity ?? 1;
+    if (!code || quantity <= 0) continue;
+    upsertArchImpression(selections, arch, {
+      impression_id: imp?.impression_id ?? imp?.impression?.id ?? 0,
+      code,
+      name: imp?.impression?.name ?? imp?.name ?? code,
+      qty: quantity,
+    });
   }
 }
 
@@ -818,23 +839,15 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     }
 
     // ── Impression selections (one list per jaw, shared across products) ───
-    if (Array.isArray(apiProduct.impressions)) {
-      for (const imp of apiProduct.impressions) {
-        const code = imp.impression?.code ?? imp.code ?? String(imp.impression_id ?? "");
-        const quantity = imp.quantity ?? 1;
-        if (!code || quantity <= 0) continue;
-        const name =
-          imp.impression?.name ?? imp.name ?? code;
-        const impression_id =
-          imp.impression_id ?? imp.impression?.id ?? 0;
-        upsertArchImpression(selectedImpressions, arch, {
-          impression_id,
-          code,
-          name,
-          qty: quantity,
-        });
-      }
-    }
+    // Own-arch rows go on this product's jaw; opposite_impressions hydrate the
+    // other jaw so adding a second-arch product during edit keeps the opposing
+    // scan the user already picked (and the dual impression modal is pre-filled).
+    ingestImpressionRows(selectedImpressions, arch, apiProduct.impressions);
+    ingestImpressionRows(
+      selectedImpressions,
+      oppositeArch(arch),
+      apiProduct.opposite_impressions
+    );
 
     // ── Advance field saved values ─────────────────────────────────────────
     // The slip product carries both:

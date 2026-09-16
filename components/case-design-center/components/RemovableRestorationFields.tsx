@@ -34,6 +34,8 @@ import {
   resolveProductGradesForDisplay,
   parseGradeDisplayName,
   isGradeStepCompleteForDisplay,
+  findOppositeArchSelectedGrade,
+  findOppositeArchGradesDonor,
 } from "../utils/gradeHelpers";
 import { buildRemovableAddonFieldContext } from "../utils/addonDisplayHelpers";
 import type { StoredAddonEntry } from "../utils/addonDisplayHelpers";
@@ -294,11 +296,14 @@ export function GradeHoverSelector({
   currentGradeName,
   onSelect,
   disabled,
+  preferredGradeName,
 }: {
   grades: ProductGrade[];
   currentGradeName: string;
   onSelect: (grade: ProductGrade) => void;
   disabled?: boolean;
+  /** Opposite-arch grade to copy when it exists in this product's list. */
+  preferredGradeName?: string;
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   // Sort by sequence so diamond count maps to grade level. Grade `sequence` values can
@@ -323,6 +328,22 @@ export function GradeHoverSelector({
     }
   }, [disabled, currentIndex, gradesSignature, onSelect, sortedGrades]);
 
+  // Same product on the other arch already has a grade — copy it instead of asking.
+  const preferredAppliedRef = useRef(false);
+  const preferredMatch = preferredGradeName
+    ? sortedGrades.find(
+        (g) => g.name === preferredGradeName || g.code === preferredGradeName
+      )
+    : undefined;
+  useEffect(() => {
+    if (disabled) return;
+    if (preferredAppliedRef.current) return;
+    if (currentIndex !== -1) return;
+    if (!preferredMatch) return;
+    preferredAppliedRef.current = true;
+    onSelect(preferredMatch);
+  }, [disabled, currentIndex, preferredMatch, onSelect]);
+
   // Auto-open the picker the first time a multi-grade field is shown without a
   // selection, so the user picks a grade without having to click the field first.
   // Mirrors the stage modal's auto-open. Opens once per mount; cancelling won't re-open.
@@ -333,12 +354,13 @@ export function GradeHoverSelector({
     if (autoOpenedRef.current) return;
     if (sortedGrades.length <= 1) return; // single grade auto-selects instead
     if (currentIndex !== -1) return; // already has a selection
+    if (preferredMatch) return; // opposite-arch grade will be copied
     if (gradeAutoOpenActive) return; // another grade field is already auto-opening
     autoOpenedRef.current = true;
     gradeAutoOpenActive = true;
     ownsAutoOpenLockRef.current = true;
     setModalOpen(true);
-  }, [disabled, sortedGrades.length, currentIndex]);
+  }, [disabled, sortedGrades.length, currentIndex, preferredMatch]);
 
   // Release the auto-open lock if this field unmounts while still holding it.
   useEffect(() => {
@@ -573,6 +595,7 @@ interface RemovableRestorationFieldsProps {
   labCustomerId?: number | null;
   /** Active shade-guide system_name fallback when product shade rows lack brand.system_name. */
   selectedShadeGuide?: string | null;
+  getToothProduct?: (arch: Arch, toothNumber: number) => ProductApiData | null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -614,6 +637,7 @@ export function SelectionProductFields({
   productCardId = 0,
   labCustomerId,
   selectedShadeGuide,
+  getToothProduct,
 }: RemovableRestorationFieldsProps) {
   const removableChain = getSelectionFieldChain(selectedProduct);
   const implantTeeth = useMemo(
@@ -633,14 +657,18 @@ export function SelectionProductFields({
     caseSubmitted,
   });
 
-  if (!showProgressiveFields) return null;
+  const preferredGradeName = useMemo(() => {
+    if (!getToothProduct || selectedProduct?.id == null) return "";
+    return parseGradeDisplayName(
+      findOppositeArchSelectedGrade(
+        arch,
+        selectedProduct.id,
+        getToothProduct,
+        getFieldValueFn
+      )
+    );
+  }, [arch, selectedProduct?.id, getToothProduct, getFieldValueFn]);
 
-  const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
-  const implantDetailReady = areAllImplantDetailsComplete(
-    implantTeeth,
-    implantDetailCompleteByTooth,
-    implantDetailByTooth
-  );
   const impressionDisplay =
     getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) ||
     getFieldValueFn(arch, firstToothNumber, "impression");
@@ -652,6 +680,46 @@ export function SelectionProductFields({
         ARCH_IMPRESSION_PRODUCT_ID,
         arch
       ));
+
+  // When the other arch already has opposing impressions, mark this product's
+  // impression step complete instead of re-asking after Done.
+  useEffect(() => {
+    if (!showProgressiveFields || caseSubmitted) return;
+    if (isFieldCompletedFn(arch, firstToothNumber, "impression")) return;
+    if (
+      !archHasActiveImpressionSelections(
+        selectedImpressions,
+        ARCH_IMPRESSION_PRODUCT_ID,
+        arch
+      )
+    ) {
+      return;
+    }
+    const text =
+      getImpressionDisplayText?.(ARCH_IMPRESSION_PRODUCT_ID, arch) || impressionDisplay;
+    if (text) {
+      completeFieldStepFn(arch, firstToothNumber, "impression", text);
+    }
+  }, [
+    showProgressiveFields,
+    caseSubmitted,
+    arch,
+    firstToothNumber,
+    selectedImpressions,
+    impressionDisplay,
+    isFieldCompletedFn,
+    completeFieldStepFn,
+    getImpressionDisplayText,
+  ]);
+
+  if (!showProgressiveFields) return null;
+
+  const isVisible = (step: FieldStep): boolean => isFieldVisibleFn(arch, firstToothNumber, step, removableChain);
+  const implantDetailReady = areAllImplantDetailsComplete(
+    implantTeeth,
+    implantDetailCompleteByTooth,
+    implantDetailByTooth
+  );
 
   return (
     <>
@@ -701,7 +769,19 @@ export function SelectionProductFields({
           selectedProduct
         );
         const showGradeGreen = isGradeComplete && !caseSubmitted;
-        const productGrades = resolveProductGradesForDisplay(selectedProduct);
+        const oppositeTeeth =
+          arch === "maxillary"
+            ? [17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
+            : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        const gradesDonor = getToothProduct
+          ? findOppositeArchGradesDonor(
+              arch,
+              selectedProduct?.id,
+              getToothProduct,
+              oppositeTeeth
+            )
+          : null;
+        const productGrades = resolveProductGradesForDisplay(selectedProduct, gradesDonor);
         // Hide grade if stage_configurations.grade === "No"
         const gradeAllowedByStage = !stageCfg || stageCfg.grade !== "No";
         const hasGrades =
@@ -734,6 +814,7 @@ export function SelectionProductFields({
             <GradeHoverSelector
               grades={productGrades}
               currentGradeName={gradeVal}
+              preferredGradeName={preferredGradeName}
               disabled={caseSubmitted}
               onSelect={(g) => completeFieldStepFn(arch, firstToothNumber, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))}
             />
