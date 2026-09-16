@@ -1,11 +1,11 @@
-name: Test Next.js Build
+name: Test Next.js Release
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Next.js
+    name: Build Next.js Release
     runs-on: ubuntu-latest
 
     steps:
@@ -23,10 +23,24 @@ jobs:
 
       - name: Build Next.js
         run: |
-          echo "===== BUILD START ====="
-          date
-
           time npm run build
 
-          echo "===== BUILD END ====="
-          date
+      - name: Prepare release
+        run: |
+          mkdir release
+
+          cp -r .next release/.next
+          cp -r public release/public
+          cp package.json release/package.json
+          cp package-lock.json release/package-lock.json
+
+      - name: Create release archive
+        run: |
+          tar -czf rxn3d-frontend.tar.gz -C release .
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rxn3d-frontend-release
+          path: rxn3d-frontend.tar.gz
+          retention-days: 1
