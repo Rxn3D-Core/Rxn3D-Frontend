@@ -196,8 +196,8 @@ export interface AbutmentAddon {
   sequence: number
   addon_type?: 'regular' | 'abutment'
   abutment_type_id?: number | null
-  /** Comma-separated library_categories ids. Empty/omitted = all main categories. */
-  category_ids?: string | null
+  /** Comma-separated library_categories ids, or an id array. Empty/omitted = all main categories. */
+  category_ids?: string | number[] | null
 }
 
 export interface Abutment {
@@ -2656,6 +2656,7 @@ export const useCreateAbutment = () => {
         price?: number | null
         status?: 'Active' | 'Inactive'
         sequence?: number
+        category_ids?: string | number[] | null
       }>
     }) => {
       const response = await fetch(ensureAbsoluteUrl('/library/abutments'), {
@@ -2712,6 +2713,7 @@ export const useUpdateAbutment = () => {
         price?: number | null
         status?: 'Active' | 'Inactive'
         sequence?: number
+        category_ids?: string | number[] | null
       }>
     }) => {
       const response = await fetch(ensureAbsoluteUrl(`/library/abutments/${id}`), {

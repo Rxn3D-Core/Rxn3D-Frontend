@@ -3,7 +3,7 @@ import type { ProductAbutment } from "@/services/implant-api";
 import { parseAbutmentOptionCategoryIds } from "@/components/advance-mode/main-category-multi-select";
 
 function addonAppliesToCategory(
-  categoryIdsCsv: string | null | undefined,
+  categoryIdsCsv: string | number[] | number | null | undefined,
   productCategoryId?: number | null
 ): boolean {
   const linked = parseAbutmentOptionCategoryIds(categoryIdsCsv);
