@@ -75,6 +75,9 @@ jobs:
       # Requires `output: 'standalone'` in next.config.js
       # ========================================
       - name: Build Next.js
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          # add one line per NEXT_PUBLIC_* var your app uses, same pattern
         run: |
           echo "========================================"
           echo "Starting Next.js production build"
