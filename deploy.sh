@@ -134,7 +134,7 @@ get_nginx_backend_port() {
             | head -1 \
             | grep -oE '3000|3002' \
             || true
-        )
+        )"
 
     fi
 
