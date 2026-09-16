@@ -298,10 +298,16 @@ export function ImageDropzone({
   image,
   onChange,
   onRejected,
+  required = false,
+  hint,
 }: {
   image: UploadedImage | null;
   onChange: (image: UploadedImage | null) => void;
   onRejected?: (names: string[]) => void;
+  /** When true, empty state shows a required-photo prompt. */
+  required?: boolean;
+  /** Optional helper line under the main drop text. */
+  hint?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -387,7 +393,9 @@ export function ImageDropzone({
         "flex min-h-[110px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center transition-colors",
         dragOver
           ? "border-[#0E66B2] bg-blue-50"
-          : "border-[#CBD5E1] bg-[#F9FAFB] hover:border-[#0E66B2]"
+          : required
+            ? "border-[#F59E0B] bg-[#FFFBEB] hover:border-[#D97706]"
+            : "border-[#CBD5E1] bg-[#F9FAFB] hover:border-[#0E66B2]"
       )}
     >
       {busy ? (
@@ -395,8 +403,13 @@ export function ImageDropzone({
       ) : (
         <Upload className="h-6 w-6 text-[#9CA3AF]" aria-hidden />
       )}
-      <p className="text-sm text-[#6B7280]">Drag &amp; drop a photo here or click to browse</p>
-      <p className="text-xs text-[#9CA3AF]">Image only (JPG, PNG, GIF, WEBP) · max 10MB</p>
+      <p className="text-sm text-[#6B7280]">
+        {hint ?? "Drag & drop a photo here or click to browse"}
+      </p>
+      <p className="text-xs text-[#9CA3AF]">
+        {required ? "Required · " : ""}
+        Image only (JPG, PNG, GIF, WEBP) · max 10MB
+      </p>
       <input
         ref={inputRef}
         type="file"

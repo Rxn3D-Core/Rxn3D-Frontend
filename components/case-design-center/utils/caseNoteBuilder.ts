@@ -180,18 +180,36 @@ function resolveTeethShadeForNote(
   const name = parsed.name || parseFieldDisplayValue(raw);
   if (!name) return null;
 
-  let systemName = shadeGuide?.trim().replace(/_/g, " ") ?? "";
   const shades = (product?.teeth_shades ?? []) as ProductTeethShade[];
-  if (!systemName && shades.length > 0) {
+  const preferred = (shadeGuide ?? "").trim().toLowerCase().replace(/_/g, " ");
+  let systemName = shadeGuide?.trim().replace(/_/g, " ") ?? "";
+
+  if (shades.length > 0) {
+    const candidates = shades.filter((row) => {
+      const rowShadeId = Number(row.teeth_shade_id ?? row.id ?? 0);
+      const rowBrandId = Number(row.brand?.id ?? 0);
+      if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
+      if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
+      return row.name === name;
+    });
+
     const match =
-      shades.find((row) => {
-        const rowShadeId = Number(row.teeth_shade_id ?? row.id ?? 0);
-        const rowBrandId = Number(row.brand?.id ?? 0);
-        if (parsed.shadeId > 0 && rowShadeId === parsed.shadeId) return true;
-        if (parsed.brandId > 0 && rowBrandId === parsed.brandId && row.name === name) return true;
-        return row.name === name;
-      }) ?? null;
-    systemName = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
+      (preferred
+        ? candidates.find(
+            (row) =>
+              (row.brand?.system_name ?? "").trim().toLowerCase().replace(/_/g, " ") === preferred
+          ) ??
+          shades.find(
+            (row) =>
+              row.name === name &&
+              (row.brand?.system_name ?? "").trim().toLowerCase().replace(/_/g, " ") === preferred
+          )
+        : null) ??
+      candidates[0] ??
+      null;
+
+    const fromMatch = match?.brand?.system_name?.trim().replace(/_/g, " ") ?? "";
+    if (fromMatch) systemName = fromMatch;
   }
 
   return { name, systemName };

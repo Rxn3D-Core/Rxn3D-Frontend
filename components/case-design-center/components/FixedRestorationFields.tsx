@@ -9,6 +9,7 @@ import {
 import {
   formatShadeFieldLabel,
   getGumShadePreviewColor,
+  getShadePreviewCode,
   SHADE_FIELD_LABEL_CLASS,
   type ShadeCatalogRow,
 } from "../utils/shadeFieldDisplay";
@@ -41,6 +42,7 @@ import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
   hasPostImplantFixedFieldProgress,
+  isImplantDetailFilled,
   POST_IMPLANT_FIXED_FIELD_STEPS,
 } from "../utils/implantDetailHelpers";
 import { useCrossArchImplantMirror } from "../hooks/useCrossArchImplantMirror";
@@ -482,6 +484,14 @@ export function RetentionProductFields({
    */
   const showPostImplantFields =
     implantTeeth.length === 0 || implantDetailReady || hasPostImplantProgress;
+  /** Keep implant boxes mounted after the user has filled them, even while re-editing shade. */
+  const hasImplantSelectionProgress = implantTeeth.some(
+    (tn) =>
+      implantDetailCompleteByTooth[tn] === true ||
+      isImplantDetailFilled(implantDetailByTooth[tn])
+  );
+  const showImplantAndLaterFields =
+    !fixedShadeIncomplete || hasImplantSelectionProgress || hasPostImplantProgress;
   const showImpressionAndAddons = showPostImplantFields;
   const isFixedAfterImplant = useCallback(
     (step: string): boolean => {
@@ -1341,6 +1351,7 @@ export function RetentionProductFields({
                   selectedShadeGuide
                 )
               : "";
+            const teethPreviewCode = getShadePreviewCode(teethLabelSource) || shadeCode;
             const isTeethComplete = !!shadeCode;
             const teethBorder =
               isTeethComplete && !caseSubmitted
@@ -1371,7 +1382,7 @@ export function RetentionProductFields({
                   <span className={SHADE_FIELD_LABEL_CLASS} title={teethDisplayLabel || undefined}>
                     {teethDisplayLabel}
                   </span>
-                  {shadeCode && <TeethShadePreviewIcon shadeCode={shadeCode} />}
+                  {teethPreviewCode && <TeethShadePreviewIcon shadeCode={teethPreviewCode} />}
                   {isTeethComplete && !caseSubmitted && (
                     <Check size={16} className="text-[#34a853] flex-shrink-0" />
                   )}
@@ -1481,7 +1492,7 @@ export function RetentionProductFields({
         />
       )}
 
-      {!fixedShadeIncomplete && <>
+      {showImplantAndLaterFields && <>
 
       {/* Implant Detail — one box per implant tooth; additional teeth mirror the first */}
       <ImplantDetailBoxes

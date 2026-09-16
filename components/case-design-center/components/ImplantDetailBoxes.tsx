@@ -19,6 +19,7 @@ import { buildAbutmentAddonEntries } from "../utils/abutmentAddonSync";
 import {
   cloneImplantDetailData,
   isCompleteLabRecommendation,
+  isImplantDetailFilled,
   isImplantDetailFormComplete,
   isSameImplantDetailData,
 } from "../utils/implantDetailHelpers";
@@ -92,14 +93,14 @@ export function ImplantDetailBoxes({
     }
   };
 
-  // Auto-open the current incomplete implant tooth. Do not force-close: selecting
-  // brand must keep the box open so platform / size / abutment can be chosen.
-  // Skip when already open so controlled setState does not nest-update needlessly.
+  // Auto-open only for a tooth that still needs first-time fill. If implant details
+  // were already chosen (e.g. user only changed teeth shade), do not re-prompt.
   useEffect(() => {
     if (activeImplantTooth == null) return;
+    if (isImplantDetailFilled(implantDetailByTooth[activeImplantTooth])) return;
     if (expandedToothRef.current === activeImplantTooth) return;
     setExpandedTooth(activeImplantTooth);
-  }, [activeImplantTooth]);
+  }, [activeImplantTooth, implantDetailByTooth]);
 
   const implantCustomerId = useMemo(
     () => labCustomerId ?? resolveLibraryCustomerId(),
@@ -258,18 +259,28 @@ export function ImplantDetailBoxes({
           onCompleteChange={(complete) =>
             setImplantDetailCompleteByTooth((prev) => {
               if (prev[implantToothNumber] === complete) return prev;
-              // Section can briefly report incomplete while brand→system resolves.
-              // Ignore that downgrade when the shared form helper still says done.
-              if (
-                !complete &&
-                isImplantDetailFormComplete(
-                  implantDetailByTooth[implantToothNumber],
-                  effectiveFieldSettings,
-                  hasAbutmentOptions,
-                  hasAbutmentTypeOptionsFor(implantDetailByTooth[implantToothNumber])
-                )
-              ) {
-                return prev;
+              const row = implantDetailByTooth[implantToothNumber];
+              // Section can briefly report incomplete while brand→system resolves,
+              // or after an unrelated remount (e.g. teeth-shade edit). Ignore that
+              // downgrade when the form is still done or a selection is still present.
+              if (!complete) {
+                if (
+                  isImplantDetailFormComplete(
+                    row,
+                    effectiveFieldSettings,
+                    hasAbutmentOptions,
+                    hasAbutmentTypeOptionsFor(row)
+                  )
+                ) {
+                  return prev;
+                }
+                if (
+                  prev[implantToothNumber] === true &&
+                  isImplantDetailFilled(row) &&
+                  !!(row?.brand || row?.implantId || row?.labRecommendationRequested)
+                ) {
+                  return prev;
+                }
               }
               return { ...prev, [implantToothNumber]: complete };
             })

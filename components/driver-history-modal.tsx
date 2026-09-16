@@ -21,6 +21,7 @@ import {
   slipPickupDropoffAction,
   slipNextLocationIdFromRef,
   filterValidQrScanSlips,
+  slipIsOfficeDropoff,
   type SlipPickupDropoffAction,
 } from "@/lib/slip-location"
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
@@ -158,6 +159,15 @@ export default function DriverHistoryModal({
 
   const isDropoff = singleSlipMode && pickupDropoffAction === "dropoff"
   const isPickup = singleSlipMode && pickupDropoffAction === "pickup"
+  const isOfficeDropoff = useMemo(() => {
+    if (!singleSlipMode || !slip) return false
+    const entry = buildPickupDeliveryEntryFromSlip(slip)
+    if (!entry) return false
+    return slipIsOfficeDropoff({
+      locationId: entry.location_id,
+      location: entry.location,
+    })
+  }, [singleSlipMode, slip])
 
   // Per-lab signature requirement settings (loaded while the modal is open).
   const { driverSettings } = useSignatureRequirementSettings(isOpen)
@@ -175,6 +185,26 @@ export default function DriverHistoryModal({
       )
     )
   }, [singleSlipMode, deliveryEntries, driverSettings])
+
+  /** Selected slips that are office drop-offs (photo required). */
+  const officeDropoffSlipIds = useMemo(() => {
+    const relevant = singleSlipMode
+      ? deliveryEntries
+      : deliveryEntries.filter((entry) => entry.isChecked)
+    return relevant
+      .filter(
+        (entry) =>
+          typeof entry.slip_id === "number" &&
+          slipIsOfficeDropoff({
+            locationId: entry.location_id,
+            location: entry.location,
+          })
+      )
+      .map((entry) => entry.slip_id as number)
+  }, [singleSlipMode, deliveryEntries])
+
+  const officeDropoffPhotoRequired = officeDropoffSlipIds.length > 0
+  const officeDropoffPhotoMissing = officeDropoffPhotoRequired && !image
 
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
@@ -337,6 +367,15 @@ export default function DriverHistoryModal({
       return
     }
 
+    if (officeDropoffPhotoMissing) {
+      toast({
+        title: "Photo required",
+        description: "Please attach a photo before office drop-off.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSubmitting(true)
     try {
       if (slipIds.length > 0) {
@@ -364,7 +403,7 @@ export default function DriverHistoryModal({
             slip_ids: slipIds,
             to_location_id: toLocationId,
             notes: effectiveSignature || undefined,
-            // Drop-off proof photo (one per slip). Optional; pick up sends none.
+            // Office drop-off requires a proof photo; other drop-offs may attach one optionally.
             images:
               isDropoff && image
                 ? { [slipIds[0]]: image.file }
@@ -388,7 +427,14 @@ export default function DriverHistoryModal({
           return
         }
 
-        const result = await submitScannedSlips(slipIds, effectiveSignature)
+        const officeImages =
+          officeDropoffSlipIds.length > 0 && image
+            ? Object.fromEntries(officeDropoffSlipIds.map((id) => [id, image.file]))
+            : undefined
+
+        const result = await submitScannedSlips(slipIds, effectiveSignature, {
+          images: officeImages,
+        })
         if (result && result.success) {
           toast({ title: "Submission Successful", description: result.message || "Scanned slips submitted successfully", duration: 3000 })
           onSubmitted?.()
@@ -432,8 +478,10 @@ export default function DriverHistoryModal({
     : []
 
   const confirmDisabled = singleSlipMode
-    ? deliveryEntries.length === 0 || (signatureRequired && !signature.trim())
-    : deliveryEntries.filter((e) => e.isChecked).length === 0 || (signatureRequired && !signature.trim())
+    ? deliveryEntries.length === 0 || (signatureRequired && !signature.trim()) || officeDropoffPhotoMissing
+    : deliveryEntries.filter((e) => e.isChecked).length === 0 ||
+      (signatureRequired && !signature.trim()) ||
+      officeDropoffPhotoMissing
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -485,6 +533,12 @@ export default function DriverHistoryModal({
                     image={image}
                     onChange={setImage}
                     onRejected={handleRejectedImages}
+                    required={isOfficeDropoff}
+                    hint={
+                      isOfficeDropoff
+                        ? "Photo required for office drop-off"
+                        : undefined
+                    }
                   />
                   {signatureRequired ? (
                     <SignaturePad
@@ -692,6 +746,18 @@ export default function DriverHistoryModal({
                   {isQrScanFlow ? "Scan Slip" : "Add Slip"}
                 </Button>
               </div>
+
+              {officeDropoffPhotoRequired ? (
+                <div className="mt-5 space-y-2">
+                  <ImageDropzone
+                    image={image}
+                    onChange={setImage}
+                    onRejected={handleRejectedImages}
+                    required
+                    hint="Photo required for office drop-off"
+                  />
+                </div>
+              ) : null}
 
               {signatureRequired && (
                 <div className="mt-5">

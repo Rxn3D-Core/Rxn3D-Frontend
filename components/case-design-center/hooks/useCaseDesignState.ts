@@ -118,7 +118,36 @@ interface TeethShadeEntry {
   id: number;
   teeth_shade_id: number;
   name: string;
-  brand?: { id: number } | null;
+  brand?: { id: number; system_name?: string | null } | null;
+}
+
+function normalizeShadeGuideKey(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/_/g, " ");
+}
+
+/** Prefer the active shade guide when the same shade code exists on multiple brands (e.g. B4). */
+function matchTeethShadeByNameAndGuide<T extends {
+  name?: string;
+  brand?: { system_name?: string | null } | null;
+}>(
+  shades: T[],
+  shadeName: string,
+  preferredSystemName?: string | null
+): T | null {
+  const normalizedName = shadeName.trim().toLowerCase();
+  if (!normalizedName || shades.length === 0) return null;
+  const preferred = normalizeShadeGuideKey(preferredSystemName);
+  const nameMatches = shades.filter(
+    (s) => (s.name ?? "").trim().toLowerCase() === normalizedName
+  );
+  if (nameMatches.length === 0) return null;
+  if (preferred) {
+    const guideMatch = nameMatches.find(
+      (s) => normalizeShadeGuideKey(s.brand?.system_name) === preferred
+    );
+    if (guideMatch) return guideMatch;
+  }
+  return nameMatches[0] ?? null;
 }
 
 /** Fetch teeth shade catalog once for ID resolution at shade selection time.
@@ -146,12 +175,16 @@ async function fetchTeethShadeCatalog(): Promise<TeethShadeEntry[]> {
       const entries: TeethShadeEntry[] = [];
       for (const brand of brands) {
         const shades: any[] = brand.shades ?? brand.teeth_shades ?? brand.teethShades ?? [];
+        const systemName =
+          brand.system_name ?? brand.brand?.system_name ?? null;
         for (const shade of shades) {
           entries.push({
             id: shade.id,
             teeth_shade_id: shade.id,
             name: shade.name ?? "",
-            brand: brand.id ? { id: brand.id } : null,
+            brand: brand.id
+              ? { id: brand.id, system_name: systemName }
+              : null,
           });
         }
       }
@@ -3127,12 +3160,22 @@ export function useCaseDesignState(props: CaseDesignProps) {
   }, []);
 
   const enrichTeethShadeFieldValue = useCallback(
-    (arch: Arch, toothNumber: number, step: FieldStep, shadeName: string) => {
+    (
+      arch: Arch,
+      toothNumber: number,
+      step: FieldStep,
+      shadeName: string,
+      preferredSystemName?: string | null
+    ) => {
       void (async () => {
         if (teethShadeCatalogRef.current.length === 0) {
           teethShadeCatalogRef.current = await fetchTeethShadeCatalog();
         }
-        const matched = teethShadeCatalogRef.current.find((s) => s.name === shadeName);
+        const matched = matchTeethShadeByNameAndGuide(
+          teethShadeCatalogRef.current,
+          shadeName,
+          preferredSystemName ?? shades.selectedShadeGuide
+        );
         if (!matched) return;
         const enriched = buildTeethShadeJson(shadeName, matched);
         if (toothFieldProgress.getFieldValue(arch, toothNumber, step)) {
@@ -3140,7 +3183,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
         }
       })();
     },
-    [buildTeethShadeJson, mirroredStoreFieldValue, toothFieldProgress]
+    [
+      buildTeethShadeJson,
+      mirroredStoreFieldValue,
+      toothFieldProgress,
+      shades.selectedShadeGuide,
+    ]
   );
 
   const handleShadeSelect = useCallback(
@@ -3153,30 +3201,58 @@ export function useCaseDesignState(props: CaseDesignProps) {
       prefetchTeethShadeCatalog();
 
       const prepMatch = productId.match(/^prep_(-?\d+)$/);
-      let matchedTeethShade: TeethShadeEntry | null = null;
-      if (prepMatch && fieldType === "tooth_shade") {
-        const toothNumber = parseInt(prepMatch[1], 10);
+      const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
+      const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
+      const preferredGuide = shades.selectedShadeGuide;
+
+      const resolveMatchedTeethShade = (
+        toothNumber: number
+      ): TeethShadeEntry | null => {
         const rawProduct = toothFieldProgress.getToothProduct(arch, toothNumber);
         const product = rawProduct ? enrichProductWithGrades(arch, rawProduct) : null;
         const productShades = (product?.teeth_shades ?? []) as ProductTeethShade[];
-        const fromProduct = productShades.find((s) => s.name === shade);
+        const fromProduct = matchTeethShadeByNameAndGuide(
+          productShades,
+          shade,
+          preferredGuide
+        );
         if (fromProduct) {
-          matchedTeethShade = {
+          return {
             teeth_shade_id: Number(fromProduct.teeth_shade_id ?? fromProduct.id ?? 0),
             id: Number(fromProduct.id ?? 0),
             name: fromProduct.name,
-            brand: fromProduct.brand ? { id: fromProduct.brand.id } : null,
+            brand: fromProduct.brand
+              ? {
+                  id: fromProduct.brand.id,
+                  system_name: fromProduct.brand.system_name,
+                }
+              : null,
           };
-        } else if (teethShadeCatalogRef.current.length > 0) {
-          matchedTeethShade =
-            teethShadeCatalogRef.current.find((s) => s.name === shade) ?? null;
+        }
+        if (teethShadeCatalogRef.current.length > 0) {
+          return matchTeethShadeByNameAndGuide(
+            teethShadeCatalogRef.current,
+            shade,
+            preferredGuide
+          );
+        }
+        return null;
+      };
+
+      let matchedTeethShade: TeethShadeEntry | null = null;
+      if (fieldType === "tooth_shade") {
+        if (prepMatch) {
+          matchedTeethShade = resolveMatchedTeethShade(parseInt(prepMatch[1], 10));
+        } else if (fixedProductMatch || fixedLegacyMatch) {
+          const toothNumber =
+            shades.shadeSelectionState.storageToothNumber ??
+            (fixedLegacyMatch ? parseInt(fixedLegacyMatch[1], 10) : null);
+          if (toothNumber != null) {
+            matchedTeethShade = resolveMatchedTeethShade(toothNumber);
+          }
         }
       }
       const shadeJson = buildTeethShadeJson(shade, matchedTeethShade);
-
-      // Fixed products: fixed_p_{productId} or legacy fixed_NN
-      const fixedProductMatch = productId.match(/^fixed_p_(\d+)$/);
-      const fixedLegacyMatch = productId.match(/^fixed_(\d+)$/);
       if (fixedProductMatch || fixedLegacyMatch) {
         const toothNumber =
           shades.shadeSelectionState.storageToothNumber ??
@@ -3205,8 +3281,8 @@ export function useCaseDesignState(props: CaseDesignProps) {
               [String(selectedAdvanceFieldId)]: {
                 name: shade,
                 advanceFieldId: selectedAdvanceFieldId,
-                teeth_shade_id: 0,
-                brand_id: 0,
+                teeth_shade_id: matchedTeethShade?.teeth_shade_id ?? matchedTeethShade?.id ?? 0,
+                brand_id: matchedTeethShade?.brand?.id ?? 0,
               },
             };
             const allFilled = relevantFields.every((field) => updatedSelections[String(field.id)]);
@@ -3223,7 +3299,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
           const step = FIXED_SHADE_FIELD_TO_STEP[fieldType];
           if (step) {
             mirroredCompleteFieldStep(arch, toothNumber, step, shadeJson);
-            enrichTeethShadeFieldValue(arch, toothNumber, step, shade);
+            if (!matchedTeethShade) {
+              enrichTeethShadeFieldValue(arch, toothNumber, step, shade, preferredGuide);
+            }
           }
         }
 
@@ -3301,7 +3379,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
         if (fieldType === "tooth_shade") {
           mirroredCompleteFieldStep(arch, toothNumber, "teeth_shade", shadeJson);
           if (!matchedTeethShade) {
-            enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade);
+            enrichTeethShadeFieldValue(arch, toothNumber, "teeth_shade", shade, preferredGuide);
           }
         }
       }

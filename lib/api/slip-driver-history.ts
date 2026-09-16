@@ -210,9 +210,9 @@ export type ChangeLocationRequest = {
   action_date_time?: string;
   notes?: string;
   /**
-   * Optional drop-off proof photos keyed by slip id. When present the request
-   * is sent as multipart/form-data with each file under `images[{slip_id}]`
-   * (one image per slip; jpeg/jpg/png/gif/webp, max 10MB).
+   * Drop-off proof photos keyed by slip id. Required when `to_location_id` is
+   * "In office" (office drop-off). Sent as multipart/form-data under
+   * `images[{slip_id}]` (jpeg/jpg/png/gif/webp, max 10MB).
    */
   images?: Record<number, File>;
 };

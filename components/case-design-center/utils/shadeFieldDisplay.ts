@@ -83,6 +83,14 @@ function shadeNameCandidates(raw: string | undefined | null): string[] {
   return candidates;
 }
 
+function normalizeShadeSystemKey(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase().replace(/_/g, " ");
+}
+
+function rowSystemKey(row: ShadeCatalogRow): string {
+  return normalizeShadeSystemKey(row.brand?.system_name);
+}
+
 function rowMatchesShadeSelection(
   row: ShadeCatalogRow,
   parsed: ReturnType<typeof parseShadeSelection>,
@@ -95,16 +103,49 @@ function rowMatchesShadeSelection(
   return row.name === name;
 }
 
+/**
+ * Resolve a shade catalog row. When preferredSystemName is set (active shade guide),
+ * prefer that system's row for shared shade codes like B4 across Vita / IPS.
+ */
 export function findShadeCatalogMatch(
   raw: string | undefined | null,
-  shades: ShadeCatalogRow[] | undefined | null
+  shades: ShadeCatalogRow[] | undefined | null,
+  preferredSystemName?: string | null
 ): ShadeCatalogRow | null {
   if (!raw?.trim() || !shades?.length) return null;
   const parsed = parseShadeSelection(raw);
+  const preferred = normalizeShadeSystemKey(preferredSystemName);
 
   for (const name of shadeNameCandidates(raw)) {
-    const match = shades.find((row) => rowMatchesShadeSelection(row, parsed, name));
-    if (match) return match;
+    const candidates = shades.filter((row) => rowMatchesShadeSelection(row, parsed, name));
+    if (candidates.length === 0) continue;
+
+    if (preferred) {
+      const byPreferredSystem = candidates.find((row) => rowSystemKey(row) === preferred);
+      if (byPreferredSystem) return byPreferredSystem;
+
+      // Name+system even if IDs pointed at another brand (stale enrichment).
+      const byNameAndSystem = shades.find(
+        (row) => row.name === name && rowSystemKey(row) === preferred
+      );
+      if (byNameAndSystem) return byNameAndSystem;
+    }
+
+    if (parsed.shadeId > 0) {
+      const byShadeId = candidates.find(
+        (row) => Number(row.teeth_shade_id ?? row.gum_shade_id ?? row.id ?? 0) === parsed.shadeId
+      );
+      if (byShadeId) return byShadeId;
+    }
+
+    if (parsed.brandId > 0) {
+      const byBrand = candidates.find(
+        (row) => Number(row.brand?.id ?? 0) === parsed.brandId && row.name === name
+      );
+      if (byBrand) return byBrand;
+    }
+
+    return candidates[0] ?? null;
   }
 
   return null;
@@ -139,7 +180,7 @@ export function formatShadeFieldLabel(
   const name = parsed.name;
   if (!name) return "";
 
-  const match = findShadeCatalogMatch(raw, shades);
+  const match = findShadeCatalogMatch(raw, shades, fallbackSystemName);
   if (match) {
     const displayName = match.name;
     const systemRaw =

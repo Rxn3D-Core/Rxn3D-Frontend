@@ -168,15 +168,19 @@ export function areAllImplantDetailsComplete(
   implantTeeth: number[],
   completeByTooth: Record<number, boolean>,
   detailByTooth?: Record<number, ImplantDetailData>,
-  _fieldSettings?: ImplantFieldSettings,
-  _hasAbutmentOptions = true
+  fieldSettings?: ImplantFieldSettings,
+  hasAbutmentOptions = true
 ): boolean {
   if (implantTeeth.length === 0) return true;
-  // Same unlock as before these category-settings changes:
-  // complete flag OR any filled implant row (or lab recommendation).
-  return implantTeeth.every(
-    (tn) =>
-      completeByTooth[tn] === true || isImplantDetailFilled(detailByTooth?.[tn])
+  // Unlock impression / later fields only after each implant row is actually
+  // complete (brand → platform → … → abutment), not merely partially filled.
+  return implantTeeth.every((tn) =>
+    isImplantDetailReadyForLaterFields(
+      completeByTooth[tn],
+      detailByTooth?.[tn],
+      fieldSettings,
+      hasAbutmentOptions
+    )
   );
 }
 

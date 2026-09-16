@@ -50,6 +50,41 @@ assert.equal(
 
 assert.equal(formatRemovableShadeFieldLabel("C3", []), "C3");
 
+// Shared shade codes across brands: prefer the active shade guide (not first catalog hit).
+const ambiguousTeethShades = [
+  {
+    id: 100,
+    teeth_shade_id: 100,
+    name: "B4",
+    brand: { id: 1, name: "Ivoclar Vivadent", system_name: "IPS Shade System" },
+  },
+  {
+    id: 200,
+    teeth_shade_id: 200,
+    name: "B4",
+    brand: { id: 2, name: "VITA Zahnfabrik", system_name: "vita_classical" },
+  },
+];
+
+assert.equal(
+  formatRemovableShadeFieldLabel("B4", ambiguousTeethShades, "vita_classical"),
+  "Vita Classical - B4"
+);
+
+assert.equal(
+  formatRemovableShadeFieldLabel(
+    JSON.stringify({ teeth_shade_id: 100, brand_id: 1, name: "B4" }),
+    ambiguousTeethShades,
+    "vita_classical"
+  ),
+  "Vita Classical - B4"
+);
+
+assert.equal(
+  findShadeCatalogMatch("B4", ambiguousTeethShades, "vita_classical")?.brand?.id,
+  2
+);
+
 const gumShades = [
   {
     id: 2,
