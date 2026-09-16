@@ -44,12 +44,29 @@ import {
 import { caseDesignInter } from "@/components/case-design-center/case-design-inter-font";
 import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
+import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
 type Props = {
   slipId: number;
 };
+
+function editAddedAProduct(
+  originalProducts: unknown[],
+  payloadProducts: Array<{ id?: number }> | undefined
+): boolean {
+  if (!payloadProducts?.length) return false;
+  const originalIds = new Set(
+    (Array.isArray(originalProducts) ? originalProducts : [])
+      .map((row) => Number((row as { id?: number })?.id ?? 0))
+      .filter((id) => id > 0)
+  );
+  return payloadProducts.some((product) => {
+    const id = Number(product.id ?? 0);
+    return id <= 0 || !originalIds.has(id);
+  });
+}
 
 function isSlipEditBlocked(details: unknown): { blocked: boolean; reason?: string } {
   const status = String((details as { status?: string } | null)?.status ?? "").toLowerCase();
@@ -251,6 +268,10 @@ export function EditSlipFlow({ slipId }: Props) {
       const res = await putEditSlip(slipId, payload, multipartFiles);
       if (!res.success) {
         throw new Error(res.message || "Could not update slip.");
+      }
+
+      if (editAddedAProduct(apiProducts, payload.products)) {
+        markSlipForAutoPrint(slipId);
       }
 
       setSubmissionState("success-transition");
