@@ -5,19 +5,158 @@ on:
     branches:
       - main
 
+  workflow_dispatch:
+
+# Prevent two production deployments from running at the same time.
+# A new deployment waits for the previous one to finish.
+concurrency:
+  group: rxn3d-frontend-production
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    name: Deploy to Production
+  build-and-deploy:
+    name: Build and Deploy Production
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.2
+
+      # ========================================
+      # 1. Checkout
+      # ========================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ========================================
+      # 2. Setup Node
+      # ========================================
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT }}
-          script: |
-            cd /var/www/rxn3d/frontend
-            ./deploy.sh
+          node-version: 20
+          cache: npm
+
+      # ========================================
+      # 3. Install dependencies
+      # ========================================
+      - name: Install dependencies
+        run: npm ci
+
+      # ========================================
+      # 4. Build Next.js
+      # ========================================
+      - name: Build Next.js
+        run: |
+          echo "========================================"
+          echo "Starting Next.js production build"
+          echo "========================================"
+
+          date
+
+          NODE_ENV=production npm run build
+
+          date
+
+          echo "========================================"
+          echo "Next.js build completed"
+          echo "========================================"
+
+      # ========================================
+      # 5. Prepare release
+      # ========================================
+      - name: Prepare release
+        run: |
+          set -e
+
+          rm -rf release
+          mkdir -p release
+
+          echo "Copying .next..."
+
+          cp -r .next release/.next
+
+          echo "Copying public..."
+
+          if [ -d "public" ]; then
+            cp -r public release/public
+          fi
+
+          echo "Copying package files..."
+
+          cp package.json release/package.json
+
+          if [ -f package-lock.json ]; then
+            cp package-lock.json release/package-lock.json
+          fi
+
+          echo ""
+          echo "Release size:"
+          du -sh release
+
+          echo ""
+          echo ".next size:"
+          du -sh release/.next
+
+      # ========================================
+      # 6. Create release archive
+      # ========================================
+      - name: Create release archive
+        run: |
+          set -e
+
+          tar -czf "rxn3d-frontend-${{ github.sha }}.tar.gz" \
+            -C release .
+
+          echo "Release archive:"
+          ls -lh "rxn3d-frontend-${{ github.sha }}.tar.gz"
+
+      # ========================================
+      # 7. Configure SSH
+      # ========================================
+      - name: Configure SSH
+        run: |
+          set -e
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          ssh-keyscan \
+            -p "${{ secrets.SERVER_PORT }}" \
+            -H "${{ secrets.SERVER_HOST }}" \
+            >> ~/.ssh/known_hosts
+
+      # ========================================
+      # 8. Upload release to EC2
+      # ========================================
+      - name: Upload release to server
+        run: |
+          set -e
+
+          scp \
+            -i ~/.ssh/id_rsa \
+            -P "${{ secrets.SERVER_PORT }}" \
+            "rxn3d-frontend-${{ github.sha }}.tar.gz" \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/rxn3d-frontend-${{ github.sha }}.tar.gz"
+
+      # ========================================
+      # 9. Deploy release on EC2
+      # ========================================
+      - name: Deploy release
+        run: |
+          set -e
+
+          ssh \
+            -i ~/.ssh/id_rsa \
+            -p "${{ secrets.SERVER_PORT }}" \
+            "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "cd /var/www/rxn3d/frontend && ./deploy.sh --artifact /tmp/rxn3d-frontend-${{ github.sha }}.tar.gz"
+
+      # ========================================
+      # 10. Cleanup local SSH key
+      # ========================================
+      - name: Cleanup SSH key
+        if: always()
+        run: |
+          rm -f ~/.ssh/id_rsa
