@@ -1,0 +1,32 @@
+name: Test Next.js Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Next.js
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js
+        run: |
+          echo "===== BUILD START ====="
+          date
+
+          time npm run build
+
+          echo "===== BUILD END ====="
+          date
