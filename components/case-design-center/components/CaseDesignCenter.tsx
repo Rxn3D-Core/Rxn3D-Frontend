@@ -6,7 +6,7 @@ import type { ImplantDetailData } from "./ImplantDetailSection";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
 import {
-  isImplantDetailFilled,
+  isImplantDetailFormComplete,
   resolveGroupStageToothNumber,
 } from "../utils/implantDetailHelpers";
 import { MaxillaryPanel } from "./MaxillaryPanel";
@@ -105,7 +105,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.fromEntries(
       Object.entries(initialMaxillaryImplants).map(([tooth, detail]) => [
         Number(tooth),
-        isImplantDetailFilled(detail),
+        isImplantDetailFormComplete(detail) || !!detail?.labRecommendationRequested,
       ])
     )
   );
@@ -115,7 +115,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     Object.fromEntries(
       Object.entries(initialMandibularImplants).map(([tooth, detail]) => [
         Number(tooth),
-        isImplantDetailFilled(detail),
+        isImplantDetailFormComplete(detail) || !!detail?.labRecommendationRequested,
       ])
     )
   );

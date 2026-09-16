@@ -3,6 +3,9 @@ import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip
 /** Slip location id for "In lab" — ready-to-send action applies here (listing parity). */
 export const SLIP_LOCATION_IN_LAB = 3;
 
+/** Slip location id for "On route to the office" — driver office drop-off starts here. */
+export const SLIP_LOCATION_ON_ROUTE_TO_OFFICE = 5;
+
 /** Slip location id for "In office" (delivered to office) — add-stage FAB on virtual slip. */
 export const SLIP_LOCATION_IN_OFFICE = 6;
 
@@ -134,6 +137,16 @@ export function slipPickupDropoffLabel(
 /** False when slip is in lab (use Ready to send) or location has no pick up / drop off action. */
 export function slipShowsPickupDropoff(ref: SlipLocationRef): boolean {
   return slipPickupDropoffAction(ref) != null;
+}
+
+/**
+ * True when the next driver action delivers to the office (location 5 → 6).
+ * Office drop-off requires a proof photo on change-location / submit-scanned-slips.
+ */
+export function slipIsOfficeDropoff(ref: SlipLocationRef): boolean {
+  if (slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_OFFICE)) return true;
+  const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return label === "on route to the office";
 }
 
 /**

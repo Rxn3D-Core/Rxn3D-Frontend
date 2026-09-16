@@ -137,7 +137,8 @@ import { hasImplantRetention } from "../utils/implantHelpers";
 import {
   areAllImplantDetailsComplete,
   getImplantTeethInGroup,
-  isImplantDetailFilled,
+  isImplantDetailFormComplete,
+  isImplantDetailReadyForLaterFields,
   resolveGroupStageToothNumber,
 } from "../utils/implantDetailHelpers";
 import { getActiveProductPopoverContextToken } from "../utils/activeProductPopoverContext.js";
@@ -1148,7 +1149,7 @@ export function MandibularPanel({
     Object.fromEntries(
       Object.entries(initialImplantDetailByTooth).map(([tooth, detail]) => [
         Number(tooth),
-        isImplantDetailFilled(detail),
+        isImplantDetailFormComplete(detail) || !!detail?.labRecommendationRequested,
       ])
     )
   );
@@ -1199,6 +1200,8 @@ export function MandibularPanel({
   useEffect(() => {
     if (shadeSelectionState.arch === "mandibular" && shadeSelectionState.fieldType !== null) {
       setPanelGumShadePicker(null);
+      // Collapse implant detail so changing teeth shade does not leave it re-prompting.
+      setExpandedImplantTooth(undefined);
     }
   }, [shadeSelectionState.arch, shadeSelectionState.fieldType]);
   // Mutual exclusion: close tooth shade picker when gum shade picker opens
@@ -1224,8 +1227,10 @@ export function MandibularPanel({
         hasImplantRetention([toothNumber], mandibularRetentionTypes, product?.retention_options);
       if (
         needsImplantDetail &&
-        implantDetailCompleteByTooth[toothNumber] !== true &&
-        !isImplantDetailFilled(implantDetailByTooth[toothNumber])
+        !isImplantDetailReadyForLaterFields(
+          implantDetailCompleteByTooth[toothNumber],
+          implantDetailByTooth[toothNumber]
+        )
       ) {
         return;
       }

@@ -7,12 +7,12 @@ import {
   isImplantDetailFormComplete,
 } from "./implantDetailHelpers.ts";
 
-test("areAllImplantDetailsComplete unlocks when data is filled even without complete flag", () => {
-  const filled = {
+test("areAllImplantDetailsComplete waits for abutment before unlocking later fields", () => {
+  const platformOnly = {
     brand: "Nobel",
     systemName: "Active",
     platform: "NP",
-    size: "4.3",
+    size: "",
     inclusions: "No inclusion",
     inclusionQty: 0,
     abutmentType: "",
@@ -20,11 +20,24 @@ test("areAllImplantDetailsComplete unlocks when data is filled even without comp
     dynamicFields: {},
   };
   assert.equal(
-    areAllImplantDetailsComplete([4, 7], { 4: true }, { 7: filled }),
+    areAllImplantDetailsComplete([4], {}, { 4: platformOnly }),
+    false
+  );
+
+  const completeForm = {
+    ...platformOnly,
+    abutmentType: "Lab provided",
+  };
+  assert.equal(
+    areAllImplantDetailsComplete([4], {}, { 4: completeForm }),
     true
   );
   assert.equal(
-    areAllImplantDetailsComplete([4, 7], { 4: true, 7: true }, { 7: filled }),
+    areAllImplantDetailsComplete([4, 7], { 4: true }, { 7: completeForm }),
+    true
+  );
+  assert.equal(
+    areAllImplantDetailsComplete([4, 7], { 4: true, 7: true }, { 7: platformOnly }),
     true
   );
 });
