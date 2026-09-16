@@ -18,12 +18,22 @@ interface MainCategoryMultiSelectProps {
   placeholder?: string
 }
 
-export function parseAbutmentOptionCategoryIds(value?: string | null): number[] {
-  if (!value) return []
-  return value
-    .split(",")
-    .map((part) => Number(part.trim()))
-    .filter((id) => Number.isInteger(id) && id > 0)
+export function parseAbutmentOptionCategoryIds(
+  value?: string | number[] | number | null
+): number[] {
+  if (value == null || value === "") return []
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "number"
+      ? [value]
+      : String(value).split(",")
+  return [
+    ...new Set(
+      raw
+        .map((part) => Number(typeof part === "string" ? part.trim() : part))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ]
 }
 
 export function formatAbutmentOptionCategoryIds(ids: number[]): string {
@@ -45,7 +55,8 @@ export function MainCategoryMultiSelect({
 }: MainCategoryMultiSelectProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const selected = options.filter((option) => value.includes(option.id))
+  const selectedIds = new Set(value.map((id) => Number(id)))
+  const selected = options.filter((option) => selectedIds.has(Number(option.id)))
   const label =
     selected.length === 0
       ? placeholder
@@ -94,7 +105,7 @@ export function MainCategoryMultiSelect({
           ) : (
             <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
               {options.map((option) => {
-                const checked = value.includes(option.id)
+                const checked = selectedIds.has(Number(option.id))
                 return (
                   <label
                     key={option.id}

@@ -138,6 +138,7 @@ export interface Abutment {
     price?: number | null
     status: 'Active' | 'Inactive'
     sequence: number
+    category_ids?: string | number[] | null
   }>
   customer_id?: number | null
   is_custom?: 'Yes' | 'No'
@@ -787,6 +788,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         price?: number | null
         status?: 'Active' | 'Inactive'
         sequence?: number
+        category_ids?: string | number[] | null
       }>
     }>({
       query: (data) => ({
@@ -821,6 +823,7 @@ export const advanceModeApi = apiSlice.injectEndpoints({
         price?: number | null
         status?: 'Active' | 'Inactive'
         sequence?: number
+        category_ids?: string | number[] | null
       }>
     }>({
       query: ({ id, ...data }) => ({

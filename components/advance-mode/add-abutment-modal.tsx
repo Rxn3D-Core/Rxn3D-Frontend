@@ -146,7 +146,8 @@ export function AddAbutmentModal({ isOpen, onClose, onSave, initialAbutment = nu
     () =>
       mainCategories
         .filter((category) => String(category.status ?? "Active").trim() === "Active")
-        .map((category) => ({ id: category.id, name: category.name })),
+        .map((category) => ({ id: Number(category.id), name: category.name }))
+        .filter((category) => Number.isInteger(category.id) && category.id > 0),
     [mainCategories]
   )
 
