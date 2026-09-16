@@ -329,6 +329,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 ? wizard.completedLab.id
                 : null
             }
+            officeId={wizard.officeId}
             initialPatientName={
               wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
                 ? wizard.completedPatientName
@@ -357,7 +358,12 @@ export function EditSlipFlow({ slipId }: Props) {
             initialSubProduct={
               wizard.wizardMode === "backToProducts" ? wizard.lastSelectedSubProduct : null
             }
-            forceArch={wizard.wizardMode === "addProduct" ? wizard.pendingProductArch : undefined}
+            forceArch={
+              wizard.wizardMode === "addProduct" ||
+              (wizard.wizardMode === "backToProducts" && wizard.isPreloadedSession)
+                ? wizard.pendingProductArch
+                : undefined
+            }
             editTarget={wizard.labEditMode ? "lab" : undefined}
             onEditDone={wizard.handleEditDone}
           />

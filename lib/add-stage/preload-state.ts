@@ -96,36 +96,49 @@ export function findApiProductForArch(
   return row ? (row as Record<string, unknown>) : null;
 }
 
+export function coercePositiveId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  }
+  return null;
+}
+
+function firstPositiveId(...values: unknown[]): number | null {
+  for (const value of values) {
+    const id = coercePositiveId(value);
+    if (id) return id;
+  }
+  return null;
+}
+
 export function resolveLabIdFromSlipDetails(details: unknown): number | null {
   if (!details || typeof details !== "object") return null;
   const d = details as {
-    case?: { lab_id?: number; lab?: { id?: number } };
-    lab_id?: number;
-    lab?: { id?: number };
+    case?: { lab_id?: unknown; lab?: { id?: unknown } };
+    lab_id?: unknown;
+    lab?: { id?: unknown };
   };
-  const id =
-    d.case?.lab_id ??
-    d.case?.lab?.id ??
-    d.lab_id ??
-    d.lab?.id ??
-    null;
-  return typeof id === "number" && id > 0 ? id : null;
+  return firstPositiveId(d.case?.lab_id, d.case?.lab?.id, d.lab_id, d.lab?.id);
 }
 
+/** Office customer id only — never the lab id. Used for `GET /v1/slip/office/{id}/doctors`. */
 export function resolveOfficeIdFromSlipDetails(details: unknown): number | null {
   if (!details || typeof details !== "object") return null;
   const d = details as {
-    case?: { office_id?: number; office?: { id?: number } };
-    office_id?: number;
-    office?: { id?: number };
+    case?: { office_id?: unknown; office?: { id?: unknown } };
+    office_id?: unknown;
+    office?: { id?: unknown };
   };
-  const id =
-    d.case?.office_id ??
-    d.case?.office?.id ??
-    d.office_id ??
-    d.office?.id ??
-    null;
-  return typeof id === "number" && id > 0 ? id : null;
+  return firstPositiveId(
+    d.case?.office_id,
+    d.case?.office?.id,
+    d.office_id,
+    d.office?.id
+  );
 }
 
 export type AddStageWizardSeed = {

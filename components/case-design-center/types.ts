@@ -102,7 +102,7 @@ export interface CaseDesignProps {
   onInlineAddProductCancel?: () => void;
   /** Lab customer id for library API calls in the inline add-product picker. */
   labCustomerId?: number | null;
-  onBackToProducts?: () => void;
+  onBackToProducts?: (productCardId?: number) => void;
   /**
    * Navigate back to the category-selection step of the new-case wizard.
    * Invoked when a Fixed Restoration accordion is deleted so the user can pick

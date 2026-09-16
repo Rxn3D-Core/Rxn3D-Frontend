@@ -1497,10 +1497,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     <>
     <ChangeProductConfirmModal
       open={showChangeProductConfirm}
+      preserveFields={!!props.preloadInitialSlipState}
       onCancel={() => setShowChangeProductConfirm(false)}
       onConfirm={() => {
         setShowChangeProductConfirm(false);
-        onBackToProducts?.();
+        onBackToProducts?.(state.activeProductCardId);
       }}
     />
     <div className="relative">
