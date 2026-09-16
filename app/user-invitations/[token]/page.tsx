@@ -120,7 +120,6 @@ export default function UserInvitationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [acceptedAsExisting, setAcceptedAsExisting] = useState(false)
 
   const isExpired = useMemo(() => {
     if (!invitation) return false
@@ -177,15 +176,12 @@ export default function UserInvitationPage() {
     setIsSubmitting(true)
     try {
       const response = await acceptUserInvitation(token, {}, authToken)
-      if (tryAutoLoginFromAccept(response)) {
-        toast({
-          title: "Invitation accepted",
-          description: `You now have access to ${invitation?.customer?.name || "your organization"}.`,
-        })
-        return
-      }
-      setAcceptedAsExisting(true)
-      setIsSuccess(true)
+      toast({
+        title: "Invitation accepted",
+        description: `You now have access to ${invitation?.customer?.name || "your organization"}.`,
+      })
+      tryAutoLoginFromAccept(response)
+      router.replace("/dashboard")
     } catch (err: any) {
       setError(err?.message || "Failed to accept the invitation. Please try again.")
     } finally {
@@ -232,9 +228,9 @@ export default function UserInvitationPage() {
           title: "Account created",
           description: `Welcome! You're signed in to ${invitation?.customer?.name || "your organization"}.`,
         })
+        router.replace("/dashboard")
         return
       }
-      setAcceptedAsExisting(false)
       setIsSuccess(true)
     } catch (err: any) {
       setError(err?.message || "Failed to accept the invitation. Please try again.")
@@ -274,23 +270,21 @@ export default function UserInvitationPage() {
     )
   }
 
-  // Fallback only when accept succeeded but auth payload was missing
+  // Fallback only when registration succeeded but auth payload was missing
   if (isSuccess) {
     return (
       <Shell>
         <div className="text-center">
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-[#119933]" />
-          <h1 className="mb-2 text-xl font-bold text-gray-900">Invitation accepted!</h1>
+          <h1 className="mb-2 text-xl font-bold text-gray-900">Account created</h1>
           <p className="mb-6 text-sm text-gray-600">
-            {acceptedAsExisting
-              ? `You now have access to ${invitation.customer?.name}.`
-              : `Your account is ready. Please log in to access ${invitation.customer?.name}.`}
+            Your account is ready. Please log in to access {invitation.customer?.name}.
           </p>
           <Button
             className="w-full bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] hover:brightness-110"
-            onClick={() => router.push(acceptedAsExisting ? "/dashboard" : "/login")}
+            onClick={() => router.push("/login")}
           >
-            {acceptedAsExisting ? "Go to dashboard" : "Go to login"}
+            Go to login
           </Button>
         </div>
       </Shell>

@@ -67,6 +67,7 @@ import {
   parseGradeDisplayName,
   isGradeStepCompleteForDisplay,
   isGradeFieldValueSkipped,
+  findOppositeArchSelectedGrade,
 } from "../utils/gradeHelpers";
 import {
   findShadeCatalogMatch,
@@ -985,6 +986,16 @@ export function MandibularPanel({
   // Tracks whether any selection mode (extraction box or product plus) is explicitly active.
   // False after Done is clicked; true when extraction box or plus icon is activated.
   const [isSelectionModeActive, setIsSelectionModeActive] = useState(false);
+  const prevAddedCountOnArchRef = useRef(
+    addedProducts.filter((p) => p.arch === "mandibular").length
+  );
+  useEffect(() => {
+    const count = addedProducts.filter((p) => p.arch === "mandibular").length;
+    if (count > prevAddedCountOnArchRef.current) {
+      setIsSelectionModeActive(true);
+    }
+    prevAddedCountOnArchRef.current = count;
+  }, [addedProducts]);
 
   const card0SkipsLegacyDefaults = shouldSkipLegacyDefaultExtractionAutoSelect(
     card0InitialProduct as Record<string, unknown> | null,
@@ -1089,7 +1100,7 @@ export function MandibularPanel({
     areRemovableFieldsUnlocked,
     isFixedRetentionSetupComplete,
     setFixedRetentionSetupComplete,
-  } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState);
+  } = useExtractionsAcknowledged("mandibular", preloadInitialSlipState, addedProducts);
 
   // Guided cross-arch flow: notify the parent once the card-0 extraction setup is
   // acknowledged ("Done"). Only meaningful when the product actually needs acknowledgement.
@@ -3200,6 +3211,7 @@ export function MandibularPanel({
                               productAddOns={productAddOns}
                               selectedAddonsByTooth={selectedAddonsByTooth}
                               selectedShadeGuide={selectedShadeGuide}
+                              getToothProduct={getToothProduct}
                             />
                           </>
                         );
@@ -3844,6 +3856,7 @@ export function MandibularPanel({
                         productAddOns={productAddOns}
                         selectedAddonsByTooth={selectedAddonsByTooth}
                         selectedShadeGuide={selectedShadeGuide}
+                        getToothProduct={getToothProduct}
                       />
                     ) : null}
                     <ScrollToBottom />
@@ -4310,6 +4323,14 @@ export function MandibularPanel({
                                       <GradeHoverSelector
                                         grades={productGrades}
                                         currentGradeName={gradeVal}
+                                        preferredGradeName={parseGradeDisplayName(
+                                          findOppositeArchSelectedGrade(
+                                            "mandibular",
+                                            toothProduct?.id,
+                                            getToothProduct,
+                                            getFieldValue
+                                          )
+                                        )}
                                         disabled={caseSubmitted}
                                         onSelect={(g) => completeFieldStep("mandibular", repTn, "grade", JSON.stringify({ grade_id: g.grade_id, name: g.name }))}
                                       />
