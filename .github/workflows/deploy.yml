@@ -36,13 +36,43 @@ jobs:
           cache: npm
 
       # ========================================
-      # 3. Install dependencies
+      # 3. Cache node_modules
+      #
+      # Skips the install step entirely on a lockfile-hash
+      # cache hit instead of just caching npm's download cache.
+      # ========================================
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node_modules-${{ hashFiles('package-lock.json') }}
+
+      # ========================================
+      # 4. Cache Next.js build cache
+      #
+      # Lets Next.js do incremental compilation instead of
+      # rebuilding everything from scratch every run.
+      # ========================================
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-
+
+      # ========================================
+      # 5. Install dependencies
       # ========================================
       - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       # ========================================
-      # 4. Build Next.js
+      # 6. Build Next.js (standalone output)
+      #
+      # Requires `output: 'standalone'` in next.config.js
       # ========================================
       - name: Build Next.js
         run: |
@@ -61,7 +91,12 @@ jobs:
           echo "========================================"
 
       # ========================================
-      # 5. Prepare release
+      # 7. Prepare release (standalone layout)
+      #
+      # .next/standalone contains server.js + a trimmed
+      # node_modules, but does NOT include static assets or
+      # public/ nested inside it — those have to be copied in
+      # manually.
       # ========================================
       - name: Prepare release
         run: |
@@ -70,22 +105,20 @@ jobs:
           rm -rf release
           mkdir -p release
 
-          echo "Copying .next..."
+          echo "Copying standalone server + bundled deps..."
 
-          cp -r .next release/.next
+          cp -r .next/standalone/. release/
+
+          echo "Copying static assets..."
+
+          mkdir -p release/.next/static
+          cp -r .next/static/. release/.next/static/
 
           echo "Copying public..."
 
           if [ -d "public" ]; then
-            cp -r public release/public
-          fi
-
-          echo "Copying package files..."
-
-          cp package.json release/package.json
-
-          if [ -f package-lock.json ]; then
-            cp package-lock.json release/package-lock.json
+            mkdir -p release/public
+            cp -r public/. release/public/
           fi
 
           echo ""
@@ -93,11 +126,11 @@ jobs:
           du -sh release
 
           echo ""
-          echo ".next size:"
-          du -sh release/.next
+          echo "server.js present:"
+          ls -la release/server.js
 
       # ========================================
-      # 6. Create release archive
+      # 8. Create release archive
       # ========================================
       - name: Create release archive
         run: |
@@ -110,7 +143,7 @@ jobs:
           ls -lh "rxn3d-frontend-${{ github.sha }}.tar.gz"
 
       # ========================================
-      # 7. Configure SSH
+      # 9. Configure SSH
       # ========================================
       - name: Configure SSH
         run: |
@@ -128,7 +161,7 @@ jobs:
             >> ~/.ssh/known_hosts
 
       # ========================================
-      # 8. Upload release to EC2
+      # 10. Upload release to EC2
       # ========================================
       - name: Upload release to server
         run: |
@@ -141,7 +174,7 @@ jobs:
             "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/rxn3d-frontend-${{ github.sha }}.tar.gz"
 
       # ========================================
-      # 9. Deploy release on EC2
+      # 11. Deploy release on EC2
       # ========================================
       - name: Deploy release
         run: |
@@ -154,7 +187,7 @@ jobs:
             "cd /var/www/rxn3d/frontend && ./deploy.sh --artifact /tmp/rxn3d-frontend-${{ github.sha }}.tar.gz"
 
       # ========================================
-      # 10. Cleanup local SSH key
+      # 12. Cleanup local SSH key
       # ========================================
       - name: Cleanup SSH key
         if: always()
