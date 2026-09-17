@@ -33,6 +33,8 @@ export interface VirtualSlipHoldBannerProps {
   holdDetail: SlipHoldDetail;
   /** "hold" (default) shows resume/cancel actions; "cancelled" is read-only and red. */
   variant?: VirtualSlipBannerVariant;
+  /** Override default title (e.g. "Upper on Hold"). */
+  title?: string;
   onResume?: () => void;
   onCancel?: () => void;
 }
@@ -40,6 +42,7 @@ export interface VirtualSlipHoldBannerProps {
 export function VirtualSlipHoldBanner({
   holdDetail,
   variant = "hold",
+  title,
   onResume,
   onCancel,
 }: VirtualSlipHoldBannerProps) {
@@ -57,7 +60,7 @@ export function VirtualSlipHoldBanner({
       aria-live="polite"
     >
       <p className="shrink-0 font-sans text-base font-bold text-xl leading-snug text-[#111827]">
-        {theme.title}
+        {title ?? theme.title}
       </p>
 
       <p className="min-w-0 flex-1 text-center font-sans text-xl leading-snug text-[#374151]">

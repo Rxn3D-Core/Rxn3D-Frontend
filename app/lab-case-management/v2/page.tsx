@@ -520,15 +520,20 @@ export default function LabSlipPage() {
     setHoldSlipModalOpen(true)
   }
 
-  const handleConfirmHoldCase = async (reason: string) => {
+  const handleConfirmHoldCase = async (
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => {
     if (!selectedSlipForHold?.id || !reason.trim()) return
 
     setHoldSlipSubmitting(true)
     try {
-      const res = await holdSlip(selectedSlipForHold.id, reason.trim())
+      const res = await holdSlip(selectedSlipForHold.id, reason.trim(), options)
+      const scopeLabel =
+        options?.scope === "arch" ? options.arch ?? "Arch" : "Case"
       toast({
-        title: "Case put on hold",
-        description: res?.message ?? "The case has been put on hold successfully.",
+        title: `${scopeLabel} put on hold`,
+        description: res?.message ?? `The ${scopeLabel.toLowerCase()} has been put on hold successfully.`,
         duration: 3000,
       })
       setHoldSlipModalOpen(false)
@@ -536,7 +541,7 @@ export default function LabSlipPage() {
       refreshCurrentListing()
     } catch (error) {
       toast({
-        title: "Unable to put case on hold",
+        title: "Unable to put on hold",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
         duration: 5000,
@@ -576,15 +581,20 @@ export default function LabSlipPage() {
     }
   }
 
-  const handleConfirmCancelCase = async (reason: string) => {
+  const handleConfirmCancelCase = async (
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => {
     if (!selectedSlipForCancel?.id || !reason.trim()) return
 
     setCancelSlipSubmitting(true)
     try {
-      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim())
+      const res = await cancelSlip(selectedSlipForCancel.id, reason.trim(), options)
+      const scopeLabel =
+        options?.scope === "arch" ? options.arch ?? "Arch" : "Case"
       toast({
-        title: "Case cancelled",
-        description: res?.message ?? "The case was cancelled successfully.",
+        title: `${scopeLabel} cancelled`,
+        description: res?.message ?? `The ${scopeLabel.toLowerCase()} was cancelled successfully.`,
         duration: 3000,
       })
       setCancelSlipModalOpen(false)
@@ -592,7 +602,7 @@ export default function LabSlipPage() {
       refreshCurrentListing()
     } catch (error) {
       toast({
-        title: "Unable to cancel case",
+        title: "Unable to cancel",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
         duration: 5000,
@@ -602,15 +612,20 @@ export default function LabSlipPage() {
     }
   }
 
-  const handleConfirmDeleteSlip = async (reason: string) => {
+  const handleConfirmDeleteSlip = async (
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => {
     if (!selectedSlipForDelete?.id || !reason.trim()) return
 
     setDeleteSlipSubmitting(true)
     try {
-      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim())
+      const res = await softDeleteSlip(selectedSlipForDelete.id, reason.trim(), options)
+      const scopeLabel =
+        options?.scope === "arch" ? options.arch ?? "Arch" : "Slip"
       toast({
-        title: "Slip deleted",
-        description: res?.message ?? "The slip was deleted successfully.",
+        title: `${scopeLabel} deleted`,
+        description: res?.message ?? `The ${scopeLabel.toLowerCase()} was deleted successfully.`,
         duration: 3000,
       })
       setDeleteSlipModalOpen(false)
@@ -618,7 +633,7 @@ export default function LabSlipPage() {
       refreshCurrentListing()
     } catch (error) {
       toast({
-        title: "Unable to delete slip",
+        title: "Unable to delete",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
         duration: 5000,
@@ -1302,17 +1317,23 @@ export default function LabSlipPage() {
             setCancelSlipModalOpen(false)
             setSelectedSlipForCancel(null)
           }}
-          onSubmit={handleConfirmCancelCase}
+          onSubmitAction={(payload) =>
+            void handleConfirmCancelCase(payload.reason, {
+              scope: payload.scope,
+              arch: payload.arch,
+            })
+          }
           actionType="cancel"
-          title="Cancel Case"
-          description="You are cancelling this case. This action cannot be undone and will mark the case as inactive."
+          title="Cancel"
+          description="Choose case or arch. Cancelling one arch does not cancel the case."
           icon={<X />}
           iconBgColor="#fdecec"
           iconColor="#D32F2F"
-          buttonText={cancelSlipSubmitting ? "Cancelling..." : "Cancel Case"}
+          buttonText={cancelSlipSubmitting ? "Cancelling..." : "Cancel"}
           buttonColor="error"
-          reasonPlaceholder="Please provide a reason for case cancellation."
-          warning="This action cannot be undone and will archive the case."
+          reasonPlaceholder="Please provide a reason for cancellation."
+          warning="Case cancel stops all arches. Arch cancel leaves the other arch active."
+          enableScopePicker
         />
 
         <CaseActionModal
@@ -1322,17 +1343,23 @@ export default function LabSlipPage() {
             setDeleteSlipModalOpen(false)
             setSelectedSlipForDelete(null)
           }}
-          onSubmit={handleConfirmDeleteSlip}
+          onSubmitAction={(payload) =>
+            void handleConfirmDeleteSlip(payload.reason, {
+              scope: payload.scope,
+              arch: payload.arch,
+            })
+          }
           actionType="delete"
-          title="Delete Slip"
-          description="You are soft-deleting this slip. It will be hidden from active listings and can be viewed with the Deleted filter."
+          title="Delete"
+          description="Delete the whole case/slip, or only Upper or Lower when added by mistake. Cancel preserves history; delete removes the arch from the case."
           icon={<X />}
           iconBgColor="#f3f4f6"
           iconColor="#374151"
-          buttonText={deleteSlipSubmitting ? "Deleting..." : "Delete Slip"}
+          buttonText={deleteSlipSubmitting ? "Deleting..." : "Soft Delete"}
           buttonColor="error"
-          reasonPlaceholder="Please provide a reason for deleting this slip."
-          warning="Soft-deleted slips stay recoverable via the Deleted filter."
+          reasonPlaceholder="Please provide a reason for deleting."
+          warning="Soft-deleted records stay recoverable via the Deleted filter."
+          enableScopePicker
         />
 
         <CaseActionModal
@@ -1361,16 +1388,22 @@ export default function LabSlipPage() {
             setHoldSlipModalOpen(false)
             setSelectedSlipForHold(null)
           }}
-          onSubmit={handleConfirmHoldCase}
+          onSubmitAction={(payload) =>
+            void handleConfirmHoldCase(payload.reason, {
+              scope: payload.scope,
+              arch: payload.arch,
+            })
+          }
           actionType="hold"
-          title="Put Case On Hold"
-          description="You are putting this case on hold. The delivery date will be paused and adjusted when the case is resumed based on remaining days."
+          title="Hold"
+          description="Choose whether to hold the whole case or one arch (Upper/Lower)."
           icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
           iconBgColor="#FFF3DF"
           iconColor="#FFB400"
-          buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
+          buttonText={holdSlipSubmitting ? "Saving…" : "Put on hold"}
           buttonColor="warning"
-          reasonPlaceholder="Please provide a reason for putting case on hold."
+          reasonPlaceholder="Please provide a reason for hold."
+          enableScopePicker
         />
 
         {/* Driver History Modal */}

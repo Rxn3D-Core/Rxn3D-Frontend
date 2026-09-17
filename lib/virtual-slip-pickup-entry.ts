@@ -3,6 +3,8 @@
  * Avoids POST /slip/pickup-delivery-slips when opening pick up from virtual slip.
  */
 
+import { slipHasPhysicalImpression } from "@/lib/slip-location";
+
 export type PickupDeliveryEntry = {
   id: string;
   office: string;
@@ -18,6 +20,8 @@ export type PickupDeliveryEntry = {
   location_id?: number;
   customer_code?: string;
   customer_id?: number;
+  /** When false, lab drop-off may skip photo/signature (fully digital). */
+  has_physical_impression?: boolean;
 };
 
 function firstStr(...values: unknown[]): string {
@@ -95,6 +99,13 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
     caseObj.lab_name
   );
 
+  const hasPhysical =
+    typeof raw.has_physical_impression === "boolean"
+      ? raw.has_physical_impression
+      : Array.isArray(raw.products)
+        ? slipHasPhysicalImpression(raw)
+        : undefined;
+
   return {
     id: `virtual-slip-${slipId}`,
     office: officeDisplay,
@@ -114,5 +125,6 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
     location_id: locationId,
     customer_code: officeCode || undefined,
     customer_id: customerId,
+    has_physical_impression: hasPhysical,
   };
 }
