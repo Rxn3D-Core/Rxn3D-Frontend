@@ -104,6 +104,10 @@ export default function VirtualSlipV2Page() {
   const { readyToSendRequired } = useSignatureRequirementSettings(readyToSendOpen);
   const [caseStatusModal, setCaseStatusModal] = useState<CaseStatusModal>(null);
   const [caseStatusSubmitting, setCaseStatusSubmitting] = useState(false);
+  const [actionModalScope, setActionModalScope] = useState<"case" | "arch">("case");
+  const [actionModalArch, setActionModalArch] = useState<"Upper" | "Lower" | undefined>(
+    undefined
+  );
   const [sendBackToOfficeOpen, setSendBackToOfficeOpen] = useState(false);
   const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] =
     useState(false);
@@ -380,15 +384,70 @@ export default function VirtualSlipV2Page() {
   const caseOnHold = isSlipCaseOnHold(vm.header.slipStatus);
   const caseCancelled = isSlipCaseCancelled(vm.header.slipStatus);
 
+  const archesOnHold = useMemo(() => {
+    const labels: Array<"Upper" | "Lower"> = [];
+    if (vm.arches.maxillary?.products?.some((p) => p.status === "On hold")) {
+      labels.push("Upper");
+    }
+    if (vm.arches.mandibular?.products?.some((p) => p.status === "On hold")) {
+      labels.push("Lower");
+    }
+    return labels;
+  }, [vm.arches.maxillary?.products, vm.arches.mandibular?.products]);
+
+  const archesCancelled = useMemo(() => {
+    const labels: Array<"Upper" | "Lower"> = [];
+    if (vm.arches.maxillary?.products?.some((p) => p.status === "cancelled")) {
+      labels.push("Upper");
+    }
+    if (vm.arches.mandibular?.products?.some((p) => p.status === "cancelled")) {
+      labels.push("Lower");
+    }
+    return labels;
+  }, [vm.arches.maxillary?.products, vm.arches.mandibular?.products]);
+
+  const upperOnHold = archesOnHold.includes("Upper");
+  const lowerOnHold = archesOnHold.includes("Lower");
+  const upperCancelled = !caseCancelled && archesCancelled.includes("Upper");
+  const lowerCancelled = !caseCancelled && archesCancelled.includes("Lower");
+  const archOnlyOnHold = !caseOnHold && archesOnHold.length > 0;
+
+  const openCaseStatusModal = useCallback(
+    (
+      action: Exclude<CaseStatusModal, null>,
+      options?: { scope?: "case" | "arch"; arch?: "Upper" | "Lower" }
+    ) => {
+      setActionModalScope(options?.scope ?? "case");
+      setActionModalArch(options?.arch);
+      setCaseStatusModal(action);
+    },
+    []
+  );
+
+  const closeCaseStatusModal = useCallback(() => {
+    if (caseStatusSubmitting) return;
+    setCaseStatusModal(null);
+    setActionModalScope("case");
+    setActionModalArch(undefined);
+  }, [caseStatusSubmitting]);
+
+  const upperHoldStage = useMemo(() => {
+    return vm.arches.maxillary?.products?.find((p) => p.status === "On hold")?.stage ?? null;
+  }, [vm.arches.maxillary?.products]);
+
+  const lowerHoldStage = useMemo(() => {
+    return vm.arches.mandibular?.products?.find((p) => p.status === "On hold")?.stage ?? null;
+  }, [vm.arches.mandibular?.products]);
+
   const { notes: caseNotes } = useCaseSlipNotes(caseId, {
     refreshKey: notesRefreshKey,
-    enabled: (caseOnHold || caseCancelled) && caseId != null,
+    enabled: (caseOnHold || caseCancelled || archOnlyOnHold) && caseId != null,
   });
 
   const holdDetail = useMemo(() => {
-    if (!caseOnHold) return null;
+    if (!caseOnHold && !archOnlyOnHold) return null;
     return resolveSlipHoldDetail(caseNotes, slipId, virtualSlipDetails);
-  }, [caseOnHold, caseNotes, slipId, virtualSlipDetails]);
+  }, [caseOnHold, archOnlyOnHold, caseNotes, slipId, virtualSlipDetails]);
 
   const cancelDetail = useMemo(() => {
     if (!caseCancelled) return null;
@@ -433,9 +492,11 @@ export default function VirtualSlipV2Page() {
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
-    reason: string
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
   ) => {
     if (!slipId || isNaN(slipId)) return;
+    const scope = options?.scope ?? "case";
     if (action === "hold" && !canPutOnHold) {
       toast({
         title: "Cannot put on hold",
@@ -445,7 +506,7 @@ export default function VirtualSlipV2Page() {
       });
       return;
     }
-    if (action === "resume" && !caseOnHold) {
+    if (action === "resume" && scope === "case" && !caseOnHold) {
       toast({
         title: "Cannot resume case",
         description: "Resume is only available when the case is on hold.",
@@ -454,14 +515,32 @@ export default function VirtualSlipV2Page() {
       });
       return;
     }
+    const scopeLabel =
+      scope === "arch" ? options?.arch ?? "Arch" : "Case";
     const successTitle =
-      action === "hold" ? "Case put on hold" : action === "resume" ? "Case resumed" : "Case cancelled";
+      action === "hold"
+        ? `${scopeLabel} put on hold`
+        : action === "resume"
+          ? `${scopeLabel} resumed`
+          : `${scopeLabel} cancelled`;
     const errorTitle =
-      action === "hold" ? "Unable to put case on hold" : action === "resume" ? "Unable to resume case" : "Unable to cancel case";
+      action === "hold"
+        ? `Unable to put ${scopeLabel.toLowerCase()} on hold`
+        : action === "resume"
+          ? `Unable to resume ${scopeLabel.toLowerCase()}`
+          : `Unable to cancel ${scopeLabel.toLowerCase()}`;
     const fallbackSuccess =
-      action === "hold" ? "The case has been put on hold." : action === "resume" ? "The case has been resumed." : "The case has been cancelled.";
+      action === "hold"
+        ? `The ${scopeLabel.toLowerCase()} has been put on hold.`
+        : action === "resume"
+          ? `The ${scopeLabel.toLowerCase()} has been resumed.`
+          : `The ${scopeLabel.toLowerCase()} has been cancelled.`;
     const fallbackError =
-      action === "hold" ? "Could not put case on hold." : action === "resume" ? "Could not resume case." : "Could not cancel case.";
+      action === "hold"
+        ? `Could not put ${scopeLabel.toLowerCase()} on hold.`
+        : action === "resume"
+          ? `Could not resume ${scopeLabel.toLowerCase()}.`
+          : `Could not cancel ${scopeLabel.toLowerCase()}.`;
 
     setCaseStatusSubmitting(true);
     try {
@@ -471,13 +550,15 @@ export default function VirtualSlipV2Page() {
           : action === "resume"
             ? resumeSlip
             : cancelSlip;
-      const res = await fn(slipId, reason);
+      const res = await fn(slipId, reason, options);
       toast({
         title: successTitle,
         description: res?.message ?? fallbackSuccess,
         duration: 3000,
       });
       setCaseStatusModal(null);
+      setActionModalScope("case");
+      setActionModalArch(undefined);
       await fetchVirtualSlipDetails(slipId);
       setNotesRefreshKey((key) => key + 1);
     } catch (err) {
@@ -530,6 +611,15 @@ export default function VirtualSlipV2Page() {
     }
   };
 
+  const { hasMaxillary, hasMandibular, visibleArches } = vm.productArchVisibility;
+
+  const availableActionArches = useMemo(() => {
+    const arches: Array<"Upper" | "Lower"> = [];
+    if (hasMaxillary) arches.push("Upper");
+    if (hasMandibular) arches.push("Lower");
+    return arches.length > 0 ? arches : (["Upper", "Lower"] as Array<"Upper" | "Lower">);
+  }, [hasMaxillary, hasMandibular]);
+
   if (loading) {
     return (
       <div className="min-h-full animate-pulse space-y-4 p-6">
@@ -544,7 +634,6 @@ export default function VirtualSlipV2Page() {
   }
 
   const { maxillary, mandibular } = vm.arches;
-  const { hasMaxillary, hasMandibular, visibleArches } = vm.productArchVisibility;
 
   const primaryRushSlot = rushArchSlots[0];
 
@@ -618,12 +707,12 @@ export default function VirtualSlipV2Page() {
                   }
                 }
                 onResume={
-                  caseCancelled ? undefined : () => setCaseStatusModal("resume")
+                  caseCancelled ? undefined : () => openCaseStatusModal("resume")
                 }
                 onCancel={
                   caseCancelled || slipInOffice || !canCancelCase
                     ? undefined
-                    : () => setCaseStatusModal("cancel")
+                    : () => openCaseStatusModal("cancel")
                 }
               />
             </div>
@@ -660,12 +749,41 @@ export default function VirtualSlipV2Page() {
             </span>
           </div>
         </div>
-        {/* Column content */}
+        {/* Column content — per-arch hold (cream/blue) or cancelled (pink) per Figma. */}
         <div className="flex gap-[120px] px-6 pb-1 pt-1">
           <div className="min-w-0 flex-1">
             {maxillary ? (
               <VirtualSlipArch
                 data={maxillary}
+                statusBanner={
+                  !caseBlocked && upperCancelled
+                    ? {
+                        variant: "cancelled",
+                        label: "Upper",
+                        otherArchLabel: hasMandibular && !lowerCancelled ? "Lower" : null,
+                      }
+                    : !caseBlocked && upperOnHold
+                      ? {
+                          variant: "hold",
+                          label: "Upper",
+                          stage: upperHoldStage,
+                          reason: holdDetail?.reason,
+                          onResume: () =>
+                            openCaseStatusModal("resume", {
+                              scope: "arch",
+                              arch: "Upper",
+                            }),
+                          onCancel:
+                            slipInOffice || !canCancelCase
+                              ? undefined
+                              : () =>
+                                  openCaseStatusModal("cancel", {
+                                    scope: "arch",
+                                    arch: "Upper",
+                                  }),
+                        }
+                      : null
+                }
                 onSelectLabImplants={
                   canRunLabDriverActions ? openSelectLabImplantsForProduct : undefined
                 }
@@ -679,6 +797,35 @@ export default function VirtualSlipV2Page() {
             {mandibular ? (
               <VirtualSlipArch
                 data={mandibular}
+                statusBanner={
+                  !caseBlocked && lowerCancelled
+                    ? {
+                        variant: "cancelled",
+                        label: "Lower",
+                        otherArchLabel: hasMaxillary && !upperCancelled ? "Upper" : null,
+                      }
+                    : !caseBlocked && lowerOnHold
+                      ? {
+                          variant: "hold",
+                          label: "Lower",
+                          stage: lowerHoldStage,
+                          reason: holdDetail?.reason,
+                          onResume: () =>
+                            openCaseStatusModal("resume", {
+                              scope: "arch",
+                              arch: "Lower",
+                            }),
+                          onCancel:
+                            slipInOffice || !canCancelCase
+                              ? undefined
+                              : () =>
+                                  openCaseStatusModal("cancel", {
+                                    scope: "arch",
+                                    arch: "Lower",
+                                  }),
+                        }
+                      : null
+                }
                 onSelectLabImplants={
                   canRunLabDriverActions ? openSelectLabImplantsForProduct : undefined
                 }
@@ -737,13 +884,15 @@ export default function VirtualSlipV2Page() {
               : undefined
           }
           onHold={
-            caseBlocked || slipInOffice ? undefined : () => setCaseStatusModal("hold")
+            caseBlocked || slipInOffice
+              ? undefined
+              : () => openCaseStatusModal("hold")
           }
           canPutOnHold={canPutOnHold}
           onCancel={
             caseBlocked || slipInOffice || !canCancelCase
               ? undefined
-              : () => setCaseStatusModal("cancel")
+              : () => openCaseStatusModal("cancel")
           }
           onSendBackToOffice={
             canRunLabDriverActions && canSendBackToOffice && !caseCancelled
@@ -838,54 +987,86 @@ export default function VirtualSlipV2Page() {
 
       <CaseActionModal
         open={caseStatusModal === "hold"}
-        onClose={() => {
-          if (!caseStatusSubmitting) setCaseStatusModal(null);
-        }}
-        onSubmit={(reason) => void submitCaseStatusAction("hold", reason)}
+        onClose={closeCaseStatusModal}
+        onSubmitAction={(payload) =>
+          void submitCaseStatusAction("hold", payload.reason, {
+            scope: payload.scope,
+            arch: payload.arch,
+          })
+        }
         actionType="hold"
-        title="Put Case On Hold"
-        description="You are putting this case on hold. The delivery date will be paused and adjusted when the case is resumed based on remaining days."
+        title="Hold"
+        description="Choose whether to hold the whole case or one arch (Upper/Lower)."
         icon={<VirtualSlipPauseIcon className="h-7 w-7" />}
         iconBgColor="#FFF3DF"
         iconColor="#FFB400"
-        buttonText={caseStatusSubmitting ? "Saving…" : "Put case on hold"}
+        buttonText={caseStatusSubmitting ? "Saving…" : "Put on hold"}
         buttonColor="warning"
-        reasonPlaceholder="Please provide a reason for putting case on hold."
+        reasonPlaceholder="Please provide a reason for hold."
+        enableScopePicker
+        availableArches={availableActionArches}
+        initialScope={actionModalScope}
+        initialArch={actionModalArch}
+        lockScopeSelection={actionModalScope === "arch" && !!actionModalArch}
       />
 
       <CaseActionModal
         open={caseStatusModal === "resume"}
-        onClose={() => {
-          if (!caseStatusSubmitting) setCaseStatusModal(null);
-        }}
-        onSubmit={(reason) => void submitCaseStatusAction("resume", reason)}
+        onClose={closeCaseStatusModal}
+        onSubmitAction={(payload) =>
+          void submitCaseStatusAction("resume", payload.reason, {
+            scope: payload.scope,
+            arch: payload.arch,
+          })
+        }
         actionType="resume"
-        title="Resume Case"
-        description="You are resuming a case that was previously on hold. The delivery date will be adjusted to preserve the remaining days from when the case was put on hold."
+        title="Resume"
+        description={
+          actionModalScope === "arch" && actionModalArch
+            ? `You are resuming the ${actionModalArch} arch.`
+            : "Resume the case or an arch that was previously put on hold."
+        }
         icon={<Play />}
         iconBgColor="#EAF7EA"
         iconColor="#43A047"
-        buttonText={caseStatusSubmitting ? "Saving…" : "Resume Case"}
+        buttonText={caseStatusSubmitting ? "Saving…" : "Resume"}
         buttonColor="success"
-        reasonPlaceholder="Please provide a reason for resuming case."
+        reasonPlaceholder="Please provide a reason for resume."
+        enableScopePicker
+        availableArches={availableActionArches}
+        initialScope={actionModalScope}
+        initialArch={actionModalArch}
+        lockScopeSelection={actionModalScope === "arch" && !!actionModalArch}
       />
 
       <CaseActionModal
         open={caseStatusModal === "cancel"}
-        onClose={() => {
-          if (!caseStatusSubmitting) setCaseStatusModal(null);
-        }}
-        onSubmit={(reason) => void submitCaseStatusAction("cancel", reason)}
+        onClose={closeCaseStatusModal}
+        onSubmitAction={(payload) =>
+          void submitCaseStatusAction("cancel", payload.reason, {
+            scope: payload.scope,
+            arch: payload.arch,
+          })
+        }
         actionType="cancel"
-        title="Cancel Case"
-        description="You are cancelling this case. This action cannot be undone and will mark the case as inactive."
+        title="Cancel"
+        description={
+          actionModalScope === "arch" && actionModalArch
+            ? `You are cancelling the ${actionModalArch} arch. The other arch stays active.`
+            : "Choose case or arch. Cancelling one arch does not cancel the case."
+        }
         icon={<X />}
         iconBgColor="#fdecec"
         iconColor="#D32F2F"
-        buttonText={caseStatusSubmitting ? "Cancelling…" : "Cancel Case"}
+        buttonText={caseStatusSubmitting ? "Cancelling…" : "Cancel"}
         buttonColor="error"
-        reasonPlaceholder="Please provide a reason for case cancellation."
-        warning="This action cannot be undone and will archive the case."
+        reasonPlaceholder="Please provide a reason for cancellation."
+        warning="Case cancel stops all arches. Arch cancel leaves the other arch active."
+        enableScopePicker
+        availableArches={availableActionArches}
+        initialScope={actionModalScope}
+        initialArch={actionModalArch}
+        lockScopeSelection={actionModalScope === "arch" && !!actionModalArch}
       />
 
       <LabImplantSelectionModal

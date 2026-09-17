@@ -1,9 +1,19 @@
 /**
  * Slip case status actions — hold, resume, cancel, soft-delete.
  * Paths are relative to NEXT_PUBLIC_API_BASE_URL (already includes /v1 when configured).
+ *
+ * Scope: case (whole slip) or arch (Upper / Lower only).
  */
 
 import { buildApiUrl } from "@/lib/api/client";
+
+export type SlipActionScope = "case" | "arch";
+export type SlipArchType = "Upper" | "Lower";
+
+export type SlipCaseActionOptions = {
+  scope?: SlipActionScope;
+  arch?: SlipArchType;
+};
 
 export type SlipCaseActionResponse = {
   success: boolean;
@@ -20,15 +30,33 @@ function getAuthHeaders(): HeadersInit {
   };
 }
 
+function buildActionBody(reason: string, options?: SlipCaseActionOptions) {
+  const body: Record<string, string> = { reason };
+  const scope = options?.scope ?? "case";
+  body.scope = scope;
+  if (scope === "arch") {
+    if (!options?.arch) {
+      throw new Error("arch is required when scope is arch");
+    }
+    body.arch = options.arch;
+  }
+  return body;
+}
+
 async function postSlipCaseAction(
   slipId: number,
   action: "hold" | "resume" | "cancel" | "soft-delete" | "restore",
-  reason: string
+  reason: string,
+  options?: SlipCaseActionOptions
 ): Promise<SlipCaseActionResponse> {
   const res = await fetch(buildApiUrl(`/slip/action/${slipId}/${action}`), {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify(
+      action === "restore"
+        ? { reason }
+        : buildActionBody(reason, options)
+    ),
   });
 
   if (res.status === 401) {
@@ -50,20 +78,36 @@ async function postSlipCaseAction(
   return json;
 }
 
-export function postSlipHold(slipId: number, reason: string) {
-  return postSlipCaseAction(slipId, "hold", reason);
+export function postSlipHold(
+  slipId: number,
+  reason: string,
+  options?: SlipCaseActionOptions
+) {
+  return postSlipCaseAction(slipId, "hold", reason, options);
 }
 
-export function postSlipResume(slipId: number, reason: string) {
-  return postSlipCaseAction(slipId, "resume", reason);
+export function postSlipResume(
+  slipId: number,
+  reason: string,
+  options?: SlipCaseActionOptions
+) {
+  return postSlipCaseAction(slipId, "resume", reason, options);
 }
 
-export function postSlipCancel(slipId: number, reason: string) {
-  return postSlipCaseAction(slipId, "cancel", reason);
+export function postSlipCancel(
+  slipId: number,
+  reason: string,
+  options?: SlipCaseActionOptions
+) {
+  return postSlipCaseAction(slipId, "cancel", reason, options);
 }
 
-export function postSlipSoftDelete(slipId: number, reason: string) {
-  return postSlipCaseAction(slipId, "soft-delete", reason);
+export function postSlipSoftDelete(
+  slipId: number,
+  reason: string,
+  options?: SlipCaseActionOptions
+) {
+  return postSlipCaseAction(slipId, "soft-delete", reason, options);
 }
 
 export function postSlipRestore(slipId: number, reason: string = "Restored to In Progress") {

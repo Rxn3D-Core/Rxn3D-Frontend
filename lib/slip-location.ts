@@ -3,6 +3,9 @@ import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip
 /** Slip location id for "In lab" — ready-to-send action applies here (listing parity). */
 export const SLIP_LOCATION_IN_LAB = 3;
 
+/** Slip location id for "On route to the lab" — driver lab drop-off starts here. */
+export const SLIP_LOCATION_ON_ROUTE_TO_LAB = 2;
+
 /** Slip location id for "On route to the office" — driver office drop-off starts here. */
 export const SLIP_LOCATION_ON_ROUTE_TO_OFFICE = 5;
 
@@ -147,6 +150,57 @@ export function slipIsOfficeDropoff(ref: SlipLocationRef): boolean {
   if (slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_OFFICE)) return true;
   const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
   return label === "on route to the office";
+}
+
+/**
+ * True when the next driver action delivers to the lab (location 2 → 3).
+ * Lab drop-off requires a photo only when the slip has a physical impression.
+ */
+export function slipIsLabDropoff(ref: SlipLocationRef): boolean {
+  if (slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_LAB)) return true;
+  const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return label === "on route to the lab";
+}
+
+/**
+ * Whether any selected impression on the slip is physical (non-digital).
+ * Prefers an explicit `has_physical_impression` flag (QR scan); otherwise walks
+ * product impressions. Unknown slips default to true (safer — require photo).
+ */
+export function slipHasPhysicalImpression(slip: unknown): boolean {
+  if (slip == null || typeof slip !== "object") return true;
+  const raw = slip as Record<string, unknown>;
+
+  if (typeof raw.has_physical_impression === "boolean") {
+    return raw.has_physical_impression;
+  }
+
+  const products = Array.isArray(raw.products) ? raw.products : null;
+  if (!products) return true;
+
+  const isPhysicalRow = (row: unknown): boolean => {
+    if (row == null || typeof row !== "object") return true;
+    const r = row as Record<string, unknown>;
+    const impression =
+      r.impression && typeof r.impression === "object"
+        ? (r.impression as Record<string, unknown>)
+        : r;
+    const flag = impression.is_digital_impression;
+    if (flag == null) return true;
+    return String(flag).toLowerCase() !== "yes";
+  };
+
+  for (const product of products) {
+    if (product == null || typeof product !== "object") continue;
+    const p = product as Record<string, unknown>;
+    for (const key of ["impressions", "opposite_impressions", "oppositeImpressions"] as const) {
+      const rows = p[key];
+      if (!Array.isArray(rows)) continue;
+      if (rows.some(isPhysicalRow)) return true;
+    }
+  }
+
+  return false;
 }
 
 /**

@@ -72,6 +72,8 @@ export interface ProductVM {
   productName: string;
   grade: string;
   stage: string;
+  /** Slip product workflow status (In Progress, On hold, cancelled, …). */
+  status: string;
   teethShade: string;
   gumShade: string;
   stumpShade: string;
@@ -715,6 +717,7 @@ function buildProduct(apiProduct: any): ProductVM {
     productName: firstStr(product?.name, apiProduct?.name),
     grade: firstStr(apiProduct?.grade?.name, apiProduct?.grade_name),
     stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
+    status: firstStr(apiProduct?.status, "In Progress"),
     teethShade: firstStr(
       apiProduct?.teeth_shade?.name,
       apiProduct?.teeth_shade_name,

@@ -23,6 +23,8 @@ export interface QRScanResponseData {
   office_name?: string;
   lab_code?: string;
   lab_name?: string;
+  /** False when the slip is fully digital (STL) — lab drop-off may skip photo/signature. */
+  has_physical_impression?: boolean;
 }
 
 export interface QRScanResponse {

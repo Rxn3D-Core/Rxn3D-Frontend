@@ -264,10 +264,26 @@ interface SlipCreationContextType {
     params?: CaseAttachmentsParams
   ) => Promise<CaseAttachmentsData | null>
 
-  holdSlip: (slipId: number, reason: string) => Promise<any>
-  resumeSlip: (slipId: number, reason: string) => Promise<any>
-  cancelSlip: (slipId: number, reason: string) => Promise<any>
-  softDeleteSlip: (slipId: number, reason: string) => Promise<any>
+  holdSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  resumeSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  cancelSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
+  softDeleteSlip: (
+    slipId: number,
+    reason: string,
+    options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+  ) => Promise<any>
   restoreSlip: (slipId: number, reason?: string) => Promise<any>
   sendBackToOfficeSlip: (slipId: number, reason: string) => Promise<any>
 
@@ -866,22 +882,38 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
   // --- Hold, Resume, Cancel APIs ---
   const holdSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipHold(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipHold(slipId, reason, options),
     []
   );
 
   const resumeSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipResume(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipResume(slipId, reason, options),
     []
   );
 
   const cancelSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipCancel(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipCancel(slipId, reason, options),
     []
   );
 
   const softDeleteSlip = useCallback(
-    async (slipId: number, reason: string) => postSlipSoftDelete(slipId, reason),
+    async (
+      slipId: number,
+      reason: string,
+      options?: import("@/lib/api/slip-case-actions").SlipCaseActionOptions
+    ) => postSlipSoftDelete(slipId, reason, options),
     []
   );
 
