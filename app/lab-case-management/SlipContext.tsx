@@ -89,6 +89,10 @@ type DriverPrintSlip = {
   case_pan_number: string;
   case_number: string;
   slip_number: string;
+  /** Current location name used as STATUS on the sticker. */
+  status?: string | null;
+  qr_code?: string;
+  qr_code_url?: string;
 };
 
 type DriverPrintResponse = {

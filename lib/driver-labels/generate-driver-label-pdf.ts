@@ -1,6 +1,9 @@
 /**
  * Builds the driver-label PDF from a page/cell placement grid.
  *
+ * Layout matches Figma driver slips (4×2.5 PLS780 / 3.75×2 PLS618):
+ *   header (lab / PT / OFC / DR + QR) | mid (CASE·SLIP, STAGE·PAN, PROD, STATUS) | footer (PICKUP · DELIVER)
+ *
  * `pages` is one entry per physical page; each inner array is that page's cells
  * (length === geo.cellsPerPage). A cell holds a slip or null (blank). Roll mode
  * passes one-slip pages. jsPDF is imported dynamically so it never runs on the
@@ -9,6 +12,11 @@
 
 import type { jsPDF } from "jspdf";
 import { cellOrigin, type GridGeometry } from "./label-layout";
+import {
+  DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
+  fieldLabel,
+  type DriverLabelPrintSettings,
+} from "./label-print-settings";
 
 export interface DriverLabelSlip {
   slip_id: number;
@@ -22,6 +30,8 @@ export interface DriverLabelSlip {
   case_number?: string;
   slip_number?: string;
   product_name?: string;
+  /** Location / workflow status label (e.g. READY FOR PICKUP). */
+  status?: string;
   pickup_date?: string;
   pickup_time?: string;
   delivery_date?: string;
@@ -29,8 +39,6 @@ export interface DriverLabelSlip {
   /** QR image from the API — a data URL or a fetchable URL. */
   qr_code?: string;
 }
-
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /** Detect the jsPDF image format from a data URL; null lets jsPDF auto-detect. */
 function parseImageFormat(dataUrl: string): "PNG" | "JPEG" | undefined {
@@ -67,35 +75,97 @@ function fitText(doc: jsPDF, text: string, maxW: number): string {
   return `${t}…`;
 }
 
-interface StickerRow {
-  k: string;
-  v: string;
+function val(v?: string | null): string {
+  return v && String(v).trim() ? String(v).trim() : "-";
 }
 
-function joinDateTime(d?: string, t?: string): string {
-  return [d, t].filter((x) => x && x.trim()).join(" ");
+/** Y-m-d or similar → MM/DD/YY (Figma: 08/25/26). */
+function formatShortDate(d?: string | null): string {
+  if (!d || !String(d).trim()) return "-";
+  const raw = String(d).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (m) return `${m[2]}/${m[3]}/${m[1].slice(2)}`;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+    const dd = String(parsed.getDate()).padStart(2, "0");
+    const yy = String(parsed.getFullYear()).slice(2);
+    return `${mm}/${dd}/${yy}`;
+  }
+  return raw;
 }
 
-/** Info rows in priority order — the layout keeps as many as the height allows. */
-function buildRows(slip: DriverLabelSlip): StickerRow[] {
-  const val = (v?: string) => (v && v.trim() ? v : "-");
-  return [
-    { k: "CASE#", v: val(slip.case_number) },
-    { k: "SLIP#", v: val(slip.slip_number) },
-    { k: "STAGE", v: val(slip.stage_code) },
-    { k: "OFC", v: val(slip.office_code) },
-    { k: "DR", v: val(slip.doctor_name) },
-    { k: "PAN#", v: val(slip.case_pan_number) },
-    { k: "PROD", v: val(slip.product_name) },
-    { k: "DEL", v: val(joinDateTime(slip.delivery_date, slip.delivery_time)) },
-    { k: "PKU", v: val(joinDateTime(slip.pickup_date, slip.pickup_time)) },
-  ];
+/** H:mm or HH:mm → h:mm AM/PM (Figma: 4:00 PM). */
+function formatClock(t?: string | null): string {
+  if (!t || !String(t).trim()) return "";
+  const raw = String(t).trim();
+  const m = /^(\d{1,2}):(\d{2})/.exec(raw);
+  if (!m) return raw;
+  let h = Number(m[1]);
+  const min = m[2];
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${min} ${ampm}`;
+}
+
+function formatDeliver(date?: string | null, time?: string | null): string {
+  const d = formatShortDate(date);
+  const clock = formatClock(time);
+  if (d === "-" && !clock) return "-";
+  if (!clock) return d;
+  if (d === "-") return clock;
+  return `${d} · ${clock}`;
+}
+
+/** Figma artboard for Label art · 4" × 2" (480×240 @ 120px/in). */
+const FIGMA_DPI = 120;
+const FIGMA_W_IN = 4;
+const FIGMA_H_IN = 2;
+
+const COLOR_INK = "#17191F";
+const COLOR_MUTED = "#555B66";
+const COLOR_BORDER = "#1B1D21";
+const COLOR_RULE = "#D3D7DE";
+
+function hexRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+
+/** CSS top (line box) → jsPDF baseline, in inches from label origin. */
+function textBaseline(topPx: number, fontPt: number, sy: number, sFont: number): number {
+  return (topPx / FIGMA_DPI) * sy + ((fontPt * sFont) / 72) * 0.78;
+}
+
+function drawFigmaLine(
+  doc: jsPDF,
+  absX: number,
+  absY: number,
+  leftPx: number,
+  topPx: number,
+  maxWPx: number,
+  text: string,
+  /** Figma CSS font-size number, treated as pt for print readability. */
+  fontPt: number,
+  color: string,
+  sx: number,
+  sy: number,
+  bold: boolean,
+) {
+  const sFont = Math.min(sx, sy);
+  const x = absX + (leftPx / FIGMA_DPI) * sx;
+  const y = absY + textBaseline(topPx, fontPt, sy, sFont);
+  const maxW = (maxWPx / FIGMA_DPI) * sx;
+  doc.setFont("helvetica", bold ? "bold" : "normal");
+  doc.setFontSize(fontPt * sFont);
+  doc.setTextColor(...hexRgb(color));
+  doc.text(fitText(doc, text, maxW), x, y);
 }
 
 /**
- * Draw one sticker, auto-arranged to fill the label: type and QR scale with the
- * label size, and the info rows spread evenly down the body — more fields are
- * shown when there is more height — so large stickers don't look empty.
+ * Draw one sticker from Figma CSS (Label art · 4" × 2").
+ * Optional fields / display toggles come from DriverLabelPrintSettings.
  */
 function drawSticker(
   doc: jsPDF,
@@ -104,33 +174,31 @@ function drawSticker(
   y: number,
   w: number,
   h: number,
-  qrDataUrl: string | null
+  qrDataUrl: string | null,
+  settings: DriverLabelPrintSettings,
 ) {
-  const pad = clamp(Math.min(w, h) * 0.05, 0.06, 0.16);
-  const innerX = x + pad;
-  const innerY = y + pad;
-  const innerW = w - pad * 2;
-  const innerH = h - pad * 2;
-  const radius = Math.min(w, h) * 0.04;
+  const sx = w / FIGMA_W_IN;
+  const sy = h / FIGMA_H_IN;
+  const sFont = Math.min(sx, sy);
+  const compact = settings.compactAbbreviations;
+  const L = (key: Parameters<typeof fieldLabel>[0]) => fieldLabel(key, compact);
 
-  doc.setDrawColor(30);
-  doc.setLineWidth(0.012);
+  const radius = (8 / FIGMA_DPI) * Math.min(sx, sy);
+  doc.setDrawColor(...hexRgb(COLOR_BORDER));
+  doc.setLineWidth((1 / FIGMA_DPI) * sFont);
   doc.roundedRect(x, y, w, h, radius, radius, "S");
 
-  // Scale factor relative to a 4×2 label (area 8).
-  const s = clamp(Math.sqrt((w * h) / 8), 0.72, 2.2);
-  const nameFont = clamp(11 * s, 9, 24);
-  const ptFont = clamp(9 * s, 8, 18);
-
-  // QR grows with the label.
-  const qrSize = qrDataUrl ? clamp(Math.min(w, h) * 0.34, 0.5, 1.8) : 0;
+  // QR · 70×70 @ (396, 14) — always shown
+  const qrSize = (70 / FIGMA_DPI) * Math.min(sx, sy);
+  const qrX = x + (396 / FIGMA_DPI) * sx;
+  const qrY = y + (14 / FIGMA_DPI) * sy;
   if (qrDataUrl) {
     try {
       doc.addImage({
         imageData: qrDataUrl,
         format: parseImageFormat(qrDataUrl),
-        x: innerX + innerW - qrSize,
-        y: innerY,
+        x: qrX,
+        y: qrY,
         width: qrSize,
         height: qrSize,
       });
@@ -139,63 +207,110 @@ function drawSticker(
     }
   }
 
-  const topTextW = Math.max(0.2, innerW - (qrSize ? qrSize + 0.08 : 0));
+  // Header (locked: lab, patient, office; optional: doctor)
+  drawFigmaLine(
+    doc, x, y, 14, 14, 368,
+    (slip.lab_name || "").toUpperCase(),
+    12, COLOR_INK, sx, sy, true,
+  );
+  drawFigmaLine(
+    doc, x, y, 14, 36, 368,
+    `${L("pt")} ${val(slip.pt_name)}`,
+    12, COLOR_INK, sx, sy, true,
+  );
+  drawFigmaLine(
+    doc, x, y, 14, 60, 368,
+    `${L("ofc")} ${val(slip.office_code)}`,
+    9.5, COLOR_MUTED, sx, sy, true,
+  );
+  if (settings.showDoctor) {
+    drawFigmaLine(
+      doc, x, y, 14, 76, 368,
+      `${L("dr")} ${val(slip.doctor_name)}`,
+      9.5, COLOR_MUTED, sx, sy, true,
+    );
+  }
 
-  // Top band: lab name + patient.
-  doc.setTextColor(20);
-  doc.setFont("Inter, sans-serif", "bold");
-  doc.setFontSize(nameFont);
-  let cy = innerY + nameFont / 72;
-  doc.text(fitText(doc, slip.lab_name || "", topTextW), innerX, cy);
+  const ruleX = x + (14 / FIGMA_DPI) * sx;
+  const ruleW = (452 / FIGMA_DPI) * sx;
+  doc.setDrawColor(...hexRgb(COLOR_RULE));
+  doc.setLineWidth((1 / FIGMA_DPI) * sFont);
+  if (settings.showDividers) {
+    doc.line(ruleX, y + (96 / FIGMA_DPI) * sy, ruleX + ruleW, y + (96 / FIGMA_DPI) * sy);
+  }
 
-  doc.setFontSize(ptFont);
-  cy += (ptFont / 72) * 1.35;
-  doc.text(fitText(doc, `PT: ${slip.pt_name || "-"}`, topTextW), innerX, cy);
+  // Mid rows — pack when optional fields are off
+  const body = 9.5;
+  const midTops = [106, 125.5, 145, 164.5];
+  type MidRow =
+    | { kind: "pair"; left: string; right: string }
+    | { kind: "full"; text: string };
 
-  // Divider under the top band (clears the QR).
-  const topBandBottom = Math.max(cy + pad * 0.7, innerY + qrSize + 0.04);
-  doc.setDrawColor(195);
-  doc.setLineWidth(0.006);
-  doc.line(innerX, topBandBottom, innerX + innerW, topBandBottom);
+  const rows: MidRow[] = [
+    {
+      kind: "pair",
+      left: `${L("case")} ${val(slip.case_number)}`,
+      right: `${L("slip")} ${val(slip.slip_number)}`,
+    },
+  ];
+  if (settings.showStage || settings.showPan) {
+    rows.push({
+      kind: "pair",
+      left: settings.showStage ? `${L("stage")} ${val(slip.stage_code)}` : "",
+      right: settings.showPan ? `${L("pan")} ${val(slip.case_pan_number)}` : "",
+    });
+  }
+  if (settings.showProduct) {
+    rows.push({ kind: "full", text: `${L("prod")} ${val(slip.product_name)}` });
+  }
+  if (settings.showStatus) {
+    let statusText = val(slip.status);
+    if (statusText !== "-" && settings.uppercaseStatus) statusText = statusText.toUpperCase();
+    rows.push({ kind: "full", text: `${L("status")} ${statusText}` });
+  }
 
-  // Body rows: keep as many as fit, then spread them evenly to fill the height.
-  const bodyTop = topBandBottom + 0.05;
-  const bodyBottom = innerY + innerH;
-  const bodyH = Math.max(0.1, bodyBottom - bodyTop);
-  const all = buildRows(slip);
-  const maxRows = clamp(Math.floor(bodyH / 0.17), 4, all.length);
-  const rows = all.slice(0, maxRows);
-  const bandH = bodyH / rows.length;
-  const bodyFont = clamp(bandH * 72 * 0.42, 6.5, 15);
-
-  doc.setTextColor(40);
   rows.forEach((row, i) => {
-    const baseY = bodyTop + bandH * (i + 0.5) + (bodyFont / 72) * 0.35;
-    doc.setFont("Inter, sans-serif", "bold");
-    doc.setFontSize(bodyFont);
-    const keyText = `${row.k}  `;
-    doc.text(keyText, innerX, baseY);
-    const keyW = doc.getTextWidth(keyText);
-    doc.setFont("Inter, sans-serif", "normal");
-    doc.text(fitText(doc, row.v, Math.max(0.2, innerW - keyW)), innerX + keyW, baseY);
+    const top = midTops[Math.min(i, midTops.length - 1)];
+    if (row.kind === "pair") {
+      if (row.left) drawFigmaLine(doc, x, y, 14, top, 220, row.left, body, COLOR_MUTED, sx, sy, true);
+      if (row.right) drawFigmaLine(doc, x, y, 246, top, 220, row.right, body, COLOR_MUTED, sx, sy, true);
+    } else {
+      drawFigmaLine(doc, x, y, 14, top, 452, row.text, body, COLOR_MUTED, sx, sy, true);
+    }
   });
+
+  if (settings.showDividers) {
+    doc.line(ruleX, y + (192 / FIGMA_DPI) * sy, ruleX + ruleW, y + (192 / FIGMA_DPI) * sy);
+  }
+
+  // Footer locked
+  drawFigmaLine(
+    doc, x, y, 14, 202, 190,
+    `${L("pickup")} ${formatShortDate(slip.pickup_date)}`,
+    body, COLOR_MUTED, sx, sy, true,
+  );
+  drawFigmaLine(
+    doc, x, y, 203.84, 202, 262,
+    `${L("deliver")} ${formatDeliver(slip.delivery_date, slip.delivery_time)}`,
+    body, COLOR_MUTED, sx, sy, true,
+  );
 }
 
 export async function generateDriverLabelPdf(
   pages: (DriverLabelSlip | null)[][],
-  geo: GridGeometry
+  geo: GridGeometry,
+  settings: DriverLabelPrintSettings = DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
 ): Promise<jsPDF> {
   const { jsPDF: JsPDF } = await import("jspdf");
   const orientation = geo.pageWidthIn > geo.pageHeightIn ? "landscape" : "portrait";
   const format: [number, number] = [geo.pageWidthIn, geo.pageHeightIn];
   const doc = new JsPDF({ unit: "in", format, orientation });
 
-  // Preload each distinct QR once.
   const qrCache = new Map<string, string | null>();
   const sources = new Set<string>();
   for (const cells of pages) for (const s of cells) if (s?.qr_code) sources.add(s.qr_code);
   await Promise.all(
-    Array.from(sources).map(async (src) => qrCache.set(src, await loadImageAsDataUrl(src)))
+    Array.from(sources).map(async (src) => qrCache.set(src, await loadImageAsDataUrl(src))),
   );
 
   pages.forEach((cells, pageIdx) => {
@@ -204,7 +319,7 @@ export async function generateDriverLabelPdf(
       if (!slip) return;
       const { x, y } = cellOrigin(geo, cellIdx);
       const qr = slip.qr_code ? qrCache.get(slip.qr_code) ?? null : null;
-      drawSticker(doc, slip, x, y, geo.labelWidthIn, geo.labelHeightIn, qr);
+      drawSticker(doc, slip, x, y, geo.labelWidthIn, geo.labelHeightIn, qr, settings);
     });
   });
 
