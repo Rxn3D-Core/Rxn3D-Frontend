@@ -4559,17 +4559,12 @@ export function MaxillaryPanel({
             })()}
 
 
-            {/* Opposing product accordion — maxillary opposing when slip is mand-primary (see CaseDesignCenter opposingProductData). */}
             {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
               const hasOpposingImpressionSelected =
                 (selectedImpressions.maxillary?.length ?? 0) > 0;
               const isNoOpposing =
                 !hasOpposingImpressionSelected &&
-                Object.keys(noOpposingNeeded).some(
-                  (k) =>
-                    /^\d+_mandibular_/.test(k) ||
-                    (k.startsWith("mandibular_prep_") && k.includes("_mandibular_"))
-                );
+                Object.values(noOpposingNeeded).some(Boolean);
               if (!hasOpposingImpressionSelected && !isNoOpposing) return null;
               const opposingImpressionText =
                 selectedImpressions.maxillary

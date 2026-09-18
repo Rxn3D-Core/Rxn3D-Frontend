@@ -13,6 +13,11 @@ export type AddStageDesignContext = {
   historyByArch: AddStageHistoryByArch;
   /** Open stage picker for each arch in order when CDC first loads. */
   promptStagesOnLoad?: boolean;
+  /**
+   * When true, the impression modal asks New Impression vs No Impression and
+   * does not reuse prior-stage impression selections.
+   */
+  promptImpressionChoice?: boolean;
 };
 
 export type AddStageArchSelection = {

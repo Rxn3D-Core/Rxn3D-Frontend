@@ -286,6 +286,7 @@ export function OpposingRemovableAccordion({
   );
   const impressionComplete =
     isFComplete("impression") ||
+    impressionDisplay === "No Impression" ||
     (!!impressionDisplay && hasOpposingImpressionSelected);
 
   const hasOpposingExtractionsConfigured = (opposingProductData.opposite_extractions?.length ?? 0) > 0;

@@ -172,23 +172,13 @@ export function buildImpressionModalOptions(
   catalog: ImpressionOptionForModal[],
   mockFallback: ImpressionOptionForModal[]
 ): ImpressionOptionForModal[] {
-  const merged = mergeCatalogWithArchSelections(
-    catalog,
+  // Prefer the product catalog; when the opposing arch has none yet, keep the
+  // full mock list so selecting a card does not collapse the grid to one item.
+  const baseCatalog = catalog.length > 0 ? catalog : mockFallback;
+  return mergeCatalogWithArchSelections(
+    baseCatalog,
     selectedImpressions[arch]
   );
-  if (merged.length > 0) return merged;
-  if (archHasImpressionSelections(selectedImpressions, arch)) {
-    return selectedImpressions[arch]
-      .filter((e) => e.qty > 0)
-      .map((entry) => ({
-        id: entry.impression_id,
-        name: entry.name || entry.code,
-        code: entry.code,
-        value: entry.code,
-        label: entry.name || entry.code,
-      }));
-  }
-  return catalog.length > 0 ? catalog : mockFallback;
 }
 
 export {

@@ -6,6 +6,7 @@ import {
   isFixedRestorationProduct,
   resolveProductForRetentionCheck,
 } from "@/components/case-design-center/utils/categoryHelpers";
+import { emptyImpressionSelections } from "@/components/case-design-center/utils/impressionStorage";
 import {
   buildVirtualSlipInitialState,
   determineInitialArch,
@@ -13,6 +14,37 @@ import {
 } from "@/lib/virtual-slip-transformer";
 import type { AddStageSelections } from "./session";
 import { resolveDoctorImageUrl } from "@/utils/avatar-utils";
+
+const IMPRESSION_FIELD_STEPS = new Set(["impression", "fixed_impression"]);
+
+/** Drop prior-slip impression selections and completion so the new stage must choose. */
+function clearPreloadedImpressions(base: VirtualSlipInitialState): {
+  selectedImpressions: VirtualSlipInitialState["selectedImpressions"];
+  fieldValues: VirtualSlipInitialState["fieldValues"];
+  completedFields: VirtualSlipInitialState["completedFields"];
+} {
+  const fieldValues: VirtualSlipInitialState["fieldValues"] = {};
+  for (const [toothKey, values] of Object.entries(base.fieldValues ?? {})) {
+    const next: Record<string, string> = {};
+    for (const [step, value] of Object.entries(values ?? {})) {
+      if (!IMPRESSION_FIELD_STEPS.has(step)) next[step] = value;
+    }
+    fieldValues[toothKey] = next;
+  }
+
+  const completedFields: VirtualSlipInitialState["completedFields"] = {};
+  for (const [toothKey, steps] of Object.entries(base.completedFields ?? {})) {
+    completedFields[toothKey] = (steps ?? []).filter(
+      (step) => !IMPRESSION_FIELD_STEPS.has(step)
+    );
+  }
+
+  return {
+    selectedImpressions: emptyImpressionSelections(),
+    fieldValues,
+    completedFields,
+  };
+}
 
 function archFromType(type: string | null | undefined): "maxillary" | "mandibular" {
   return type?.toLowerCase() === "lower" ? "mandibular" : "maxillary";
@@ -24,6 +56,8 @@ function isNonFixedSlipProduct(apiProduct: Record<string, unknown>): boolean {
 
 /**
  * Apply per-arch stage picks onto preloaded slip state so CDC opens with the chosen stages.
+ * Prior-slip impressions are intentionally cleared — each new stage must choose
+ * New Impression or No Impression in the impression modal.
  */
 export function buildAddStagePreload(
   apiProducts: unknown[],
@@ -33,12 +67,19 @@ export function buildAddStagePreload(
   initialArch: "maxillary" | "mandibular" | "both";
 } {
   const base = buildVirtualSlipInitialState(apiProducts);
+  const cleared = clearPreloadedImpressions(base);
   const selectedStages = { ...base.selectedStages };
-  const fieldValues = { ...base.fieldValues };
-  const completedFields = { ...base.completedFields };
+  const fieldValues = { ...cleared.fieldValues };
+  const completedFields = { ...cleared.completedFields };
 
   if (!Array.isArray(apiProducts)) {
-    return { initialSlipState: base, initialArch: determineInitialArch(apiProducts) };
+    return {
+      initialSlipState: {
+        ...base,
+        ...cleared,
+      },
+      initialArch: determineInitialArch(apiProducts),
+    };
   }
 
   for (let i = 0; i < apiProducts.length; i++) {
@@ -78,6 +119,7 @@ export function buildAddStagePreload(
       selectedStages,
       fieldValues,
       completedFields,
+      selectedImpressions: cleared.selectedImpressions,
     },
     initialArch: determineInitialArch(apiProducts),
   };

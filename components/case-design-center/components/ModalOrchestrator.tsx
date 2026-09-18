@@ -53,6 +53,13 @@ interface ModalOrchestratorProps {
   impressionModalHeading?: string;
   /** Dual impression modal: main product arch row first, opposing row second */
   dualImpressionPrimaryArch?: "maxillary" | "mandibular";
+  /**
+   * Add-new-stage: require New Impression / No Impression choice in the impression modal.
+   * Cards start unselected; prior-stage impressions are not reused.
+   */
+  requireImpressionChoice?: boolean;
+  /** Completes the impression step with no selections (add-new-stage "No Impression"). */
+  onNoImpression?: () => void;
   // Add-ons
   showAddOnsModal: boolean;
   setShowAddOnsModal: (v: boolean) => void;
@@ -201,6 +208,8 @@ export function ModalOrchestrator({
   hideSkipOpposing,
   impressionModalHeading,
   dualImpressionPrimaryArch,
+  requireImpressionChoice = false,
+  onNoImpression,
   // Add-ons
   showAddOnsModal,
   setShowAddOnsModal,
@@ -388,6 +397,20 @@ export function ModalOrchestrator({
         hideSkipOpposing={hideSkipOpposing}
         modalHeading={impressionModalHeading}
         dualImpressionPrimaryArch={dualImpressionPrimaryArch}
+        requireImpressionChoice={requireImpressionChoice}
+        onNoImpression={() => {
+          if (impressionCloseInFlightRef.current) return;
+          impressionCloseInFlightRef.current = true;
+          const arches = getDualModalArches(
+            currentImpressionOppositeImpression,
+            currentImpressionArch
+          );
+          for (const archToProcess of arches) {
+            onImpressionConfirm("No Impression", archToProcess);
+          }
+          onNoImpression?.();
+          setShowImpressionModal(false);
+        }}
       />
 
       {/* Add-Ons Modal */}

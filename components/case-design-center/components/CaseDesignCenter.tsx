@@ -981,11 +981,30 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const hasMandibularArchImpressionSelected =
     (state.selectedImpressions.mandibular?.length ?? 0) > 0;
 
+  // Add-new-stage: impressions are optional (New / No Impression prompt is informational).
+  // Create-slip / edit still require main-arch impressions when products are present.
+  const impressionsOptionalForValidation = Boolean(
+    props.addStageContext?.promptImpressionChoice
+  );
+
+  /** Add-stage empty state shows "No Impression" instead of a blank red field. */
+  const getImpressionDisplayText = useCallback(
+    (productId: string, arch: "maxillary" | "mandibular", toothNumber?: number) => {
+      const text = state.getImpressionDisplayText(productId, arch, toothNumber)?.trim();
+      if (text) return text;
+      if (impressionsOptionalForValidation) return "No Impression";
+      return "";
+    },
+    [state.getImpressionDisplayText, impressionsOptionalForValidation]
+  );
+
   // Main-side validation only: opposing impressions are optional and never blocking.
   const requireMaxillaryImpression =
+    !impressionsOptionalForValidation &&
     hasMaxillaryProducts &&
     (props.initialArch === "maxillary" || props.initialArch === "both");
   const requireMandibularImpression =
+    !impressionsOptionalForValidation &&
     hasMandibularProducts &&
     (props.initialArch === "mandibular" || props.initialArch === "both");
 
@@ -1597,7 +1616,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           handleOpenRushModal={state.handleOpenRushModal}
           handleOpenStageModal={state.handleOpenStageModal}
           setShowAttachModal={state.setShowAttachModal}
-          getImpressionDisplayText={state.getImpressionDisplayText}
+          getImpressionDisplayText={getImpressionDisplayText}
           selectedStages={state.selectedStages}
           // Added products
           addedProducts={state.addedProducts}
@@ -1756,7 +1775,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           rushedProducts={state.rushedProducts}
           // Modals
           handleOpenImpressionModal={state.handleOpenImpressionModal}
-          getImpressionDisplayText={state.getImpressionDisplayText}
+          getImpressionDisplayText={getImpressionDisplayText}
           handleOpenAddOnsModal={state.handleOpenAddOnsModal}
           selectedStages={state.selectedStages}
           handleOpenRushModal={state.handleOpenRushModal}
@@ -1978,6 +1997,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
             ? "mandibular"
             : "maxillary"
         }
+        requireImpressionChoice={Boolean(
+          props.addStageContext?.promptImpressionChoice
+        )}
+        onNoImpression={() => {
+          const toothNum = state.currentImpressionToothNumber;
+          const arch = state.currentImpressionArch;
+          const productId = state.currentImpressionProductId;
+          if (toothNum !== null) {
+            const key = `${productId}_${arch}_${toothNum}`;
+            state.setNoOpposingNeeded((prev: Record<string, boolean>) => ({
+              ...prev,
+              [key]: true,
+            }));
+          }
+        }}
         showAddOnsModal={state.showAddOnsModal}
         setShowAddOnsModal={state.setShowAddOnsModal}
         currentAddOnsArch={state.currentAddOnsArch}
