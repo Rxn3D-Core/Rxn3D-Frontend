@@ -50,6 +50,13 @@ interface ImpressionSelectionModalProps {
    * Dual-grid only: slip's main product arch — that section is shown first (top), opposing second (bottom).
    */
   dualImpressionPrimaryArch?: "maxillary" | "mandibular"
+  /**
+   * Add-new-stage: show New Impression / No Impression choice in this same modal.
+   * Nothing is pre-selected; user must choose to pick cards or skip impressions.
+   */
+  requireImpressionChoice?: boolean
+  /** Called when user chooses No Impression — completes without selecting cards. */
+  onNoImpression?: () => void
 }
 
 function ImpressionGrid({
@@ -472,6 +479,8 @@ export function ImpressionSelectionModal({
   hideSkipOpposing = false,
   modalHeading,
   dualImpressionPrimaryArch = "maxillary",
+  requireImpressionChoice = false,
+  onNoImpression,
 }: ImpressionSelectionModalProps) {
   const isDualArch = oppositeImpression === "Yes"
 
@@ -501,15 +510,42 @@ export function ImpressionSelectionModal({
   const topArchLabel = topArch === "maxillary" ? "Maxillary" : "Mandibular"
   const bottomArchLabel = bottomArch === "maxillary" ? "Maxillary" : "Mandibular"
 
+  type ImpressionChoice = "new" | "none" | null
+  const [impressionChoice, setImpressionChoice] = useState<ImpressionChoice>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setImpressionChoice(null)
+      return
+    }
+    // Re-open with existing selections ⇒ treat as New Impression already chosen.
+    if (
+      selectedImpressions.maxillary.length > 0 ||
+      selectedImpressions.mandibular.length > 0
+    ) {
+      setImpressionChoice("new")
+    } else {
+      setImpressionChoice(null)
+    }
+  }, [isOpen])
+
   // Progressive disclosure: in dual-arch mode, only show the bottom section once
   // the top arch has at least one impression selected. When re-opening with
   // existing top-arch selections, both sections are immediately visible.
-  const showBottomSection = !!bottomArch && (isDualArch ? hasTopSelection : true)
+  // For add-stage "No Impression", grids stay visible but skip is already chosen.
+  const showBottomSection =
+    !!bottomArch &&
+    (isDualArch ? hasTopSelection || impressionChoice === "none" : true)
   const shouldShowSkipOpposing =
-    showBottomSection && !hideSkipOpposing && !hasBottomSelection
+    showBottomSection &&
+    !hideSkipOpposing &&
+    !hasBottomSelection &&
+    impressionChoice !== "none"
 
-  // Primary arch selections are required; opposing arch is always optional.
-  const isValidationComplete = hasTopSelection
+  // Primary arch selections are required unless add-stage chose No Impression.
+  const isValidationComplete =
+    impressionChoice === "none" ||
+    (requireImpressionChoice ? impressionChoice === "new" && hasTopSelection : hasTopSelection)
 
   const [lastTouchedKey, setLastTouchedKey] = useState<string | null>(null)
   const touchHistoryRef = useRef<string[]>([])
@@ -520,7 +556,8 @@ export function ImpressionSelectionModal({
       key,
     ]
     setLastTouchedKey(key)
-  }, [])
+    if (requireImpressionChoice) setImpressionChoice("new")
+  }, [requireImpressionChoice])
 
   const handleKeyRemoved = useCallback(
     (removedKey: string) => {
@@ -560,14 +597,40 @@ export function ImpressionSelectionModal({
     })
   }, [isOpen])
 
+  const handleSetArchQty: typeof onSetArchQty = (targetArch, option, qty) => {
+    if (requireImpressionChoice && qty > 0) setImpressionChoice("new")
+    onSetArchQty(targetArch, option, qty)
+  }
+
   const handleDone = () => {
     if (!isValidationComplete) return;
+    if (impressionChoice === "none") {
+      onNoImpression?.()
+      return
+    }
     onClose();
   };
 
+  const handleChooseNewImpression = () => {
+    setImpressionChoice("new")
+  }
+
+  const handleChooseNoImpression = () => {
+    setImpressionChoice("none")
+    // Clear any card picks so submit carries no reused/partial selections.
+    for (const archKey of ["maxillary", "mandibular"] as const) {
+      for (const entry of selectedImpressions[archKey]) {
+        onRemoveArchImpression(archKey, entry.code)
+      }
+    }
+    touchHistoryRef.current = []
+    setLastTouchedKey(null)
+    onNoImpression?.()
+  }
+
   const sharedGridProps = {
     selectedImpressions,
-    onSetArchQty,
+    onSetArchQty: handleSetArchQty,
     onRemoveArchImpression,
     onSTLFilesAttached,
     stlFilesByImpression,
@@ -576,13 +639,18 @@ export function ImpressionSelectionModal({
     onKeyRemoved: handleKeyRemoved,
     onSaveArchSelection,
     isValidationComplete,
-    onConfirmAllAndClose: onClose,
-    suppressDoneButton: shouldShowSkipOpposing,
+    onConfirmAllAndClose: handleDone,
+    suppressDoneButton: shouldShowSkipOpposing || impressionChoice === "none",
   };
 
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose();
   };
+
+  const showImpressionGrids =
+    !requireImpressionChoice ||
+    impressionChoice === "new" ||
+    impressionChoice === null
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -597,11 +665,50 @@ export function ImpressionSelectionModal({
             </h2>
           ) : null}
 
+          {requireImpressionChoice ? (
+            <div className="flex flex-col items-center gap-2 sm:gap-3 pt-1 pb-1">
+              <p className="font-['Verdana'] font-bold text-sm sm:text-base text-[#1d1d1b] text-center">
+                For this stage, do you need a new impression?
+              </p>
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={handleChooseNewImpression}
+                  className={cn(
+                    "px-4 sm:px-6 py-2 sm:py-2.5 rounded-[6px] font-['Verdana'] font-bold text-xs sm:text-sm transition-colors border-2",
+                    impressionChoice === "new"
+                      ? "bg-[#1162A8] border-[#1162A8] text-white"
+                      : "bg-white border-[#1162A8] text-[#1162A8] hover:bg-[#e8f1f9]"
+                  )}
+                >
+                  New Impression
+                </button>
+                <button
+                  type="button"
+                  onClick={handleChooseNoImpression}
+                  className={cn(
+                    "px-4 sm:px-6 py-2 sm:py-2.5 rounded-[6px] font-['Verdana'] font-bold text-xs sm:text-sm transition-colors border-2",
+                    impressionChoice === "none"
+                      ? "bg-[#CF0202] border-[#CF0202] text-white"
+                      : "bg-white border-[#CF0202] text-[#CF0202] hover:bg-[#fde8e8]"
+                  )}
+                >
+                  No Impression
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {showImpressionGrids ? (
+            <>
           {/* Top arch section */}
           <div
             className={cn(
               "relative rounded-[12px] px-1.5 sm:px-2 md:px-3 pt-4 sm:pt-5 pb-1.5 sm:pb-2 border-2 transition-colors min-w-0",
-              hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]"
+              hasTopSelection ? "border-[#22c55e]" : "border-[#CF0202]",
+              requireImpressionChoice && impressionChoice === null
+                ? "opacity-60"
+                : undefined
             )}
           >
             <span
@@ -668,6 +775,8 @@ export function ImpressionSelectionModal({
               No impressions available
             </div>
           )}
+            </>
+          ) : null}
 
           <div className="flex justify-between items-center gap-4 border-t border-[#e5e7eb] pt-2 sm:pt-3">
             <button

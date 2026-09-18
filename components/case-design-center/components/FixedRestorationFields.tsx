@@ -519,7 +519,9 @@ export function RetentionProductFields({
   );
   const impressionModalProductId = ARCH_IMPRESSION_PRODUCT_ID;
   const impressionDisplayText =
-    getImpressionDisplayText(impressionModalProductId, arch)?.trim() ?? "";
+    getImpressionDisplayText(impressionModalProductId, arch)?.trim() ||
+    getFieldValue(arch, firstToothNumber, "fixed_impression")?.trim() ||
+    "";
   const impressionHasArchSelections = archHasActiveImpressionSelections(
     selectedImpressions,
     impressionModalProductId,
@@ -529,7 +531,7 @@ export function RetentionProductFields({
     isFieldCompleted(arch, firstToothNumber, "fixed_impression") ||
     impressionHasArchSelections ||
     !!impressionDisplayText;
-  const impressionEmpty = !impressionDisplayText && !impressionHasArchSelections;
+  const impressionEmpty = !impressionComplete;
   const fixedShadeProductId = resolveFixedShadeProductId(
     selectedProduct?.id,
     groupStageToothNumber

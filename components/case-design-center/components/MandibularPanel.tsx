@@ -4525,19 +4525,13 @@ export function MandibularPanel({
               );
             })()}
 
-            {/* Opposing product accordion — shown only when an opposing impression was selected in the modal */}
+            {/* Opposing product accordion — shown when opposing impression selected or No Impression / Skip Opposing */}
             {showDetails && opposingProductData && (opposingProductData.opposite_impression === "Yes" || (opposingProductData.opposite_extractions?.length ?? 0) > 0) && (() => {
-              // Impression keys are `${productId}_${arch}_${code}` (e.g. "0_mandibular_<code>" or "12_mandibular_<code>").
-              // Legacy keys used "maxillary_prep_<tooth>_mandibular_<code>".
               const hasOpposingImpressionSelected =
                 (selectedImpressions.mandibular?.length ?? 0) > 0;
               const isNoOpposing =
                 !hasOpposingImpressionSelected &&
-                Object.keys(noOpposingNeeded).some(
-                  (k) =>
-                    /^\d+_maxillary_/.test(k) ||
-                    (k.startsWith("maxillary_prep_") && k.includes("_maxillary_"))
-                );
+                Object.values(noOpposingNeeded).some(Boolean);
               if (!hasOpposingImpressionSelected && !isNoOpposing) return null;
               const opposingImpressionText =
                 selectedImpressions.mandibular

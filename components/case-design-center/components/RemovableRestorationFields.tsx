@@ -682,6 +682,7 @@ export function SelectionProductFields({
     getFieldValueFn(arch, firstToothNumber, "impression");
   const impressionComplete =
     isFieldCompletedFn(arch, firstToothNumber, "impression") ||
+    impressionDisplay === "No Impression" ||
     (!!impressionDisplay &&
       archHasActiveImpressionSelections(
         selectedImpressions,

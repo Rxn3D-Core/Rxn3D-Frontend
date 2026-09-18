@@ -218,6 +218,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           historyByArch,
           // Send-back remake: autofill (repeat stage / skip single-stage); no forced picker.
           promptStagesOnLoad: !remakeViaSendBack,
+          // Every new stage must choose New Impression / No Impression (never reuse prior).
+          promptImpressionChoice: true,
         });
         setBootstrap({
           patientName: seed.patientName,
