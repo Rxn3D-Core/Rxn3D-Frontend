@@ -289,6 +289,10 @@ export type CaseDriverHistorySlip = {
   id: number;
   slip_number: string;
   current_location: SlipDriverHistoryLocation;
+  /** Unique stage names from slip products, joined with `/` when multiple. */
+  stage_name?: string | null;
+  /** Unique stage codes from slip products, joined with `/` when multiple. */
+  stage_code?: string | null;
   driver_history: SlipDriverHistoryEntry[];
 };
 

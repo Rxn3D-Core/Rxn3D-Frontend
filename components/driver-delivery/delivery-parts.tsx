@@ -430,6 +430,7 @@ type CaseSlipHistoryItem = {
   slipId: number;
   slipNumber: string;
   currentLocation: string;
+  stageName: string | null;
   timeline: DeliveryTimelineRow[];
 };
 
@@ -465,6 +466,7 @@ export function useCaseDriverHistory(
           slipId: slip.id,
           slipNumber: slip.slip_number,
           currentLocation: slip.current_location?.name ?? "—",
+          stageName: slip.stage_name?.trim() || null,
           timeline: sorted.map(mapTimelineRow),
         };
       });
@@ -537,7 +539,11 @@ export function CaseDriverHistorySection({
       {slips.map((slip) => (
         <div key={slip.slipId}>
           <DeliveryPills
-            items={[`Slip# ${slip.slipNumber}`, slip.currentLocation]}
+            items={[
+              `Slip# ${slip.slipNumber}`,
+              slip.stageName,
+              slip.currentLocation,
+            ]}
           />
           <DeliveryTimeline
             rows={slip.timeline}
