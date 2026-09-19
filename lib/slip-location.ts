@@ -13,13 +13,19 @@ export const SLIP_LOCATION_ON_ROUTE_TO_OFFICE = 5;
 export const SLIP_LOCATION_IN_OFFICE = 6;
 
 export type SlipLocationRef = {
-  locationId?: number;
+  locationId?: number | string;
   location: string;
 };
 
 /** Prefer `locationId` from API; fall back to label match for older payloads. */
 export function slipAtLocation(ref: SlipLocationRef, id: number): boolean {
-  if (typeof ref.locationId === "number" && ref.locationId === id) return true;
+  const locationId =
+    typeof ref.locationId === "number"
+      ? ref.locationId
+      : typeof ref.locationId === "string" && ref.locationId.trim() !== ""
+        ? Number(ref.locationId)
+        : NaN;
+  if (Number.isFinite(locationId) && locationId === id) return true;
   const expected = SLIP_LOCATION_FILTER_OPTIONS.find((o) => o.id === id)?.label;
   return !!(expected && ref.location === expected);
 }
@@ -163,9 +169,9 @@ export function slipIsLabDropoff(ref: SlipLocationRef): boolean {
 }
 
 /**
- * Whether any selected impression on the slip is physical (non-digital).
- * Prefers an explicit `has_physical_impression` flag (QR scan); otherwise walks
- * product impressions. Unknown slips default to true (safer — require photo).
+ * True when lab drop-off should require a photo.
+ * False only when every selected impression is digital and at least one exists.
+ * Prefers `has_physical_impression` from QR scan; unknown slips default to true.
  */
 export function slipHasPhysicalImpression(slip: unknown): boolean {
   if (slip == null || typeof slip !== "object") return true;
@@ -190,17 +196,22 @@ export function slipHasPhysicalImpression(slip: unknown): boolean {
     return String(flag).toLowerCase() !== "yes";
   };
 
+  let foundAny = false;
   for (const product of products) {
     if (product == null || typeof product !== "object") continue;
     const p = product as Record<string, unknown>;
     for (const key of ["impressions", "opposite_impressions", "oppositeImpressions"] as const) {
       const rows = p[key];
       if (!Array.isArray(rows)) continue;
-      if (rows.some(isPhysicalRow)) return true;
+      for (const row of rows) {
+        foundAny = true;
+        if (isPhysicalRow(row)) return true;
+      }
     }
   }
 
-  return false;
+  // No impression rows at all → treat as needing photo (not fully digital).
+  return !foundAny;
 }
 
 /**
