@@ -19,6 +19,13 @@ import {
 
 export type { EditSlipProduct };
 
+/** Statuses that edit must keep intact (resume only via hold API; cancelled never resumes). */
+const PRESERVED_EDIT_PRODUCT_STATUSES = new Set(["cancelled", "On hold", "Finished"]);
+
+function isPreservedEditProductStatus(status: string | null | undefined): boolean {
+  return PRESERVED_EDIT_PRODUCT_STATUSES.has(String(status ?? ""));
+}
+
 export type EditSlipPayload = {
   location_id?: number;
   status?: string;
@@ -58,7 +65,10 @@ function buildSlipProductIdByType(apiProducts: unknown[]): Map<"Upper" | "Lower"
   if (!Array.isArray(apiProducts)) return map;
 
   for (const row of apiProducts) {
-    const product = row as { id?: number; type?: string };
+    const product = row as { id?: number; type?: string; status?: string };
+    // Do not attach cancelled/hold/finished ids to a newly designed arch product —
+    // those arches stay intact separately (or cancelled may be replaced without id).
+    if (isPreservedEditProductStatus(product.status)) continue;
     const archType = normalizeSlipProductType(product.type);
     if (archType && typeof product.id === "number" && product.id > 0) {
       map.set(archType, product.id);
@@ -147,16 +157,34 @@ export async function buildEditSlipSubmissionPayloadAsync(
     return product;
   });
 
-  const products: EditSlipProduct[] =
+  const mergedActiveProducts: EditSlipProduct[] =
     preparedProducts.length > 0
       ? preparedProducts.map((prepared, index) => {
           const baseline = findBaselineProductForPrepared(prepared, baselineProducts, index);
           return baseline ? mergeEditSlipProductWithBaseline(prepared, baseline) : prepared;
         })
-      : baselineProducts.map((baseline) => {
-          const existingId = slipProductIds.get(baseline.type);
-          return existingId ? { ...baseline, id: existingId } : baseline;
-        });
+      : baselineProducts
+          .filter((baseline) => !isPreservedEditProductStatus(baseline.status))
+          .map((baseline) => {
+            const existingId = slipProductIds.get(baseline.type);
+            return existingId ? { ...baseline, id: existingId } : baseline;
+          });
+
+  // Cancelled / On hold / Finished arches must stay on the slip when editing the other side.
+  // Backend also preserves them if omitted; include them here so status cannot flip to In Progress.
+  // Skip a preserved arch when the payload already has an active product of that type (replacement).
+  const includedIds = new Set(
+    mergedActiveProducts.map((p) => p.id).filter((id): id is number => typeof id === "number" && id > 0)
+  );
+  const activeTypes = new Set(mergedActiveProducts.map((p) => p.type));
+  const preservedProducts = baselineProducts.filter(
+    (baseline) =>
+      isPreservedEditProductStatus(baseline.status) &&
+      (baseline.id == null || !includedIds.has(baseline.id)) &&
+      !activeTypes.has(baseline.type)
+  );
+
+  const products: EditSlipProduct[] = [...mergedActiveProducts, ...preservedProducts];
 
   clearProductNotesWhenUsingCaseSummary(products, caseSummaryNotes);
 
