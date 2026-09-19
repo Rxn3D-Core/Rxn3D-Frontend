@@ -832,6 +832,8 @@ export default function DriverHistoryModal({
           onConfirm={handleSubmit}
           confirmLabel={modalCopy.confirmLabel}
           confirmDisabled={confirmDisabled}
+          // Drop-off: only show Confirm once required photo (and signature when needed) are done.
+          hideConfirmUntilReady={isDropoff || dropoffPhotoRequired || signatureRequired}
           submitting={submitting}
         />
       </DialogContent>
