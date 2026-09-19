@@ -77,6 +77,7 @@ export interface SlipCreationExtraction {
 }
 
 export interface SlipCreationAddon {
+  id?: number;
   addon_id: number;
   quantity: number;
   notes?: string;
@@ -108,6 +109,7 @@ export interface SlipCreationTeethSelection {
 }
 
 export interface SlipCreationImplantDetail {
+  id?: number;
   teeth_number: number;
   implant_id?: number;
   implant_platform_id?: number;
@@ -117,6 +119,7 @@ export interface SlipCreationImplantDetail {
 }
 
 export interface SlipCreationAbutmentDetail {
+  id?: number;
   teeth_number: number;
   abutment_id?: number;
   abutment_type_id: number;

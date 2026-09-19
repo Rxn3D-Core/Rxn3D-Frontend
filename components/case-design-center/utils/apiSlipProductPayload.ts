@@ -89,6 +89,7 @@ function parseApiAddons(rows: unknown): SlipCreationAddon[] {
   if (!Array.isArray(rows)) return [];
   return rows
     .map((row: Record<string, unknown>) => ({
+      ...(positiveId(row.id) ? { id: positiveId(row.id) } : {}),
       addon_id: Number(row.addon_id ?? (row.addon as { id?: number })?.id ?? 0),
       quantity: Number(row.quantity ?? row.qty ?? 1),
     }))
@@ -180,6 +181,7 @@ function parseApiImplantDetails(rows: unknown): SlipCreationImplantDetail[] {
       const labRec = Boolean(row.lab_recommendation_requested);
       const implantId = Number(row.implant_id ?? 0);
       return {
+        ...(positiveId(row.id) ? { id: positiveId(row.id) } : {}),
         teeth_number: Number(row.teeth_number ?? row.tooth_number ?? 0),
         ...(implantId > 0 ? { implant_id: implantId } : {}),
         ...(positiveId(row.implant_platform_id)
@@ -202,6 +204,7 @@ function parseApiAbutmentDetails(rows: unknown): SlipCreationAbutmentDetail[] {
   if (!Array.isArray(rows)) return [];
   return rows
     .map((row: Record<string, unknown>) => ({
+      ...(positiveId(row.id) ? { id: positiveId(row.id) } : {}),
       teeth_number: Number(row.teeth_number ?? row.tooth_number ?? 0),
       abutment_type_id: Number(row.abutment_type_id ?? 0),
       ...(positiveId(row.abutment_id) ? { abutment_id: positiveId(row.abutment_id) } : {}),
@@ -365,11 +368,19 @@ function pickString(prepared: string | undefined, baseline: string | undefined):
 /**
  * Merge CDC-built product (preferred) with API baseline so edit PUT keeps teeth,
  * extractions, tooth_chart, and other fields when the live collector omits them.
+ *
+ * Cancelled / On hold status from the API is never overwritten by CDC's default
+ * "In Progress" — resume is only via the hold/resume APIs; cancelled cannot resume.
  */
 export function mergeEditSlipProductWithBaseline(
   prepared: EditSlipProduct,
   baseline: EditSlipProduct
 ): EditSlipProduct {
+  const lockedStatus =
+    baseline.status === "cancelled" || baseline.status === "On hold"
+      ? baseline.status
+      : prepared.status ?? baseline.status ?? "In Progress";
+
   const merged: EditSlipProduct = {
     ...baseline,
     ...prepared,
@@ -378,7 +389,7 @@ export function mergeEditSlipProductWithBaseline(
     product_id: prepared.product_id || baseline.product_id,
     subcategory_id: prepared.subcategory_id || baseline.subcategory_id,
     id: prepared.id ?? baseline.id,
-    status: prepared.status ?? baseline.status ?? "In Progress",
+    status: lockedStatus,
     variation_id: pickPositiveId(prepared.variation_id, baseline.variation_id),
     stage_id: pickPositiveId(prepared.stage_id, baseline.stage_id),
     grade_id: pickPositiveId(prepared.grade_id, baseline.grade_id),
