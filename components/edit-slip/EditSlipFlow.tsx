@@ -45,6 +45,8 @@ import { caseDesignInter } from "@/components/case-design-center/case-design-int
 import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
 import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
+import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
@@ -173,9 +175,14 @@ export function EditSlipFlow({ slipId }: Props) {
     bootstrap,
   });
 
+  const caseId = useMemo(
+    () => resolveVirtualSlipCaseId(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
   const goBackToVirtualSlip = useCallback(() => {
-    router.push(`/virtual-slip-v2/${slipId}`);
-  }, [router, slipId]);
+    router.push(buildVirtualSlipPath(caseId, slipId));
+  }, [caseId, router, slipId]);
 
   useEffect(() => {
     setStep("loading");
@@ -279,7 +286,7 @@ export function EditSlipFlow({ slipId }: Props) {
         title: "Slip updated",
         description: res.message || "The slip was updated successfully.",
       });
-      setTimeout(() => router.push(`/virtual-slip-v2/${slipId}`), 2000);
+      setTimeout(() => router.push(buildVirtualSlipPath(caseId, slipId)), 2000);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not update slip.";
       setSubmitError(message);

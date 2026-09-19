@@ -117,7 +117,7 @@ function openVirtualSlipFromRow(
   onOpen: V2RowActions["onOpen"],
   event?: { metaKey?: boolean; ctrlKey?: boolean; button?: number }
 ) {
-  const href = buildVirtualSlipV2Path(row.id)
+  const href = buildVirtualSlipV2Path(row.caseId, row.id)
   if (event && (event.metaKey || event.ctrlKey || event.button === 1)) {
     window.open(href, "_blank", "noopener,noreferrer")
     return
@@ -204,7 +204,7 @@ export function V3CaseTable(props: Props) {
               // The amber rush highlight is a lab-visibility cue — office
               // profiles keep the rush bolt icon but not the tinted row.
               const cardBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
-              const virtualSlipHref = buildVirtualSlipV2Path(row.id)
+              const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
               return (
@@ -496,7 +496,7 @@ export function V3CaseTable(props: Props) {
               // Only lab rush rows lock hover (amber stays put). Office rush rows
               // use normal zebra + hover like every other row.
               const isLocked = !!row.rush && highlightRushRows
-              const virtualSlipHref = buildVirtualSlipV2Path(row.id)
+              const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
               return (

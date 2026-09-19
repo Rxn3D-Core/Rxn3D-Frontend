@@ -132,7 +132,7 @@ Route (app)                                      Size     First Load JS
 ├ ○ /dashboard                                   1.27 kB         974 kB
 ├ ○ /lab-product-library                         406 B           498 kB
 ├ ○ /global-product-library                      338 B           849 kB
-└ λ /virtual-slip/[slipId]                       4.7 kB         1.17 MB
+└ λ /virtual-slip/[caseId]/[slipId]             4.7 kB         1.17 MB
 + First Load JS shared by all                    498 kB
 ```
 

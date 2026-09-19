@@ -49,6 +49,8 @@ import { caseDesignInter } from "@/components/case-design-center/case-design-int
 import { markSlipForAutoPrint } from "@/lib/paper-slip-auto-print";
 import { Button } from "@/components/ui/button";
 import NewCaseWizard from "@/components/new-case-wizard";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
+import { resolveVirtualSlipCaseId } from "@/lib/virtual-slip-case-id";
 
 type FlowStep = "loading" | "ineligible" | "design";
 
@@ -114,10 +116,15 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
     bootstrap,
   });
 
+  const caseId = useMemo(
+    () => resolveVirtualSlipCaseId(virtualSlipDetails),
+    [virtualSlipDetails]
+  );
+
   const goBackToVirtualSlip = useCallback(() => {
     clearAddStageSession();
-    router.push(`/virtual-slip-v2/${sourceSlipId}`);
-  }, [router, sourceSlipId]);
+    router.push(buildVirtualSlipPath(caseId, sourceSlipId));
+  }, [caseId, router, sourceSlipId]);
 
   const labIdForProductFetch = useMemo(
     () => resolveLabIdFromSlipDetails(virtualSlipDetails),
@@ -311,11 +318,10 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
 
       const redirectPath =
         typeof firstNewSlipId === "number" && firstNewSlipId > 0
-          ? `/virtual-slip-v2/${firstNewSlipId}`
+          ? buildVirtualSlipPath(caseId, firstNewSlipId)
           : resolveVirtualSlipPath({
-              kind: "single-slip",
               slipId: sourceSlipId,
-              caseNumber: "",
+              caseId: caseId ?? undefined,
             });
 
       clearAddStageSession();

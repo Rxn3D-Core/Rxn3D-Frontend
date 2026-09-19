@@ -3,10 +3,14 @@ import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
 
 /**
- * Shell for legacy `/virtual-slip-v2/{slipId}` while it redirects to the
- * canonical `/virtual-slip/{caseId}/{slipId}` route.
+ * App shell for the view-only virtual slip
+ * (`/virtual-slip/{caseId}/{slipId}`).
+ * Mirrors app/office-case-management/layout.tsx but omits the top Header bar,
+ * since the slip renders its own office/lab logo header.
+ * Authenticated providers (incl. SlipCreationProvider) are supplied globally
+ * by components/conditional-providers.tsx.
  */
-export default function LegacyVirtualSlipV2Layout({
+export default function VirtualSlipLayout({
   children,
 }: {
   children: React.ReactNode;
