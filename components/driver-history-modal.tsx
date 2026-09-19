@@ -116,6 +116,7 @@ export default function DriverHistoryModal({
       office: firstNonEmpty(item.office_code, item.office_name),
       labName: firstNonEmpty(item.lab_code, item.lab_name),
       patientName: item.patient_name,
+      // Prefer real slip location (not current_driver_location display alias).
       location: item.location || item.current_driver_location,
       isChecked: true, // Auto-select QR scanned items
       case_id: item.case_id,
@@ -123,10 +124,17 @@ export default function DriverHistoryModal({
       case_number: item.case_number,
       slip_number: item.slip_number,
       casepan_number: item.casepan_number,
-      location_id: item.location_id,
+      location_id:
+        typeof item.location_id === "number"
+          ? item.location_id
+          : Number(item.location_id) || undefined,
       customer_code: item.customer_code,
       customer_id: item.customer_id,
-      has_physical_impression: item.has_physical_impression,
+      // Missing flag ⇒ assume physical so lab drop-off still requires a photo.
+      has_physical_impression:
+        typeof item.has_physical_impression === "boolean"
+          ? item.has_physical_impression
+          : true,
     }))
   }
 
