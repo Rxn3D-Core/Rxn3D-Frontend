@@ -563,6 +563,8 @@ export function DeliveryModalFooter({
   confirmLabel,
   confirmDisabled,
   submitting,
+  /** When true, hide the confirm button until photo / signature requirements are met. */
+  hideConfirmUntilReady = false,
   extra,
 }: {
   onCancel: () => void;
@@ -570,8 +572,11 @@ export function DeliveryModalFooter({
   confirmLabel: string;
   confirmDisabled?: boolean;
   submitting?: boolean;
+  hideConfirmUntilReady?: boolean;
   extra?: ReactNode;
 }) {
+  const showConfirm = submitting || !hideConfirmUntilReady || !confirmDisabled;
+
   return (
     <div className="flex shrink-0 items-center justify-center gap-3 border-t border-[#F3F4F6] px-6 py-5 sm:px-8">
       <button
@@ -582,14 +587,16 @@ export function DeliveryModalFooter({
       >
         Cancel
       </button>
-      <button
-        type="button"
-        onClick={onConfirm}
-        disabled={confirmDisabled || submitting}
-        className="h-10 rounded-lg bg-[#0E66B2] px-8 text-sm font-medium text-white transition-colors hover:bg-[#0c5a9f] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {submitting ? "Submitting…" : confirmLabel}
-      </button>
+      {showConfirm ? (
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={confirmDisabled || submitting}
+          className="h-10 rounded-lg bg-[#0E66B2] px-8 text-sm font-medium text-white transition-colors hover:bg-[#0c5a9f] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {submitting ? "Submitting…" : confirmLabel}
+        </button>
+      ) : null}
       {extra}
     </div>
   );
