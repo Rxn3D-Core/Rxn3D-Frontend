@@ -8,17 +8,19 @@ export const SLIP_LISTING_VIEW_VIRTUAL_SLIP_ICON =
   "/icons/slip-listing/view-virtual-slip.svg"
 
 type SlipListingViewSlipLinkProps = {
+  caseId?: number | null
   slipId: number
   className?: string
 }
 
 export function SlipListingViewSlipLink({
+  caseId,
   slipId,
   className,
 }: SlipListingViewSlipLinkProps) {
   return (
     <Link
-      href={buildVirtualSlipV2Path(slipId)}
+      href={buildVirtualSlipV2Path(caseId, slipId)}
       className={cn(
         slipListingIconButtonClass(
           "inline-flex h-[30px] w-[30px] items-center justify-center p-0"

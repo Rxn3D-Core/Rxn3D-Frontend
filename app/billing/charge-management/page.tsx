@@ -128,6 +128,8 @@ type ChargeRow = {
   billingInvoiceId: number
   /** `slips.id` — for `POST /slip/{slipId}/regenerate-invoice` */
   slipId: number
+  /** `cases.id` when present on the invoice slip payload */
+  caseId?: number | null
   billingProductId: number | null
   officeCode: string
   /** Full office name for PDF filename */
@@ -375,6 +377,10 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   const oc = inv.office?.code?.trim() || "—"
   const due = formatShortDate(inv.created_at ?? inv.slip?.case?.created_at)
   const invStatus = mapInvoiceStatusToLabel(inv.status)
+  const caseId =
+    typeof inv.slip?.case?.id === "number" && inv.slip.case.id > 0
+      ? inv.slip.case.id
+      : null
 
   const products = inv.products?.length ? inv.products : []
 
@@ -384,6 +390,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
         id: `${inv.id}-summary`,
         billingInvoiceId: inv.id,
         slipId: inv.slip_id,
+        caseId,
         billingProductId: null,
         officeCode: oc,
         officeName: officeNameLabel,
@@ -445,6 +452,7 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
       id: `${inv.id}-p-${p.id}-${idx}`,
       billingInvoiceId: inv.id,
       slipId: inv.slip_id,
+      caseId,
       billingProductId: p.id,
       officeCode: oc,
       officeName: officeNameLabel,
@@ -2474,7 +2482,7 @@ export default function ChargeManagementPage() {
                           type="button"
                           disabled={!charge.slipId}
                           title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
-                          onClick={() => router.push(buildVirtualSlipV2Path(charge.slipId))}
+                          onClick={() => router.push(buildVirtualSlipV2Path(charge.caseId, charge.slipId))}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useCaseSlipNotes } from "@/hooks/use-case-slip-notes";
 import { lookupSlipIdByNumber } from "@/lib/api/slip-lookup";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
 
 const BACK_TO_CASE_LIST_ICON_SRC =
   "/icons/virtual-slip-actions/gobacktoofficereturn.svg";
@@ -79,14 +80,14 @@ export function VirtualSlipToolbarRow({
           return;
         }
 
-        router.push(`/virtual-slip-v2/${resolvedId}`);
+        router.push(buildVirtualSlipPath(caseId, resolvedId));
       } catch {
         setJumpSlipError("Unable to find slip");
       } finally {
         setJumpSlipLoading(false);
       }
     },
-    [router, findSlipIdLocally, jumpSlipLoading]
+    [caseId, router, findSlipIdLocally, jumpSlipLoading]
   );
 
   return (

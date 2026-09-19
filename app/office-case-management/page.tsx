@@ -696,7 +696,9 @@ function OfficeCaseManagementPage() {
           search={search}
           onSearchChange={setSearch}
           onSearchEnter={() => {
-            if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
+            if (slipsPage.length === 1) {
+              router.push(buildVirtualSlipV2Path(slipsPage[0].caseId, slipsPage[0].id))
+            }
           }}
           onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
           advancedFilterContent={advancedFilterContent}
@@ -712,7 +714,7 @@ function OfficeCaseManagementPage() {
           onSelectAll={handleSelectAllPage}
           onSelectRow={(id) => setSelected((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id])}
           rowActions={{
-            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
+            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.caseId, row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
             onPrintDriverLabel: (slip) => { setSelectedSlipForDriverTags(slip); setShowPrintDriverTags(true) },
             onPrintStatement: handlePrintStatement,
@@ -723,7 +725,7 @@ function OfficeCaseManagementPage() {
               setShowAttachModal(true)
             },
             onCopy: (row) => void handleCopyCaseIdentifier(row),
-            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.id)),
+            onEdit: (slip) => router.push(buildVirtualSlipV2Path(slip.caseId, slip.id)),
             onHold: handleOpenHoldCase,
             onChangeDueDate: () => {},
             onDriverHistory: (slip) => { setSelectedSlipForDriverHistory(slip); setShowDriverHistoryModal(true) },

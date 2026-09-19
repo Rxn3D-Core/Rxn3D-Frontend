@@ -19,6 +19,7 @@ import {
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes";
 import { formatCaseSummaryNotesForDisplay } from "@/lib/format-case-summary-notes";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
 
 interface VirtualSlipNotesProps {
   caseId?: number | null;
@@ -121,10 +122,10 @@ export function VirtualSlipNotes({
     (tab: CaseNoteStageTab) => {
       setSelectedTabKey(tab.key);
       if (tab.slipId != null && tab.slipId !== slipId) {
-        router.push(`/virtual-slip-v2/${tab.slipId}`);
+        router.push(buildVirtualSlipPath(caseId, tab.slipId));
       }
     },
-    [router, slipId]
+    [caseId, router, slipId]
   );
 
   const activeTab =

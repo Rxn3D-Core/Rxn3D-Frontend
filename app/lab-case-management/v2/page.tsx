@@ -429,7 +429,7 @@ export default function LabSlipPage() {
   }, [fetchLabSlips])
 
   const handleEditCase = (slip: any) => {
-    router.push(buildVirtualSlipV2Path(slip.id))
+    router.push(buildVirtualSlipV2Path(slip.caseId, slip.id))
   }
 
   const handleOpenRushCase = (slip: any) => {
@@ -1131,7 +1131,9 @@ export default function LabSlipPage() {
           onProductTypeChange={setProductType}
           onSearchChange={setSearch}
           onSearchEnter={() => {
-            if (slipsPage.length === 1) router.push(buildVirtualSlipV2Path(slipsPage[0].id))
+            if (slipsPage.length === 1) {
+              router.push(buildVirtualSlipV2Path(slipsPage[0].caseId, slipsPage[0].id))
+            }
           }}
           onSelectAll={handleSelectAllPage}
           onSelectRow={(id) => {
@@ -1145,7 +1147,7 @@ export default function LabSlipPage() {
           productType={productType}
           products={allProductTypes}
           rowActions={{
-            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.id)),
+            onOpen: (row) => router.push(buildVirtualSlipV2Path(row.caseId, row.id)),
             onPrintPaperSlip: handlePrintPaperSlip,
             onPrintDriverLabel: handlePrintDriverLabel,
             onPrintStatement: handlePrintStatement,

@@ -31,7 +31,7 @@ export interface PaperSlipPrintV2Extras {
 export interface PaperSlipPrintV2SlipVM {
   slipId: number;
   extras: PaperSlipPrintV2Extras;
-  /** Authoritative body: identical to what /virtual-slip-v2/{id} renders. */
+  /** Authoritative body: identical to what /virtual-slip/{caseId}/{slipId} renders. */
   vm: VirtualSlipVM;
 }
 
