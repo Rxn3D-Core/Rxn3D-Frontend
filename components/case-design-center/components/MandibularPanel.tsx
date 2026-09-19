@@ -2000,7 +2000,12 @@ export function MandibularPanel({
       const hintAckCardId = useMandibularArchSharedRemovable
         ? ARCH_SHARED_REMOVABLE_ACK_CARD_ID
         : hintUsesArchCard0 ? 0 : activeProductCardId;
-      const hintProduct = hintUsesArchCard0 ? hintCard0Product : hintActiveAp?.product;
+      const hintProduct = hintUsesArchCard0
+        ? hintCard0Product
+        : (
+            getToothProduct("mandibular", -activeProductCardId) ??
+            hintActiveAp?.product
+          );
       const baseProductName = hintProduct?.name ?? "";
       const hintCustomLabel = resolveProductCustomLabel(
         hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
@@ -2043,7 +2048,11 @@ export function MandibularPanel({
       (isCardActiveForToothStatus(activeProductCardId) || forceOwnArchChartEnabled)
     ) {
       const fixedProduct = activeProductCardId !== 0
-        ? addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product
+        ? (
+            activeMandibularProduct ??
+            getToothProduct("mandibular", -activeProductCardId) ??
+            addedProducts.find(ap => ap.id === activeProductCardId && ap.arch === "mandibular")?.product
+          )
         : ((() => { const t = MANDIBULAR_ALL_TEETH.find(tn => getToothProductCard("mandibular", tn) === 0 && (activeFixedGroupProductId === null || getToothProduct("mandibular", tn)?.id === activeFixedGroupProductId)); return t ? getToothProduct("mandibular", t) : undefined; })() ?? card0InitialProduct);
       const fixedAckCardId = activeProductCardId !== 0 ? activeProductCardId : 0;
       // Hide once the user clicks Done on the fixed retention tooth chart (same as removaables).

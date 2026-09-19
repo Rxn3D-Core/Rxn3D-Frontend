@@ -27,6 +27,9 @@ export interface CaseDesignProductDetails {
   has_retention?: string | boolean | null;
   has_variation?: string | boolean | null;
   variations?: unknown[];
+  /** When "Yes", slip tooth-chart prompt uses `custom_label`. */
+  enable_custom_label?: "Yes" | "No" | string | null;
+  custom_label?: string | null;
 }
 
 /** Fetch basic product info for the accordion (name/image/category). */
@@ -90,5 +93,7 @@ function mapProductDetails(data: any): CaseDesignProductDetails | null {
     has_retention: data.has_retention,
     has_variation: data.has_variation,
     variations: data.variations,
+    enable_custom_label: data.enable_custom_label ?? "No",
+    custom_label: typeof data.custom_label === "string" ? data.custom_label : "",
   } : null;
 }
