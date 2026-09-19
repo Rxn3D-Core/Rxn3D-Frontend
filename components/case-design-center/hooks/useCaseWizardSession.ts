@@ -61,6 +61,8 @@ function buildAddedProductStub(
     has_retention: details?.has_retention,
     has_variation: details?.has_variation,
     variations: details?.variations,
+    enable_custom_label: details?.enable_custom_label ?? "No",
+    custom_label: details?.custom_label ?? "",
   };
 }
 
