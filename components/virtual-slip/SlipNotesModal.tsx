@@ -256,7 +256,7 @@ function NotesHistoryList({
   deliveryBadge,
   isRush,
   isLoading,
-  emptyMessage = "No stage notes yet.",
+  emptyMessage = "No slip notes yet.",
   onEdit,
   className,
 }: {
@@ -273,7 +273,7 @@ function NotesHistoryList({
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       <h3 className="mb-3 shrink-0 text-base font-bold text-[#111827]">
-        Notes History
+        Slip Notes History
       </h3>
       <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
         {isLoading ? (
@@ -580,7 +580,7 @@ export function SlipNotesModal({
 
   const historyEmptyMessage =
     caseNotes.length === 0
-      ? "No stage notes yet."
+      ? "No slip notes yet."
       : "No notes match your search or filters."
 
   const composeBadges = (
@@ -622,7 +622,7 @@ export function SlipNotesModal({
                 aria-hidden
               />
               <DialogTitle className="text-xl font-bold tracking-tight text-[#111827]">
-                Stage Notes
+                Slip Notes
               </DialogTitle>
             </div>
             <button
@@ -641,7 +641,7 @@ export function SlipNotesModal({
             <div className="relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
               <Input
-                placeholder="Search all stage notes"
+                placeholder="Search all slip notes"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="h-10 rounded-lg border-[#D1D5DB] bg-white pl-9 text-sm shadow-none"
@@ -840,7 +840,7 @@ export function SlipNotesModal({
                 className="mb-4 h-11 w-full shrink-0 rounded-lg bg-[#1162A8] text-sm font-medium text-white hover:bg-[#0f5490]"
                 onClick={handleStartAdd}
               >
-                Add stage notes
+                Add slip notes
               </Button>
               <NotesHistoryList
                 notes={filteredNotes}
