@@ -163,7 +163,7 @@ export function CenterActionIcons({
 
   const primaryRowDefs: CenterRowIconDef[] = [
     rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral),
-    rowIcon("stage-notes", "Stage notes", "slip-note.png", stickyNoteHandler),
+    rowIcon("stage-notes", "Slip notes", "slip-note.png", stickyNoteHandler),
     rowIcon("add-product", "Add add-ons", "add-general.svg", onAddProduct),
     {
       key: "rush",
@@ -210,7 +210,7 @@ export function CenterActionIcons({
       ? rowIcon("edit-stage", "Edit slip", "edit-stage.svg", onEditGeneral)
       : null,
     stickyNoteHandler
-      ? rowIcon("stage-notes", "Stage notes", "slip-note.png", stickyNoteHandler)
+      ? rowIcon("stage-notes", "Slip notes", "slip-note.png", stickyNoteHandler)
       : null,
     onAddProduct
       ? rowIcon("add-product", "Add add-ons", "add-general.svg", onAddProduct)

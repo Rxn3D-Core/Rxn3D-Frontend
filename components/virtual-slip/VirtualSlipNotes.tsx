@@ -218,7 +218,7 @@ export function VirtualSlipNotes({
               </p>
             ) : notes.length === 0 ? (
               <p className="py-6 text-center font-sans text-[15px] italic text-[#9CA3AF]">
-                No stage notes yet
+                No slip notes yet
               </p>
             ) : visibleNotes.length === 0 ? (
               <p className="py-6 text-center font-sans text-[15px] italic text-[#9CA3AF]">
