@@ -605,7 +605,7 @@ export function SlipNotesModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className={cn(
-          "flex h-[90vh] flex-col gap-0 rounded-[20px] border border-[#E5E7EB] p-0 shadow-2xl",
+          "flex h-[min(90vh,90dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 rounded-[20px] border border-[#E5E7EB] p-0 shadow-2xl sm:w-full",
           isAddingNote ? "max-w-6xl" : "max-w-3xl"
         )}
       >
@@ -728,7 +728,7 @@ export function SlipNotesModal({
           ) : null}
 
           {isAddingNote ? (
-            <div className="flex min-h-0 flex-1 gap-6 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto sm:flex-row sm:gap-6 sm:overflow-hidden">
               <div className="flex min-w-0 flex-1 flex-col">
                 {composeBadges}
                 <Textarea
@@ -822,7 +822,7 @@ export function SlipNotesModal({
               </div>
 
               <NotesHistoryList
-                className="min-w-0 flex-1 border-l border-[#E5E7EB] pl-6"
+                className="min-w-0 flex-1 border-t border-[#E5E7EB] pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0"
                 notes={filteredNotes}
                 slips={slips}
                 currentSlipId={slipId}

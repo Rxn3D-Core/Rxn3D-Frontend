@@ -147,7 +147,7 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
   if (actionType === "cancelled") {
     return (
       <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-        <DialogContent className="max-w-lg p-0 overflow-visible">
+        <DialogContent className="w-[calc(100%-1.5rem)] max-w-lg p-0 overflow-visible sm:w-full">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 z-10 text-gray-400 hover:text-gray-600"
@@ -179,7 +179,7 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg p-0 overflow-visible">
+      <DialogContent className="w-[calc(100%-1.5rem)] max-w-lg p-0 overflow-visible sm:w-full">
         <DialogHeader className="sr-only">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
