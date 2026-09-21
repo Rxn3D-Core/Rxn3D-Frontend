@@ -895,15 +895,110 @@ export function buildNoteGroups(props: NotesProps): NoteGroup[] {
   return groups;
 }
 
+/**
+ * Split a fabricate-note body into the unique product phrase and the shared
+ * trailing stage/shade suffix (e.g. ` for Finish, shade IPS Shade System A1`).
+ * Teeth clauses (` for #32`) stay on the product phrase.
+ */
+export function splitFabricateNoteBody(body: string): {
+  productPhrase: string;
+  suffix: string;
+} {
+  let rest = body.trim();
+  let shade = "";
+
+  const commaShadeIdx = rest.lastIndexOf(", shade ");
+  if (commaShadeIdx >= 0) {
+    shade = rest.slice(commaShadeIdx);
+    rest = rest.slice(0, commaShadeIdx);
+  }
+
+  let stage = "";
+  const forMatches = [...rest.matchAll(/ for /g)];
+  for (let i = forMatches.length - 1; i >= 0; i--) {
+    const idx = forMatches[i].index!;
+    const after = rest.slice(idx + " for ".length);
+    // Teeth: `for #8`, `for #8, #10`, `for #1–#16` — keep on product phrase.
+    if (after.startsWith("#")) continue;
+
+    // Variant without comma: `for Finish shade IPS Shade System A1`
+    const bareShade = commaShadeIdx < 0 ? after.match(/^(.+?) shade (.+)$/) : null;
+    if (bareShade) {
+      stage = ` for ${bareShade[1]}`;
+      shade = `, shade ${bareShade[2]}`;
+    } else {
+      stage = rest.slice(idx);
+    }
+    rest = rest.slice(0, idx);
+    break;
+  }
+
+  return { productPhrase: rest.trim(), suffix: `${stage}${shade}` };
+}
+
+function joinPhrasesWithAnd(parts: string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * Collapse multiple `Please fabricate …` lines that share the same stage/shade
+ * suffix into one note so shared wording is not repeated.
+ *
+ * Example:
+ * - Please fabricate Premium Full Denture Acrylic for Finish, shade A1.
+ * - Please fabricate Premium Acrylic Partial for #32 for Finish, shade A1.
+ * → Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade A1.
+ */
+export function mergeFabricateNotes(notes: string[]): string {
+  const trimmed = notes.map((n) => n.trim()).filter(Boolean);
+  if (trimmed.length <= 1) return trimmed[0] ?? "";
+
+  type Bucket = { phrases: string[]; firstIndex: number };
+  const bySuffix = new Map<string, Bucket>();
+  const unparsed: Array<{ text: string; index: number }> = [];
+
+  trimmed.forEach((note, index) => {
+    const match = note.match(/^Please fabricate (.+)\.$/s);
+    if (!match) {
+      unparsed.push({ text: note, index });
+      return;
+    }
+    const { productPhrase, suffix } = splitFabricateNoteBody(match[1]);
+    if (!productPhrase) {
+      unparsed.push({ text: note, index });
+      return;
+    }
+    const existing = bySuffix.get(suffix);
+    if (existing) {
+      existing.phrases.push(productPhrase);
+    } else {
+      bySuffix.set(suffix, { phrases: [productPhrase], firstIndex: index });
+    }
+  });
+
+  const merged = [...bySuffix.entries()].map(([suffix, bucket]) => ({
+    text: `Please fabricate ${joinPhrasesWithAnd(bucket.phrases)}${suffix}.`,
+    index: bucket.firstIndex,
+  }));
+
+  return [...merged, ...unparsed]
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.text)
+    .join("\n");
+}
+
 export function buildSectionText(arch: Arch, groups: NoteGroup[]): string {
   const archGroups = groups.filter((g) => g.arch === arch);
   if (!archGroups.length) return "";
 
-  return archGroups.map((g) => g.note).join("\n");
+  return mergeFabricateNotes(archGroups.map((g) => g.note));
 }
 
 export function buildCaseSummaryText(groups: NoteGroup[]): string {
-  const maxText = buildSectionText("maxillary", groups);
-  const mandText = buildSectionText("mandibular", groups);
-  return [maxText, mandText].filter(Boolean).join("\n\n");
+  // Merge across arches when products share the same stage/shade suffix so the
+  // case summary (and paper-slip stage notes) stay a single concise line.
+  return mergeFabricateNotes(groups.map((g) => g.note).filter(Boolean));
 }
