@@ -476,12 +476,12 @@ export function useCaseWizardSession({
     setWizardComplete(true);
   };
 
+  // Change-product always opens on the subcategory step (not products). A single-product
+  // subcategory would otherwise auto-select and bounce the user back to the same product.
   const wizardStartStep = wizardMode === "backToProducts"
-    ? lastSelectedCategory && lastSelectedSubProduct
-      ? 6
-      : lastSelectedCategory
-        ? 5
-        : 4
+    ? lastSelectedCategory
+      ? 5
+      : 4
     : wizardMode === "addProduct"
       ? 4
       : labEditMode
