@@ -44,6 +44,7 @@ import {
   type SlipNoteAttachment,
   type SlipNoteDetail,
 } from "@/lib/api/slip-notes"
+import { canAddSlipNotes } from "@/lib/slip-case-status"
 import { cn } from "@/lib/utils"
 
 const MAX_NOTE_LENGTH = 2000
@@ -318,6 +319,8 @@ interface SlipNotesModalProps {
   deliveryDateDisplay?: string
   deliveryTimeDisplay?: string
   isRush?: boolean
+  /** Current slip status — used to gate add/edit when Finished or cancelled. */
+  slipStatus?: string | null
   notesRefreshKey?: number
   stageSeeds?: CaseNoteStageSeed[]
   onNotesChanged?: (summaryText: string) => void
@@ -333,6 +336,7 @@ export function SlipNotesModal({
   deliveryDateDisplay = "",
   deliveryTimeDisplay = "",
   isRush = false,
+  slipStatus = null,
   notesRefreshKey = 0,
   stageSeeds = [],
   onNotesChanged,
@@ -389,6 +393,13 @@ export function SlipNotesModal({
   }, [caseId, caseNotesFromApi, slips, slipOnlyNotes, slipId, slipNumber])
 
   const isHistoryLoading = caseId ? isCaseNotesLoading : isSlipNotesLoading
+
+  const resolvedSlipStatus = useMemo(() => {
+    if (slipStatus?.trim()) return slipStatus
+    return slips.find((s) => s.id === slipId)?.status ?? null
+  }, [slipStatus, slips, slipId])
+
+  const allowNoteEdits = canAddSlipNotes(resolvedSlipStatus)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddingNote, setIsAddingNote] = useState(false)
@@ -509,12 +520,14 @@ export function SlipNotesModal({
   }, [isOpen, resetCompose])
 
   const handleStartAdd = () => {
+    if (!allowNoteEdits) return
     setEditingNoteId(null)
     setNewNoteContent("")
     setIsAddingNote(true)
   }
 
   const handleStartEdit = (note: SlipNoteDetail) => {
+    if (!allowNoteEdits) return
     setEditingNoteId(note.id)
     setNewNoteContent(note.note)
     setIsAddingNote(true)
@@ -525,6 +538,10 @@ export function SlipNotesModal({
   }
 
   const handleDone = async () => {
+    if (!allowNoteEdits) {
+      resetCompose()
+      return
+    }
     const text = newNoteContent.trim()
     if (!text) {
       resetCompose()
@@ -727,7 +744,13 @@ export function SlipNotesModal({
             </p>
           ) : null}
 
-          {isAddingNote ? (
+          {!allowNoteEdits ? (
+            <p className="mb-3 shrink-0 text-sm text-[#6B7280]" role="status">
+              Notes cannot be added on finished or cancelled slips.
+            </p>
+          ) : null}
+
+          {isAddingNote && allowNoteEdits ? (
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto sm:flex-row sm:gap-6 sm:overflow-hidden">
               <div className="flex min-w-0 flex-1 flex-col">
                 {composeBadges}
@@ -830,18 +853,20 @@ export function SlipNotesModal({
                 isRush={isRush}
                 isLoading={isHistoryLoading}
                 emptyMessage={historyEmptyMessage}
-                onEdit={handleStartEdit}
+                onEdit={allowNoteEdits ? handleStartEdit : undefined}
               />
             </div>
           ) : (
             <>
-              <Button
-                type="button"
-                className="mb-4 h-11 w-full shrink-0 rounded-lg bg-[#1162A8] text-sm font-medium text-white hover:bg-[#0f5490]"
-                onClick={handleStartAdd}
-              >
-                Add slip notes
-              </Button>
+              {allowNoteEdits ? (
+                <Button
+                  type="button"
+                  className="mb-4 h-11 w-full shrink-0 rounded-lg bg-[#1162A8] text-sm font-medium text-white hover:bg-[#0f5490]"
+                  onClick={handleStartAdd}
+                >
+                  Add slip notes
+                </Button>
+              ) : null}
               <NotesHistoryList
                 notes={filteredNotes}
                 slips={slips}
@@ -850,7 +875,7 @@ export function SlipNotesModal({
                 isRush={isRush}
                 isLoading={isHistoryLoading}
                 emptyMessage={historyEmptyMessage}
-                onEdit={handleStartEdit}
+                onEdit={allowNoteEdits ? handleStartEdit : undefined}
               />
             </>
           )}
