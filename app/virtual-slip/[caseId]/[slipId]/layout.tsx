@@ -1,7 +1,9 @@
 import type React from "react";
+import type { Viewport } from "next";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
 import { VirtualSlipDesktopViewport } from "@/components/virtual-slip/VirtualSlipDesktopViewport";
+import { VIRTUAL_SLIP_DESKTOP_WIDTH } from "@/lib/virtual-slip-desktop-width";
 
 /**
  * App shell for the view-only virtual slip
@@ -11,9 +13,13 @@ import { VirtualSlipDesktopViewport } from "@/components/virtual-slip/VirtualSli
  * Authenticated providers (incl. SlipCreationProvider) are supplied globally
  * by components/conditional-providers.tsx.
  *
- * Main slip canvas stays desktop-width (scaled on phone). Viewport stays
- * device-width so modals remain responsive.
+ * Phones use a fixed desktop viewport so the slip matches the web layout
+ * (no collapsed/broken responsive reflow). Other routes keep device-width.
  */
+export const viewport: Viewport = {
+  width: VIRTUAL_SLIP_DESKTOP_WIDTH,
+};
+
 export default function VirtualSlipLayout({
   children,
 }: {

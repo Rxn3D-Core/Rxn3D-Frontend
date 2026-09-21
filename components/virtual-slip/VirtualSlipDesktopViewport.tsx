@@ -1,60 +1,46 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { VIRTUAL_SLIP_DESKTOP_WIDTH } from "@/lib/virtual-slip-desktop-width";
 
+const DESKTOP_VIEWPORT = `width=${VIRTUAL_SLIP_DESKTOP_WIDTH}`;
+/** Matches root `app/layout.tsx` viewport export. */
+const ROOT_VIEWPORT = "width=device-width, initial-scale=1, maximum-scale=1";
+
 /**
- * Keeps the virtual slip **page canvas** at the desktop layout on phones.
+ * Keeps the virtual slip at the desktop layout on phones.
  *
- * Does **not** change the viewport meta — that stays `device-width` so portaled
- * modals/dialogs keep normal mobile responsive breakpoints.
+ * 1. Swaps the viewport meta to a fixed desktop width so mobile browsers
+ *    lay out (and usually scale-to-fit) like the web view.
+ * 2. Wraps content in `min-width: 1280px` so flex/grid cannot collapse if
+ *    the meta tag is slow to update on client navigations.
  *
- * On narrow screens the 1280px canvas is scaled to fit the available width
- * (transform-origin top-left) so the design matches web without breaking modals.
+ * Restores the root viewport when leaving the route.
  */
 export function VirtualSlipDesktopViewport({ children }: { children: ReactNode }) {
-  const outerRef = useRef<HTMLDivElement>(null);
-  const innerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [scaledHeight, setScaledHeight] = useState<number | undefined>(undefined);
-
   useEffect(() => {
-    const outer = outerRef.current;
-    const inner = innerRef.current;
-    if (!outer || !inner) return;
+    let meta = document.querySelector('meta[name="viewport"]') as HTMLMetaElement | null;
+    const previous = meta?.getAttribute("content") ?? ROOT_VIEWPORT;
 
-    const update = () => {
-      const available = outer.clientWidth;
-      const nextScale = Math.min(1, available / VIRTUAL_SLIP_DESKTOP_WIDTH);
-      setScale(nextScale);
-      setScaledHeight(inner.scrollHeight * nextScale);
-    };
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "viewport";
+      document.head.appendChild(meta);
+    }
 
-    update();
-
-    const ro = new ResizeObserver(update);
-    ro.observe(outer);
-    ro.observe(inner);
-    window.addEventListener("resize", update);
+    meta.setAttribute("content", DESKTOP_VIEWPORT);
 
     return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", update);
+      meta?.setAttribute("content", previous);
     };
   }, []);
 
   return (
-    <div ref={outerRef} className="w-full" style={{ height: scaledHeight }}>
-      <div
-        ref={innerRef}
-        style={{
-          width: VIRTUAL_SLIP_DESKTOP_WIDTH,
-          transform: scale < 1 ? `scale(${scale})` : undefined,
-          transformOrigin: "top left",
-        }}
-      >
-        {children}
-      </div>
+    <div
+      className="min-h-full"
+      style={{ minWidth: VIRTUAL_SLIP_DESKTOP_WIDTH }}
+    >
+      {children}
     </div>
   );
 }

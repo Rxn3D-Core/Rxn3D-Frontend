@@ -24,8 +24,6 @@ import { SlipAttachmentsService, validateSlipAttachmentFile } from "@/services/s
 import type { CaseAttachmentsData, SlipAttachmentRecord } from "@/services/slip-attachments-service"
 import { toProxiedFileUrl } from "@/lib/file-proxy"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
 
 const STLCanvasOnly = dynamic(() => import("@/components/stl-canvas-only"), { ssr: false })
@@ -161,13 +159,11 @@ function FileCard({
 
   return (
     <div
-      className={cn(
-        "relative group flex-shrink-0 rounded-lg border cursor-pointer transition-all",
-        "w-[calc(50%-0.375rem)] max-w-[170px] sm:w-[148px] sm:max-w-none",
+      className={`relative group flex-shrink-0 w-[148px] rounded-lg border cursor-pointer transition-all ${
         selected
           ? "ring-2 ring-[#1162A8] border-[#1162A8] bg-blue-50"
           : "border-gray-200 hover:border-gray-400"
-      )}
+      }`}
       onClick={() => onSelect(record)}
     >
       {/* ID badge */}
@@ -401,7 +397,7 @@ function PreviewPanel({
   const activeLayout = LAYOUT_OPTIONS.find((l) => l.id === selectedLayout) ?? LAYOUT_OPTIONS[0]
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col border-gray-200 bg-white sm:border-l">
+    <div className="flex flex-col h-full border-l border-gray-200 bg-white min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0">
         <div className="flex items-center gap-1.5">
@@ -432,29 +428,27 @@ function PreviewPanel({
         </div>
       </div>
 
-      {/* Controls + viewer — stacked on phone, side-by-side on desktop */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:flex-row">
-        {/* Controls */}
-        <div className="flex w-full shrink-0 flex-row gap-3 overflow-x-auto border-b border-gray-100 px-2.5 py-2 sm:w-[120px] sm:flex-col sm:gap-0 sm:overflow-y-auto sm:border-b-0 sm:border-r sm:px-0 sm:py-0">
+      {/* Controls sidebar + viewer */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left controls column */}
+        <div className="w-[120px] flex-shrink-0 flex flex-col border-r border-gray-100 overflow-y-auto">
           {/* Display section */}
-          <div className="flex shrink-0 flex-col gap-1.5 sm:px-2.5 sm:pb-2 sm:pt-3">
-            <div className="mb-0 hidden text-[10px] font-semibold uppercase tracking-wide text-gray-600 sm:mb-2 sm:block">
-              Display
-            </div>
-            <div className="flex flex-row gap-1.5 sm:flex-col">
+          <div className="px-2.5 pt-3 pb-2">
+            <div className="text-[10px] font-semibold text-gray-600 mb-2 uppercase tracking-wide">Display</div>
+            <div className="flex flex-col gap-1.5">
               <button
                 type="button"
-                className="h-7 whitespace-nowrap rounded-md border border-gray-300 bg-white px-2 text-left text-[10px] font-medium text-gray-700 transition hover:bg-gray-50 sm:w-full"
+                className="w-full h-7 px-2 text-[10px] rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 text-left font-medium transition"
                 onClick={onClear}
               >
                 Clear Selection
               </button>
               <button
                 type="button"
-                className={`h-7 whitespace-nowrap rounded-md border px-2 text-left text-[10px] font-medium transition sm:w-full ${
+                className={`w-full h-7 px-2 text-[10px] rounded-md border font-medium text-left transition ${
                   isWireframe
                     ? "border-[#1162A8] bg-blue-50 text-[#1162A8]"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    : "border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
                 }`}
                 onClick={() => setIsWireframe((v) => !v)}
               >
@@ -462,10 +456,10 @@ function PreviewPanel({
               </button>
               <button
                 type="button"
-                className={`h-7 whitespace-nowrap rounded-md border px-2 text-left text-[10px] font-medium transition sm:w-full ${
+                className={`w-full h-7 px-2 text-[10px] rounded-md border font-medium text-left transition ${
                   showGrid
                     ? "border-[#1162A8] bg-blue-50 text-[#1162A8]"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                    : "border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
                 }`}
                 onClick={() => setShowGrid((v) => !v)}
               >
@@ -474,14 +468,13 @@ function PreviewPanel({
             </div>
           </div>
 
-          <div className="mx-0 hidden border-t border-gray-100 sm:mx-2.5 sm:block" />
+          {/* Divider */}
+          <div className="mx-2.5 border-t border-gray-100" />
 
           {/* Layout section */}
-          <div className="flex shrink-0 flex-col sm:px-2.5 sm:pb-3 sm:pt-2.5">
-            <div className="mb-1 hidden text-[10px] font-semibold uppercase tracking-wide text-gray-600 sm:mb-2 sm:block">
-              Layout
-            </div>
-            <div className="grid grid-cols-6 gap-1 sm:grid-cols-3">
+          <div className="px-2.5 pt-2.5 pb-3">
+            <div className="text-[10px] font-semibold text-gray-600 mb-2 uppercase tracking-wide">Layout</div>
+            <div className="grid grid-cols-3 gap-1">
               {LAYOUT_OPTIONS.map((opt) => {
                 const active = selectedLayout === opt.id
                 return (
@@ -489,10 +482,10 @@ function PreviewPanel({
                     key={opt.id}
                     type="button"
                     title={opt.id}
-                    className={`flex aspect-[10/7] items-center justify-center rounded border p-[3px] transition ${
+                    className={`aspect-[10/7] rounded border flex items-center justify-center p-[3px] transition ${
                       active
                         ? "border-[#82298D] bg-purple-50 text-[#82298D]"
-                        : "border-gray-300 bg-white text-gray-400 hover:border-gray-400 hover:text-gray-600"
+                        : "border-gray-300 bg-white hover:border-gray-400 text-gray-400 hover:text-gray-600"
                     }`}
                     onClick={() => setSelectedLayout(opt.id)}
                   >
@@ -505,7 +498,7 @@ function PreviewPanel({
         </div>
 
         {/* 3D / Image viewer area */}
-        <div className="relative min-h-[220px] min-w-0 flex-1 overflow-hidden bg-[#e9ecef] sm:min-h-0">
+        <div className="flex-1 min-w-0 relative bg-[#e9ecef] overflow-hidden">
           {items.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
               Select a file to preview
@@ -621,12 +614,6 @@ export default function SlipAttachmentBrowserDialog({
 
   // ── Fullscreen (My Studio) ──────────────────────────────────────────────────
   const [showFullscreen, setShowFullscreen] = useState(false)
-  const isMobile = useIsMobile()
-  const [mobileTab, setMobileTab] = useState<"upload" | "browse">("browse")
-
-  useEffect(() => {
-    if (!open) setMobileTab("browse")
-  }, [open])
 
   // Selection handed to the fullscreen viewer so it opens on the same files
   const fullscreenViewerItems = useMemo(
@@ -847,9 +834,6 @@ export default function SlipAttachmentBrowserDialog({
 
   if (!open) return null
 
-  const showUploadPanel = !isMobile || (mobileTab === "upload" && !showPreview)
-  const showBrowsePanel = !isMobile || (mobileTab === "browse" && !showPreview)
-
   return (
     <>
       {/* Backdrop */}
@@ -857,92 +841,40 @@ export default function SlipAttachmentBrowserDialog({
 
       {/* Dialog panel */}
       <div
-        className="fixed inset-0 z-[9991] flex items-stretch justify-center p-0 sm:items-center sm:p-4"
+        className="fixed inset-0 z-[9991] flex items-center justify-center p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className={cn(
-            "relative flex w-full flex-col overflow-hidden bg-white shadow-2xl",
-            "h-[100dvh] max-h-[100dvh]",
-            "sm:h-[min(90vh,720px)] sm:max-h-[min(90vh,720px)] sm:w-[min(96vw,1400px)] sm:rounded-xl",
-            "md:flex-row",
-          )}
+          className="flex max-h-[min(90vh,720px)] w-[min(96vw,1400px)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl md:h-[min(90vh,720px)] md:flex-row"
         >
-          {/* Mobile top tabs */}
-          {isMobile && !showPreview ? (
-            <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 bg-white px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-              <button
-                type="button"
-                className={cn(
-                  "flex-1 rounded-t-md px-3 py-2.5 text-sm font-semibold transition",
-                  mobileTab === "upload"
-                    ? "border-b-2 border-[#1162A8] text-[#1162A8]"
-                    : "text-gray-500",
-                )}
-                onClick={() => setMobileTab("upload")}
-              >
-                Upload
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  "flex-1 rounded-t-md px-3 py-2.5 text-sm font-semibold transition",
-                  mobileTab === "browse"
-                    ? "border-b-2 border-[#1162A8] text-[#1162A8]"
-                    : "text-gray-500",
-                )}
-                onClick={() => setMobileTab("browse")}
-              >
-                Files
-              </button>
-              <button
-                type="button"
-                className="ml-1 rounded-full p-2 text-gray-500 hover:bg-gray-100"
-                aria-label="Close"
-                onClick={onClose}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          ) : null}
-
           {/* ── Left panel: Upload ─────────────────────────────── */}
-          <div
-            className={cn(
-              "flex min-h-0 flex-col border-gray-200 bg-white",
-              showUploadPanel ? "flex" : "hidden",
-              "w-full flex-1 md:w-[310px] md:flex-none md:border-r",
-              !isMobile && "border-b md:border-b-0",
-            )}
-          >
-            <div className="hidden items-center gap-2 px-5 pb-2 pt-5 md:flex">
-              <Paperclip className="h-5 w-5 text-gray-700" />
+          <div className="flex w-full shrink-0 flex-col border-b border-gray-200 bg-white md:w-[310px] md:border-b-0 md:border-r">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-5 pt-5 pb-2">
+              <Paperclip className="w-5 h-5 text-gray-700" />
               <span className="text-base font-semibold text-gray-900">Attachment</span>
             </div>
-            <p className="px-4 pb-3 pt-3 text-xs leading-relaxed text-gray-500 md:px-5 md:pb-4 md:pt-0">
+            <p className="px-5 pb-4 text-xs text-gray-500 leading-relaxed">
               Upload case files, scans, photos or documents related to this treatment.
             </p>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 md:px-5">
+            {/* Drop zone */}
+            <div className="px-5 flex-1 flex flex-col gap-3 min-h-0">
               <div
-                className={cn(
-                  "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed py-5 transition-colors md:py-8",
+                className={`rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-8 cursor-pointer transition-colors ${
                   isDragging
                     ? "border-[#1162A8] bg-blue-50"
-                    : "border-gray-300 hover:border-[#1162A8] hover:bg-blue-50/40",
-                )}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setIsDragging(true)
-                }}
+                    : "border-gray-300 hover:border-[#1162A8] hover:bg-blue-50/40"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="h-8 w-8 text-gray-400" />
+                <Upload className="w-8 h-8 text-gray-400" />
                 <div className="text-center">
                   <p className="text-xs text-gray-500">Drag &amp; drop files here</p>
-                  <p className="text-xs text-gray-400">or tap to browse files.</p>
+                  <p className="text-xs text-gray-400">or click to browse files.</p>
                 </div>
                 <input
                   ref={fileInputRef}
@@ -954,16 +886,14 @@ export default function SlipAttachmentBrowserDialog({
                 />
               </div>
 
+              {/* Staged file list */}
               {stagedFiles.length > 0 && (
-                <div className="flex max-h-40 min-h-0 flex-col gap-1 overflow-y-auto md:max-h-none md:flex-1">
+                <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
                   {stagedFiles.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex items-center gap-2 rounded bg-gray-50 px-2 py-1 text-xs text-gray-700"
-                    >
-                      <FileText className="h-3 w-3 flex-shrink-0 text-gray-400" />
-                      <span className="min-w-0 flex-1 truncate">{f.file.name}</span>
-                      <span className="flex-shrink-0 text-gray-400">{formatBytes(f.file.size)}</span>
+                    <div key={f.id} className="flex items-center gap-2 text-xs text-gray-700 bg-gray-50 rounded px-2 py-1">
+                      <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                      <span className="flex-1 truncate">{f.file.name}</span>
+                      <span className="text-gray-400 flex-shrink-0">{formatBytes(f.file.size)}</span>
                       <button
                         type="button"
                         className="text-gray-400 hover:text-red-500"
@@ -972,41 +902,47 @@ export default function SlipAttachmentBrowserDialog({
                           setStagedFiles((prev) => prev.filter((x) => x.id !== f.id))
                         }}
                       >
-                        <X className="h-3 w-3" />
+                        <X className="w-3 h-3" />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
 
-              {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+              {/* Upload error */}
+              {uploadError && (
+                <p className="text-xs text-red-500">{uploadError}</p>
+              )}
 
+              {/* Label textarea */}
               <div className="mt-auto">
                 <textarea
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="Label or describe this attachment"
-                  className="h-[72px] w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 placeholder-gray-400 focus:border-[#1162A8] focus:outline-none focus:ring-1 focus:ring-[#1162A8] md:h-[80px]"
+                  className="w-full h-[80px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1162A8] focus:ring-1 focus:ring-[#1162A8]"
                 />
               </div>
 
-              <label className="flex cursor-pointer items-start gap-2 pb-2">
+              {/* Make available checkbox */}
+              <label className="flex items-start gap-2 cursor-pointer pb-2">
                 <Checkbox
                   checked={makeAvailable}
                   onCheckedChange={(v) => setMakeAvailable(Boolean(v))}
                   className="mt-0.5"
                 />
-                <span className="text-xs leading-relaxed text-gray-700">
+                <span className="text-xs text-gray-700 leading-relaxed">
                   Make files available to related cases
                 </span>
               </label>
             </div>
 
-            <div className="flex gap-2 border-t border-gray-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-5 md:py-4">
+            {/* Actions */}
+            <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-10 flex-1 text-xs md:h-9"
+                className="flex-1 h-9 text-xs"
                 onClick={onClose}
                 disabled={uploading}
               >
@@ -1014,7 +950,7 @@ export default function SlipAttachmentBrowserDialog({
               </Button>
               <Button
                 size="sm"
-                className="h-10 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85] md:h-9"
+                className="flex-1 h-9 text-xs bg-[#1162A8] hover:bg-[#0d4a85] text-white"
                 onClick={handleAttachFiles}
                 disabled={stagedFiles.length === 0 || uploading}
               >
@@ -1024,65 +960,57 @@ export default function SlipAttachmentBrowserDialog({
           </div>
 
           {/* ── Right panel: Browser ───────────────────────────── */}
-          <div
-            className={cn(
-              "relative min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-              showBrowsePanel || (isMobile && showPreview) ? "flex" : "hidden",
-              "md:flex md:flex-row",
-            )}
-          >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
+            {/* File browser */}
             <div
-              className={cn(
-                "flex min-h-0 min-w-0 flex-col overflow-hidden transition-all",
-                showPreview && isMobile ? "hidden" : "flex-1",
-                showPreview && !isMobile ? "md:w-[45%] md:flex-none" : "flex-1",
-              )}
+              className={`flex min-h-0 min-w-0 flex-col overflow-hidden transition-all ${
+                showPreview ? "md:w-[45%] md:flex-none" : "flex-1"
+              } ${showPreview ? "max-md:max-h-[40%]" : "flex-1"}`}
             >
-              <div className="flex flex-shrink-0 items-center justify-between border-b bg-gray-50 px-3 py-2.5 sm:px-4">
-                <div className="flex min-w-0 items-center gap-2 overflow-x-auto sm:gap-4">
+              {/* Header row */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 bg-gray-50">
+                <div className="flex items-center gap-4 min-w-0 overflow-hidden">
                   {displayedDocName && (
-                    <span className="flex-shrink-0 text-xs font-medium text-gray-700">
+                    <span className="text-xs text-gray-700 font-medium flex-shrink-0">
                       Dr: <span className="font-semibold text-gray-900">{displayedDocName}</span>
                     </span>
                   )}
                   {displayedPatientName && (
-                    <span className="flex-shrink-0 text-xs text-gray-700">
-                      Patient:{" "}
-                      <span className="font-semibold text-gray-900">{displayedPatientName}</span>
+                    <span className="text-xs text-gray-700 flex-shrink-0">
+                      Patient: <span className="font-semibold text-gray-900">{displayedPatientName}</span>
                     </span>
                   )}
                   {caseData && (
-                    <span className="flex-shrink-0 text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 flex-shrink-0">
                       Total Size: {totalSizeMB} MB
                     </span>
                   )}
                 </div>
                 <button
                   type="button"
-                  className="ml-2 hidden flex-shrink-0 rounded p-1 hover:bg-gray-200 md:block"
+                  className="p-1 rounded hover:bg-gray-200 flex-shrink-0 ml-2"
                   onClick={onClose}
                 >
-                  <X className="h-4 w-4 text-gray-500" />
+                  <X className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
 
-              <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2 sm:px-4">
+              {/* Filter bar */}
+              <div className="flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 flex-wrap">
                 <Select value={stageFilter} onValueChange={setStageFilter}>
-                  <SelectTrigger className="h-8 w-[min(100%,7.5rem)] text-[11px] sm:h-7 sm:w-[110px]">
+                  <SelectTrigger className="h-7 w-[110px] text-[11px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Stages</SelectItem>
                     {availableStages.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
 
                 <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
-                  <SelectTrigger className="h-8 w-[min(100%,7.5rem)] text-[11px] sm:h-7 sm:w-[110px]">
+                  <SelectTrigger className="h-7 w-[110px] text-[11px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1094,45 +1022,23 @@ export default function SlipAttachmentBrowserDialog({
 
                 <button
                   type="button"
-                  className="flex h-8 items-center rounded-md px-2.5 text-[11px] font-medium transition-opacity hover:opacity-80 sm:h-7"
-                  style={
-                    hideArchived
-                      ? {
-                          background:
-                            "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)",
-                          color: "#fff",
-                          border: "1.5px solid transparent",
-                        }
-                      : {
-                          background:
-                            "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box",
-                          border: "1.5px solid transparent",
-                          color: "#82298D",
-                        }
+                  className="h-7 text-[11px] px-2.5 rounded-md font-medium flex items-center transition-opacity hover:opacity-80"
+                  style={hideArchived
+                    ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", color: "#fff", border: "1.5px solid transparent" }
+                    : { background: "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box", border: "1.5px solid transparent", color: "#82298D" }
                   }
                   onClick={() => setHideArchived((v) => !v)}
                 >
-                  <Archive className="mr-1 h-3 w-3" />
+                  <Archive className="w-3 h-3 mr-1" />
                   {hideArchived ? "Hide Archived" : "Show Archived"}
                 </button>
 
                 <button
                   type="button"
-                  className="h-8 rounded-md px-2.5 text-[11px] font-medium transition-opacity hover:opacity-80 sm:h-7"
-                  style={
-                    selectMultiple
-                      ? {
-                          background:
-                            "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)",
-                          color: "#fff",
-                          border: "1.5px solid transparent",
-                        }
-                      : {
-                          background:
-                            "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box",
-                          border: "1.5px solid transparent",
-                          color: "#82298D",
-                        }
+                  className="h-7 text-[11px] px-2.5 rounded-md font-medium transition-opacity hover:opacity-80"
+                  style={selectMultiple
+                    ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", color: "#fff", border: "1.5px solid transparent" }
+                    : { background: "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box", border: "1.5px solid transparent", color: "#82298D" }
                   }
                   onClick={() => {
                     setSelectMultiple((v) => !v)
@@ -1143,24 +1049,23 @@ export default function SlipAttachmentBrowserDialog({
                 </button>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+              {/* Scrollable sections */}
+              <div className="flex-1 overflow-y-auto min-h-0">
                 {loading ? (
-                  <div className="flex h-32 items-center justify-center text-sm text-gray-400">
+                  <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
                     Loading attachments…
                   </div>
                 ) : error ? (
-                  <div className="flex h-32 flex-col items-center justify-center gap-2">
-                    <p className="text-sm text-red-500">{error}</p>
-                    <Button size="sm" variant="outline" onClick={fetchData}>
-                      Retry
-                    </Button>
+                  <div className="flex flex-col items-center justify-center h-32 gap-2">
+                    <p className="text-red-500 text-sm">{error}</p>
+                    <Button size="sm" variant="outline" onClick={fetchData}>Retry</Button>
                   </div>
                 ) : !caseId ? (
-                  <div className="flex h-32 items-center justify-center text-sm text-gray-400">
+                  <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
                     No case associated yet
                   </div>
                 ) : slipGroups.length === 0 ? (
-                  <div className="flex h-32 items-center justify-center text-sm text-gray-400">
+                  <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
                     No attachments found
                   </div>
                 ) : (
@@ -1169,32 +1074,31 @@ export default function SlipAttachmentBrowserDialog({
                       const isExpanded = expandedSlips.has(group.slipId)
                       return (
                         <div key={group.slipId}>
+                          {/* Section header */}
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 px-3 py-3 transition hover:bg-gray-50 sm:px-4"
+                            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition"
                             onClick={() => toggleSlip(group.slipId)}
                           >
                             {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
                             ) : (
-                              <ChevronRight className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                             )}
-                            <FolderOpen className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                            <span className="min-w-0 truncate text-sm font-medium text-gray-800">
-                              {group.stageName}
+                            <FolderOpen className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                            <span className="text-sm font-medium text-gray-800">{group.stageName}</span>
+                            <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-600 font-medium">
+                              {group.attachments.length} file{group.attachments.length !== 1 ? "s" : ""}
                             </span>
-                            <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                              {group.attachments.length} file
-                              {group.attachments.length !== 1 ? "s" : ""}
-                            </span>
-                            <span className="ml-auto flex-shrink-0 text-xs text-gray-400">
+                            <span className="ml-auto text-xs text-gray-400 flex-shrink-0">
                               Slip # {group.slipNumber}
                             </span>
                           </button>
 
+                          {/* File thumbnails */}
                           {isExpanded && (
-                            <div className="px-3 pb-4 sm:px-4">
-                              <div className="flex flex-wrap gap-3">
+                            <div className="px-4 pb-4">
+                              <div className="flex gap-3 flex-wrap">
                                 {group.attachments.map((record) => (
                                   <FileCard
                                     key={record.id}
@@ -1218,45 +1122,25 @@ export default function SlipAttachmentBrowserDialog({
               </div>
             </div>
 
+            {/* Preview panel */}
             {showPreview && (
-              <div
-                className={cn(
-                  "flex min-h-0 min-w-0 flex-col bg-white",
-                  isMobile ? "absolute inset-0 z-20" : "md:w-[55%] md:flex-none",
-                )}
-              >
-                {isMobile ? (
-                  <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-                    <button
-                      type="button"
-                      className="rounded-md px-2 py-1.5 text-sm font-medium text-[#1162A8] hover:bg-blue-50"
-                      onClick={() => setSelectedForPreview([])}
-                    >
-                      ← Back
-                    </button>
-                    <span className="truncate text-sm font-semibold text-gray-800">Preview</span>
-                  </div>
-                ) : null}
-                <div className="min-h-0 flex-1">
-                  <PreviewPanel
-                    items={selectedForPreview}
-                    onClear={() => setSelectedForPreview([])}
-                    onFullscreen={() => setShowFullscreen(true)}
-                  />
-                </div>
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col md:w-[55%] md:flex-none">
+                <PreviewPanel
+                  items={selectedForPreview}
+                  onClear={() => setSelectedForPreview([])}
+                  onFullscreen={() => setShowFullscreen(true)}
+                />
               </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* Fullscreen My Studio */}
       {showFullscreen &&
         typeof document !== "undefined" &&
         createPortal(
-          <div
-            className="fixed inset-0 z-[9999] bg-white"
-            style={{ width: "100vw", height: "100vh" }}
-          >
+          <div className="fixed inset-0 z-[9999] bg-white" style={{ width: "100vw", height: "100vh" }}>
             <FileAttachmentModalContent
               setShowAttachModal={setShowFullscreen}
               isCaseSubmitted={isCaseSubmitted}
@@ -1269,7 +1153,7 @@ export default function SlipAttachmentBrowserDialog({
               initialViewerItems={fullscreenViewerItems}
             />
           </div>,
-          document.body,
+          document.body
         )}
     </>
   )
