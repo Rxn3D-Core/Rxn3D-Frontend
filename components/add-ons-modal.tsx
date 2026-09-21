@@ -1275,7 +1275,7 @@ export default function AddOnsModal({
         if (!open) onClose()
       }}
     >
-      <DialogContent className={`${dialogWidthClass} p-0 rounded-xl shadow-2xl flex flex-col max-h-[85vh] gap-0`}>
+      <DialogContent className={`${dialogWidthClass} w-[calc(100%-1.5rem)] sm:w-full p-0 rounded-xl shadow-2xl flex flex-col max-h-[85vh] gap-0`}>
         {/* Header */}
         <div className="flex justify-between items-center px-6 pt-5 pb-3">
           <div className="flex items-center gap-2">
