@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildCaseSummaryText,
   buildFixedProductNote,
   buildRemovableProductNote,
   formatFieldValueForNote,
   formatTeethNumbers,
   isFullArchTeeth,
+  mergeFabricateNotes,
 } from "./caseNoteBuilder.ts";
 
 const MAXILLARY_ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -161,4 +163,74 @@ test("buildFixedProductNote omits tooth numbers for full arch", () => {
   assert.equal(note, "Please fabricate Full Arch Bridge.");
   assert.ok(!note.includes("#1"));
   assert.ok(!note.includes("#16"));
+});
+
+test("mergeFabricateNotes combines products that share stage and shade", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Premium Full Denture Acrylic for Finish, shade IPS Shade System A1.",
+    "Please fabricate Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  );
+});
+
+test("mergeFabricateNotes handles bare shade without comma", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Premium Full Denture Acrylic for Finish shade IPS Shade System A1.",
+    "Please fabricate Premium Acrylic Partial for #32 for Finish shade IPS Shade System A1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  );
+});
+
+test("mergeFabricateNotes keeps separate notes when suffixes differ", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Crown for #8 for Finish, shade A1.",
+    "Please fabricate Bridge for #9–#11 for Try in, shade B1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Crown for #8 for Finish, shade A1.\nPlease fabricate Bridge for #9–#11 for Try in, shade B1.",
+  );
+});
+
+test("mergeFabricateNotes joins three products with shared suffix", () => {
+  const merged = mergeFabricateNotes([
+    "Please fabricate Crown for #8 for Finish, shade A1.",
+    "Please fabricate Inlay for #14 for Finish, shade A1.",
+    "Please fabricate Onlay for #19 for Finish, shade A1.",
+  ]);
+  assert.equal(
+    merged,
+    "Please fabricate Crown for #8, Inlay for #14, and Onlay for #19 for Finish, shade A1.",
+  );
+});
+
+test("buildCaseSummaryText merges across arches when suffix matches", () => {
+  const text = buildCaseSummaryText([
+    {
+      arch: "maxillary",
+      category: "Removable",
+      cardId: 1,
+      productName: "Premium Full Denture Acrylic",
+      teeth: MAXILLARY_ALL,
+      note: "Please fabricate Premium Full Denture Acrylic for Finish, shade IPS Shade System A1.",
+    },
+    {
+      arch: "mandibular",
+      category: "Removable",
+      cardId: 2,
+      productName: "Premium Acrylic Partial",
+      teeth: [32],
+      note: "Please fabricate Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+    },
+  ]);
+  assert.equal(
+    text,
+    "Please fabricate Premium Full Denture Acrylic and Premium Acrylic Partial for #32 for Finish, shade IPS Shade System A1.",
+  );
 });
