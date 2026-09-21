@@ -209,10 +209,14 @@ export function InlineAddProductPicker({
   const categoryName =
     categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? "";
   const subProducts = subcategoriesByCategoryId[selectedCategory ?? -1] ?? [];
-  const filteredSubProducts = useMemo(
-    () => subProducts.filter((p) => !excludedSubcategoryIds.includes(p.id)),
-    [subProducts, excludedSubcategoryIds]
-  );
+  const filteredSubProducts = useMemo(() => {
+    return subProducts.filter((p) => {
+      if (excludedSubcategoryIds.includes(p.id)) return false
+      // Hide subcategories with zero Active products (counts from status=Active product list)
+      const count = subcategoryProductCounts?.[p.id]
+      return count !== 0
+    })
+  }, [subProducts, excludedSubcategoryIds, subcategoryProductCounts]);
   const subProductName =
     filteredSubProducts.find((p) => p.id === selectedSubProduct)?.name ?? "";
 

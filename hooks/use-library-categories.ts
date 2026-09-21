@@ -55,7 +55,7 @@ export interface WizardSubcategoryShape {
 }
 
 export const libraryCategoriesQueryKey = (customerId: number | undefined, lang: string) =>
-  ["library-categories", customerId, lang, "Active"] as const
+  ["library-categories", customerId, lang, "Active", "only_with_active_products"] as const
 
 const CATEGORY_IMG_FALLBACK = "/placeholder.svg"
 const SUBCATEGORY_IMG_FALLBACK = "/placeholder.svg"
@@ -146,6 +146,8 @@ async function fetchLibraryCategories(
   url.searchParams.set("lang", lang)
   url.searchParams.set("customer_id", String(customerId))
   url.searchParams.set("status", "Active")
+  // Slip creation: hide subcategories (and categories) with no Active products
+  url.searchParams.set("only_with_active_products", "1")
 
   const res = await fetch(url.toString(), {
     method: "GET",
