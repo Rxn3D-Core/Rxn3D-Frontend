@@ -1870,6 +1870,7 @@ function StepMaterial({
   canEditDoctor,
   onEditDoctorClick,
 }: {
+  categoryName: string;
   subProductName: string;
   products: { id: number; name: string; img: string; arch_images?: { maxillary?: string | null; both?: string | null; mandibular?: string | null }; show_jaw_photo?: boolean; jaw_photos?: { upper?: string | null; lower?: string | null; both?: string | null } }[];
   selected: string | null;
@@ -1883,9 +1884,9 @@ function StepMaterial({
   error?: Error | null;
   categoryShowJawSelection: boolean;
   forceArch?: "maxillary" | "mandibular";
-  onPatientNameChange?: (value: string) => void;
-  onGenderChange?: (value: string) => void;
-  onAgeChange?: (value: string) => void;
+  onPatientNameChange?: (name: string) => void;
+  onGenderChange?: (gender: string) => void;
+  onAgeChange?: (age: string) => void;
   fieldSettings?: WizardPatientFieldSettings;
   canEditDoctor?: boolean;
   onEditDoctorClick?: () => void;
