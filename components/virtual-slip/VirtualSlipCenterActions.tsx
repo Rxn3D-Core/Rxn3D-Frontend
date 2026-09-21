@@ -28,6 +28,8 @@ export interface VirtualSlipCenterActionsProps {
   deliveryTimeDisplay?: string;
   notesRefreshKey?: number;
   stageSeeds?: CaseNoteStageSeed[];
+  /** Current slip status — gates add/edit notes when Finished or cancelled. */
+  slipStatus?: string | null;
   productName?: string;
   productStage?: string;
   deliveryDateIso?: string;
@@ -78,6 +80,7 @@ export function VirtualSlipCenterActions({
   deliveryTimeDisplay = "",
   notesRefreshKey = 0,
   stageSeeds = [],
+  slipStatus = null,
   productName = "Case",
   productStage = "Unknown Stage",
   deliveryDateIso = "",
@@ -332,6 +335,7 @@ export function VirtualSlipCenterActions({
           deliveryDateDisplay={deliveryDateDisplay}
           deliveryTimeDisplay={deliveryTimeDisplay}
           isRush={slipIsRush}
+          slipStatus={slipStatus}
           notesRefreshKey={notesRefreshKey}
           stageSeeds={stageSeeds}
           onNotesChanged={onNotesChanged}

@@ -864,6 +864,7 @@ export default function VirtualSlipV2Page() {
           deliveryTimeDisplay={vm.header.deliveryTime}
           notesRefreshKey={notesRefreshKey}
           stageSeeds={stageSeeds}
+          slipStatus={vm.header.slipStatus}
           onNotesChanged={handleNotesChanged}
           rushArchSlots={rushArchSlots}
           addonArchSlots={addonArchSlots}
