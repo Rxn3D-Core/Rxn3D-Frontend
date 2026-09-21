@@ -392,7 +392,10 @@ export function useSubcategoryProductCounts(options: {
       return
     }
     const data = raw.filter((p) => String(p.status ?? "Active").trim() === "Active")
-    counts[id] = pagination ? pagination.total : data.length
+    // Prefer pagination.total only when the page is entirely Active (status filter honored).
+    // If inactive rows leaked into the page, use filtered length so empty subcategories stay at 0.
+    counts[id] =
+      pagination && data.length === raw.length ? pagination.total : data.length
     products[id] = data
   })
   return { counts, products }

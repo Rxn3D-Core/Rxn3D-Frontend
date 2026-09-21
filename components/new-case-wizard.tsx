@@ -2935,7 +2935,9 @@ export default function NewCaseWizard({
         {step === 5 && selectedCategory != null && (
           <StepSubProduct
             categoryId={selectedCategory}
-            subProducts={subcategoriesByCategoryId[selectedCategory] ?? []}
+            subProducts={(subcategoriesByCategoryId[selectedCategory] ?? []).filter(
+              (s) => subcategoryProductCounts?.[s.id] !== 0
+            )}
             categoryName={categoriesAsWizard.find((c) => c.id === selectedCategory)?.name ?? ""}
             categoryShowJawSelection={categoryShowsJawSelection(
               categoriesAsWizard.find((c) => c.id === selectedCategory),
