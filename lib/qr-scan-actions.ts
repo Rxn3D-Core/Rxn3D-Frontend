@@ -101,7 +101,7 @@ export function resolveQrMovementAction(
 /**
  * Build chooser buttons for the audience.
  * - Lab: V-Slip + applicable movement (ready-to-send / pick up / drop off)
- * - Driver: pick up / drop off only (no V-Slip)
+ * - Driver: pick up / drop off; when slip is In lab → View V-Slip (no pickup/dropoff there)
  * - Office: V-Slip only
  */
 export function buildQrScanChooserActions(params: {
@@ -117,6 +117,7 @@ export function buildQrScanChooserActions(params: {
       : audience === "lab" || audience === "driver";
   const movement = resolveQrMovementAction(locationRef);
   const actions: QrScanChooserAction[] = [];
+  const inLab = slipCanReadyToSend(locationRef);
 
   if (audience === "office") {
     actions.push({ id: "view_vslip", label: "Open Virtual Slip", primary: true });
@@ -140,13 +141,16 @@ export function buildQrScanChooserActions(params: {
     return actions;
   }
 
-  // Driver
+  // Driver: pickup/dropoff when on route / ready to pickup.
+  // In lab is not a driver move — still allow opening the virtual slip.
   if (
     movement &&
     (movement.id === "pickup" || movement.id === "dropoff") &&
     canPickupDropoff
   ) {
     actions.push({ id: movement.id, label: movement.label, primary: true });
+  } else if (inLab) {
+    actions.push({ id: "view_vslip", label: "View V-Slip", primary: true });
   }
   return actions;
 }
