@@ -6,10 +6,12 @@ import { LabBillingPageHeader } from "@/components/billing/lab-billing-page-head
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import {
   CHARGE_MANAGEMENT_PER_PAGE,
+  CHARGE_MANAGEMENT_PER_PAGE_OPTIONS,
   defaultChargeManagementFilters,
   loadChargeManagementFilters,
   saveChargeManagementFilters,
   type ChargeManagementFiltersPrefs,
+  type ChargeManagementPerPage,
 } from "@/lib/charge-management-preferences"
 import {
   Filter,
@@ -488,6 +490,7 @@ export default function ChargeManagementPage() {
   const [dateTo, setDateTo] = useState("")
   const [officeFilter, setOfficeFilter] = useState<string>("all")
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState<ChargeManagementPerPage>(CHARGE_MANAGEMENT_PER_PAGE)
   const [filtersReady, setFiltersReady] = useState(false)
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
@@ -608,6 +611,7 @@ export default function ChargeManagementPage() {
     setDateTo(prefs.dateTo)
     setOfficeFilter(prefs.officeFilter)
     setPage(prefs.page)
+    setPerPage(prefs.perPage)
     setAdvDateRange(prefs.advDateRange)
     setAdvItemStatus(prefs.advItemStatus)
     setShowAdvancedFilters(prefs.showAdvancedFilters)
@@ -633,6 +637,7 @@ export default function ChargeManagementPage() {
       dateTo,
       officeFilter,
       page,
+      perPage,
       advDateRange,
       advItemStatus,
       showAdvancedFilters,
@@ -654,6 +659,7 @@ export default function ChargeManagementPage() {
     dateTo,
     officeFilter,
     page,
+    perPage,
     advDateRange,
     advItemStatus,
     showAdvancedFilters,
@@ -704,7 +710,7 @@ export default function ChargeManagementPage() {
     const params: BillingListParams = {
       ...scopeFilter,
       page,
-      per_page: CHARGE_MANAGEMENT_PER_PAGE,
+      per_page: perPage,
       sort_by: "created_at",
       sort_direction: "desc",
     }
@@ -725,6 +731,7 @@ export default function ChargeManagementPage() {
   }, [
     scopeFilter,
     page,
+    perPage,
     debouncedSearch,
     dateFrom,
     dateTo,
@@ -1104,7 +1111,7 @@ export default function ChargeManagementPage() {
       try {
         const merged: AdvancedBillingSearchBody = {
           ...body,
-          per_page: CHARGE_MANAGEMENT_PER_PAGE,
+          per_page: perPage,
           sort_by: body.sort_by ?? "created_at",
           sort_direction: body.sort_direction ?? "desc",
         }
@@ -1125,7 +1132,7 @@ export default function ChargeManagementPage() {
         })
       }
     },
-    [advancedSearch, customerProfile, toast],
+    [advancedSearch, customerProfile, perPage, toast],
   )
 
   useEffect(() => {
@@ -2528,10 +2535,37 @@ export default function ChargeManagementPage() {
         </div>
 
         {pagination && pagination.total > 0 && (
-          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-            <span>
-              Showing {pagination.from ?? 0}–{pagination.to ?? 0} of {pagination.total}
-            </span>
+          <div className="mt-4 flex flex-col gap-3 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span>
+                Showing {pagination.from ?? 0}–{pagination.to ?? 0} of {pagination.total}
+              </span>
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <Select
+                  value={String(perPage)}
+                  onValueChange={(value) => {
+                    const next = Number(value) as ChargeManagementPerPage
+                    if (!CHARGE_MANAGEMENT_PER_PAGE_OPTIONS.includes(next)) return
+                    setPerPage(next)
+                    setPage(1)
+                    setAdvancedPage(1)
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[88px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CHARGE_MANAGEMENT_PER_PAGE_OPTIONS.map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>entries</span>
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"

@@ -69,7 +69,7 @@ Optional **`PUT /billing/products/{id}/pricing`** remains in RTK for single-line
 | 2 | Statistics `GET /billing/statistics` | `useGetBillingStatisticsQuery(statsParams)` — summary cards follow active filters; `refetchOnFocus: false` |
 | 3 | Advanced search `POST /billing/advanced-search` | `useAdvancedBillingSearchMutation` — Advance Filter; default `per_page` 100 |
 
-Also: list/advanced default page size is **100** (`CHARGE_MANAGEMENT_PER_PAGE`). Filters (search, dates, office, status, advanced fields) are persisted per `customerId` in `localStorage` via [`lib/charge-management-preferences.ts`](../lib/charge-management-preferences.ts).
+Also: list/advanced default page size is **100** (`CHARGE_MANAGEMENT_PER_PAGE`). Users can choose **100 / 200 / 300 / 500 / 1000** (`CHARGE_MANAGEMENT_PER_PAGE_OPTIONS`); choice is persisted per `customerId` with other filters in [`lib/charge-management-preferences.ts`](../lib/charge-management-preferences.ts). Backend `GET /billing` and `POST /billing/advanced-search` accept `per_page` up to **1000**.
 | 4 | Detail `GET /billing/{id}` | `useGetBillingInvoiceByIdQuery` — **Edit invoice pricing** modal (pencil) + any other flows |
 | 5 | Bulk `POST /billing/bulk-action` | `useBulkBillingActionMutation` — Mark Checked / Uncheck / Billed / Mark Refund / Remove Refund |
 | 6 | Generate PDF `POST /billing/{id}/generate-pdf` | `useGenerateBillingPdfMutation` — PDF view (preferred) |
