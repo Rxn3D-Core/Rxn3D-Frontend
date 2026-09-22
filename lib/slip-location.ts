@@ -169,6 +169,69 @@ export function slipIsLabDropoff(ref: SlipLocationRef): boolean {
 }
 
 /**
+ * Where the slip is headed for driver Directions (Google Maps).
+ * - Locations 1 / 2 → lab (pickup from office or on route to lab)
+ * - Locations 4 / 5 → office (pickup from lab or on route to office)
+ */
+export type SlipDirectionsDestination = "lab" | "office";
+
+export function slipDirectionsDestination(
+  ref: SlipLocationRef
+): SlipDirectionsDestination | null {
+  if (slipAtLocation(ref, 1) || slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_LAB)) {
+    return "lab";
+  }
+  if (slipAtLocation(ref, 4) || slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_OFFICE)) {
+    return "office";
+  }
+
+  const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (
+    label.includes("route to the lab") ||
+    label === "in office ready to pickup" ||
+    (label.includes("office") && label.includes("pickup"))
+  ) {
+    return "lab";
+  }
+  if (
+    label.includes("route to the office") ||
+    label === "in lab ready to pickup" ||
+    (label.includes("lab") && label.includes("pickup"))
+  ) {
+    return "office";
+  }
+
+  return null;
+}
+
+/** Google Maps search URL for a street address, or null when address is blank. */
+export function googleMapsSearchUrl(address: string | null | undefined): string | null {
+  const trimmed = (address || "").trim();
+  if (!trimmed) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+}
+
+/**
+ * Destination address for the Directions control: lab or office based on
+ * where the slip is going.
+ */
+export function slipDirectionsAddress(
+  ref: SlipLocationRef,
+  addresses: { labAddress?: string | null; officeAddress?: string | null }
+): string | null {
+  const destination = slipDirectionsDestination(ref);
+  if (destination === "lab") {
+    const addr = (addresses.labAddress || "").trim();
+    return addr || null;
+  }
+  if (destination === "office") {
+    const addr = (addresses.officeAddress || "").trim();
+    return addr || null;
+  }
+  return null;
+}
+
+/**
  * True when lab drop-off should require a photo.
  * False only when every selected impression is digital and at least one exists.
  * Prefers `has_physical_impression` from QR scan; unknown slips default to true.
