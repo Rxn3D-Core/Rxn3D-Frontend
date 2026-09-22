@@ -24,8 +24,6 @@ export interface PaperSlipPrintV2Extras {
   labAddress: string;
   labCode: string;
   doctorLicenseNumber: string;
-  labPhone: string;
-  labEmail: string;
 }
 
 export interface PaperSlipPrintV2SlipVM {
@@ -78,8 +76,6 @@ export function extractPaperSlipPrintV2Extras(record: any): PaperSlipPrintV2Extr
     labAddress: joinAddress([lab?.address, lab?.city, lab?.state, lab?.postal_code]),
     labCode: firstStr(lab?.code, caseData?.lab_code),
     doctorLicenseNumber: firstStr(doctor?.license_number, doctor?.license_no),
-    labPhone: firstStr(lab?.phone, lab?.phone_number),
-    labEmail: firstStr(lab?.email),
   };
 }
 

@@ -101,8 +101,6 @@ export interface PaperSlipPrintHeaderVM {
 }
 
 export interface PaperSlipPrintFooterVM {
-  labPhone: string;
-  labEmail: string;
   relatedSlips: string[];
 }
 
@@ -1061,8 +1059,6 @@ export function buildPaperSlipPrintSlipVM(
     opposing: buildOpposing(products),
     notes: collectNotes(data?.notes),
     footer: {
-      labPhone: firstStr(lab?.phone, lab?.phone_number),
-      labEmail: firstStr(lab?.email),
       relatedSlips,
     },
   };
