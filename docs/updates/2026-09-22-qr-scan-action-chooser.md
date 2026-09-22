@@ -29,7 +29,10 @@ Expired keys and `qr_scan_batch_data` are cleared automatically; the next scan s
 action chooser again. (Server cache TTL remains 1 hour independently.)
 
 Also cleared on **login** (`setAuthFromData`) and **logout** (`clearSessionStorage`) so
-each auth cycle starts with a fresh driver QR trip.
+each auth cycle starts with a fresh driver QR trip. That includes `qr-scan-history`, so the
+Scan Code badge does not show a leftover count after a fresh login.
+
+The Scan Code badge shows the **active trip** case count only (not cumulative history).
 
 ### Location actions
 

@@ -578,12 +578,12 @@ export function DeliveryModalFooter({
   const showConfirm = submitting || !hideConfirmUntilReady || !confirmDisabled;
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-t border-[#F3F4F6] px-6 py-5 sm:px-8">
+    <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#F3F4F6] px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-center sm:gap-3 sm:px-8 sm:py-5 sm:pb-5">
       <button
         type="button"
         onClick={onCancel}
         disabled={submitting}
-        className="h-10 rounded-lg border border-[#D1D5DB] px-6 text-sm font-medium text-[#374151] transition-colors hover:bg-gray-50 disabled:opacity-60"
+        className="h-12 w-full rounded-lg border border-[#D1D5DB] px-6 text-base font-medium text-[#374151] transition-colors hover:bg-gray-50 disabled:opacity-60 sm:h-10 sm:w-auto sm:text-sm"
       >
         Cancel
       </button>
@@ -592,7 +592,7 @@ export function DeliveryModalFooter({
           type="button"
           onClick={onConfirm}
           disabled={confirmDisabled || submitting}
-          className="h-10 rounded-lg bg-[#0E66B2] px-8 text-sm font-medium text-white transition-colors hover:bg-[#0c5a9f] disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-12 w-full rounded-lg bg-[#0E66B2] px-8 text-base font-semibold text-white transition-colors hover:bg-[#0c5a9f] disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-auto sm:text-sm sm:font-medium"
         >
           {submitting ? "Submitting…" : confirmLabel}
         </button>

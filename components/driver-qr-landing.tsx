@@ -21,13 +21,11 @@ import {
 import { fetchSlipQrIdentify, type SlipQrIdentifyResult } from "@/lib/api/slip-qr-identify";
 import {
   buildQrScanChooserActions,
-  resolveQrScanAudience,
+  resolveActiveQrScanAudience,
   type QrScanChooserAction,
   type QrScanChooserActionId,
 } from "@/lib/qr-scan-actions";
 import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
-import { getPrimaryRole } from "@/lib/get-primary-role";
-import { isOfficeCustomerContext } from "@/lib/role-utils";
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +43,7 @@ type DriverQrLandingProps = {
  * Inside an active session → existing scan-qr pickup/drop-off flow.
  */
 export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
-  const { user, isLoading: authLoading, token, hasPermission } = useAuth();
+  const { user, isLoading: authLoading, token, profileRole } = useAuth();
   const { scanQrCode, clearDriverSession, readyToSend } = useSlipContext();
   const { toast } = useToast();
   const router = useRouter();
@@ -68,9 +66,6 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
   const hasBootedRef = useRef(false);
 
   const userRoles = user?.roles || (user?.role ? [user.role] : []);
-  const isOfficeSideUser = ["office_admin", "office_user", "doctor", "doctor_admin"].some((role) =>
-    userRoles.includes(role),
-  );
 
   const redirectToLogin = useCallback(() => {
     const returnPath =
@@ -149,13 +144,14 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
       const result = await fetchSlipQrIdentify(slipIds[0], caseId);
       setIdentify(result);
 
-      const primaryRole = getPrimaryRole(user);
-      let audience = resolveQrScanAudience(primaryRole);
-      if (isOfficeSideUser || isOfficeCustomerContext()) {
-        audience = "office";
-      } else if (userRoles.includes("lab_driver") && primaryRole === "lab_driver") {
-        audience = "driver";
-      }
+      const audience = resolveActiveQrScanAudience({
+        profileRole,
+        userRoles,
+        customerType:
+          typeof window !== "undefined"
+            ? localStorage.getItem("customerType")
+            : null,
+      });
 
       setChooserActions(
         buildQrScanChooserActions({
@@ -164,7 +160,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
             locationId: result.locationId,
             location: result.location,
           },
-          canPickupDropoff: audience === "driver" || hasPermission("pickup_drop_off"),
+          canPickupDropoff: audience === "lab" || audience === "driver",
         }),
       );
     } catch (err) {
@@ -176,7 +172,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
       setChooserIdentifying(false);
       setBooting(false);
     }
-  }, [caseId, slipIds, user, isOfficeSideUser, userRoles, hasPermission]);
+  }, [caseId, slipIds, userRoles, profileRole]);
 
   useEffect(() => {
     if (authLoading) return;
