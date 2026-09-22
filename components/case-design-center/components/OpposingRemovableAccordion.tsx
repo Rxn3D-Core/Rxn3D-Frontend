@@ -20,6 +20,7 @@ import {
 import { getRemovableHeaderTitle, shouldShowRemovableHeaderContent } from "../utils/removableHeaderLabel";
 import { getRemovableOrangeHeaderTeeth, getToothStatusBoxDisplayMap } from "../utils/removableToothDisplay";
 import { resolveVariationDisplay, resolveArchProductImage } from "../utils/variationHelpers";
+import { resolveRemovableEstDaysText } from "../utils/removableEstDays";
 import { GradeHoverSelector } from "./RemovableRestorationFields";
 import { isSingleStageNoStages, shouldSkipStageSelection, parseStageDisplayName } from "../utils/categoryHelpers";
 import {
@@ -254,12 +255,11 @@ export function OpposingRemovableAccordion({
   const hasRushed = !!rushedProducts[productKey];
   const stageVal = selectedStages[productKey] || getFieldValue(fieldArch, fieldRepTn, "stage");
   const stageDisplayName = parseStageDisplayName(stageVal);
-  const remStageObj = opposingProductData.stages?.find((s) => s.name === stageDisplayName);
-  const remDays = remStageObj?.days_to_process;
-  const estDays =
-    remDays != null
-      ? `${remDays} work day${remDays === 1 ? "" : "s"} after submission`
-      : "10 work days after submission";
+  const estDays = resolveRemovableEstDaysText(
+    opposingProductData,
+    stageDisplayName,
+    displayTeeth.length
+  );
 
   const advFields = opposingProductData.advance_fields;
   const isF = (step: string) =>

@@ -22,9 +22,14 @@ export function useRushSlotDeliveryDates(
         "rush-slot-delivery-date",
         slot.apiProductId,
         slot.apiStageId ?? 0,
+        slot.apiVariationId ?? 0,
       ],
       queryFn: () =>
-        ProductApi.calculateDelivery(slot.apiProductId, slot.apiStageId),
+        ProductApi.calculateDelivery(
+          slot.apiProductId,
+          slot.apiStageId,
+          slot.apiVariationId
+        ),
       enabled: slot.apiProductId > 0,
       staleTime: 5 * 60 * 1000,
       retry: 1,

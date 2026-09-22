@@ -240,6 +240,7 @@ export const ProductCreateFormSchema = z
           image_url: z.string().optional(),
           tooth_count: z.string().optional(), // e.g. "1", "2", "4 - 16" → API teeth_spec
           name_template: z.string().optional(), // e.g. "Flipper [x tooth/teeth]"
+          days: z.union([z.string(), z.number()]).nullable().optional(), // optional processing days
         }),
       )
       .max(

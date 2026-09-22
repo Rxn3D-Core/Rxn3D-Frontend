@@ -203,7 +203,7 @@ export const ProductApi = {
   },
 
   // Calculate delivery date
-  calculateDelivery: async (productId: number, stageId?: number) => {
+  calculateDelivery: async (productId: number, stageId?: number, variationId?: number) => {
     const labId = resolveProductLabId()
 
     if (!labId) {
@@ -212,6 +212,7 @@ export const ProductApi = {
 
     const params = new URLSearchParams({ product_id: String(productId) })
     if (stageId && stageId > 0) params.append("stage_id", String(stageId))
+    if (variationId && variationId > 0) params.append("variation_id", String(variationId))
     const response = await ApiService.get<{ success: boolean; message: string; data: { pickup_date: string; delivery_date: string; delivery_time: string } }>(`/slip/lab/${labId}/delivery-date?${params.toString()}`)
     return response.data
   },

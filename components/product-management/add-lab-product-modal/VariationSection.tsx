@@ -19,14 +19,14 @@ import { useToast } from "@/hooks/use-toast"
 /** Stored in API / form; inserted via button — users are not expected to type it. */
 const NAME_PLACEHOLDER_TOKEN = "[x tooth/teeth]"
 
-/** Four equal fr columns + fixed actions column (reliable vs Tailwind arbitrary grid) */
+/** Four equal fr columns + Days + fixed actions column (reliable vs Tailwind arbitrary grid) */
 const variationTableGridBase: React.CSSProperties = {
   display: "grid",
   width: "100%",
   minWidth: 0,
   columnGap: 12,
   rowGap: 8,
-  gridTemplateColumns: "repeat(4, minmax(0, 1fr)) minmax(120px, 140px)",
+  gridTemplateColumns: "minmax(70px, 0.8fr) minmax(90px, 1fr) minmax(120px, 1.4fr) minmax(70px, 0.7fr) minmax(90px, 1fr) minmax(120px, 140px)",
 }
 
 function insertTokenIntoString(
@@ -48,6 +48,8 @@ interface ToothCountVariation {
   image_url?: string
   tooth_count?: string
   name_template?: string
+  /** Optional processing days for delivery/rush; empty = use stage/product days */
+  days?: number | string | null
 }
 
 interface VariationSectionProps {
@@ -103,7 +105,7 @@ export function VariationSection({
     }
     setVal("tooth_count_variations", [
       ...variations,
-      { image: null, tooth_count: "", name_template: "" },
+      { image: null, tooth_count: "", name_template: "", days: "" },
     ])
   }
 
@@ -118,7 +120,7 @@ export function VariationSection({
   const handleVariationChange = (
     index: number,
     field: keyof ToothCountVariation,
-    value: string | null
+    value: string | number | null
   ) => {
     const updated = variations.map((v, i) =>
       i === index ? { ...v, [field]: value } : v
@@ -280,6 +282,12 @@ export function VariationSection({
                 style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px" }}
               >
                 Name
+              </span>
+              <span
+                className="min-w-0 font-bold text-black flex items-center h-12"
+                style={{ fontFamily: "Verdana, sans-serif", fontSize: "13px" }}
+              >
+                Days
               </span>
               <span
                 className="min-w-0 font-bold text-black flex items-center h-12"
@@ -455,6 +463,35 @@ export function VariationSection({
                     )}
                     <p className="text-[9px] text-gray-500 leading-snug">
                       <code className="bg-gray-100 px-0.5 rounded">{NAME_PLACEHOLDER_TOKEN}</code> is filled in Preview.
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 space-y-1 pt-0.5">
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      placeholder="Optional"
+                      value={variation.days ?? ""}
+                      onChange={(e) =>
+                        handleVariationChange(
+                          index,
+                          "days",
+                          e.target.value === "" ? "" : e.target.value
+                        )
+                      }
+                      className="w-full px-3 bg-white text-gray-800 placeholder-gray-400 outline-none focus:ring-2 focus:ring-[#1162a8]/30 transition"
+                      style={{
+                        border: "1px solid #7F7F7F",
+                        borderRadius: "10px",
+                        height: "40px",
+                        fontFamily: "Verdana, sans-serif",
+                        fontSize: "13px",
+                      }}
+                      aria-label="Variation processing days (optional)"
+                    />
+                    <p className="text-[9px] text-gray-500 leading-snug">
+                      Leave blank to use stage/product days.
                     </p>
                   </div>
 

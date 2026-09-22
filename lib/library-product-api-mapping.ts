@@ -205,6 +205,15 @@ export function buildVariationsApiPayload(
     if (row.id != null) {
       v.id = row.id
     }
+    const daysRaw = row.days
+    if (daysRaw !== null && daysRaw !== undefined && String(daysRaw).trim() !== "") {
+      const daysNum = Number(daysRaw)
+      if (!Number.isNaN(daysNum) && daysNum >= 1) {
+        v.days = Math.floor(daysNum)
+      }
+    } else {
+      v.days = null
+    }
     const img = row.image
     if (typeof img === "string" && img.startsWith("data:image/")) {
       v.image = img
@@ -249,6 +258,10 @@ export function mapApiVariationsToForm(apiProduct: any): {
       image_url: imageUrl,
       tooth_count: v.teeth_spec != null ? String(v.teeth_spec) : "",
       name_template: v.name_template != null ? String(v.name_template) : "",
+      days:
+        v.days != null && v.days !== "" && !Number.isNaN(Number(v.days))
+          ? Number(v.days)
+          : "",
     }
   })
   return { enable_tooth_count_variation: "Yes", tooth_count_variations }

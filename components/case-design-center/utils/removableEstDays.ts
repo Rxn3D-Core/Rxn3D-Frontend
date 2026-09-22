@@ -1,5 +1,6 @@
 import type { ProductApiData } from "../types";
 import { shouldSkipStageSelection } from "./categoryHelpers.ts";
+import { resolveVariationDays } from "./variationHelpers";
 
 type ProductWithEstimatedDays = ProductApiData & { estimated_days?: number | null };
 
@@ -7,11 +8,20 @@ function formatWorkDaysAfterSubmission(days: number): string {
   return `${days} work day${days === 1 ? "" : "s"} after submission`;
 }
 
-/** Est-days label for removable accordions — uses stage days when staged, else product estimated_days. */
+/** Est-days label for removable accordions — variation days → stage days → product estimated_days. */
 export function resolveRemovableEstDaysText(
   product: ProductApiData | null | undefined,
-  stageDisplayName?: string | null
+  stageDisplayName?: string | null,
+  teethCount?: number
 ): string {
+  const variationDays =
+    teethCount != null && teethCount > 0
+      ? resolveVariationDays(product, teethCount)
+      : null;
+  if (variationDays != null) {
+    return formatWorkDaysAfterSubmission(variationDays);
+  }
+
   const estimatedDays = (product as ProductWithEstimatedDays)?.estimated_days ?? 10;
 
   if (product && shouldSkipStageSelection(product)) {

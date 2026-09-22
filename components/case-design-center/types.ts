@@ -700,6 +700,7 @@ export interface ProductApiData {
     image_url?: string | null;
     teeth_spec?: string | null;
     name_template?: string | null;
+    days?: number | null;
   }>;
 }
 

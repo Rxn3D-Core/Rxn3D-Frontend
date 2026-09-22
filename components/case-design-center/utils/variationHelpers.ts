@@ -16,6 +16,8 @@ export interface ProductVariation {
   image_url?: string | null;
   teeth_spec?: string | null;
   name_template?: string | null;
+  /** Optional processing days for delivery/rush when this variation is selected. */
+  days?: number | null;
 }
 
 /** Parse a `teeth_spec` string into an inclusive [min, max] range. */
@@ -61,6 +63,34 @@ export function findVariationByTeethCount(
       return v;
     }
   }
+  return null;
+}
+
+/**
+ * Processing days from the variation matching `teethCount`, when set and > 0.
+ * Returns null when no match or days unset (caller falls through to stage/product).
+ */
+export function resolveVariationDays(
+  product: {
+    has_variation?: string | boolean | null;
+    variations?: ReadonlyArray<ProductVariation> | null;
+  } | null | undefined,
+  teethCount: number,
+): number | null {
+  if (teethCount <= 0) return null;
+
+  const hasVariationOn =
+    product?.has_variation === true ||
+    product?.has_variation === "Yes" ||
+    product?.has_variation === "yes";
+
+  if (!hasVariationOn && !(product?.variations?.length)) return null;
+
+  const matched = findVariationByTeethCount(product?.variations ?? null, teethCount);
+  if (!matched) return null;
+
+  const days = matched.days != null ? Number(matched.days) : NaN;
+  if (!Number.isNaN(days) && days > 0) return Math.floor(days);
   return null;
 }
 
