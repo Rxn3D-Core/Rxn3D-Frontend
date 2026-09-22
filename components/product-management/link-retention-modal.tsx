@@ -83,6 +83,7 @@ const getAuthToken = () =>
 async function fetchLibraryProductsPage(opts: {
   page: number
   per_page: number
+  q?: string
 }): Promise<{ rows: CatalogProductRow[]; pagination: { last_page: number; total: number } }> {
   const token = getAuthToken()
   if (!token) throw new Error("Authentication token not found")
@@ -93,6 +94,8 @@ async function fetchLibraryProductsPage(opts: {
   url.searchParams.append("page", String(opts.page))
   url.searchParams.append("order_by", "name")
   url.searchParams.append("sort_by", "asc")
+  const q = opts.q?.trim()
+  if (q) url.searchParams.append("q", q)
 
   if (role === "superadmin") {
     const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
@@ -305,17 +308,16 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
   const lroProductsQuery = useQuery({
     queryKey: ["linkRetentionModalProducts", context, lroProductPage, debouncedLroProductQ],
     enabled: isOpen && mainTab === "linkByRetentionOption" && !!lroOptionId,
-    queryFn: () => fetchLibraryProductsPage({ page: lroProductPage, per_page: 10 }),
+    queryFn: () =>
+      fetchLibraryProductsPage({
+        page: lroProductPage,
+        per_page: 10,
+        q: debouncedLroProductQ.trim() || undefined,
+      }),
   })
 
   const lroCatalogRows = lroProductsQuery.data?.rows ?? []
-  const lroCatalogFiltered = debouncedLroProductQ.trim()
-    ? lroCatalogRows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedLroProductQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedLroProductQ.toLowerCase()),
-      )
-    : lroCatalogRows
+  const lroCatalogFiltered = lroCatalogRows
 
   const lroMergedLinkedIds = useMemo(() => {
     const removes = new Set(lroPendingRemoves)
@@ -436,18 +438,16 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
   const bulkProductsQuery = useQuery({
     queryKey: ["linkRetentionBulkProducts", context, bulkProductPage, debouncedBulkProductQ],
     enabled: isOpen && mainTab === "bulk",
-    queryFn: () => fetchLibraryProductsPage({ page: bulkProductPage, per_page: 10 }),
+    queryFn: () =>
+      fetchLibraryProductsPage({
+        page: bulkProductPage,
+        per_page: 10,
+        q: debouncedBulkProductQ.trim() || undefined,
+      }),
   })
 
   const bulkOptionRows = bulkOptionsQuery.data?.data ?? []
-  const bulkProductRowsRaw = bulkProductsQuery.data?.rows ?? []
-  const bulkProductRowsFiltered = debouncedBulkProductQ.trim()
-    ? bulkProductRowsRaw.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedBulkProductQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedBulkProductQ.toLowerCase()),
-      )
-    : bulkProductRowsRaw
+  const bulkProductRowsFiltered = bulkProductsQuery.data?.rows ?? []
 
   const bulkOptionTotal = bulkOptionsQuery.data?.pagination.total ?? 0
   const bulkOptionPerPage = bulkOptionsQuery.data?.pagination.per_page ?? 10
@@ -465,16 +465,14 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
   const typeQuickProductsQuery = useQuery({
     queryKey: ["linkRetentionTypeQuickProducts", context, typeQuickPage, debouncedTypeQuickQ],
     enabled: isOpen && typeQuickLinkId != null,
-    queryFn: () => fetchLibraryProductsPage({ page: typeQuickPage, per_page: 10 }),
+    queryFn: () =>
+      fetchLibraryProductsPage({
+        page: typeQuickPage,
+        per_page: 10,
+        q: debouncedTypeQuickQ.trim() || undefined,
+      }),
   })
-  const typeQuickRowsRaw = typeQuickProductsQuery.data?.rows ?? []
-  const typeQuickRowsFiltered = debouncedTypeQuickQ.trim()
-    ? typeQuickRowsRaw.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedTypeQuickQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedTypeQuickQ.toLowerCase()),
-      )
-    : typeQuickRowsRaw
+  const typeQuickRowsFiltered = typeQuickProductsQuery.data?.rows ?? []
   const typeQuickTotal = typeQuickProductsQuery.data?.pagination.total ?? 0
   const typeQuickTotalPages = Math.max(1, typeQuickProductsQuery.data?.pagination.last_page ?? 1)
 
@@ -512,6 +510,22 @@ export function LinkRetentionModal({ isOpen, onClose, context = "global" }: Link
   useEffect(() => {
     setLroProductPage(1)
   }, [debouncedLroProductQ])
+
+  useEffect(() => {
+    setBulkOptionPage(1)
+  }, [debouncedBulkOptionQ])
+
+  useEffect(() => {
+    setBulkProductPage(1)
+  }, [debouncedBulkProductQ])
+
+  useEffect(() => {
+    setTypeQuickPage(1)
+  }, [debouncedTypeQuickQ])
+
+  useEffect(() => {
+    setLpOptionPage(1)
+  }, [debouncedLpOptionQ])
 
   useEffect(() => {
     const p = lpProductDetailQuery.data

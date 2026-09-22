@@ -80,6 +80,7 @@ const getAuthToken = () =>
 async function fetchLibraryProductsPage(opts: {
   page: number
   per_page: number
+  q?: string
 }): Promise<{ rows: CatalogProductRow[]; pagination: { last_page: number; total: number } }> {
   const token = getAuthToken()
   if (!token) throw new Error("Authentication token not found")
@@ -90,6 +91,8 @@ async function fetchLibraryProductsPage(opts: {
   url.searchParams.append("page", String(opts.page))
   url.searchParams.append("order_by", "name")
   url.searchParams.append("sort_by", "asc")
+  const q = opts.q?.trim()
+  if (q) url.searchParams.append("q", q)
 
   if (role === "superadmin") {
     const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
@@ -290,17 +293,16 @@ export function LinkProductModal({
   const lfProductsQuery = useQuery({
     queryKey: ["linkFieldsModalProducts", context, lfProductPage, debouncedLfProductQ],
     enabled: isOpen && mainTab === "linkByField" && !!lfFieldId,
-    queryFn: () => fetchLibraryProductsPage({ page: lfProductPage, per_page: 10 }),
+    queryFn: () =>
+      fetchLibraryProductsPage({
+        page: lfProductPage,
+        per_page: 10,
+        q: debouncedLfProductQ.trim() || undefined,
+      }),
   })
 
   const lfCatalogRows = lfProductsQuery.data?.rows ?? []
-  const lfCatalogFiltered = debouncedLfProductQ.trim()
-    ? lfCatalogRows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedLfProductQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedLfProductQ.toLowerCase()),
-      )
-    : lfCatalogRows
+  const lfCatalogFiltered = lfCatalogRows
 
   const lfMergedLinkedIds = useMemo(() => {
     const removes = new Set(lfPendingProductRemoves)
@@ -454,18 +456,16 @@ export function LinkProductModal({
   const bulkProductsQuery = useQuery({
     queryKey: ["linkFieldsBulkProducts", context, bulkProductPage, debouncedBulkProductQ],
     enabled: isOpen && mainTab === "bulk",
-    queryFn: () => fetchLibraryProductsPage({ page: bulkProductPage, per_page: 10 }),
+    queryFn: () =>
+      fetchLibraryProductsPage({
+        page: bulkProductPage,
+        per_page: 10,
+        q: debouncedBulkProductQ.trim() || undefined,
+      }),
   })
 
   const bulkFieldsRows = bulkFieldsQuery.data?.data ?? []
-  const bulkProductRowsRaw = bulkProductsQuery.data?.rows ?? []
-  const bulkProductRowsFiltered = debouncedBulkProductQ.trim()
-    ? bulkProductRowsRaw.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedBulkProductQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedBulkProductQ.toLowerCase()),
-      )
-    : bulkProductRowsRaw
+  const bulkProductRowsFiltered = bulkProductsQuery.data?.rows ?? []
   const bulkFieldTotal = bulkFieldsQuery.data?.total ?? 0
   const bulkFieldPerPage = bulkFieldsQuery.data?.per_page ?? 10
   const bulkFieldTotalPages = Math.max(1, bulkFieldsQuery.data?.last_page ?? 1)
@@ -527,6 +527,18 @@ export function LinkProductModal({
   useEffect(() => {
     setLfProductPage(1)
   }, [debouncedLfProductQ])
+
+  useEffect(() => {
+    setBulkFieldPage(1)
+  }, [debouncedBulkFieldQ])
+
+  useEffect(() => {
+    setBulkProductPage(1)
+  }, [debouncedBulkProductQ])
+
+  useEffect(() => {
+    setLpFieldPage(1)
+  }, [debouncedLpFieldQ])
 
   useEffect(() => {
     const p = lpProductDetailQuery.data
