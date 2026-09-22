@@ -9,6 +9,7 @@ import {
   extractPaperSlipPrintV2Extras,
   type PaperSlipPrintV2SlipVM,
 } from "@/lib/paper-slip-print-v2-view-model";
+import type { PaperSlipPrintLayout } from "@/lib/paper-slip-print-layout";
 import {
   defaultDeliveryTimeForSlipDetails,
   fetchDefaultDeliveryTimeByLabId,
@@ -85,6 +86,7 @@ export function PaperSlipPrintV2PageShell({
   slipIds,
   onReady,
   viewOnly = false,
+  layout = "full",
 }: {
   error: string | null;
   caseIds: number[];
@@ -93,6 +95,8 @@ export function PaperSlipPrintV2PageShell({
   onReady?: (html: string) => void;
   /** Render the slip on-screen for review and skip the auto-print/close handoff. */
   viewOnly?: boolean;
+  /** Full = portrait 1/sheet; half = landscape 2/sheet (cut in half). */
+  layout?: PaperSlipPrintLayout;
 }) {
   const [slips, setSlips] = useState<PaperSlipPrintV2SlipVM[]>([]);
   const [loading, setLoading] = useState(!error);
@@ -279,7 +283,10 @@ export function PaperSlipPrintV2PageShell({
 
   return (
     <div ref={printRootRef} className={showDocument ? undefined : "invisible"}>
-      <PaperSlipPrintV2Document sections={buildPaperSlipPrintV2Sections(slips)} />
+      <PaperSlipPrintV2Document
+        layout={layout}
+        sections={buildPaperSlipPrintV2Sections(slips)}
+      />
     </div>
   );
 }

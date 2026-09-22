@@ -19,6 +19,7 @@ export default function PaperSlipPrintV2Page({
     <PaperSlipPrintV2PageShell
       error={request.error}
       caseIds={request.caseIds}
+      layout={request.layout}
       slipIds={request.slipIds}
       viewOnly={viewOnly}
     />
