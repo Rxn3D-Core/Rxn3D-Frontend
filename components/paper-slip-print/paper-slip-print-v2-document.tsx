@@ -35,23 +35,39 @@ const BLUE_TOP = 28;
 /**
  * Physical size of the artboard at 96 CSS px/in — used in @media print so WebKit
  * does not treat `890px` as ~12.3in (pt) and spill onto blank pages 2–3.
- * 234.95mm fits both Letter (279mm) and A4 (297mm) with margin for iOS clipping bugs.
  */
 const SLIP_W_MM = ((SLIP_W / 96) * 25.4).toFixed(2);
 const SLIP_H_MM = ((SLIP_H / 96) * 25.4).toFixed(2);
-/** Max print frame: shortest common portrait page (Letter) minus a safety band. */
-const PRINT_MAX_H_MM = 270;
-const PRINT_MAX_W_MM = 210;
+const SLIP_W_IN = SLIP_W / 96;
+const SLIP_H_IN = SLIP_H / 96;
 
 /**
- * Half-page slot on landscape Letter: 5.5in × 8.5in. Scale the portrait artboard
- * to fit so after cutting, each half reads as a portrait slip.
+ * Full-page portrait.
+ * - Default (iOS AirPrint): print at physical mm size — no zoom/transform.
+ * - Desktop fill: slight zoom + padding, but each sheet stays under one page
+ *   (bulk: N slips → N pages, never N+1 blank).
+ */
+const FULL_PAGE_MAX_H_MM = 250;
+/** Outer margin around the slip on desktop fill (mm each side). */
+const FULL_DESKTOP_PAD_MM = 8;
+/** Zoom into the padded area; never exceed FULL_PAGE_MAX_H_MM including pad. */
+const FULL_DESKTOP_ZOOM = (
+  Math.min(
+    1.08,
+    (FULL_PAGE_MAX_H_MM - FULL_DESKTOP_PAD_MM * 2) / ((SLIP_H / 96) * 25.4),
+    (210 - FULL_DESKTOP_PAD_MM * 2) / ((SLIP_W / 96) * 25.4),
+  )
+).toFixed(4);
+
+/**
+ * Half-page slot on landscape Letter: 5.5in × 8.5in. Use zoom (layout-aware)
+ * so iOS does not paginate transform overflow into blank sheets.
  */
 const HALF_SLOT_W_IN = 5.5;
 const HALF_SLOT_H_IN = 8.5;
-const HALF_SCALE = Math.min(
-  HALF_SLOT_W_IN / (SLIP_W / 96),
-  HALF_SLOT_H_IN / (SLIP_H / 96),
+const HALF_ZOOM = Math.min(
+  HALF_SLOT_W_IN / SLIP_W_IN,
+  HALF_SLOT_H_IN / SLIP_H_IN,
 ).toFixed(4);
 
 const DETAIL_ROW_ORDER = [
@@ -678,7 +694,7 @@ function sharedPrintChromeCss(): string {
             width: auto !important;
             height: auto !important;
             max-height: none !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           main {
@@ -687,6 +703,12 @@ function sharedPrintChromeCss(): string {
             gap: 0 !important;
             background: #ffffff !important;
             display: block !important;
+          }
+
+          /* Tooth-chart transform ink also invents blank iOS pages — flatten in print. */
+          .paper-slip-v2-arch-chart > div {
+            transform: none !important;
+            margin-bottom: 4px !important;
           }
         }
   `;
@@ -708,12 +730,17 @@ function fullPagePrintCss(): string {
         }
 
         @media print {
+          /*
+           * One slip = one page. Cap height + overflow:hidden so break-inside:avoid
+           * does not shove a slightly-tall sheet onto the next page (blank gap).
+           * Break AFTER each sheet except the last — never a trailing blank page.
+           */
           .paper-slip-v2-sheet {
             box-sizing: border-box;
-            width: ${PRINT_MAX_W_MM}mm !important;
+            width: auto !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: ${PRINT_MAX_H_MM}mm !important;
+            max-height: ${FULL_PAGE_MAX_H_MM}mm !important;
             margin: 0 auto !important;
             padding: 0 !important;
             overflow: hidden !important;
@@ -723,13 +750,13 @@ function fullPagePrintCss(): string {
             align-items: flex-start !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            break-after: avoid !important;
-            page-break-after: avoid !important;
+            break-after: page !important;
+            page-break-after: always !important;
           }
 
-          .paper-slip-v2-sheet + .paper-slip-v2-sheet {
-            break-before: page !important;
-            page-break-before: always !important;
+          .paper-slip-v2-sheet:last-of-type {
+            break-after: auto !important;
+            page-break-after: auto !important;
           }
 
           .paper-slip-v2-section {
@@ -738,12 +765,30 @@ function fullPagePrintCss(): string {
             width: ${SLIP_W_MM}mm !important;
             height: ${SLIP_H_MM}mm !important;
             max-width: 100% !important;
-            max-height: ${PRINT_MAX_H_MM}mm !important;
+            max-height: ${FULL_PAGE_MAX_H_MM}mm !important;
             overflow: hidden !important;
             position: relative !important;
             flex-shrink: 0;
+            transform: none !important;
+            zoom: normal !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+          }
+
+          /* Mac/desktop: enlarge with breathing room; still clipped to one page. */
+          .paper-slip-v2-print-fill .paper-slip-v2-sheet {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 210mm !important;
+            max-height: ${FULL_PAGE_MAX_H_MM}mm !important;
+            padding: ${FULL_DESKTOP_PAD_MM}mm !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            overflow: hidden !important;
+          }
+          .paper-slip-v2-print-fill .paper-slip-v2-section {
+            zoom: ${FULL_DESKTOP_ZOOM} !important;
+            max-height: calc(${FULL_PAGE_MAX_H_MM}mm - ${FULL_DESKTOP_PAD_MM * 2}mm) !important;
           }
         }
   `;
@@ -786,8 +831,8 @@ function halfPagePrintCss(): string {
         }
 
         .paper-slip-v2-half-slot .paper-slip-v2-section {
-          transform: scale(${HALF_SCALE});
-          transform-origin: center center;
+          zoom: ${HALF_ZOOM};
+          transform: none;
           flex-shrink: 0;
         }
 
@@ -795,7 +840,7 @@ function halfPagePrintCss(): string {
           .paper-slip-v2-landscape-page {
             box-sizing: border-box;
             width: 11in !important;
-            height: 8.5in !important;
+            height: auto !important;
             max-height: 8.5in !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -827,8 +872,8 @@ function halfPagePrintCss(): string {
             height: ${SLIP_H_MM}mm !important;
             overflow: hidden !important;
             position: relative !important;
-            transform: scale(${HALF_SCALE}) !important;
-            transform-origin: center center !important;
+            transform: none !important;
+            zoom: ${HALF_ZOOM};
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }

@@ -43,6 +43,10 @@ import {
   saveSlipListingStatusFilters,
 } from "@/lib/slip-listing-preferences"
 import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
+import {
+  resolveListingPaperSlipId,
+  resolveListingPaperSlipIds,
+} from "@/lib/paper-slip-listing-print-ids"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "@/app/lab-case-management/components/V3CaseWidget"
@@ -419,7 +423,7 @@ function OfficeCaseManagementPage() {
   }
 
   const handlePrintPaperSlip = (slip: V2CaseRowData) => {
-    const idToSend: number | null = typeof slip.caseId === "number" && !isNaN(slip.caseId) ? slip.caseId : null
+    const idToSend = resolveListingPaperSlipId(slip)
     if (idToSend === null) {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
       return
@@ -562,9 +566,7 @@ function OfficeCaseManagementPage() {
   const handleBulkPrintPaperSlip = () => {
     if (!selected.length) return
     const selectedRows = slips.filter((slip) => selected.includes(slip.id))
-    const slipIds = selectedRows
-      .map((r) => (typeof r.caseId === "number" && !isNaN(r.caseId) ? r.caseId : (typeof r.id === "number" && !isNaN(r.id) ? r.id : null)))
-      .filter((id): id is number => typeof id === "number" && !isNaN(id))
+    const slipIds = resolveListingPaperSlipIds(selectedRows)
     if (!slipIds.length) {
       toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
       return

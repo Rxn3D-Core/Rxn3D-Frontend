@@ -42,6 +42,10 @@ import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
+import {
+  resolveListingPaperSlipId,
+  resolveListingPaperSlipIds,
+} from "@/lib/paper-slip-listing-print-ids"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
@@ -670,12 +674,9 @@ export default function LabSlipPage() {
   }
 
 
-  // Individual print handler
+  // Individual print handler — always slip.id (never caseId as slip_ids).
   const handlePrintPaperSlip = (slip: any) => {
-    const customerType = (typeof window !== 'undefined' && localStorage.getItem('customerType')) || 'lab';
-    const idToSend: number | null = customerType === 'office'
-      ? ((typeof slip.caseId === 'number' && !isNaN(slip.caseId)) ? slip.caseId : null)
-      : ((typeof slip.id === 'number' && !isNaN(slip.id)) ? slip.id : null);
+    const idToSend = resolveListingPaperSlipId(slip);
     if (idToSend === null) {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" });
       return;
@@ -683,13 +684,11 @@ export default function LabSlipPage() {
     printPaperSlip([idToSend], []);
   }
 
-  // Bulk print handler
+  // Bulk print handler — selected row slip ids only.
   const handleBulkPrintPaperSlip = () => {
     if (!selected.length) return;
     const selectedRows = slips.filter(slip => selected.includes(slip.id));
-    const slipIds = selectedRows
-      .map(r => (typeof r.caseId === 'number' && !isNaN(r.caseId)) ? r.caseId : (typeof r.id === 'number' && !isNaN(r.id) ? r.id : null))
-      .filter((id): id is number => typeof id === 'number' && !isNaN(id));
+    const slipIds = resolveListingPaperSlipIds(selectedRows);
     if (!slipIds.length) {
       toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
       return;
