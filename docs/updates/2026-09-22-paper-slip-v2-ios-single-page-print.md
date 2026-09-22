@@ -11,10 +11,12 @@ Printing a single paper-slip v2 from iPhone (AirPrint → Brother / US Letter) s
 
 ## Fix
 
-- `@page` → `size: letter portrait; margin: 0`
-- Wrap each slip in `.paper-slip-v2-sheet` (`8.5in × 11in`, `overflow: hidden`, one sheet per page)
+- `@page` → `size: auto; margin: 0` (honors iOS Letter or A4 picker)
+- Slip print size in **mm** (not px) so WebKit doesn’t treat `890px` as ~12in
+- Sheet uses **`max-height: 270mm`** + `overflow: hidden` — no forced `height: 11in` (that caused trailing blank pages)
+- Page breaks only between slips (`.sheet + .sheet`), never after the last
 - Clip `.paper-slip-v2-arch-chart` overflow
-- Tighten mobile in-place print CSS (`hooks/use-paper-slip-in-page-print-v2.tsx`)
+- Mobile in-place print CSS keeps siblings hidden; per-slip `max-height` lives on `.paper-slip-v2-sheet`
 
 ## Files
 

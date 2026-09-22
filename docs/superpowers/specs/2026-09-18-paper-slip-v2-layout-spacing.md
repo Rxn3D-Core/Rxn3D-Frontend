@@ -13,9 +13,12 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 | Inner white | `628 × 875` (flex-grow) |
 | Section gap | `5px` |
 
-`@page size: letter portrait; margin: 0;`
+`@page size: auto; margin: 0;` for **full** (honors iOS paper picker: Letter or A4).  
+`@page size: letter landscape; margin: 0;` for **half** (two slips side by side).
 
-> **iOS / AirPrint:** Do not use custom `@page` sizes in CSS px (e.g. `628px 890px`). iPhone print sheets ignore them and force the printer paper size (usually US Letter). Unclipped transform overflow then paginates one slip across multiple blank Letter pages. Each slip is wrapped in a `.paper-slip-v2-sheet` that is exactly `8.5in × 11in` with `overflow: hidden` so one slip = one Letter page.
+> **Print layout chooser:** Before print, the app asks **Full page** (portrait, 1 slip/sheet) or **Half page** (landscape, 2 slips/sheet — cut down the middle). See `docs/updates/2026-09-22-paper-slip-full-vs-half-print-layout.md`.
+>
+> **iOS / AirPrint:** Do not use custom `@page` sizes in CSS px. Full mode prints the artboard in **mm** with **`max-height: 270mm`**. Half mode scales each slip into a `5.5in × 8.5in` slot.
 
 ## Brand lockup
 

@@ -5,6 +5,10 @@ import type {
   PaperSlipPrintV2SlipVM,
 } from "@/lib/paper-slip-print-v2-view-model";
 import type { ArchVM, ProductVM } from "@/lib/virtual-slip-view-model";
+import {
+  chunkPaperSlipSectionsForHalfPage,
+  type PaperSlipPrintLayout,
+} from "@/lib/paper-slip-print-layout";
 import { buildVirtualSlipStatusBoxProps } from "@/lib/virtual-slip-extraction-display";
 import {
   formatImplantAccordionLabel,
@@ -27,6 +31,28 @@ import { VirtualSlipOpposingSection } from "@/components/virtual-slip/VirtualSli
 const SLIP_W = 628;
 const SLIP_H = 890;
 const BLUE_TOP = 28;
+
+/**
+ * Physical size of the artboard at 96 CSS px/in — used in @media print so WebKit
+ * does not treat `890px` as ~12.3in (pt) and spill onto blank pages 2–3.
+ * 234.95mm fits both Letter (279mm) and A4 (297mm) with margin for iOS clipping bugs.
+ */
+const SLIP_W_MM = ((SLIP_W / 96) * 25.4).toFixed(2);
+const SLIP_H_MM = ((SLIP_H / 96) * 25.4).toFixed(2);
+/** Max print frame: shortest common portrait page (Letter) minus a safety band. */
+const PRINT_MAX_H_MM = 270;
+const PRINT_MAX_W_MM = 210;
+
+/**
+ * Half-page slot on landscape Letter: 5.5in × 8.5in. Scale the portrait artboard
+ * to fit so after cutting, each half reads as a portrait slip.
+ */
+const HALF_SLOT_W_IN = 5.5;
+const HALF_SLOT_H_IN = 8.5;
+const HALF_SCALE = Math.min(
+  HALF_SLOT_W_IN / (SLIP_W / 96),
+  HALF_SLOT_H_IN / (SLIP_H / 96),
+).toFixed(4);
 
 const DETAIL_ROW_ORDER = [
   "Restoration",
@@ -529,10 +555,6 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
   const dueDisplay = [header.dueDate, header.deliveryTime].filter(Boolean).join(" @ ");
 
   return (
-    // One Letter sheet per slip. Custom @page sizes are ignored by iOS AirPrint
-    // (preview forces US Letter); without a fixed 8.5×11 clip, scaled tooth-chart
-    // overflow spills into blank pages 2–3.
-    <div className="paper-slip-v2-sheet">
     <article
       className="paper-slip-v2-section relative mx-auto flex flex-col items-center overflow-hidden"
       data-slip-id={slip.slipId}
@@ -623,21 +645,11 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
         <PaperSlipV2CasePanBlock slip={slip} />
       </div>
     </article>
-    </div>
   );
 }
 
-export function PaperSlipPrintV2Document({ sections }: { sections: PaperSlipPrintV2SectionModel[] }) {
-  return (
-    <>
-      <style>{`
-        /* Letter matches iOS AirPrint / Brother defaults. Custom px @page sizes are
-           ignored on iPhone and caused 1 slip to paginate as 3 Letter sheets. */
-        @page {
-          size: letter portrait;
-          margin: 0;
-        }
-
+function sharedPrintChromeCss(): string {
+  return `
         .paper-slip-v2-section,
         .paper-slip-v2-section * {
           -webkit-print-color-adjust: exact !important;
@@ -645,15 +657,6 @@ export function PaperSlipPrintV2Document({ sections }: { sections: PaperSlipPrin
           color-adjust: exact !important;
         }
 
-        /* Screen: stack slips with breathing room */
-        .paper-slip-v2-sheet {
-          width: ${SLIP_W}px;
-          margin-left: auto;
-          margin-right: auto;
-        }
-
-        /* Larger tooth chart; tight gap under chart to product box.
-           overflow:hidden clips transform ink so print engines don't invent pages. */
         .paper-slip-v2-arch-chart {
           margin-bottom: 4px;
           overflow: hidden;
@@ -674,47 +677,201 @@ export function PaperSlipPrintV2Document({ sections }: { sections: PaperSlipPrin
             padding: 0 !important;
             width: auto !important;
             height: auto !important;
+            max-height: none !important;
             overflow: hidden !important;
           }
 
-          .paper-slip-v2-sheet {
-            box-sizing: border-box;
-            width: 8.5in !important;
-            height: 11in !important;
-            max-height: 11in !important;
+          main {
             margin: 0 !important;
             padding: 0 !important;
+            gap: 0 !important;
+            background: #ffffff !important;
+            display: block !important;
+          }
+        }
+  `;
+}
+
+function fullPagePrintCss(): string {
+  return `
+        @page {
+          size: auto;
+          margin: 0;
+        }
+
+        ${sharedPrintChromeCss()}
+
+        .paper-slip-v2-sheet {
+          width: ${SLIP_W}px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        @media print {
+          .paper-slip-v2-sheet {
+            box-sizing: border-box;
+            width: ${PRINT_MAX_W_MM}mm !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: ${PRINT_MAX_H_MM}mm !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
             overflow: hidden !important;
+            position: relative !important;
             display: flex !important;
             justify-content: center !important;
             align-items: flex-start !important;
-            break-inside: avoid;
-            page-break-inside: avoid;
-            break-after: page;
-            page-break-after: always;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
           }
 
-          .paper-slip-v2-sheet:last-child {
-            break-after: auto;
-            page-break-after: auto;
+          .paper-slip-v2-sheet + .paper-slip-v2-sheet {
+            break-before: page !important;
+            page-break-before: always !important;
           }
 
           .paper-slip-v2-section {
             box-shadow: none !important;
-            width: ${SLIP_W}px !important;
-            height: ${SLIP_H}px !important;
-            max-height: 11in !important;
+            box-sizing: border-box !important;
+            width: ${SLIP_W_MM}mm !important;
+            height: ${SLIP_H_MM}mm !important;
+            max-width: 100% !important;
+            max-height: ${PRINT_MAX_H_MM}mm !important;
             overflow: hidden !important;
+            position: relative !important;
             flex-shrink: 0;
-            break-inside: avoid;
-            page-break-inside: avoid;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
-      `}</style>
-      <main className="flex flex-col items-center gap-6 bg-[#f4f4f5] p-4 print:gap-0 print:bg-white print:p-0">
-        {sections.map((section) => (
-          <PaperSlipV2Section key={section.key} section={section} />
-        ))}
+  `;
+}
+
+function halfPagePrintCss(): string {
+  return `
+        /* Landscape Letter: two portrait slips side by side; cut on the dashed line. */
+        @page {
+          size: letter landscape;
+          margin: 0;
+        }
+
+        ${sharedPrintChromeCss()}
+
+        .paper-slip-v2-landscape-page {
+          display: flex;
+          flex-direction: row;
+          align-items: stretch;
+          width: 11in;
+          max-width: 100%;
+          margin: 0 auto 24px;
+          background: #fff;
+          border: 1px solid #d4d4d8;
+        }
+
+        .paper-slip-v2-half-slot {
+          box-sizing: border-box;
+          width: 50%;
+          min-height: ${HALF_SLOT_H_IN}in;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          padding: 8px;
+        }
+
+        .paper-slip-v2-half-slot + .paper-slip-v2-half-slot {
+          border-left: 1px dashed #9ca3af;
+        }
+
+        .paper-slip-v2-half-slot .paper-slip-v2-section {
+          transform: scale(${HALF_SCALE});
+          transform-origin: center center;
+          flex-shrink: 0;
+        }
+
+        @media print {
+          .paper-slip-v2-landscape-page {
+            box-sizing: border-box;
+            width: 11in !important;
+            height: 8.5in !important;
+            max-height: 8.5in !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            overflow: hidden !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+
+          .paper-slip-v2-landscape-page + .paper-slip-v2-landscape-page {
+            break-before: page !important;
+            page-break-before: always !important;
+          }
+
+          .paper-slip-v2-half-slot {
+            width: ${HALF_SLOT_W_IN}in !important;
+            height: ${HALF_SLOT_H_IN}in !important;
+            max-height: ${HALF_SLOT_H_IN}in !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+          }
+
+          .paper-slip-v2-half-slot .paper-slip-v2-section {
+            box-shadow: none !important;
+            box-sizing: border-box !important;
+            width: ${SLIP_W_MM}mm !important;
+            height: ${SLIP_H_MM}mm !important;
+            overflow: hidden !important;
+            position: relative !important;
+            transform: scale(${HALF_SCALE}) !important;
+            transform-origin: center center !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+  `;
+}
+
+export function PaperSlipPrintV2Document({
+  sections,
+  layout = "full",
+}: {
+  sections: PaperSlipPrintV2SectionModel[];
+  layout?: PaperSlipPrintLayout;
+}) {
+  const isHalf = layout === "half";
+  const halfPages = isHalf ? chunkPaperSlipSectionsForHalfPage(sections) : [];
+
+  return (
+    <>
+      <style>{isHalf ? halfPagePrintCss() : fullPagePrintCss()}</style>
+      <main
+        data-print-layout={layout}
+        className="flex flex-col items-center gap-6 bg-[#f4f4f5] p-4 print:gap-0 print:bg-white print:p-0"
+      >
+        {isHalf
+          ? halfPages.map((pair, pageIndex) => (
+              <div
+                key={`half-page-${pair[0]?.key ?? pageIndex}`}
+                className="paper-slip-v2-landscape-page"
+              >
+                <div className="paper-slip-v2-half-slot">
+                  {pair[0] ? <PaperSlipV2Section section={pair[0]} /> : null}
+                </div>
+                <div className="paper-slip-v2-half-slot">
+                  {pair[1] ? <PaperSlipV2Section section={pair[1]} /> : null}
+                </div>
+              </div>
+            ))
+          : sections.map((section) => (
+              <div key={section.key} className="paper-slip-v2-sheet">
+                <PaperSlipV2Section section={section} />
+              </div>
+            ))}
       </main>
     </>
   );

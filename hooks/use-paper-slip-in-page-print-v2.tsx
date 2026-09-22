@@ -3,9 +3,21 @@
 import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { PaperSlipPrintV2PageShell } from "@/components/paper-slip-print/paper-slip-print-v2-page-shell";
+import { PaperSlipPrintLayoutDialog } from "@/components/paper-slip-print/paper-slip-print-layout-dialog";
 import { isPaperSlipV2HtmlPreviewEnabled } from "@/lib/paper-slip-v2-html-preview";
+import {
+  readStoredPaperSlipPrintLayout,
+  storePaperSlipPrintLayout,
+  type PaperSlipPrintLayout,
+} from "@/lib/paper-slip-print-layout";
 
 interface PrintJob {
+  slipIds: number[];
+  caseIds: number[];
+  layout: PaperSlipPrintLayout;
+}
+
+interface PendingPrint {
   slipIds: number[];
   caseIds: number[];
 }
@@ -19,29 +31,57 @@ function isMobileOrTablet(): boolean {
 }
 
 // iOS Safari's iframe.contentWindow.print() prints the parent page, not the
-// iframe content, so mount the slip visibly on the current page and print the
-// page itself, hiding everything else during print.
-function printHtmlInPlace(html: string): void {
+// iframe content, so mount the slip on the current page and print the page
+// itself, hiding everything else during print.
+//
+// Keep the mount invisible on screen so cancel/print doesn't leave a paper-slip
+// preview under the virtual slip. Do not remove on afterprint — iOS fires that
+// when the sheet re-renders (e.g. paper size); next print() replaces the node.
+function cleanupMobilePrintRoot(): void {
   document.getElementById(MOBILE_PRINT_ROOT_ID)?.remove();
   document.getElementById(`${MOBILE_PRINT_ROOT_ID}-style`)?.remove();
+}
+
+function printHtmlInPlace(html: string): void {
+  cleanupMobilePrintRoot();
 
   const style = document.createElement("style");
   style.id = `${MOBILE_PRINT_ROOT_ID}-style`;
   style.textContent = `
+    /* Screen: never show the injected slip (cancel must restore the page). */
+    #${MOBILE_PRINT_ROOT_ID} {
+      position: absolute !important;
+      width: 0 !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      clip-path: inset(50%) !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
     @media print {
       html, body {
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
         overflow: hidden !important;
+        height: auto !important;
       }
       body > :not(#${MOBILE_PRINT_ROOT_ID}) { display: none !important; }
       #${MOBILE_PRINT_ROOT_ID} {
         display: block !important;
-        position: static !important;
+        position: relative !important;
+        width: auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        clip: auto !important;
+        clip-path: none !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
         margin: 0 !important;
         padding: 0 !important;
-        overflow: hidden !important;
       }
     }
   `;
@@ -49,6 +89,7 @@ function printHtmlInPlace(html: string): void {
 
   const root = document.createElement("div");
   root.id = MOBILE_PRINT_ROOT_ID;
+  root.setAttribute("aria-hidden", "true");
   root.innerHTML = html;
   document.body.appendChild(root);
 
@@ -115,6 +156,8 @@ function ensureMountNode(htmlPreview: boolean): HTMLDivElement {
 
 export function usePaperSlipInPagePrintV2() {
   const [job, setJob] = useState<PrintJob | null>(null);
+  const [pending, setPending] = useState<PendingPrint | null>(null);
+  const [chooserLayout, setChooserLayout] = useState<PaperSlipPrintLayout>("full");
   const mountNodeRef = useRef<HTMLDivElement | null>(null);
   const htmlPreview = isPaperSlipV2HtmlPreviewEnabled();
 
@@ -135,10 +178,47 @@ export function usePaperSlipInPagePrintV2() {
     }
   }, []);
 
+  const startPrintJob = useCallback(
+    (slipIds: number[], caseIds: number[], layout: PaperSlipPrintLayout) => {
+      storePaperSlipPrintLayout(layout);
+      mountNodeRef.current = ensureMountNode(htmlPreview);
+      setJob({ slipIds, caseIds, layout });
+    },
+    [htmlPreview],
+  );
+
   const print = useCallback((slipIds: number[], caseIds: number[]) => {
-    mountNodeRef.current = ensureMountNode(htmlPreview);
-    setJob({ slipIds, caseIds });
-  }, [htmlPreview]);
+    // HTML preview skips the chooser so layout can be inspected without prompts.
+    if (htmlPreview) {
+      startPrintJob(slipIds, caseIds, readStoredPaperSlipPrintLayout());
+      return;
+    }
+    setChooserLayout(readStoredPaperSlipPrintLayout());
+    setPending({ slipIds, caseIds });
+  }, [htmlPreview, startPrintJob]);
+
+  const cancelChooser = useCallback(() => {
+    setPending(null);
+  }, []);
+
+  const confirmChooser = useCallback(
+    (layout: PaperSlipPrintLayout) => {
+      if (!pending) return;
+      const { slipIds, caseIds } = pending;
+      setPending(null);
+      startPrintJob(slipIds, caseIds, layout);
+    },
+    [pending, startPrintJob],
+  );
+
+  const chooser = (
+    <PaperSlipPrintLayoutDialog
+      open={pending !== null}
+      initialLayout={chooserLayout}
+      onCancel={cancelChooser}
+      onConfirm={confirmChooser}
+    />
+  );
 
   const portal =
     job && mountNodeRef.current
@@ -149,7 +229,7 @@ export function usePaperSlipInPagePrintV2() {
                 <div className="text-[13px] font-medium text-[#3f3f46]">
                   Paper slip HTML preview
                   <span className="ml-2 font-normal text-[#71717a]">
-                    (NEXT_PUBLIC_PAPER_SLIP_V2_HTML_PREVIEW=true)
+                    (NEXT_PUBLIC_PAPER_SLIP_V2_HTML_PREVIEW=true · layout={job.layout})
                   </span>
                 </div>
                 <button
@@ -163,6 +243,7 @@ export function usePaperSlipInPagePrintV2() {
               <PaperSlipPrintV2PageShell
                 caseIds={job.caseIds}
                 error={null}
+                layout={job.layout}
                 slipIds={job.slipIds}
                 viewOnly
               />
@@ -171,6 +252,7 @@ export function usePaperSlipInPagePrintV2() {
             <PaperSlipPrintV2PageShell
               caseIds={job.caseIds}
               error={null}
+              layout={job.layout}
               onReady={handleReady}
               slipIds={job.slipIds}
             />
@@ -179,5 +261,16 @@ export function usePaperSlipInPagePrintV2() {
         )
       : null;
 
-  return { print, portal, isPrinting: job !== null };
+  return {
+    print,
+    portal: (
+      <>
+        {chooser}
+        {portal}
+      </>
+    ),
+    // Only while fetching/rendering the slip — not while the layout chooser is open,
+    // or LoadingOverlay covers the Full/Half dialog.
+    isPrinting: job !== null,
+  };
 }
