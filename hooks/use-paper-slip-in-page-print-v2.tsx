@@ -79,6 +79,11 @@ function printHtmlInPlace(html: string): void {
       visibility: hidden !important;
     }
     @media print {
+      /* Zero page margin — Safari often omits URL/date headers & footers when margins are 0. */
+      @page {
+        margin: 0 !important;
+        size: auto;
+      }
       html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -117,10 +122,32 @@ function printHtmlInPlace(html: string): void {
   root.innerHTML = withDesktopPrintFill(html);
   document.body.appendChild(root);
 
+  // Blank title so Safari's print header doesn't show "Rxn3D LMS" (restore after).
+  const previousTitle = document.title;
+  document.title = " ";
+
+  const restoreTitle = () => {
+    document.title = previousTitle;
+    window.removeEventListener("afterprint", restoreTitle);
+  };
+  window.addEventListener("afterprint", restoreTitle);
+  window.setTimeout(restoreTitle, 60_000);
+
   // Let Safari finish layout/paint of the injected slip before opening the sheet.
   window.setTimeout(() => {
     window.print();
   }, 50);
+
+  // Desktop/Android: remove inject on cancel/complete so listing returns.
+  // iOS: skip — afterprint can fire when the sheet re-renders (paper size).
+  if (!isIOSDevice()) {
+    const cleanup = () => {
+      cleanupMobilePrintRoot();
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(cleanup, 60_000);
+  }
 }
 
 function printHtmlInIframe(html: string): void {
@@ -132,7 +159,10 @@ function printHtmlInIframe(html: string): void {
     .join("");
 
   const iframe = document.createElement("iframe");
-  iframe.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:none;z-index:99999;visibility:hidden;";
+  // Keep hidden for the whole print session. Making it full-screen visible
+  // covered the listing after cancel and looked like a stuck paper-slip page.
+  iframe.style.cssText =
+    "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
   document.body.appendChild(iframe);
 
   // Carry the app's next/font variable classes (e.g. `--font-inter`) onto the
@@ -149,22 +179,29 @@ function printHtmlInIframe(html: string): void {
   }
 
   let didPrint = false;
+  let cleaned = false;
+  const removeIframe = () => {
+    if (cleaned) return;
+    cleaned = true;
+    iframe.remove();
+    window.removeEventListener("afterprint", removeIframe);
+    iframe.contentWindow?.removeEventListener("afterprint", removeIframe);
+  };
+
   const printAndCleanup = () => {
     if (didPrint) return;
     didPrint = true;
-    iframe.style.visibility = "visible";
     try {
       iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
     } catch {
+      removeIframe();
       printHtmlInPlace(html);
+      return;
     }
-    // Do NOT remove the iframe on the same tick — Safari cancels the print sheet.
-    const removeIframe = () => {
-      iframe.remove();
-      window.removeEventListener("afterprint", removeIframe);
-    };
+    // Cancel or finish → restore listing (do not leave slip covering the page).
     window.addEventListener("afterprint", removeIframe);
+    iframe.contentWindow?.addEventListener("afterprint", removeIframe);
     window.setTimeout(removeIframe, 60_000);
   };
 
@@ -191,7 +228,7 @@ function printHtmlInIframe(html: string): void {
 
   doc.open();
   doc.write(
-    `<!DOCTYPE html><html class="${rootClass}"><head><style>body{margin:0}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${withDesktopPrintFill(html)}</body></html>`,
+    `<!DOCTYPE html><html class="${rootClass}"><head><title> </title><style>@page{margin:0!important;size:auto}body{margin:0}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${withDesktopPrintFill(html)}</body></html>`,
   );
   doc.close();
 
@@ -225,6 +262,8 @@ export function usePaperSlipInPagePrintV2() {
   const mountNodeRef = useRef<HTMLDivElement | null>(null);
   const htmlPreview = isPaperSlipV2HtmlPreviewEnabled();
 
+  // Print the same React/SVG slip the screen uses (VirtualSlipToothChart +
+  // pattern tooth PNGs). Do not rasterize to PDF — that drops tooth images.
   const handleReady = useCallback((html: string) => {
     setJob(null);
     if (prefersInPlacePrint()) {
