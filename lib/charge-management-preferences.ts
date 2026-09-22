@@ -2,6 +2,11 @@
 
 export const CHARGE_MANAGEMENT_PER_PAGE = 100
 
+/** Allowed page sizes for Charge Management list / advanced search. */
+export const CHARGE_MANAGEMENT_PER_PAGE_OPTIONS = [100, 200, 300, 500, 1000] as const
+
+export type ChargeManagementPerPage = (typeof CHARGE_MANAGEMENT_PER_PAGE_OPTIONS)[number]
+
 const STORAGE_PREFIX = "rxn3d.charge-management.filters"
 
 export type ChargeManagementDateRange =
@@ -21,6 +26,7 @@ export interface ChargeManagementFiltersPrefs {
   dateTo: string
   officeFilter: string
   page: number
+  perPage: ChargeManagementPerPage
   advDateRange: ChargeManagementDateRange | string
   advItemStatus: string
   showAdvancedFilters: boolean
@@ -45,6 +51,8 @@ const DATE_RANGES = new Set<string>([
   "last_year",
   "custom",
 ])
+
+const PER_PAGE_SET = new Set<number>(CHARGE_MANAGEMENT_PER_PAGE_OPTIONS)
 
 function storageKey(customerId: number): string {
   return `${STORAGE_PREFIX}.${customerId}`
@@ -85,6 +93,12 @@ function asPositiveInt(value: unknown, fallback: number): number {
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback
 }
 
+function asPerPage(value: unknown): ChargeManagementPerPage {
+  const n = typeof value === "number" ? value : Number(value)
+  if (PER_PAGE_SET.has(n)) return n as ChargeManagementPerPage
+  return CHARGE_MANAGEMENT_PER_PAGE
+}
+
 /** Default filters for first visit (no saved prefs). */
 export function defaultChargeManagementFilters(): ChargeManagementFiltersPrefs {
   return {
@@ -93,6 +107,7 @@ export function defaultChargeManagementFilters(): ChargeManagementFiltersPrefs {
     dateTo: "",
     officeFilter: "all",
     page: 1,
+    perPage: CHARGE_MANAGEMENT_PER_PAGE,
     advDateRange: "today",
     advItemStatus: "all",
     showAdvancedFilters: false,
@@ -125,6 +140,7 @@ export function loadChargeManagementFilters(
     dateTo: asString(o.dateTo),
     officeFilter: asString(o.officeFilter, "all") || "all",
     page: asPositiveInt(o.page, 1),
+    perPage: asPerPage(o.perPage),
     advDateRange: DATE_RANGES.has(advDateRange) ? advDateRange : defaults.advDateRange,
     advItemStatus: asString(o.advItemStatus, "all") || "all",
     showAdvancedFilters: Boolean(o.showAdvancedFilters),
