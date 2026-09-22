@@ -81,6 +81,7 @@ const getAuthToken = () =>
 async function fetchLibraryProductsPage(opts: {
   page: number
   per_page: number
+  q?: string
 }): Promise<{ rows: CatalogProductRow[]; pagination: { last_page: number; total: number } }> {
   const token = getAuthToken()
   if (!token) throw new Error("Authentication token not found")
@@ -91,6 +92,8 @@ async function fetchLibraryProductsPage(opts: {
   url.searchParams.append("page", String(opts.page))
   url.searchParams.append("order_by", "name")
   url.searchParams.append("sort_by", "asc")
+  const q = opts.q?.trim()
+  if (q) url.searchParams.append("q", q)
 
   if (role === "superadmin") {
     const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
@@ -138,18 +141,84 @@ async function fetchLibraryProductsPage(opts: {
   return { rows, pagination: { last_page: pagination.last_page || 1, total: pagination.total || 0 } }
 }
 
+async function fetchAllLibraryProducts(): Promise<CatalogProductRow[]> {
+  const aggregated: CatalogProductRow[] = []
+  let page = 1
+  let last = 1
+  do {
+    const chunk = await fetchLibraryProductsPage({ page, per_page: 100 })
+    aggregated.push(...chunk.rows)
+    last = chunk.pagination.last_page
+    page += 1
+  } while (page <= last)
+  return aggregated
+}
+
+async function fetchLibraryImplantsPage(opts: {
+  page: number
+  per_page: number
+  customer_id?: number | null
+}): Promise<{ rows: Implant[]; last_page: number }> {
+  const token = getAuthToken()
+  if (!token) throw new Error("Authentication token not found")
+
+  const url = new URL(`${process.env.NEXT_PUBLIC_API_BASE_URL}/library/implants`)
+  url.searchParams.append("per_page", String(opts.per_page))
+  url.searchParams.append("page", String(opts.page))
+  url.searchParams.append("order_by", "brand_name")
+  url.searchParams.append("sort_by", "asc")
+  url.searchParams.append("status", "Active")
+  if (opts.customer_id != null) {
+    url.searchParams.append("customer_id", String(opts.customer_id))
+  } else {
+    const role = typeof window !== "undefined" ? localStorage.getItem("role") : null
+    if (role === "superadmin") {
+      const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+      if (customerId) url.searchParams.append("customer_id", customerId)
+    } else if (role === "office_admin" || role === "doctor") {
+      const labId = typeof window !== "undefined" ? localStorage.getItem("selectedLabId") : null
+      if (labId) url.searchParams.append("customer_id", labId)
+    } else {
+      const labId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+      if (labId) url.searchParams.append("customer_id", labId)
+    }
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) {
+    window.location.href = "/login"
+    throw new Error("Unauthorized")
+  }
+  if (!response.ok) throw new Error(`Failed to fetch implants: ${response.status}`)
+  const json = await response.json()
+  const rows: Implant[] = json.data?.data || json.data || []
+  const pagination = json.data?.pagination || json.pagination || { last_page: 1 }
+  return { rows, last_page: pagination.last_page || 1 }
+}
+
+async function fetchAllLibraryImplants(customerId?: number | null): Promise<Implant[]> {
+  const aggregated: Implant[] = []
+  let page = 1
+  let last = 1
+  do {
+    const chunk = await fetchLibraryImplantsPage({
+      page,
+      per_page: 100,
+      customer_id: customerId,
+    })
+    aggregated.push(...chunk.rows)
+    last = chunk.last_page
+    page += 1
+  } while (page <= last)
+  return aggregated
+}
+
 function bodyCustomer(context: "global" | "lab"): { customer_id?: number } {
   const id = getImplantLinkCustomerIdParam(context)
   return id != null ? { customer_id: id } : {}
-}
-
-function getPaginationPages(currentPage: number, totalPages: number) {
-  if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1)
-  if (currentPage <= 3) return [1, 2, 3, 4, 5]
-  if (currentPage >= totalPages - 2) {
-    return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
-  }
-  return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2]
 }
 
 function pageSelectChecked(pageIds: number[], selected: number[]): boolean | "indeterminate" {
@@ -220,6 +289,7 @@ export function LinkImplantModal({
 
   const [liImplantId, setLiImplantId] = useState<number | null>(null)
   const [liJump, setLiJump] = useState("")
+  const debouncedLiJump = useDebounce(liJump, 300)
   const [liProductPage, setLiProductPage] = useState(1)
   const [liProductQ, setLiProductQ] = useState("")
   const debouncedLiProductQ = useDebounce(liProductQ, 300)
@@ -232,18 +302,15 @@ export function LinkImplantModal({
   )
   const selectedImplant = singleImplantRes?.data ?? null
 
-  const liJumpLower = liJump.trim().toLowerCase()
-  const implantChoices = liJumpLower
-    ? implantCatalog.filter((imp) => {
-        const label = formatImplantDisplayName(imp).toLowerCase()
-        return (
-          label.includes(liJumpLower) ||
-          (imp.code || "").toLowerCase().includes(liJumpLower) ||
-          (imp.brand_name || "").toLowerCase().includes(liJumpLower) ||
-          (imp.system_name || "").toLowerCase().includes(liJumpLower)
-        )
-      })
-    : implantCatalog
+  const { data: liPickerBundle } = useImplants({
+    per_page: 100,
+    status: "Active",
+    q: debouncedLiJump.trim() || undefined,
+    order_by: "brand_name",
+    sort_by: "asc",
+    ...(linkCustomerId != null ? { customer_id: linkCustomerId } : {}),
+  })
+  const implantChoices = liPickerBundle?.data ?? implantCatalog
 
   const liBaselineProductIds = useMemo(
     () => parseLinkedProductIdsFromImplantPayload(selectedImplant as Record<string, unknown> | null),
@@ -257,16 +324,15 @@ export function LinkImplantModal({
   const liProductsQuery = useQuery({
     queryKey: ["linkImplantModalProducts", context, liProductPage, debouncedLiProductQ],
     enabled: isOpen && mainTab === "linkByImplant" && !!liImplantId,
-    queryFn: () => fetchLibraryProductsPage({ page: liProductPage, per_page: 10 }),
+    queryFn: () =>
+      fetchLibraryProductsPage({
+        page: liProductPage,
+        per_page: 10,
+        q: debouncedLiProductQ.trim() || undefined,
+      }),
   })
   const liCatalogRows = liProductsQuery.data?.rows ?? []
-  const liCatalogFiltered = debouncedLiProductQ.trim()
-    ? liCatalogRows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedLiProductQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedLiProductQ.toLowerCase()),
-      )
-    : liCatalogRows
+  const liCatalogFiltered = liCatalogRows
 
   const liMergedLinkedIds = useMemo(() => {
     const removes = new Set(liPendingProductRemoves)
@@ -281,6 +347,7 @@ export function LinkImplantModal({
   const [lpSubKey, setLpSubKey] = useState("")
   const [lpProductId, setLpProductId] = useState<number | null>(null)
   const [lpJump, setLpJump] = useState("")
+  const debouncedLpJump = useDebounce(lpJump, 300)
   const [lpImplantQ, setLpImplantQ] = useState("")
   const debouncedLpImplantQ = useDebounce(lpImplantQ, 300)
   const [lpPendingImplantAdds, setLpPendingImplantAdds] = useState<number[]>([])
@@ -341,55 +408,71 @@ export function LinkImplantModal({
     return Array.from(new Set([...base, ...adds]))
   }, [lpBaselineImplantIds, lpPendingImplantAdds, lpPendingImplantRemoves])
 
-  const lpJumpLower = lpJump.trim().toLowerCase()
+  const lpJumpLower = debouncedLpJump.trim().toLowerCase()
   const lpImplantSearch = debouncedLpImplantQ.trim().toLowerCase()
-  const lpAvailableImplants = implantCatalog.filter((imp) => {
+  const lpAvailQ = debouncedLpImplantQ.trim() || debouncedLpJump.trim() || undefined
+  const { data: lpImplantsBundle } = useImplants({
+    per_page: 100,
+    status: "Active",
+    q: lpAvailQ,
+    order_by: "brand_name",
+    sort_by: "asc",
+    ...(linkCustomerId != null ? { customer_id: linkCustomerId } : {}),
+  })
+  // Server search when Jump/Search is set; otherwise first page of Active implants.
+  // Keep a light client refine when both Jump and Search are filled (AND).
+  const lpAvailableImplants = (lpImplantsBundle?.data ?? []).filter((imp) => {
+    if (!lpJumpLower || !lpImplantSearch) return true
     const label = formatImplantDisplayName(imp).toLowerCase()
     const hay = `${label} ${(imp.code || "").toLowerCase()}`
-    if (lpJumpLower && !hay.includes(lpJumpLower)) return false
-    if (lpImplantSearch && !hay.includes(lpImplantSearch)) return false
-    return true
+    return hay.includes(lpJumpLower) && hay.includes(lpImplantSearch)
   })
 
   const [bulkImplantSelection, setBulkImplantSelection] = useState<number[]>([])
   const [bulkProductSelection, setBulkProductSelection] = useState<number[]>([])
-  const [bulkImplantPage, setBulkImplantPage] = useState(1)
-  const [bulkProductPage, setBulkProductPage] = useState(1)
   const [bulkImplantQ, setBulkImplantQ] = useState("")
   const [bulkProductQ, setBulkProductQ] = useState("")
   const debouncedBulkImplantQ = useDebounce(bulkImplantQ, 300)
   const debouncedBulkProductQ = useDebounce(bulkProductQ, 300)
 
-  const bulkImplantsQuery = useImplants({
-    page: bulkImplantPage,
-    per_page: 10,
-    q: debouncedBulkImplantQ.trim() || undefined,
-    order_by: "brand_name",
-    sort_by: "asc",
-    ...(linkCustomerId != null ? { customer_id: linkCustomerId } : {}),
-  })
-
-  const bulkProductsQuery = useQuery({
-    queryKey: ["linkImplantBulkProducts", context, bulkProductPage, debouncedBulkProductQ],
+  const bulkImplantsAllQuery = useQuery({
+    queryKey: ["linkImplantBulkImplantsAll", context, linkCustomerId],
     enabled: isOpen && mainTab === "bulk",
-    queryFn: () => fetchLibraryProductsPage({ page: bulkProductPage, per_page: 10 }),
+    staleTime: 60_000,
+    queryFn: () => fetchAllLibraryImplants(linkCustomerId),
   })
 
-  const bulkImplantsRows = bulkImplantsQuery.data?.data ?? []
-  const bulkProductRowsRaw = bulkProductsQuery.data?.rows ?? []
-  const bulkProductRowsFiltered = debouncedBulkProductQ.trim()
-    ? bulkProductRowsRaw.filter(
-        (r) =>
-          r.name.toLowerCase().includes(debouncedBulkProductQ.toLowerCase()) ||
-          r.subcategoryName.toLowerCase().includes(debouncedBulkProductQ.toLowerCase()),
+  const bulkProductsAllQuery = useQuery({
+    queryKey: ["linkImplantBulkProductsAll", context],
+    enabled: isOpen && mainTab === "bulk",
+    staleTime: 60_000,
+    queryFn: fetchAllLibraryProducts,
+  })
+
+  const bulkImplantsRows = useMemo(() => {
+    const rows = bulkImplantsAllQuery.data ?? []
+    const q = debouncedBulkImplantQ.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((imp) => {
+      const label = formatImplantDisplayName(imp).toLowerCase()
+      return (
+        label.includes(q) ||
+        (imp.code || "").toLowerCase().includes(q) ||
+        (imp.brand_name || "").toLowerCase().includes(q) ||
+        (imp.system_name || "").toLowerCase().includes(q)
       )
-    : bulkProductRowsRaw
-  const bulkImplantTotal = bulkImplantsQuery.data?.total ?? 0
-  const bulkImplantPerPage = bulkImplantsQuery.data?.per_page ?? 10
-  const bulkImplantTotalPages = Math.max(1, bulkImplantsQuery.data?.last_page ?? 1)
-  const bulkProductTotal = bulkProductsQuery.data?.pagination.total ?? 0
-  const bulkProductPerPage = 10
-  const bulkProductTotalPages = Math.max(1, bulkProductsQuery.data?.pagination.last_page ?? 1)
+    })
+  }, [bulkImplantsAllQuery.data, debouncedBulkImplantQ])
+
+  const bulkProductRowsFiltered = useMemo(() => {
+    const rows = bulkProductsAllQuery.data ?? []
+    const q = debouncedBulkProductQ.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) || r.subcategoryName.toLowerCase().includes(q),
+    )
+  }, [bulkProductsAllQuery.data, debouncedBulkProductQ])
 
   useEffect(() => {
     if (!isOpen) return
@@ -621,16 +704,17 @@ export function LinkImplantModal({
     browseSub === "implant" ? browseRowsImplant.length : browseRowsProduct.length
   const browseEmptyLoaded = !browseLoading && browseRowCount === 0
   const bulkMaxPairs = bulkImplantSelection.length * bulkProductSelection.length
-  const bulkImplantPageIds = useMemo(
+  const bulkImplantVisibleIds = useMemo(
     () => bulkImplantsRows.map((imp: Implant) => imp.id),
     [bulkImplantsRows],
   )
-  const bulkProductPageIds = useMemo(
+  const bulkProductVisibleIds = useMemo(
     () => bulkProductRowsFiltered.map((r) => r.id),
     [bulkProductRowsFiltered],
   )
-  const bulkImplantSelectAllChecked = pageSelectChecked(bulkImplantPageIds, bulkImplantSelection)
-  const bulkProductSelectAllChecked = pageSelectChecked(bulkProductPageIds, bulkProductSelection)
+  const bulkImplantSelectAllChecked = pageSelectChecked(bulkImplantVisibleIds, bulkImplantSelection)
+  const bulkProductSelectAllChecked = pageSelectChecked(bulkProductVisibleIds, bulkProductSelection)
+  const bulkListsLoading = bulkImplantsAllQuery.isLoading || bulkProductsAllQuery.isLoading
 
   return (
     <Dialog
@@ -1388,90 +1472,61 @@ export function LinkImplantModal({
                   </button>
                 </div>
                 <div className="flex-1 overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/80">
-                        <TableHead className="w-10">
-                          <Checkbox
-                            aria-label="Select all implants on this page"
-                            checked={bulkImplantSelectAllChecked}
-                            disabled={bulkImplantPageIds.length === 0}
-                            onCheckedChange={(c) =>
-                              setBulkImplantSelection((prev) =>
-                                togglePageIds(prev, bulkImplantPageIds, c === true),
-                              )
-                            }
-                          />
-                        </TableHead>
-                        <TableHead className="text-xs">Implant</TableHead>
-                        <TableHead className="text-xs">Code</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {bulkImplantsRows.map((imp: Implant) => {
-                        const checked = bulkImplantSelection.includes(imp.id)
-                        return (
-                          <TableRow key={imp.id}>
-                            <TableCell>
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(c) =>
-                                  setBulkImplantSelection((prev) =>
-                                    c === true ? [...prev, imp.id] : prev.filter((x) => x !== imp.id),
-                                  )
-                                }
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs font-medium">
-                              {formatImplantDisplayName(imp)}
-                            </TableCell>
-                            <TableCell className="text-xs text-gray-600">{imp.code || "—"}</TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
+                  {bulkImplantsAllQuery.isLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="h-7 w-7 animate-spin text-[#1162a8]" />
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50/80">
+                          <TableHead className="w-10">
+                            <Checkbox
+                              aria-label="Select all visible implants"
+                              checked={bulkImplantSelectAllChecked}
+                              disabled={bulkImplantVisibleIds.length === 0}
+                              onCheckedChange={(c) =>
+                                setBulkImplantSelection((prev) =>
+                                  togglePageIds(prev, bulkImplantVisibleIds, c === true),
+                                )
+                              }
+                            />
+                          </TableHead>
+                          <TableHead className="text-xs">Implant</TableHead>
+                          <TableHead className="text-xs">Code</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bulkImplantsRows.map((imp: Implant) => {
+                          const checked = bulkImplantSelection.includes(imp.id)
+                          return (
+                            <TableRow key={imp.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(c) =>
+                                    setBulkImplantSelection((prev) =>
+                                      c === true ? [...prev, imp.id] : prev.filter((x) => x !== imp.id),
+                                    )
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell className="text-xs font-medium">
+                                {formatImplantDisplayName(imp)}
+                              </TableCell>
+                              <TableCell className="text-xs text-gray-600">{imp.code || "—"}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
                 </div>
-                <div className="flex flex-col gap-2 border-t px-3 py-2 text-xs text-gray-600 sm:flex-row sm:items-center sm:justify-between">
-                  <span>
-                    Showing {bulkImplantTotal === 0 ? 0 : (bulkImplantPage - 1) * bulkImplantPerPage + 1} to{" "}
-                    {Math.min(bulkImplantPage * bulkImplantPerPage, bulkImplantTotal)} of {bulkImplantTotal} entries
-                  </span>
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={bulkImplantPage <= 1}
-                      onClick={() => setBulkImplantPage((p) => Math.max(1, p - 1))}
-                      aria-label="Previous implants page"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </button>
-                    {getPaginationPages(bulkImplantPage, bulkImplantTotalPages).map((pageNum) => (
-                      <button
-                        key={`bulk-implant-page-${pageNum}`}
-                        type="button"
-                        className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full text-[11px] transition-colors",
-                          bulkImplantPage === pageNum
-                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200",
-                        )}
-                        onClick={() => setBulkImplantPage(pageNum)}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={bulkImplantPage >= bulkImplantTotalPages}
-                      onClick={() => setBulkImplantPage((p) => Math.min(bulkImplantTotalPages, p + 1))}
-                      aria-label="Next implants page"
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                <div className="border-t px-3 py-2 text-xs text-gray-600">
+                  {bulkImplantsRows.length} implant{bulkImplantsRows.length !== 1 ? "s" : ""}
+                  {debouncedBulkImplantQ.trim()
+                    ? ` matching “${debouncedBulkImplantQ.trim()}”`
+                    : ""}
                 </div>
               </div>
 
@@ -1492,88 +1547,60 @@ export function LinkImplantModal({
                   </button>
                 </div>
                 <div className="flex-1 overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/80">
-                        <TableHead className="w-10">
-                          <Checkbox
-                            aria-label="Select all products on this page"
-                            checked={bulkProductSelectAllChecked}
-                            disabled={bulkProductPageIds.length === 0}
-                            onCheckedChange={(c) =>
-                              setBulkProductSelection((prev) =>
-                                togglePageIds(prev, bulkProductPageIds, c === true),
-                              )
-                            }
-                          />
-                        </TableHead>
-                        <TableHead className="text-xs">Product name</TableHead>
-                        <TableHead className="text-xs">Sub category</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {bulkProductRowsFiltered.map((r) => {
-                        const checked = bulkProductSelection.includes(r.id)
-                        return (
-                          <TableRow key={r.id}>
-                            <TableCell>
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(c) =>
-                                  setBulkProductSelection((prev) =>
-                                    c === true ? [...prev, r.id] : prev.filter((x) => x !== r.id),
-                                  )
-                                }
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs font-medium">{r.name}</TableCell>
-                            <TableCell className="text-xs text-gray-600">{r.subcategoryName}</TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
+                  {bulkProductsAllQuery.isLoading ? (
+                    <div className="flex justify-center py-12">
+                      <Loader2 className="h-7 w-7 animate-spin text-[#1162a8]" />
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50/80">
+                          <TableHead className="w-10">
+                            <Checkbox
+                              aria-label="Select all visible products"
+                              checked={bulkProductSelectAllChecked}
+                              disabled={bulkProductVisibleIds.length === 0}
+                              onCheckedChange={(c) =>
+                                setBulkProductSelection((prev) =>
+                                  togglePageIds(prev, bulkProductVisibleIds, c === true),
+                                )
+                              }
+                            />
+                          </TableHead>
+                          <TableHead className="text-xs">Product name</TableHead>
+                          <TableHead className="text-xs">Sub category</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bulkProductRowsFiltered.map((r) => {
+                          const checked = bulkProductSelection.includes(r.id)
+                          return (
+                            <TableRow key={r.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(c) =>
+                                    setBulkProductSelection((prev) =>
+                                      c === true ? [...prev, r.id] : prev.filter((x) => x !== r.id),
+                                    )
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell className="text-xs font-medium">{r.name}</TableCell>
+                              <TableCell className="text-xs text-gray-600">{r.subcategoryName}</TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
                 </div>
-                <div className="flex flex-col gap-2 border-t px-3 py-2 text-xs text-gray-600 sm:flex-row sm:items-center sm:justify-between">
-                  <span>
-                    Showing {bulkProductTotal === 0 ? 0 : (bulkProductPage - 1) * bulkProductPerPage + 1} to{" "}
-                    {Math.min(bulkProductPage * bulkProductPerPage, bulkProductTotal)} of {bulkProductTotal} entries
-                  </span>
-                  <div className="flex items-center gap-0.5">
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={bulkProductPage <= 1}
-                      onClick={() => setBulkProductPage((p) => Math.max(1, p - 1))}
-                      aria-label="Previous products page"
-                    >
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </button>
-                    {getPaginationPages(bulkProductPage, bulkProductTotalPages).map((pageNum) => (
-                      <button
-                        key={`bulk-product-page-${pageNum}`}
-                        type="button"
-                        className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full text-[11px] transition-colors",
-                          bulkProductPage === pageNum
-                            ? "bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200",
-                        )}
-                        onClick={() => setBulkProductPage(pageNum)}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={bulkProductPage >= bulkProductTotalPages}
-                      onClick={() => setBulkProductPage((p) => Math.min(bulkProductTotalPages, p + 1))}
-                      aria-label="Next products page"
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                <div className="border-t px-3 py-2 text-xs text-gray-600">
+                  {bulkProductRowsFiltered.length} product
+                  {bulkProductRowsFiltered.length !== 1 ? "s" : ""}
+                  {debouncedBulkProductQ.trim()
+                    ? ` matching “${debouncedBulkProductQ.trim()}”`
+                    : ""}
                 </div>
               </div>
             </div>
@@ -1583,6 +1610,7 @@ export function LinkImplantModal({
               {bulkProductSelection.length} product
               {bulkProductSelection.length !== 1 ? "s" : ""}
               {bulkMaxPairs ? ` · up to ${bulkMaxPairs} pair combinations (existing links skipped on server)` : ""}
+              {bulkListsLoading ? " · loading catalogs…" : ""}
             </div>
           </TabsContent>
         </Tabs>
