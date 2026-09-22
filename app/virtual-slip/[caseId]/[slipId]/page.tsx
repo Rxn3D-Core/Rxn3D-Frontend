@@ -497,8 +497,8 @@ export default function VirtualSlipV2Page() {
     try {
       const res = await postSlipUndoLocation(slipId);
       toast({
-        title: "Location undone",
-        description: res.message || "The previous location step was restored.",
+        title: "Sent to previous location",
+        description: res.message || "The slip was moved back one location step.",
         duration: 4000,
       });
       setUndoLocationOpen(false);

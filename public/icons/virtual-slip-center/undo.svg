@@ -1,0 +1,19 @@
+<svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="undoCenterGrad" x1="6" y1="6" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F59E0B"/>
+      <stop offset="1" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+  <path
+    fill="url(#undoCenterGrad)"
+    d="M8 20.5L19.2 13.8c1.05-.63.48-2.2-.75-2.05L10.2 12.9c-.85.1-1.45.9-1.35 1.75l1.15 8.15c.15 1.1 1.6 1.45 2.2.55L8 20.5z"
+  />
+  <path
+    d="M14 18c1.5-2.8 5.2-5 10.5-5 9 0 15.5 6.2 15.5 15S33.5 43 24.5 43c-6.2 0-11.3-3-13.8-7.5"
+    stroke="url(#undoCenterGrad)"
+    stroke-width="5.25"
+    stroke-linecap="round"
+    fill="none"
+  />
+</svg>

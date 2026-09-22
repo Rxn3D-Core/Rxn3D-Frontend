@@ -340,7 +340,7 @@ export function buildSlipUndoLocationPreview(
   const fromLabel = ref.location?.trim() || slipLocationLabel(fromLocationId);
   const toLabel = slipLocationLabel(toLocationId);
   const effects: string[] = [
-    `Location will move from ${fromLabel} back to ${toLabel}.`,
+    `Slip will be sent to the previous location: ${toLabel}.`,
   ];
 
   if (fromLocationId === 4) {

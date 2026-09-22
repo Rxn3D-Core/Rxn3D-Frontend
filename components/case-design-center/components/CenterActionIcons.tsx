@@ -213,7 +213,7 @@ export function CenterActionIcons({
             node: (
               // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyph
               <img
-                src={`/icons/virtual-slip-actions/resume.svg`}
+                src={`${CENTER_ICON_BASE}/undo.svg`}
                 alt="Undo location step"
                 width={virtualSlipIconSizing ? 40 : 52}
                 height={virtualSlipIconSizing ? 40 : 52}
