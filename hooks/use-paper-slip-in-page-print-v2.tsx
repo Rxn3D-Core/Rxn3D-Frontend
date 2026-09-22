@@ -127,17 +127,6 @@ function printHtmlInPlace(html: string): void {
   root.innerHTML = withDesktopPrintFill(html);
   document.body.appendChild(root);
 
-  // Blank title so Safari's print header doesn't show "Rxn3D LMS" (restore after).
-  const previousTitle = document.title;
-  document.title = " ";
-
-  const restoreTitle = () => {
-    document.title = previousTitle;
-    window.removeEventListener("afterprint", restoreTitle);
-  };
-  window.addEventListener("afterprint", restoreTitle);
-  window.setTimeout(restoreTitle, 60_000);
-
   // Let Safari finish layout/paint of the injected slip before opening the sheet.
   window.setTimeout(() => {
     window.print();
@@ -153,6 +142,42 @@ function printHtmlInPlace(html: string): void {
     window.addEventListener("afterprint", cleanup);
     window.setTimeout(cleanup, 60_000);
   }
+}
+
+function collectPrintDocumentChrome(): { styleLinks: string; inlineStyles: string; rootClass: string } {
+  const styleLinks = Array.from(document.querySelectorAll<HTMLLinkElement>("link[rel='stylesheet']"))
+    .map((l) => `<link rel="stylesheet" href="${l.href}">`)
+    .join("");
+  const inlineStyles = Array.from(document.querySelectorAll<HTMLStyleElement>("style"))
+    .map((s) => `<style>${s.textContent ?? ""}</style>`)
+    .join("");
+  return { styleLinks, inlineStyles, rootClass: document.documentElement.className || "" };
+}
+
+/**
+ * iOS Safari ignores window.print() once the Full/Half tap's user gesture has
+ * ended (slip fetch + image wait). Open the print tab synchronously on that
+ * tap, then write the slip into it and print from that tab's load handler.
+ */
+function openIosPrintWindow(): Window | null {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return null;
+  printWindow.document.open();
+  printWindow.document.write(
+    "<!DOCTYPE html><html><head><title>Paper slip</title><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head><body style=\"font-family:sans-serif;padding:24px;color:#18181b\">Preparing paper slip…</body></html>",
+  );
+  printWindow.document.close();
+  return printWindow;
+}
+
+function printHtmlInIosWindow(printWindow: Window, html: string): void {
+  const { styleLinks, inlineStyles, rootClass } = collectPrintDocumentChrome();
+  const closeTag = "</scr" + "ipt>";
+  printWindow.document.open();
+  printWindow.document.write(
+    `<!DOCTYPE html><html class="${rootClass}"><head><title>Paper slip</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>@page{margin:0;size:auto}html,body{margin:0;padding:0;background:#fff}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${withDesktopPrintFill(html)}<script>(function(){function go(){window.focus();window.print();}if(document.readyState==="complete"){go();}else{window.addEventListener("load",go);}window.addEventListener("afterprint",function(){setTimeout(function(){window.close();},200);});})();${closeTag}</body></html>`,
+  );
+  printWindow.document.close();
 }
 
 function printHtmlInIframe(html: string): void {
@@ -265,17 +290,39 @@ export function usePaperSlipInPagePrintV2() {
   const [pending, setPending] = useState<PendingPrint | null>(null);
   const [chooserLayout, setChooserLayout] = useState<PaperSlipPrintLayout>("full");
   const mountNodeRef = useRef<HTMLDivElement | null>(null);
+  const iosPrintWindowRef = useRef<Window | null>(null);
   const htmlPreview = isPaperSlipV2HtmlPreviewEnabled();
+
+  const closeIosPrintWindow = useCallback(() => {
+    const printWindow = iosPrintWindowRef.current;
+    iosPrintWindowRef.current = null;
+    if (printWindow && !printWindow.closed) printWindow.close();
+  }, []);
 
   // Print the same React/SVG slip the screen uses (VirtualSlipToothChart +
   // pattern tooth PNGs). Do not rasterize to PDF — that drops tooth images.
   const handleReady = useCallback((html: string) => {
+    const iosWindow = iosPrintWindowRef.current;
+    iosPrintWindowRef.current = null;
     setJob(null);
+    if (iosWindow && !iosWindow.closed) {
+      printHtmlInIosWindow(iosWindow, html);
+      return;
+    }
     if (prefersInPlacePrint()) {
       printHtmlInPlace(html);
     } else {
       printHtmlInIframe(html);
     }
+  }, []);
+
+  const handlePrintError = useCallback(() => {
+    const printWindow = iosPrintWindowRef.current;
+    iosPrintWindowRef.current = null;
+    if (printWindow && !printWindow.closed) {
+      printWindow.document.body.textContent = "Unable to prepare the paper slip. You can close this tab.";
+    }
+    setJob(null);
   }, []);
 
   const closeHtmlPreview = useCallback(() => {
@@ -313,10 +360,15 @@ export function usePaperSlipInPagePrintV2() {
     (layout: PaperSlipPrintLayout) => {
       if (!pending) return;
       const { slipIds, caseIds } = pending;
+      // Must run in this tap — iOS only allows a print tab opened from the gesture.
+      if (isIOSDevice()) {
+        closeIosPrintWindow();
+        iosPrintWindowRef.current = openIosPrintWindow();
+      }
       setPending(null);
       startPrintJob(slipIds, caseIds, layout);
     },
-    [pending, startPrintJob],
+    [closeIosPrintWindow, pending, startPrintJob],
   );
 
   const chooser = (
@@ -361,6 +413,7 @@ export function usePaperSlipInPagePrintV2() {
               caseIds={job.caseIds}
               error={null}
               layout={job.layout}
+              onError={handlePrintError}
               onReady={handleReady}
               slipIds={job.slipIds}
             />

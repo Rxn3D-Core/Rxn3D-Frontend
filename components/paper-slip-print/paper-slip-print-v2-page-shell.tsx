@@ -85,6 +85,7 @@ export function PaperSlipPrintV2PageShell({
   caseIds,
   slipIds,
   onReady,
+  onError,
   viewOnly = false,
   layout = "full",
 }: {
@@ -93,6 +94,8 @@ export function PaperSlipPrintV2PageShell({
   slipIds: number[];
   /** When provided, called with the rendered HTML instead of postMessage/window.print. */
   onReady?: (html: string) => void;
+  /** Called when slip data cannot be loaded (so a waiting print tab can close). */
+  onError?: () => void;
   /** Render the slip on-screen for review and skip the auto-print/close handoff. */
   viewOnly?: boolean;
   /** Full = portrait 1/sheet; half = landscape 2/sheet (cut in half). */
@@ -215,6 +218,11 @@ export function PaperSlipPrintV2PageShell({
         setLoading(false);
       });
   }, [caseIds, fetchError, slipIds, slips.length]);
+
+  useEffect(() => {
+    if (!fetchError || !onError) return;
+    onError();
+  }, [fetchError, onError]);
 
   useEffect(() => {
     if (printed || loading || slips.length === 0) return;
