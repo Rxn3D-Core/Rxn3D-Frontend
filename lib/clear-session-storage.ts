@@ -1,4 +1,5 @@
 import { clearPersistedQueryCache } from "@/lib/cache/frontend-list-cache"
+import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
 
 /**
  * Utility function to clear all session-related localStorage items
@@ -32,6 +33,9 @@ export function clearSessionStorage(): void {
   sessionKeys.forEach((key) => {
     localStorage.removeItem(key)
   })
+
+  // Driver QR pickup/drop-off trip (localStorage + sessionStorage batch)
+  clearDriverQrLocalSession()
 
   // Clear all customer logo caches (customerLogo_*)
   try {

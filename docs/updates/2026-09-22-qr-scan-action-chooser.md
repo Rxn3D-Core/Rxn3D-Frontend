@@ -21,6 +21,16 @@ In the pickup modal, users can:
 - Remove one scanned case (trash) via `POST /slip/remove-scanned-case`
 - **Clear batch** to wipe the whole session
 
+### Local session TTL (frontend)
+
+`qr_scan_session_key` is not permanent. It expires after **30 minutes** of inactivity
+(`DRIVER_QR_SESSION_TTL_MS`). Each successful scan / batch persist refreshes the timer.
+Expired keys and `qr_scan_batch_data` are cleared automatically; the next scan shows the
+action chooser again. (Server cache TTL remains 1 hour independently.)
+
+Also cleared on **login** (`setAuthFromData`) and **logout** (`clearSessionStorage`) so
+each auth cycle starts with a fresh driver QR trip.
+
 ### Location actions
 
 Resolved from current slip location via `GET /slip/slip/{id}/details` (identify only):
