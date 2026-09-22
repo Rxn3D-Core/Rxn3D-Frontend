@@ -18,7 +18,9 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 
 > **Print layout chooser:** Before print, the app asks **Full page** (portrait, 1 slip/sheet) or **Half page** (landscape, 2 slips/sheet — cut down the middle). See `docs/updates/2026-09-22-paper-slip-full-vs-half-print-layout.md`.
 >
-> **iOS / AirPrint:** Do not use custom `@page` sizes in CSS px. Full mode prints the artboard in **mm** with **`max-height: 270mm`**. Half mode scales each slip into a `5.5in × 8.5in` slot.
+> **Full page fill:** The slip is scaled (`transform`) to the largest size that still fits one Letter sheet (`8.5×11in` clip). That removes the large bottom gap and tightens left/right. In Chrome, set **Margins → None** for edge-to-edge (browser “Default” margins add extra white).
+>
+> **Half page:** Each slip scales into a `5.5in × 8.5in` slot on landscape Letter.
 
 ## Brand lockup
 

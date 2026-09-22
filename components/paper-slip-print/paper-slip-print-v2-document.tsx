@@ -35,13 +35,25 @@ const BLUE_TOP = 28;
 /**
  * Physical size of the artboard at 96 CSS px/in — used in @media print so WebKit
  * does not treat `890px` as ~12.3in (pt) and spill onto blank pages 2–3.
- * 234.95mm fits both Letter (279mm) and A4 (297mm) with margin for iOS clipping bugs.
  */
 const SLIP_W_MM = ((SLIP_W / 96) * 25.4).toFixed(2);
 const SLIP_H_MM = ((SLIP_H / 96) * 25.4).toFixed(2);
-/** Max print frame: shortest common portrait page (Letter) minus a safety band. */
-const PRINT_MAX_H_MM = 270;
-const PRINT_MAX_W_MM = 210;
+const SLIP_W_IN = SLIP_W / 96;
+const SLIP_H_IN = SLIP_H / 96;
+
+/**
+ * Full-page portrait: scale the artboard up to fill Letter as much as possible
+ * without exceeding one page. Letter aspect is wider than the slip, so height
+ * is the limiter — that removes the large bottom gap and tightens L/R.
+ * Small inset avoids Chrome “Default” margin / rounding creating page 2.
+ */
+const FULL_PAGE_W_IN = 8.5;
+const FULL_PAGE_H_IN = 11;
+const FULL_PAGE_INSET_IN = 0.08;
+const FULL_SCALE = Math.min(
+  (FULL_PAGE_W_IN - FULL_PAGE_INSET_IN * 2) / SLIP_W_IN,
+  (FULL_PAGE_H_IN - FULL_PAGE_INSET_IN * 2) / SLIP_H_IN,
+).toFixed(4);
 
 /**
  * Half-page slot on landscape Letter: 5.5in × 8.5in. Scale the portrait artboard
@@ -50,8 +62,8 @@ const PRINT_MAX_W_MM = 210;
 const HALF_SLOT_W_IN = 5.5;
 const HALF_SLOT_H_IN = 8.5;
 const HALF_SCALE = Math.min(
-  HALF_SLOT_W_IN / (SLIP_W / 96),
-  HALF_SLOT_H_IN / (SLIP_H / 96),
+  HALF_SLOT_W_IN / SLIP_W_IN,
+  HALF_SLOT_H_IN / SLIP_H_IN,
 ).toFixed(4);
 
 const DETAIL_ROW_ORDER = [
@@ -708,13 +720,14 @@ function fullPagePrintCss(): string {
         }
 
         @media print {
+          /* Fixed Letter frame + overflow clip keeps scaled slip on exactly 1 page. */
           .paper-slip-v2-sheet {
             box-sizing: border-box;
-            width: ${PRINT_MAX_W_MM}mm !important;
+            width: ${FULL_PAGE_W_IN}in !important;
             max-width: 100% !important;
-            height: auto !important;
-            max-height: ${PRINT_MAX_H_MM}mm !important;
-            margin: 0 auto !important;
+            height: ${FULL_PAGE_H_IN}in !important;
+            max-height: ${FULL_PAGE_H_IN}in !important;
+            margin: 0 !important;
             padding: 0 !important;
             overflow: hidden !important;
             position: relative !important;
@@ -737,11 +750,13 @@ function fullPagePrintCss(): string {
             box-sizing: border-box !important;
             width: ${SLIP_W_MM}mm !important;
             height: ${SLIP_H_MM}mm !important;
-            max-width: 100% !important;
-            max-height: ${PRINT_MAX_H_MM}mm !important;
+            max-width: none !important;
+            max-height: none !important;
             overflow: hidden !important;
             position: relative !important;
             flex-shrink: 0;
+            transform: scale(${FULL_SCALE}) !important;
+            transform-origin: top center !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }

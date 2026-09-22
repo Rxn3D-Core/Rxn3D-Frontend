@@ -10,7 +10,7 @@
 
 | Choice | Orientation | Sheet | After print |
 | --- | --- | --- | --- |
-| **Full page** | Portrait (`@page size: auto`) | 1 slip / sheet | Use as-is |
+| **Full page** | Portrait (`@page size: auto`) | 1 slip / Letter sheet, scaled up to fill (clip `8.5×11in`) | Use as-is |
 | **Half page** | Landscape Letter | 2 slips side by side (`5.5" × 8.5"` each, scaled) | Cut on dashed center line; each half is a portrait slip |
 
 Odd slip counts leave the right half blank on the last landscape sheet.
