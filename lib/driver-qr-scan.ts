@@ -3,10 +3,15 @@ import { filterValidQrScanSlips } from "@/lib/slip-location";
 
 /** Persisted across in-app scans and native-camera deep links. */
 export const DRIVER_QR_SESSION_STORAGE_KEY = "qr_scan_session_key";
+/** Timestamp (ms) when the local driver session expires. */
+export const DRIVER_QR_SESSION_EXPIRES_AT_KEY = "qr_scan_session_expires_at";
 /** In-memory batch for Add Slip across modal ↔ scanner (same tab). */
 export const DRIVER_QR_BATCH_STORAGE_KEY = "qr_scan_batch_data";
 /** Dispatched to open the header scanner from other pages (e.g. native-camera landing). */
 export const DRIVER_QR_SCANNER_OPEN_EVENT = "rxn3d:open-driver-qr-scanner";
+
+/** Local pickup/drop-off trip TTL (frontend). Refreshed on each successful scan save. */
+export const DRIVER_QR_SESSION_TTL_MS = 30 * 60 * 1000;
 
 export type ParsedDriverQr = {
   case_id: number;
@@ -153,13 +158,52 @@ export function processDriverScanApiResult(
 
 export function loadDriverSessionKey(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(DRIVER_QR_SESSION_STORAGE_KEY);
+  const key = localStorage.getItem(DRIVER_QR_SESSION_STORAGE_KEY);
+  if (!key) {
+    clearExpiredDriverSessionLocal();
+    return null;
+  }
+  if (isDriverSessionLocallyExpired()) {
+    clearExpiredDriverSessionLocal();
+    return null;
+  }
+  return key;
 }
 
 export function saveDriverSessionKey(key: string | null): void {
   if (typeof window === "undefined") return;
-  if (key) localStorage.setItem(DRIVER_QR_SESSION_STORAGE_KEY, key);
-  else localStorage.removeItem(DRIVER_QR_SESSION_STORAGE_KEY);
+  if (key) {
+    localStorage.setItem(DRIVER_QR_SESSION_STORAGE_KEY, key);
+    // Sliding TTL: each successful save (new scan) keeps the trip alive another 30 min.
+    localStorage.setItem(
+      DRIVER_QR_SESSION_EXPIRES_AT_KEY,
+      String(Date.now() + DRIVER_QR_SESSION_TTL_MS),
+    );
+  } else {
+    localStorage.removeItem(DRIVER_QR_SESSION_STORAGE_KEY);
+    localStorage.removeItem(DRIVER_QR_SESSION_EXPIRES_AT_KEY);
+  }
+}
+
+/** True when stored expiry is missing or in the past. */
+export function isDriverSessionLocallyExpired(): boolean {
+  if (typeof window === "undefined") return true;
+  const raw = localStorage.getItem(DRIVER_QR_SESSION_EXPIRES_AT_KEY);
+  if (!raw) {
+    // Legacy key without expiry — treat as expired so trips don't stick forever.
+    return Boolean(localStorage.getItem(DRIVER_QR_SESSION_STORAGE_KEY));
+  }
+  const expiresAt = Number(raw);
+  if (!Number.isFinite(expiresAt)) return true;
+  return Date.now() >= expiresAt;
+}
+
+/** Drop stale local session + batch (does not call the clear-session API). */
+export function clearExpiredDriverSessionLocal(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(DRIVER_QR_SESSION_STORAGE_KEY);
+  localStorage.removeItem(DRIVER_QR_SESSION_EXPIRES_AT_KEY);
+  sessionStorage.removeItem(DRIVER_QR_BATCH_STORAGE_KEY);
 }
 
 export function persistDriverScanBatch(response: QRScanResponse | null): void {
@@ -169,10 +213,22 @@ export function persistDriverScanBatch(response: QRScanResponse | null): void {
     return;
   }
   sessionStorage.setItem(DRIVER_QR_BATCH_STORAGE_KEY, JSON.stringify(response));
+  // Keep trip TTL in sync while the batch is still being used.
+  const key = localStorage.getItem(DRIVER_QR_SESSION_STORAGE_KEY);
+  if (key && !isDriverSessionLocallyExpired()) {
+    localStorage.setItem(
+      DRIVER_QR_SESSION_EXPIRES_AT_KEY,
+      String(Date.now() + DRIVER_QR_SESSION_TTL_MS),
+    );
+  }
 }
 
 export function loadDriverScanBatch(): QRScanResponse | null {
   if (typeof window === "undefined") return null;
+  if (isDriverSessionLocallyExpired()) {
+    clearExpiredDriverSessionLocal();
+    return null;
+  }
   const raw = sessionStorage.getItem(DRIVER_QR_BATCH_STORAGE_KEY);
   if (!raw) return null;
   try {
@@ -191,6 +247,7 @@ export function clearDriverScanBatch(): void {
 /**
  * True when the driver already chose Pick Up / Drop Off and has an open trip.
  * Additional QR scans should skip the V-Slip vs movement chooser.
+ * Expired local sessions (30 min) are cleared and treated as inactive.
  */
 export function hasActiveDriverPickupSession(): boolean {
   if (typeof window === "undefined") return false;
