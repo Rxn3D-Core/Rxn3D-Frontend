@@ -2,6 +2,7 @@ import {
   slipCanHold,
   slipCanReadyToSend,
   slipCanSendBackToOffice,
+  slipCanUndoLocation,
   slipIsInLab,
   slipIsInOffice,
   slipShowsPickupDropoff,
@@ -30,7 +31,8 @@ export type SlipRowActionKey =
   | "deleteSlip"
   | "restoreSlip"
   | "printDriverLabel"
-  | "printStatement";
+  | "printStatement"
+  | "undoLocation";
 
 export type SlipRowActionVisibilityInput = SlipLocationRef & {
   status: string;
@@ -49,6 +51,8 @@ export type SlipRowActionVisibilityInput = SlipLocationRef & {
    * office, change delivery date). Office profiles cannot run them. Defaults true.
    */
   allowDriverActions?: boolean;
+  /** Lab admin (or superadmin as lab) may undo one location step. Defaults false. */
+  allowUndoLocation?: boolean;
 };
 
 export type SlipRowActionVisibility = Record<SlipRowActionKey, boolean>;
@@ -79,6 +83,7 @@ export function resolveSlipRowActionVisibility(
   const canCancelCase = input.canCancelCase !== false;
   const canDeleteCase = input.canDeleteCase !== false;
   const canPrintStatement = Boolean(input.canPrintStatement);
+  const allowUndoLocation = Boolean(input.allowUndoLocation);
 
   const allowDriverActions = input.allowDriverActions !== false;
   const canReadyToSend = allowDriverActions && slipCanReadyToSend(ref);
@@ -103,5 +108,10 @@ export function resolveSlipRowActionVisibility(
     restoreSlip: caseDeleted && canDeleteCase,
     printDriverLabel: !caseCancelled && !caseDeleted,
     printStatement: canPrintStatement && !caseCancelled && !caseDeleted,
+    undoLocation:
+      allowUndoLocation &&
+      !caseDeleted &&
+      !caseCancelled &&
+      slipCanUndoLocation(ref),
   };
 }

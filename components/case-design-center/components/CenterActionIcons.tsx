@@ -95,6 +95,8 @@ interface CenterActionIconsProps {
   onHold?: () => void;
   onCancel?: () => void;
   canPutOnHold?: boolean;
+  /** Lab admin — undo one location step (shown in more actions). */
+  onUndoLocation?: () => void;
   /** @deprecated Collapsible extras removed — use row props above. */
   extraActions?: CenterExtraAction[];
 }
@@ -117,6 +119,7 @@ export function CenterActionIcons({
   onHold,
   onCancel,
   canPutOnHold = true,
+  onUndoLocation,
 }: CenterActionIconsProps) {
   const [moreExpanded, setMoreExpanded] = useState(false);
 
@@ -201,6 +204,28 @@ export function CenterActionIcons({
       disabledMessage: canPutOnHold ? undefined : SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
     }),
     rowIcon("cancel", "Cancel case", "cancel.svg", onCancel),
+    ...(onUndoLocation
+      ? [
+          {
+            key: "undo-location",
+            label: "Undo location step",
+            onClick: onUndoLocation,
+            node: (
+              // eslint-disable-next-line @next/next/no-img-element -- bundled SVG glyph
+              <img
+                src={`/icons/virtual-slip-actions/resume.svg`}
+                alt="Undo location step"
+                width={virtualSlipIconSizing ? 40 : 52}
+                height={virtualSlipIconSizing ? 40 : 52}
+                className={cn(
+                  "object-contain",
+                  virtualSlipIconSizing ? VIRTUAL_SLIP_ICON_CLASS : LEGACY_ICON_CLASS
+                )}
+              />
+            ),
+          } satisfies CenterRowIconDef,
+        ]
+      : []),
   ];
 
   const fullRowDefs: CenterRowIconDef[] = [...primaryRowDefs, ...moreRowDefs];

@@ -40,6 +40,8 @@ interface Props {
   canSendBack: (row: V2CaseRowData) => boolean
   canCancelCase?: boolean
   canDeleteCase?: boolean
+  /** Lab admin only — undo one location step from the ⋯ menu. */
+  allowUndoLocation?: boolean
   /**
    * Office profile listing: counterparty column reads "Lab", driver actions and
    * rush-submit icons are withheld (rush status bolt still shows), and rush rows
@@ -131,6 +133,7 @@ export function V3CaseWidget(props: Props) {
         canSendBack={props.canSendBack}
         canCancelCase={props.canCancelCase}
         canDeleteCase={props.canDeleteCase}
+        allowUndoLocation={props.allowUndoLocation}
         officeProfile={props.officeProfile}
         printMenuRow={props.printMenuRow}
         moreMenuRow={props.moreMenuRow}

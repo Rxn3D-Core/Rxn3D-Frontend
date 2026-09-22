@@ -49,6 +49,8 @@ interface Props {
   canSendBack: (row: V2CaseRowData) => boolean
   canCancelCase?: boolean
   canDeleteCase?: boolean
+  /** Lab admin only — undo one location step from the ⋯ menu. */
+  allowUndoLocation?: boolean
   /**
    * Office profile listing: the counterparty column reads "Lab", driver
    * actions are withheld, and rush rows lose the amber highlight (a
@@ -278,6 +280,7 @@ export function V3CaseTable(props: Props) {
                           canDeleteCase={props.canDeleteCase}
                           allowDriverActions={!officeProfile}
                           allowRush={!officeProfile}
+                          allowUndoLocation={!officeProfile && Boolean(props.allowUndoLocation)}
                           onClose={() => setPopoverRow(null)}
                         />
                       )}
@@ -583,6 +586,7 @@ export function V3CaseTable(props: Props) {
                         canDeleteCase={props.canDeleteCase}
                         allowDriverActions={!officeProfile}
                         allowRush={!officeProfile}
+                        allowUndoLocation={!officeProfile && Boolean(props.allowUndoLocation)}
                         onClose={() => setPopoverRow(null)}
                       />
                     )}

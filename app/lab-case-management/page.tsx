@@ -27,6 +27,18 @@ import type { DriverLabelSlip } from "@/lib/driver-labels/generate-driver-label-
 import CaseActionModal from "@/components/CaseActionModal"
 import RushRequestModal from "@/components/rush-request-modal"
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
+import { UndoLocationConfirmModal } from "@/components/undo-location-confirm-modal"
+import { postSlipUndoLocation } from "@/lib/api/slip-undo-location"
+import {
+  buildSlipUndoLocationPreview,
+  slipCanSendBackToOffice,
+  slipCanHold,
+  SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
+} from "@/lib/slip-location"
+import {
+  canUndoSlipLocation,
+  getStoredSlipUserRole,
+} from "@/lib/slip-user-role"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
@@ -40,7 +52,6 @@ import {
 import {
   SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS,
 } from "@/lib/slip-listing-filter-select"
-import { slipCanSendBackToOffice, slipCanHold, SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE } from "@/lib/slip-location"
 import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPauseIcon"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useConnectedOffices } from "@/hooks/use-connected-offices"
@@ -219,6 +230,11 @@ export default function LabSlipV3Page() {
   const [holdSlipModalOpen, setHoldSlipModalOpen] = useState(false)
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
+  const [undoLocationModalOpen, setUndoLocationModalOpen] = useState(false)
+  const [selectedSlipForUndoLocation, setSelectedSlipForUndoLocation] = useState<V2CaseRowData | null>(null)
+  const [undoLocationSubmitting, setUndoLocationSubmitting] = useState(false)
+
+  const allowUndoLocation = canUndoSlipLocation(getStoredSlipUserRole())
 
   const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
 
@@ -645,6 +661,31 @@ export default function LabSlipV3Page() {
     }
   }
 
+  const handleConfirmUndoLocation = async () => {
+    if (!selectedSlipForUndoLocation?.id) return
+    setUndoLocationSubmitting(true)
+    try {
+      const res = await postSlipUndoLocation(selectedSlipForUndoLocation.id)
+      toast({
+        title: "Location undone",
+        description: res.message || "The previous location step was restored.",
+        duration: 4000,
+      })
+      setUndoLocationModalOpen(false)
+      setSelectedSlipForUndoLocation(null)
+      refreshCurrentListing()
+    } catch (error) {
+      toast({
+        title: "Unable to undo location",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    } finally {
+      setUndoLocationSubmitting(false)
+    }
+  }
+
   const handleOpenHoldCase = (row: V2CaseRowData) => {
     if (!slipCanHold({ locationId: row.locationId, location: row.location })) {
       toast({ title: "Cannot put on hold", description: SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE, variant: "destructive", duration: 5000 })
@@ -847,11 +888,15 @@ export default function LabSlipV3Page() {
             onCancel: (slip) => { setSelectedSlipForCancel(slip); setCancelSlipModalOpen(true) },
             onDelete: (slip) => { setSelectedSlipForDelete(slip); setDeleteSlipModalOpen(true) },
             onRestore: (slip) => { setSelectedSlipForRestore(slip); setRestoreSlipModalOpen(true) },
+            onUndoLocation: allowUndoLocation
+              ? (slip) => { setSelectedSlipForUndoLocation(slip); setUndoLocationModalOpen(true) }
+              : undefined,
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
           canCancelCase={canCancelCase}
           canDeleteCase={canDeleteCase}
+          allowUndoLocation={allowUndoLocation}
           onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
           onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
           printMenuRow={printDropdownOpen}
@@ -964,6 +1009,28 @@ export default function LabSlipV3Page() {
           onClose={() => { if (sendBackToOfficeSubmitting) return; setShowSendBackToOfficeModal(false); setSelectedSlipForSendBackToOffice(null) }}
           onConfirm={handleConfirmSendBackToOffice}
           loading={sendBackToOfficeSubmitting}
+        />
+
+        <UndoLocationConfirmModal
+          open={undoLocationModalOpen}
+          onClose={() => {
+            if (undoLocationSubmitting) return
+            setUndoLocationModalOpen(false)
+            setSelectedSlipForUndoLocation(null)
+          }}
+          onConfirm={handleConfirmUndoLocation}
+          loading={undoLocationSubmitting}
+          slipNumber={selectedSlipForUndoLocation?.slipNumber}
+          patientName={selectedSlipForUndoLocation?.patient}
+          preview={
+            selectedSlipForUndoLocation
+              ? buildSlipUndoLocationPreview({
+                  locationId: selectedSlipForUndoLocation.locationId,
+                  location: selectedSlipForUndoLocation.location,
+                  status: selectedSlipForUndoLocation.status,
+                })
+              : null
+          }
         />
 
         <CaseActionModal

@@ -248,3 +248,125 @@ export function slipNextLocationIdFromRef(ref: SlipLocationRef): number | null {
   }
   return null;
 }
+
+/** Location id constants used by undo location step. */
+export const SLIP_LOCATION_IN_OFFICE_READY = 1;
+export const SLIP_LOCATION_IN_LAB_READY = 4;
+
+/**
+ * Previous location after a one-step undo (lab admin).
+ * 1 (start) and unknown ids return null.
+ */
+export function slipPreviousLocationIdForUndo(
+  currentLocationId: number | null | undefined
+): number | null {
+  if (currentLocationId == null || !Number.isFinite(currentLocationId)) return null;
+  switch (currentLocationId) {
+    case 2:
+      return 1;
+    case 3:
+      return 2;
+    case 4:
+      return 3;
+    case 5:
+      return 4;
+    case 6:
+      return 5;
+    default:
+      return null;
+  }
+}
+
+export function slipCanUndoLocation(ref: SlipLocationRef): boolean {
+  const id =
+    typeof ref.locationId === "number"
+      ? ref.locationId
+      : typeof ref.locationId === "string" && ref.locationId.trim() !== ""
+        ? Number(ref.locationId)
+        : NaN;
+  if (Number.isFinite(id)) {
+    return slipPreviousLocationIdForUndo(id) != null;
+  }
+  // Label fallback for older payloads without locationId
+  const label = (ref.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!label || label === "in office ready to pickup") return false;
+  return (
+    label.includes("on route") ||
+    label === "in lab" ||
+    label.includes("ready to pickup") ||
+    label === "in office"
+  );
+}
+
+const LOCATION_LABELS: Record<number, string> = {
+  1: "In office ready to pickup",
+  2: "On route to the lab",
+  3: "In lab",
+  4: "In lab ready to pickup",
+  5: "On route to the office",
+  6: "In office",
+};
+
+export function slipLocationLabel(locationId: number | null | undefined): string {
+  if (locationId == null) return "Unknown";
+  return LOCATION_LABELS[locationId] ?? `Location ${locationId}`;
+}
+
+export type SlipUndoLocationPreview = {
+  fromLocationId: number;
+  toLocationId: number;
+  fromLabel: string;
+  toLabel: string;
+  effects: string[];
+};
+
+/**
+ * Client-side preview of undo side effects (mirrors backend undoLocationStep).
+ * Used in the confirmation dialog before calling the API.
+ */
+export function buildSlipUndoLocationPreview(
+  ref: SlipLocationRef & { status?: string }
+): SlipUndoLocationPreview | null {
+  const fromLocationId =
+    typeof ref.locationId === "number"
+      ? ref.locationId
+      : typeof ref.locationId === "string" && ref.locationId.trim() !== ""
+        ? Number(ref.locationId)
+        : NaN;
+  if (!Number.isFinite(fromLocationId)) return null;
+  const toLocationId = slipPreviousLocationIdForUndo(fromLocationId);
+  if (toLocationId == null) return null;
+
+  const fromLabel = ref.location?.trim() || slipLocationLabel(fromLocationId);
+  const toLabel = slipLocationLabel(toLocationId);
+  const effects: string[] = [
+    `Location will move from ${fromLabel} back to ${toLabel}.`,
+  ];
+
+  if (fromLocationId === 4) {
+    const status = (ref.status || "").toLowerCase();
+    if (status === "finished") {
+      effects.push("Slip status will be restored to In Progress (send-back undo).");
+      effects.push("Product statuses will be restored to In Progress.");
+    } else {
+      effects.push("Product statuses will be restored to In Progress.");
+      effects.push(
+        "The pending invoice created by Ready to Send will be removed (blocked if already billed/paid)."
+      );
+    }
+  }
+
+  if (fromLocationId === 6) {
+    effects.push(
+      "If this slip was finished on office delivery, slip status will be restored."
+    );
+    effects.push(
+      "If the case was finished by this delivery, case status will return to In Progress."
+    );
+    effects.push("Invoice from Ready to Send is kept.");
+  }
+
+  effects.push("A driver-history entry will record this undo for audit.");
+
+  return { fromLocationId, toLocationId, fromLabel, toLabel, effects };
+}

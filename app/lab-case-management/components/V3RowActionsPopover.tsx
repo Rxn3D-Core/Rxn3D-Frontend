@@ -18,6 +18,8 @@ interface Props {
   allowDriverActions?: boolean
   /** Office profiles may see rush status on the row but cannot submit rush from listing. */
   allowRush?: boolean
+  /** Lab admin only — show Undo location in the ⋯ menu. */
+  allowUndoLocation?: boolean
   onClose: () => void
   // The mobile card list and desktop table both mount a popover instance for
   // the same row.id (one CSS-hidden per breakpoint, never unmounted), so
@@ -28,7 +30,7 @@ interface Props {
 }
 
 export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3RowActionsPopover(
-  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canCancelCase = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, onClose, variant },
+  { row, actions, canPrintStatement, canSendBack, canEditSlip = true, canCancelCase = true, canDeleteCase = true, allowDriverActions = true, allowRush = true, allowUndoLocation = false, onClose, variant },
   ref,
 ) {
   const [kebabOpen, setKebabOpen] = useState(false)
@@ -45,8 +47,9 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
         canDeleteCase,
         allowRush,
         allowDriverActions,
+        allowUndoLocation,
       }),
-    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canCancelCase, canDeleteCase, allowRush, allowDriverActions]
+    [row.locationId, row.location, row.status, canPrintStatement, canEditSlip, canCancelCase, canDeleteCase, allowRush, allowDriverActions, allowUndoLocation]
   )
 
   function act(fn: () => void) {
@@ -82,6 +85,9 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   const visibleBtns = btns
 
   const kebabItems = [
+    visibility.undoLocation && actions.onUndoLocation
+      ? { label: "Undo location step", fn: () => actions.onUndoLocation?.(row) }
+      : null,
     visibility.restoreSlip ? { label: "Restore to In Progress", fn: () => actions.onRestore(row) } : null,
     visibility.deleteSlip ? { label: "Delete Slip", fn: () => actions.onDelete(row) } : null,
     visibility.printDriverLabel ? { label: "Print Driver Label", fn: () => actions.onPrintDriverLabel(row) } : null,
@@ -89,7 +95,19 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   ].filter((item): item is { label: string; fn: () => void } => item != null)
 
   if (variant === "mobile") {
-    return <MobileActionsSheet ref={ref} btns={visibleBtns} onClose={onClose} />
+    const mobileBtns = [
+      ...visibleBtns,
+      ...(visibility.undoLocation && actions.onUndoLocation
+        ? [
+            {
+              label: "Undo location",
+              icon: `/icons/virtual-slip-actions/resume.svg`,
+              onClick: act(() => actions.onUndoLocation?.(row)),
+            },
+          ]
+        : []),
+    ]
+    return <MobileActionsSheet ref={ref} btns={mobileBtns} onClose={onClose} />
   }
 
   return (

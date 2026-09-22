@@ -10,12 +10,16 @@ import { catalogAddonsFromProductPayload } from "@/lib/slip-product-addon-catalo
 import { virtualSlipSlotsToAddonArchSlots } from "@/lib/virtual-slip-addon-slots";
 import { buildVirtualSlipRushArchSlots } from "@/lib/virtual-slip-rush-slots";
 import { postSlipReadyToSend } from "@/lib/api/slip-ready-to-send";
+import { postSlipUndoLocation } from "@/lib/api/slip-undo-location";
+import { UndoLocationConfirmModal } from "@/components/undo-location-confirm-modal";
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings";
 import {
   SLIP_HOLD_REQUIRES_IN_LAB_MESSAGE,
+  buildSlipUndoLocationPreview,
   slipCanHold,
   slipCanReadyToSend,
   slipCanSendBackToOffice,
+  slipCanUndoLocation,
   slipIsInLab,
   slipIsInOffice,
   slipPickupDropoffAction,
@@ -56,6 +60,7 @@ import { resolveSlipCancelDetail, resolveSlipHoldDetail } from "@/lib/slip-hold-
 import { VirtualSlipHoldBanner } from "@/components/virtual-slip/VirtualSlipHoldBanner";
 import {
   canSubmitSlipRush,
+  canUndoSlipLocation,
   getStoredSlipUserRole,
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
@@ -112,6 +117,8 @@ export default function VirtualSlipV2Page() {
   const [sendBackToOfficeOpen, setSendBackToOfficeOpen] = useState(false);
   const [sendBackToOfficeSubmitting, setSendBackToOfficeSubmitting] =
     useState(false);
+  const [undoLocationOpen, setUndoLocationOpen] = useState(false);
+  const [undoLocationSubmitting, setUndoLocationSubmitting] = useState(false);
   const [changeDateOpen, setChangeDateOpen] = useState(false);
   const [labImplantModalOpen, setLabImplantModalOpen] = useState(false);
   const [labImplantModalTargets, setLabImplantModalTargets] = useState<ImplantVM[]>([]);
@@ -479,6 +486,34 @@ export default function VirtualSlipV2Page() {
   const showAddStageFab = slipIsInOffice(slipLocationRef) && addStageEligible;
   const slipInOffice = slipIsInOffice(slipLocationRef);
   const slipInLab = slipIsInLab(slipLocationRef);
+  const canUndoLocation =
+    canUndoSlipLocation(userRole) &&
+    slipCanUndoLocation(slipLocationRef) &&
+    !caseCancelled;
+
+  const handleConfirmUndoLocation = async () => {
+    if (!slipId || isNaN(slipId)) return;
+    setUndoLocationSubmitting(true);
+    try {
+      const res = await postSlipUndoLocation(slipId);
+      toast({
+        title: "Location undone",
+        description: res.message || "The previous location step was restored.",
+        duration: 4000,
+      });
+      setUndoLocationOpen(false);
+      await fetchVirtualSlipDetails(slipId);
+    } catch (error) {
+      toast({
+        title: "Unable to undo location",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setUndoLocationSubmitting(false);
+    }
+  };
 
   const handleAddStage = useCallback(() => {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
@@ -921,6 +956,9 @@ export default function VirtualSlipV2Page() {
                 }
               : undefined
           }
+          onUndoLocation={
+            canUndoLocation ? () => setUndoLocationOpen(true) : undefined
+          }
           allowRush={canRushFromVirtualSlip}
           openNotesModal={fabNotesOpen}
           onOpenNotesModalChange={setFabNotesOpen}
@@ -970,6 +1008,22 @@ export default function VirtualSlipV2Page() {
         }}
         onConfirm={handleConfirmSendBackToOffice}
         loading={sendBackToOfficeSubmitting}
+      />
+
+      <UndoLocationConfirmModal
+        open={undoLocationOpen}
+        onClose={() => {
+          if (!undoLocationSubmitting) setUndoLocationOpen(false);
+        }}
+        onConfirm={handleConfirmUndoLocation}
+        loading={undoLocationSubmitting}
+        slipNumber={vm.header.slipNumber}
+        patientName={vm.header.patientName}
+        preview={buildSlipUndoLocationPreview({
+          locationId: vm.header.locationId,
+          location: vm.header.location,
+          status: vm.header.slipStatus,
+        })}
       />
 
       <ChangeDateModal
