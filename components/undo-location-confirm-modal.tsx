@@ -52,8 +52,9 @@ export function UndoLocationConfirmModal({
           {preview ? (
             <>
               <p>
-                Move from <strong>{preview.fromLabel}</strong> back to{" "}
-                <strong>{preview.toLabel}</strong>.
+                This will send the slip to the previous location:{" "}
+                <strong>{preview.toLabel}</strong>
+                {" "}(from {preview.fromLabel}).
               </p>
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
                 <p className="mb-1.5 font-medium text-amber-950">What will happen</p>
@@ -80,7 +81,7 @@ export function UndoLocationConfirmModal({
             disabled={loading || !preview}
             onClick={() => void onConfirm()}
           >
-            {loading ? "Undoing…" : "Undo location"}
+            {loading ? "Sending…" : "Send to previous location"}
           </Button>
         </div>
       </DialogContent>

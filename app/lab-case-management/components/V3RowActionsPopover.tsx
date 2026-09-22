@@ -101,7 +101,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
         ? [
             {
               label: "Undo location",
-              icon: `/icons/virtual-slip-actions/resume.svg`,
+              icon: `/icons/virtual-slip-actions/undo.svg`,
               onClick: act(() => actions.onUndoLocation?.(row)),
             },
           ]
