@@ -70,6 +70,8 @@ Optional **`PUT /billing/products/{id}/pricing`** remains in RTK for single-line
 | 3 | Advanced search `POST /billing/advanced-search` | `useAdvancedBillingSearchMutation` — Advance Filter; default `per_page` 100 |
 
 Also: list/advanced default page size is **100** (`CHARGE_MANAGEMENT_PER_PAGE`). Users can choose **100 / 200 / 300 / 500 / 1000** (`CHARGE_MANAGEMENT_PER_PAGE_OPTIONS`); choice is persisted per `customerId` with other filters in [`lib/charge-management-preferences.ts`](../lib/charge-management-preferences.ts). Backend `GET /billing` and `POST /billing/advanced-search` accept `per_page` up to **1000**.
+
+**Sorting (Charge Management table):** clickable headers for `office_code`, `patient_name`, `product_name`, `grade_name`, `stage_name`, `due_date`. Default is **`due_date` desc** (maps to invoice `created_at`, matching the Due Date column). Sort is sent as `sort_by` / `sort_direction` on list and advanced search and persisted in filter prefs.
 | 4 | Detail `GET /billing/{id}` | `useGetBillingInvoiceByIdQuery` — **Edit invoice pricing** modal (pencil) + any other flows |
 | 5 | Bulk `POST /billing/bulk-action` | `useBulkBillingActionMutation` — Mark Checked / Uncheck / Billed / Mark Refund / Remove Refund |
 | 6 | Generate PDF `POST /billing/{id}/generate-pdf` | `useGenerateBillingPdfMutation` — PDF view (preferred) |

@@ -7,6 +7,23 @@ export const CHARGE_MANAGEMENT_PER_PAGE_OPTIONS = [100, 200, 300, 500, 1000] as 
 
 export type ChargeManagementPerPage = (typeof CHARGE_MANAGEMENT_PER_PAGE_OPTIONS)[number]
 
+/** Sortable columns on the Charge Management table (API `sort_by` values). */
+export const CHARGE_MANAGEMENT_SORT_OPTIONS = [
+  "office_code",
+  "patient_name",
+  "product_name",
+  "grade_name",
+  "stage_name",
+  "due_date",
+] as const
+
+export type ChargeManagementSortBy = (typeof CHARGE_MANAGEMENT_SORT_OPTIONS)[number]
+
+export type ChargeManagementSortDirection = "asc" | "desc"
+
+export const CHARGE_MANAGEMENT_DEFAULT_SORT_BY: ChargeManagementSortBy = "due_date"
+export const CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION: ChargeManagementSortDirection = "desc"
+
 const STORAGE_PREFIX = "rxn3d.charge-management.filters"
 
 export type ChargeManagementDateRange =
@@ -27,6 +44,8 @@ export interface ChargeManagementFiltersPrefs {
   officeFilter: string
   page: number
   perPage: ChargeManagementPerPage
+  sortBy: ChargeManagementSortBy
+  sortDirection: ChargeManagementSortDirection
   advDateRange: ChargeManagementDateRange | string
   advItemStatus: string
   showAdvancedFilters: boolean
@@ -53,6 +72,7 @@ const DATE_RANGES = new Set<string>([
 ])
 
 const PER_PAGE_SET = new Set<number>(CHARGE_MANAGEMENT_PER_PAGE_OPTIONS)
+const SORT_BY_SET = new Set<string>(CHARGE_MANAGEMENT_SORT_OPTIONS)
 
 function storageKey(customerId: number): string {
   return `${STORAGE_PREFIX}.${customerId}`
@@ -99,6 +119,18 @@ function asPerPage(value: unknown): ChargeManagementPerPage {
   return CHARGE_MANAGEMENT_PER_PAGE
 }
 
+function asSortBy(value: unknown): ChargeManagementSortBy {
+  const s = typeof value === "string" ? value : ""
+  if (SORT_BY_SET.has(s)) return s as ChargeManagementSortBy
+  // Legacy: list previously sorted by created_at (same column as Due Date in the UI).
+  if (s === "created_at") return "due_date"
+  return CHARGE_MANAGEMENT_DEFAULT_SORT_BY
+}
+
+function asSortDirection(value: unknown): ChargeManagementSortDirection {
+  return value === "asc" ? "asc" : "desc"
+}
+
 /** Default filters for first visit (no saved prefs). */
 export function defaultChargeManagementFilters(): ChargeManagementFiltersPrefs {
   return {
@@ -108,6 +140,8 @@ export function defaultChargeManagementFilters(): ChargeManagementFiltersPrefs {
     officeFilter: "all",
     page: 1,
     perPage: CHARGE_MANAGEMENT_PER_PAGE,
+    sortBy: CHARGE_MANAGEMENT_DEFAULT_SORT_BY,
+    sortDirection: CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
     advDateRange: "today",
     advItemStatus: "all",
     showAdvancedFilters: false,
@@ -141,6 +175,8 @@ export function loadChargeManagementFilters(
     officeFilter: asString(o.officeFilter, "all") || "all",
     page: asPositiveInt(o.page, 1),
     perPage: asPerPage(o.perPage),
+    sortBy: asSortBy(o.sortBy),
+    sortDirection: asSortDirection(o.sortDirection),
     advDateRange: DATE_RANGES.has(advDateRange) ? advDateRange : defaults.advDateRange,
     advItemStatus: asString(o.advItemStatus, "all") || "all",
     showAdvancedFilters: Boolean(o.showAdvancedFilters),
