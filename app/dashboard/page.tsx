@@ -25,7 +25,7 @@ export default function Dashboard() {
     void refetch()
   }, [user, refetch])
 
-  const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "office_admin", "office_user"]
+  const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "lab_driver", "office_admin", "office_user"]
 
   // Require successful setup-status payload; do not use JWT onboarding flags here (avoid bounce with API).
   const hasRedirectedRef = useRef(false)

@@ -3,7 +3,9 @@
 // - Office roles -> Office Case Management (case list)
 // - Everyone else (superadmin, doctor, etc.) -> Dashboard
 export function getPostLoginLandingPath(roles: string[]): string {
-  const isLab = roles.some((role) => role === "lab_admin" || role === "lab_user")
+  const isLab = roles.some(
+    (role) => role === "lab_admin" || role === "lab_user" || role === "lab_driver",
+  )
   if (isLab) return "/lab-case-management"
 
   const isOffice = roles.some((role) => role === "office_admin" || role === "office_user")

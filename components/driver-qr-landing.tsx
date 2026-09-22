@@ -6,6 +6,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { useSlipContext } from "@/app/lab-case-management/SlipContext";
 import { useToast } from "@/hooks/use-toast";
 import DriverHistoryModal from "@/components/driver-history-modal";
+import { QrScanActionChooser } from "@/components/qr-scan-action-chooser";
+import ReadyToSendModal from "@/components/ready-to-send-modal";
 import type { QRScanResponse } from "@/services/slip";
 import {
   loadDriverSessionKey,
@@ -13,8 +15,20 @@ import {
   saveDriverSessionKey,
   persistDriverScanBatch,
   clearDriverScanBatch,
+  hasActiveDriverPickupSession,
   DRIVER_QR_SCANNER_OPEN_EVENT,
 } from "@/lib/driver-qr-scan";
+import { fetchSlipQrIdentify, type SlipQrIdentifyResult } from "@/lib/api/slip-qr-identify";
+import {
+  buildQrScanChooserActions,
+  resolveQrScanAudience,
+  type QrScanChooserAction,
+  type QrScanChooserActionId,
+} from "@/lib/qr-scan-actions";
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes";
+import { getPrimaryRole } from "@/lib/get-primary-role";
+import { isOfficeCustomerContext } from "@/lib/role-utils";
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -25,21 +39,38 @@ type DriverQrLandingProps = {
 
 /**
  * Landing handler when a slip QR is opened via the phone's native camera
- * (or any deep link to /case/{id}?slips=...). Reuses the same driver pickup
- * flow as the in-app header scanner.
+ * (or any deep link to /case/{id}?slips=...).
+ *
+ * Outside an active pickup session → role-aware action chooser.
+ * Inside an active session → existing scan-qr pickup/drop-off flow.
  */
 export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
-  const { user, isLoading: authLoading, token } = useAuth();
-  const { scanQrCode, clearDriverSession } = useSlipContext();
+  const { user, isLoading: authLoading, token, hasPermission } = useAuth();
+  const { scanQrCode, clearDriverSession, readyToSend } = useSlipContext();
   const { toast } = useToast();
   const router = useRouter();
 
   const [qrScanData, setQrScanData] = useState<QRScanResponse | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [booting, setBooting] = useState(true);
+
+  const [showChooser, setShowChooser] = useState(false);
+  const [chooserIdentifying, setChooserIdentifying] = useState(false);
+  const [chooserLoading, setChooserLoading] = useState(false);
+  const [identify, setIdentify] = useState<SlipQrIdentifyResult | null>(null);
+  const [chooserActions, setChooserActions] = useState<QrScanChooserAction[]>([]);
+  const [showReadyToSend, setShowReadyToSend] = useState(false);
+  const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false);
+  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSend);
+
   const sessionRef = useRef<string | null>(loadDriverSessionKey());
-  const hasScannedRef = useRef(false);
+  const hasBootedRef = useRef(false);
+
+  const userRoles = user?.roles || (user?.role ? [user.role] : []);
+  const isOfficeSideUser = ["office_admin", "office_user", "doctor", "doctor_admin"].some((role) =>
+    userRoles.includes(role),
+  );
 
   const redirectToLogin = useCallback(() => {
     const returnPath =
@@ -49,12 +80,17 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
     router.replace(`/login?redirect=${encodeURIComponent(returnPath)}`);
   }, [router, caseId, slipIds]);
 
-  const runScan = useCallback(async () => {
-    if (hasScannedRef.current) return;
-    hasScannedRef.current = true;
-    setScanning(true);
-    setError(null);
+  const clearSession = useCallback(() => {
+    if (sessionRef.current) {
+      void clearDriverSession(sessionRef.current);
+      sessionRef.current = null;
+    }
+    saveDriverSessionKey(null);
+  }, [clearDriverSession]);
 
+  const runPickupScan = useCallback(async () => {
+    setChooserLoading(true);
+    setError(null);
     try {
       const res = await scanQrCode(caseId, slipIds, sessionRef.current || undefined);
       const outcome = processDriverScanApiResult(res, [], slipIds);
@@ -68,6 +104,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
         if (outcome.response?.data?.length) {
           setQrScanData(outcome.response);
           setModalOpen(true);
+          setShowChooser(false);
         }
         toast({
           title: "Already added",
@@ -90,6 +127,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
 
       setQrScanData(outcome.response);
       setModalOpen(true);
+      setShowChooser(false);
       toast({
         title: "QR Scan Successful",
         description: `Added ${outcome.validSlips.length} slip(s) for delivery`,
@@ -98,9 +136,47 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
     } catch {
       setError("Failed to scan QR code.");
     } finally {
-      setScanning(false);
+      setChooserLoading(false);
+      setBooting(false);
     }
   }, [caseId, slipIds, scanQrCode, toast]);
+
+  const openChooser = useCallback(async () => {
+    setShowChooser(true);
+    setChooserIdentifying(true);
+    setError(null);
+    try {
+      const result = await fetchSlipQrIdentify(slipIds[0], caseId);
+      setIdentify(result);
+
+      const primaryRole = getPrimaryRole(user);
+      let audience = resolveQrScanAudience(primaryRole);
+      if (isOfficeSideUser || isOfficeCustomerContext()) {
+        audience = "office";
+      } else if (userRoles.includes("lab_driver") && primaryRole === "lab_driver") {
+        audience = "driver";
+      }
+
+      setChooserActions(
+        buildQrScanChooserActions({
+          audience,
+          locationRef: {
+            locationId: result.locationId,
+            location: result.location,
+          },
+          canPickupDropoff: audience === "driver" || hasPermission("pickup_drop_off"),
+        }),
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not identify this slip QR code.",
+      );
+      setShowChooser(false);
+    } finally {
+      setChooserIdentifying(false);
+      setBooting(false);
+    }
+  }, [caseId, slipIds, user, isOfficeSideUser, userRoles, hasPermission]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -108,18 +184,75 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
       redirectToLogin();
       return;
     }
-    void runScan();
-  }, [authLoading, user, token, redirectToLogin, runScan]);
+    if (hasBootedRef.current) return;
+    hasBootedRef.current = true;
 
-  const clearSession = useCallback(() => {
-    if (sessionRef.current) {
-      void clearDriverSession(sessionRef.current);
-      sessionRef.current = null;
+    if (hasActiveDriverPickupSession() || sessionRef.current) {
+      void runPickupScan();
+    } else {
+      void openChooser();
     }
-    saveDriverSessionKey(null);
-  }, [clearDriverSession]);
+  }, [authLoading, user, token, redirectToLogin, runPickupScan, openChooser]);
 
-  if (authLoading || scanning) {
+  const handleChooserSelect = useCallback(
+    async (actionId: QrScanChooserActionId) => {
+      if (!identify) return;
+
+      if (actionId === "view_vslip") {
+        router.replace(buildVirtualSlipPath(identify.caseId, identify.slipId));
+        return;
+      }
+
+      if (actionId === "ready_to_send") {
+        setShowChooser(false);
+        setShowReadyToSend(true);
+        return;
+      }
+
+      if (actionId === "pickup" || actionId === "dropoff") {
+        await runPickupScan();
+      }
+    },
+    [identify, router, runPickupScan],
+  );
+
+  const handleReadyToSend = useCallback(
+    async (signature: string) => {
+      if (!identify) return;
+      setReadyToSendSubmitting(true);
+      try {
+        const res = await readyToSend(identify.slipId, signature);
+        if (res?.success !== false) {
+          toast({
+            title: "Success",
+            description: res?.message || "Slip marked as ready to pick up.",
+            duration: 3000,
+          });
+          setShowReadyToSend(false);
+          router.replace(buildVirtualSlipPath(identify.caseId, identify.slipId));
+        } else {
+          toast({
+            title: "Error",
+            description: res?.message ?? "Could not mark slip ready to pick up.",
+            variant: "destructive",
+            duration: 5000,
+          });
+        }
+      } catch {
+        toast({
+          title: "Error",
+          description: "Could not mark slip ready to pick up.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } finally {
+        setReadyToSendSubmitting(false);
+      }
+    },
+    [identify, readyToSend, toast, router],
+  );
+
+  if (authLoading || booting) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 p-8 text-center">
         <Loader2 className="h-8 w-8 animate-spin text-[#1162A8]" />
@@ -128,11 +261,11 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
     );
   }
 
-  if (error && !qrScanData?.data?.length) {
+  if (error && !qrScanData?.data?.length && !showChooser && !showReadyToSend) {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center max-w-md mx-auto">
         <AlertCircle className="h-10 w-10 text-destructive" />
-        <h1 className="text-xl font-semibold">Unable to scan slip</h1>
+        <h1 className="text-xl font-semibold">Unable to open slip</h1>
         <p className="text-muted-foreground">{error}</p>
         <div className="flex gap-3">
           <Button variant="outline" onClick={() => router.replace("/dashboard")}>
@@ -140,8 +273,14 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
           </Button>
           <Button
             onClick={() => {
-              hasScannedRef.current = false;
-              void runScan();
+              hasBootedRef.current = false;
+              setBooting(true);
+              setError(null);
+              if (hasActiveDriverPickupSession() || sessionRef.current) {
+                void runPickupScan();
+              } else {
+                void openChooser();
+              }
             }}
           >
             Try again
@@ -151,29 +290,91 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
     );
   }
 
-  if (!qrScanData?.data?.length) return null;
-
   return (
-    <DriverHistoryModal
-      isOpen={modalOpen}
-      onClose={() => {
-        setModalOpen(false);
-        setQrScanData(null);
-        clearSession();
-        clearDriverScanBatch();
-        router.replace("/dashboard");
-      }}
-      qrScanData={qrScanData.data}
-      onRequestScan={() => {
-        persistDriverScanBatch(qrScanData)
-        setModalOpen(false)
-        window.dispatchEvent(new CustomEvent(DRIVER_QR_SCANNER_OPEN_EVENT))
-      }}
-      onSubmitted={() => {
-        clearSession();
-        clearDriverScanBatch();
-        router.replace("/dashboard");
-      }}
-    />
+    <>
+      <QrScanActionChooser
+        open={showChooser}
+        identifying={chooserIdentifying}
+        loading={chooserLoading}
+        caseId={identify?.caseId}
+        slipNumber={identify?.slipNumber}
+        patientName={identify?.patientName}
+        location={identify?.location}
+        officeLabel={identify?.officeLabel}
+        actions={chooserActions}
+        onSelect={handleChooserSelect}
+        onClose={() => {
+          if (chooserLoading || chooserIdentifying) return;
+          setShowChooser(false);
+          router.replace("/dashboard");
+        }}
+      />
+
+      <ReadyToSendModal
+        open={showReadyToSend}
+        onClose={() => {
+          if (!readyToSendSubmitting) {
+            setShowReadyToSend(false);
+            router.replace("/dashboard");
+          }
+        }}
+        onConfirm={handleReadyToSend}
+        submitting={readyToSendSubmitting}
+        slipId={identify?.slipId ?? 0}
+        office={identify?.officeLabel}
+        patientName={identify?.patientName}
+        slipNumber={identify?.slipNumber}
+        location={identify?.location}
+        title="Mark Ready to Pick Up"
+        signatureRequired={readyToSendRequired}
+      />
+
+      {qrScanData?.data?.length ? (
+        <DriverHistoryModal
+          isOpen={modalOpen}
+          onClose={() => {
+            setModalOpen(false);
+            setQrScanData(null);
+            clearSession();
+            clearDriverScanBatch();
+            router.replace("/dashboard");
+          }}
+          qrScanData={qrScanData.data}
+          onRequestScan={() => {
+            persistDriverScanBatch(qrScanData);
+            setModalOpen(false);
+            window.dispatchEvent(new CustomEvent(DRIVER_QR_SCANNER_OPEN_EVENT));
+          }}
+          onSubmitted={() => {
+            clearSession();
+            clearDriverScanBatch();
+            router.replace("/dashboard");
+          }}
+          onQrBatchChange={(remaining) => {
+            if (!remaining.length) {
+              setQrScanData(null);
+              clearDriverScanBatch();
+              return;
+            }
+            setQrScanData((prev) => {
+              const next = {
+                ...(prev && typeof prev === "object" ? prev : { success: true as const }),
+                data: remaining,
+                scanned_cases_count: remaining.length,
+              } as QRScanResponse;
+              persistDriverScanBatch(next);
+              return next;
+            });
+          }}
+          onClearBatch={() => {
+            setModalOpen(false);
+            setQrScanData(null);
+            clearSession();
+            clearDriverScanBatch();
+            router.replace("/dashboard");
+          }}
+        />
+      ) : null}
+    </>
   );
 }

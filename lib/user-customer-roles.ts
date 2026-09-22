@@ -179,9 +179,9 @@ export function buildUserCustomerRoleDisplay(
 /** Roles allowed for a customer type when linking/editing. */
 export function rolesForCustomerType(customerType?: string | null): string[] {
   const type = (customerType || "").toLowerCase()
-  if (type === "lab") return ["lab_admin", "lab_user"]
+  if (type === "lab") return ["lab_admin", "lab_user", "lab_driver"]
   if (type === "office") return ["office_admin", "office_user", "doctor", "doctor_admin"]
-  return ["lab_admin", "lab_user", "office_admin", "office_user", "doctor", "doctor_admin"]
+  return ["lab_admin", "lab_user", "lab_driver", "office_admin", "office_user", "doctor", "doctor_admin"]
 }
 
 /**
@@ -194,7 +194,7 @@ export function roleSelectOptionsForCustomerType(
   const type = (customerType || "").toLowerCase()
   const values =
     type === "lab"
-      ? ["lab_admin", "lab_user"]
+      ? ["lab_admin", "lab_user", "lab_driver"]
       : type === "office"
         ? ["office_admin", "office_user", "doctor"]
         : []

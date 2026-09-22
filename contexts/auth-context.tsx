@@ -222,7 +222,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const MAX_SESSION_HISTORY = 3
 
 // Roles that should see the multi-location screen
-const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "office_admin", "office_user"]
+const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "lab_driver", "office_admin", "office_user"]
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)

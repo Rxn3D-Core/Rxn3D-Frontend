@@ -42,7 +42,7 @@ export default function AllConnections() {
   const invitedBy = user?.roles?.includes("superadmin") ? 0 : selectedLocation?.id
   const hasFetchedRef = useRef(false)
   const role = getPrimaryRole(user)
-  const isLabSide = role === "lab_admin" || role === "lab_user" || role === "superadmin"
+  const isLabSide = role === "lab_admin" || role === "lab_user" || role === "lab_driver" || role === "superadmin"
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300)

@@ -215,6 +215,7 @@ export function toPermissionSet(permissions: string[] | null | undefined): Set<s
 export const PROFILE_SCOPED_ROLES = [
   "lab_admin",
   "lab_user",
+  "lab_driver",
   "office_admin",
   "office_user",
   "doctor_admin",

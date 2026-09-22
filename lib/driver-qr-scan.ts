@@ -188,6 +188,17 @@ export function clearDriverScanBatch(): void {
   sessionStorage.removeItem(DRIVER_QR_BATCH_STORAGE_KEY);
 }
 
+/**
+ * True when the driver already chose Pick Up / Drop Off and has an open trip.
+ * Additional QR scans should skip the V-Slip vs movement chooser.
+ */
+export function hasActiveDriverPickupSession(): boolean {
+  if (typeof window === "undefined") return false;
+  if (loadDriverSessionKey()) return true;
+  const batch = loadDriverScanBatch();
+  return Boolean(batch?.data?.length);
+}
+
 /** iOS Safari and iPadOS need simpler camera constraints. */
 export function isIosDevice(): boolean {
   if (typeof navigator === "undefined") return false;

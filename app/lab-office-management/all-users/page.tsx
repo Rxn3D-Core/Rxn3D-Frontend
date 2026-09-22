@@ -519,6 +519,7 @@ export default function AllUsers() {
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="lab_admin">Lab Admin</SelectItem>
                   <SelectItem value="lab_user">Lab User</SelectItem>
+                  <SelectItem value="lab_driver">Lab Driver</SelectItem>
                   <SelectItem value="office_admin">Office Admin</SelectItem>
                   <SelectItem value="office_user">Office User</SelectItem>
                   <SelectItem value="doctor">Doctor</SelectItem>

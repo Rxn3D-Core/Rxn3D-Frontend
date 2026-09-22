@@ -192,7 +192,7 @@ export function CreateUserModal({
       return roleSelectOptionsForCustomerType(effectiveCustomerType)
     }
     if (lockedRole) {
-      if (["lab_admin", "lab_user"].includes(lockedRole)) {
+      if (["lab_admin", "lab_user", "lab_driver"].includes(lockedRole)) {
         return roleSelectOptionsForCustomerType("lab")
       }
       if (["office_admin", "office_user", "doctor", "doctor_admin"].includes(lockedRole)) {
