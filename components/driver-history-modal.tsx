@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import { useToast } from "@/hooks/use-toast"
+import { loadDriverSessionKey } from "@/lib/driver-qr-scan"
 import {
   buildPickupDeliveryEntryFromSlip,
   type PickupDeliveryEntry,
@@ -84,6 +85,10 @@ interface DriverHistoryModalProps {
   onRequestScan?: () => void
   /** QR flow: called after scanned slips are submitted successfully (clear session). */
   onSubmitted?: () => void
+  /** QR flow: parent sync after removing a case (or emptying the batch). */
+  onQrBatchChange?: (remaining: QRScanResponseData[]) => void
+  /** QR flow: clear entire batch + session (parent closes / resets). */
+  onClearBatch?: () => void
 }
 
 export default function DriverHistoryModal({
@@ -94,16 +99,20 @@ export default function DriverHistoryModal({
   singleSlipMode = false,
   onRequestScan,
   onSubmitted,
+  onQrBatchChange,
+  onClearBatch,
 }: DriverHistoryModalProps) {
   const [deliveryEntries, setDeliveryEntries] = useState<DeliveryEntry[]>([])
   const [signature, setSignature] = useState("")
   const [image, setImage] = useState<UploadedImage | null>(null)
   const { qrScanData: contextQrScanData, qrScanLoading, qrScanError, sessionKey } = useDriverSlip()
-  const { submitScannedSlips, fetchPickupDeliverySlips } = useSlipContext()
+  const { submitScannedSlips, fetchPickupDeliverySlips, removeScannedCase, clearDriverSession } = useSlipContext()
   const { toast } = useToast()
   const [loadingPickup, setLoadingPickup] = useState(false)
   const [pickupError, setPickupError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [removingCaseId, setRemovingCaseId] = useState<number | null>(null)
+  const [clearingBatch, setClearingBatch] = useState(false)
   const lastFetchedSlipIdRef = useRef<number | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -376,6 +385,101 @@ export default function DriverHistoryModal({
   const handleDeleteManualEntry = (id: string) => {
     setDeliveryEntries((prevEntries) => prevEntries.filter((entry) => entry.id !== id))
   }
+
+  /** Build remaining QR slips after removing a case (all slips for that case_id). */
+  const remainingQrSlipsAfterCaseRemoval = useCallback(
+    (caseId: number): QRScanResponseData[] => {
+      const source = (qrScanData || contextQrScanData?.data || []) as QRScanResponseData[]
+      return filterValidQrScanSlips(source.filter((s) => s.case_id !== caseId))
+    },
+    [qrScanData, contextQrScanData],
+  )
+
+  const handleRemoveQrCase = useCallback(
+    async (caseId: number) => {
+      if (!isQrScanFlow || removingCaseId != null) return
+      setRemovingCaseId(caseId)
+      try {
+        const key = loadDriverSessionKey() || sessionKey
+        if (key) {
+          const res = await removeScannedCase(key, caseId)
+          if (res && res.success === false) {
+            toast({
+              title: "Could not remove case",
+              description: res.message || "Please try again.",
+              variant: "destructive",
+            })
+            return
+          }
+        }
+
+        const remaining = remainingQrSlipsAfterCaseRemoval(caseId)
+        setDeliveryEntries((prev) => prev.filter((e) => e.case_id !== caseId))
+        onQrBatchChange?.(remaining)
+
+        if (remaining.length === 0) {
+          toast({ title: "Batch cleared", description: "All scanned cases were removed.", duration: 3000 })
+          onClearBatch?.()
+          return
+        }
+
+        toast({
+          title: "Case removed",
+          description: "Removed from this pickup batch. You can scan it again if needed.",
+          duration: 3000,
+        })
+      } catch {
+        toast({
+          title: "Could not remove case",
+          description: "Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setRemovingCaseId(null)
+      }
+    },
+    [
+      isQrScanFlow,
+      removingCaseId,
+      sessionKey,
+      removeScannedCase,
+      remainingQrSlipsAfterCaseRemoval,
+      onQrBatchChange,
+      onClearBatch,
+      toast,
+    ],
+  )
+
+  const handleClearBatch = useCallback(async () => {
+    if (!isQrScanFlow || clearingBatch) return
+    setClearingBatch(true)
+    try {
+      const key = loadDriverSessionKey() || sessionKey
+      if (key) {
+        await clearDriverSession(key)
+      }
+      setDeliveryEntries([])
+      onQrBatchChange?.([])
+      toast({ title: "Batch cleared", description: "All scanned cases were removed.", duration: 3000 })
+      onClearBatch?.()
+    } catch {
+      toast({
+        title: "Could not clear batch",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setClearingBatch(false)
+    }
+  }, [
+    isQrScanFlow,
+    clearingBatch,
+    sessionKey,
+    clearDriverSession,
+    onQrBatchChange,
+    onClearBatch,
+    toast,
+  ])
 
   const handleRejectedImages = (names: string[]) => {
     toast({
@@ -772,6 +876,22 @@ export default function DriverHistoryModal({
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
+                              ) : isQrScanFlow && typeof entry.case_id === "number" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                                  onClick={() => void handleRemoveQrCase(entry.case_id as number)}
+                                  title="Remove from batch"
+                                  type="button"
+                                  disabled={removingCaseId === entry.case_id || clearingBatch}
+                                >
+                                  {removingCaseId === entry.case_id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
                               ) : null}
                             </td>
                           </tr>
@@ -782,13 +902,15 @@ export default function DriverHistoryModal({
                 </table>
               </div>
 
-              <div className="mt-4 flex justify-center">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
                 <Button
                   variant="outline"
                   className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
                   onClick={handleAddSlipClick}
                   type="button"
-                  disabled={isQrScanFlow && !onRequestScan}
+                  disabled={
+                    (isQrScanFlow && !onRequestScan) || clearingBatch || removingCaseId != null
+                  }
                 >
                   {isQrScanFlow ? (
                     <QrCode className="mr-2 h-4 w-4" />
@@ -797,6 +919,22 @@ export default function DriverHistoryModal({
                   )}
                   {isQrScanFlow ? "Scan Slip" : "Add Slip"}
                 </Button>
+                {isQrScanFlow && tableEntries.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    onClick={() => void handleClearBatch()}
+                    type="button"
+                    disabled={clearingBatch || removingCaseId != null}
+                  >
+                    {clearingBatch ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Clear batch
+                  </Button>
+                ) : null}
               </div>
 
               {dropoffPhotoRequired ? (

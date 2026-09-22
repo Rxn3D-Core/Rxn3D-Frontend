@@ -136,6 +136,10 @@ type SlipContextType = {
   fetchDriverPrintData: (slipIds: number[]) => Promise<DriverPrintResponse | null>;
   scanQrCode: (caseId: number, slipIds: number[], sessionKey?: string) => Promise<ScanQrCodeResponse | null>;
   clearDriverSession: (sessionKey: string) => Promise<{ success: boolean; message?: string } | null>;
+  removeScannedCase: (
+    sessionKey: string,
+    caseId: number,
+  ) => Promise<{ success: boolean; message?: string; scanned_cases_count?: number } | null>;
   submitScannedSlips: (slipIds: number[], signature: string, options?: { notes?: string; images?: Record<number, File> }) => Promise<SubmitScannedSlipsResponse | null>;
   fetchPickupDeliverySlips: (slipId: number) => Promise<any | null>;
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
@@ -548,6 +552,32 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     }
   }, [API_BASE_URL]);
 
+  /** Remove one case from the active driver QR session (allows re-scan). */
+  const removeScannedCase = useCallback(async (
+    sessionKey: string,
+    caseId: number,
+  ): Promise<{ success: boolean; message?: string; scanned_cases_count?: number } | null> => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/slip/remove-scanned-case`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ session_key: sessionKey, case_id: caseId }),
+      });
+      if (res.status === 401) {
+        handleUnauthorized();
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.error("Error removing scanned case:", error);
+      return null;
+    }
+  }, [API_BASE_URL]);
+
   // Create Custom Delivery Date API
   const createCustomDeliveryDate = useCallback(async (
     slipId: number,
@@ -804,6 +834,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       fetchDriverPrintData,
       scanQrCode,
       clearDriverSession,
+      removeScannedCase,
       submitScannedSlips,
       createCustomDeliveryDate,
       fetchCustomDeliveryDates,

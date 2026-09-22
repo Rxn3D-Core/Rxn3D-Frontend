@@ -67,8 +67,21 @@ import {
   persistDriverScanBatch,
   loadDriverScanBatch,
   clearDriverScanBatch,
+  hasActiveDriverPickupSession,
   DRIVER_QR_SCANNER_OPEN_EVENT,
 } from "@/lib/driver-qr-scan"
+import { fetchSlipQrIdentify, type SlipQrIdentifyResult } from "@/lib/api/slip-qr-identify"
+import {
+  buildQrScanChooserActions,
+  resolveQrScanAudience,
+  type QrScanChooserAction,
+  type QrScanChooserActionId,
+} from "@/lib/qr-scan-actions"
+import { QrScanActionChooser } from "@/components/qr-scan-action-chooser"
+import ReadyToSendModal from "@/components/ready-to-send-modal"
+import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes"
+import { getPrimaryRole } from "@/lib/get-primary-role"
+import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 
 /** New Slip: solid gradient fill, white text */
 const NEW_SLIP_BUTTON_CLASS =
@@ -143,7 +156,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const { t } = useTranslation()
   // Use Location type for selectedLocation and setSelectedLocation
   const { locations, selectedLocation, setSelectedLocation } = useLocation(); // selectedLocation is a number (id)
-  const { scanQrCode, submitScannedSlips, clearDriverSession } = useSlipContext()
+  const { scanQrCode, submitScannedSlips, clearDriverSession, readyToSend } = useSlipContext()
   const { toast } = useToast();
   const pathname = usePathname() || "";
   const router = useRouter();
@@ -151,6 +164,20 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   const driverQrScannerRef = useRef<DriverQrScannerHandle | null>(null);
   const lastScannedCodeRef = useRef<string>("");
   const closeScannerRef = useRef<() => void>(() => {});
+
+  const [showQrActionChooser, setShowQrActionChooser] = useState(false)
+  const [qrChooserIdentifying, setQrChooserIdentifying] = useState(false)
+  const [qrChooserLoading, setQrChooserLoading] = useState(false)
+  const [qrIdentify, setQrIdentify] = useState<SlipQrIdentifyResult | null>(null)
+  const [qrChooserActions, setQrChooserActions] = useState<QrScanChooserAction[]>([])
+  const [pendingQrParse, setPendingQrParse] = useState<{
+    caseId: number
+    slipIds: number[]
+    rawText: string
+  } | null>(null)
+  const [showReadyToSendFromQr, setShowReadyToSendFromQr] = useState(false)
+  const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
+  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendFromQr)
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   // When acting as lab admin, treat the session as non-superadmin across the whole UI
@@ -165,8 +192,10 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     !isOfficeSideUser &&
     (isSuperAdmin ||
       hasAnyPermission(["manage_office", "edit_office", "view_office"]))
-  // Scanning is a lab-side workflow; office profiles never handle physical case codes.
-  const canScanCode = !isSuperAdmin && !isOfficeSideUser && !isOfficeCustomerContext() && canDriverScanning
+  // Lab/driver: plan feature. Office: Scan opens V-Slip chooser only.
+  const canScanCode =
+    !isSuperAdmin &&
+    (isOfficeSideUser || isOfficeCustomerContext() || canDriverScanning)
 
   // Sync profile photo from GET /me (session may only have avatar, or stale localStorage)
   useEffect(() => {
@@ -326,6 +355,201 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     qrScanLockRef.current = { text, until: Date.now() + cooldownMs }
   }, [])
 
+  /** Run POST /slip/scan-qr and open the pickup/drop-off modal (does not show chooser). */
+  const commitDriverPickupScan = useCallback(
+    async (caseId: number, slipIds: number[], qrText: string) => {
+      lockQrScan(qrText, 15_000)
+      const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
+
+      const prevData = filterValidQrScanSlips(
+        qrScanDataRef.current && Array.isArray(qrScanDataRef.current.data)
+          ? qrScanDataRef.current.data
+          : []
+      )
+      const outcome = processDriverScanApiResult(res, prevData, slipIds)
+
+      if (outcome.sessionKey) {
+        qrSessionRef.current = outcome.sessionKey
+        saveDriverSessionKey(outcome.sessionKey)
+      }
+
+      if (outcome.alreadyInSession) {
+        if (outcome.response?.data?.length) {
+          setQrScanData(outcome.response)
+          setShowDriverHistoryModal(true)
+        }
+        toast({
+          title: "Already added",
+          description: outcome.message,
+          duration: 4000,
+        })
+        return outcome
+      }
+
+      if (!outcome.ok || !outcome.response?.data?.length) {
+        if (outcome.response) {
+          setQrScanData(outcome.response)
+        } else {
+          setQrScanData((prev: any) => {
+            if (!prev || !Array.isArray(prev.data)) return prev
+            const filtered = filterValidQrScanSlips(
+              prev.data.filter((d: any) => !slipIds.includes(d.slip_id))
+            )
+            if (filtered.length === 0) return null
+            return { ...prev, data: filtered }
+          })
+        }
+        toast({
+          title: "QR Scan Failed",
+          description: outcome.message,
+          variant: "destructive",
+          duration: 5000,
+        })
+        return outcome
+      }
+
+      qrScanLockRef.current = { text: qrText, until: Number.MAX_SAFE_INTEGER }
+      scannedQrTextsRef.current.add(qrText)
+
+      setQrScanData(outcome.response)
+      setShowDriverHistoryModal(true)
+
+      toast({
+        title: "QR Scan Successful",
+        description: `Added ${outcome.validSlips.length} slip(s) for delivery`,
+        duration: 3000,
+      })
+      return outcome
+    },
+    [lockQrScan, scanQrCode, toast],
+  )
+
+  const openQrActionChooser = useCallback(
+    async (caseId: number, slipIds: number[], rawText: string) => {
+      setPendingQrParse({ caseId, slipIds, rawText })
+      setQrIdentify(null)
+      setQrChooserActions([])
+      setShowQrActionChooser(true)
+      setQrChooserIdentifying(true)
+      try {
+        const identify = await fetchSlipQrIdentify(slipIds[0], caseId)
+        setQrIdentify(identify)
+
+        const primaryRole = getPrimaryRole(user)
+        let audience = resolveQrScanAudience(primaryRole)
+        if (isOfficeSideUser || isOfficeCustomerContext()) {
+          audience = "office"
+        } else if (userRoles.includes("lab_driver") && primaryRole === "lab_driver") {
+          audience = "driver"
+        }
+
+        const actions = buildQrScanChooserActions({
+          audience,
+          locationRef: {
+            locationId: identify.locationId,
+            location: identify.location,
+          },
+          canPickupDropoff:
+            audience === "driver" || hasPermission("pickup_drop_off"),
+        })
+        setQrChooserActions(actions)
+      } catch (error) {
+        console.error("QR identify error:", error)
+        setShowQrActionChooser(false)
+        toast({
+          title: "Could not identify slip",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Failed to look up this slip QR code.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      } finally {
+        setQrChooserIdentifying(false)
+      }
+    },
+    [user, isOfficeSideUser, userRoles, hasPermission, toast],
+  )
+
+  const handleQrChooserSelect = useCallback(
+    async (actionId: QrScanChooserActionId) => {
+      if (!pendingQrParse || !qrIdentify) return
+
+      if (actionId === "view_vslip") {
+        setShowQrActionChooser(false)
+        router.push(buildVirtualSlipPath(qrIdentify.caseId, qrIdentify.slipId))
+        return
+      }
+
+      if (actionId === "ready_to_send") {
+        setShowQrActionChooser(false)
+        setShowReadyToSendFromQr(true)
+        return
+      }
+
+      if (actionId === "pickup" || actionId === "dropoff") {
+        setQrChooserLoading(true)
+        try {
+          await commitDriverPickupScan(
+            pendingQrParse.caseId,
+            pendingQrParse.slipIds,
+            pendingQrParse.rawText,
+          )
+          setShowQrActionChooser(false)
+        } catch (error) {
+          console.error("QR pickup scan error:", error)
+          toast({
+            title: "QR Scan Error",
+            description: "Failed to start pick up / drop off.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        } finally {
+          setQrChooserLoading(false)
+        }
+      }
+    },
+    [pendingQrParse, qrIdentify, router, commitDriverPickupScan, toast],
+  )
+
+  const handleReadyToSendFromQr = useCallback(
+    async (signature: string) => {
+      if (!qrIdentify) return
+      setReadyToSendSubmitting(true)
+      try {
+        const res = await readyToSend(qrIdentify.slipId, signature)
+        if (res?.success !== false) {
+          toast({
+            title: "Success",
+            description: res?.message || "Slip marked as ready to pick up.",
+            duration: 3000,
+          })
+          setShowReadyToSendFromQr(false)
+          setQrIdentify(null)
+          setPendingQrParse(null)
+        } else {
+          toast({
+            title: "Error",
+            description: res?.message ?? "Could not mark slip ready to pick up.",
+            variant: "destructive",
+            duration: 5000,
+          })
+        }
+      } catch {
+        toast({
+          title: "Error",
+          description: "Could not mark slip ready to pick up.",
+          variant: "destructive",
+          duration: 5000,
+        })
+      } finally {
+        setReadyToSendSubmitting(false)
+      }
+    },
+    [qrIdentify, readyToSend, toast],
+  )
+
   // Handle successful scan
   const handleScanSuccess = useCallback(
     async (text: string, format: string = "QR_CODE") => {
@@ -404,89 +628,38 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             return
           }
 
-          // Lock before the API call so a failed scan cannot loop on the same QR.
-          lockQrScan(text, 15_000)
-
-          try {
-            const res: any = await scanQrCode(caseId, slipIds, qrSessionRef.current || undefined)
-
-            const prevData = filterValidQrScanSlips(
-              qrScanDataRef.current && Array.isArray(qrScanDataRef.current.data)
-                ? qrScanDataRef.current.data
-                : []
-            )
-            const outcome = processDriverScanApiResult(res, prevData, slipIds)
-
-            if (outcome.sessionKey) {
-              qrSessionRef.current = outcome.sessionKey
-              saveDriverSessionKey(outcome.sessionKey)
-            }
-
-            if (outcome.alreadyInSession) {
-              if (outcome.response?.data?.length) {
-                setQrScanData(outcome.response)
-                setShowDriverHistoryModal(true)
+          // Active pickup/drop-off session → existing scan-qr flow (no V-Slip chooser).
+          if (hasActiveDriverPickupSession() || Boolean(qrSessionRef.current)) {
+            lockQrScan(text, 15_000)
+            try {
+              const outcome = await commitDriverPickupScan(
+                caseId,
+                slipIds,
+                parsedDriverQr.rawText,
+              )
+              if (outcome?.ok) {
+                const successHistory = [scanResult, ...scanHistory].slice(0, 100)
+                setScanHistory(successHistory)
+                saveScanHistory(successHistory)
               }
+            } catch (error) {
+              console.error("QR scan error:", error)
               toast({
-                title: "Already added",
-                description: outcome.message,
-                duration: 4000,
-              })
-              return
-            }
-
-            if (!outcome.ok || !outcome.response?.data?.length) {
-              if (outcome.response) {
-                setQrScanData(outcome.response)
-              } else {
-                setQrScanData((prev: any) => {
-                  if (!prev || !Array.isArray(prev.data)) return prev
-                  const filtered = filterValidQrScanSlips(
-                    prev.data.filter((d: any) => !slipIds.includes(d.slip_id))
-                  )
-                  if (filtered.length === 0) return null
-                  return { ...prev, data: filtered }
-                })
-              }
-              toast({
-                title: "QR Scan Failed",
-                description: outcome.message,
+                title: "QR Scan Error",
+                description: "Failed to scan QR code",
                 variant: "destructive",
                 duration: 5000,
               })
-              return
+            } finally {
+              closeScannerRef.current()
             }
-
-            // Success: keep this QR blocked for the rest of the driver session.
-            qrScanLockRef.current = { text, until: Number.MAX_SAFE_INTEGER }
-            scannedQrTextsRef.current.add(parsedDriverQr.rawText)
-
-            const successHistory = [scanResult, ...scanHistory].slice(0, 100)
-            setScanHistory(successHistory)
-            saveScanHistory(successHistory)
-
-            setQrScanData(outcome.response)
-            setShowDriverHistoryModal(true)
-
-            toast({
-              title: "QR Scan Successful",
-              description: `Added ${outcome.validSlips.length} slip(s) for delivery`,
-              duration: 3000,
-            })
-          } catch (error) {
-            console.error("QR scan error:", error)
-            toast({
-              title: "QR Scan Error",
-              description: "Failed to scan QR code",
-              variant: "destructive",
-              duration: 5000,
-            })
-          } finally {
-            // Always stop the camera after handling a case/slip QR so it does not
-            // keep re-firing /scan-qr with the same slip.
-            closeScannerRef.current()
+            return
           }
 
+          // First scan outside a session → identify + action chooser (no location change yet).
+          closeScannerRef.current()
+          lockQrScan(text, 8_000)
+          await openQrActionChooser(caseId, slipIds, parsedDriverQr.rawText)
           return
         }
 
@@ -517,10 +690,11 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
       validateScanResult,
       batchMode,
       toast,
-      scanQrCode,
       stopActiveDecoder,
       isQrScanLocked,
       lockQrScan,
+      commitDriverPickupScan,
+      openQrActionChooser,
     ],
   )
 
@@ -1147,6 +1321,43 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         </DialogContent>
       </Dialog>
 
+      {/* QR post-identify action chooser (outside an active pickup session) */}
+      <QrScanActionChooser
+        open={showQrActionChooser}
+        identifying={qrChooserIdentifying}
+        loading={qrChooserLoading}
+        caseId={qrIdentify?.caseId}
+        slipNumber={qrIdentify?.slipNumber}
+        patientName={qrIdentify?.patientName}
+        location={qrIdentify?.location}
+        officeLabel={qrIdentify?.officeLabel}
+        actions={qrChooserActions}
+        onSelect={handleQrChooserSelect}
+        onClose={() => {
+          if (qrChooserLoading || qrChooserIdentifying) return
+          setShowQrActionChooser(false)
+          setPendingQrParse(null)
+          setQrIdentify(null)
+          setQrChooserActions([])
+        }}
+      />
+
+      <ReadyToSendModal
+        open={showReadyToSendFromQr}
+        onClose={() => {
+          if (!readyToSendSubmitting) setShowReadyToSendFromQr(false)
+        }}
+        onConfirm={handleReadyToSendFromQr}
+        submitting={readyToSendSubmitting}
+        slipId={qrIdentify?.slipId ?? 0}
+        office={qrIdentify?.officeLabel}
+        patientName={qrIdentify?.patientName}
+        slipNumber={qrIdentify?.slipNumber}
+        location={qrIdentify?.location}
+        title="Mark Ready to Pick Up"
+        signatureRequired={readyToSendRequired}
+      />
+
       {/* Driver History Modal */}
       {qrScanData && Array.isArray(qrScanData.data) && qrScanData.data.length > 0 && (
         <DriverHistoryModal
@@ -1176,6 +1387,40 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             scannedQrTextsRef.current.clear();
             saveDriverSessionKey(null);
             clearDriverScanBatch();
+          }}
+          onQrBatchChange={(remaining) => {
+            const remainingCaseIds = new Set(remaining.map((s) => s.case_id))
+            for (const text of [...scannedQrTextsRef.current]) {
+              const parsed = parseDriverQrText(text)
+              if (parsed && !remainingCaseIds.has(parsed.case_id)) {
+                scannedQrTextsRef.current.delete(text)
+              }
+            }
+            if (!remaining.length) {
+              setQrScanData(null)
+              clearDriverScanBatch()
+              return
+            }
+            setQrScanData((prev: any) => {
+              const next = {
+                ...(prev && typeof prev === "object" ? prev : { success: true }),
+                data: remaining,
+                scanned_cases_count: remaining.length,
+              }
+              persistDriverScanBatch(next)
+              return next
+            })
+          }}
+          onClearBatch={() => {
+            setShowDriverHistoryModal(false)
+            setQrScanData(null)
+            scannedQrTextsRef.current.clear()
+            if (qrSessionRef.current) {
+              void clearDriverSession(qrSessionRef.current)
+              qrSessionRef.current = null
+            }
+            saveDriverSessionKey(null)
+            clearDriverScanBatch()
           }}
         />
       )}
