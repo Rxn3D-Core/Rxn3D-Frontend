@@ -20,6 +20,10 @@ export type PickupDeliveryEntry = {
   location_id?: number;
   customer_code?: string;
   customer_id?: number;
+  /** Formatted lab street address for Directions / Google Maps. */
+  lab_address?: string;
+  /** Formatted office street address for Directions / Google Maps. */
+  office_address?: string;
   /** When false, lab drop-off may skip photo/signature (fully digital). */
   has_physical_impression?: boolean;
 };
@@ -29,6 +33,33 @@ function firstStr(...values: unknown[]): string {
     if (v != null && String(v).trim() !== "") return String(v).trim();
   }
   return "";
+}
+
+function joinAddressParts(...parts: unknown[]): string {
+  return parts
+    .map((p) => (p != null ? String(p).trim() : ""))
+    .filter(Boolean)
+    .join(", ");
+}
+
+function customerAddressFromRecord(
+  customer: Record<string, unknown> | undefined
+): string {
+  if (!customer) return "";
+  return firstStr(
+    customer.full_address,
+    joinAddressParts(
+      customer.address,
+      customer.city,
+      typeof customer.state === "object" && customer.state
+        ? (customer.state as Record<string, unknown>).name
+        : customer.state,
+      customer.postal_code,
+      typeof customer.country === "object" && customer.country
+        ? (customer.country as Record<string, unknown>).name
+        : customer.country
+    )
+  );
 }
 
 function firstNum(...values: unknown[]): number | undefined {
@@ -106,6 +137,15 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
         ? slipHasPhysicalImpression(raw)
         : undefined;
 
+  const labAddress = firstStr(
+    raw.lab_address,
+    customerAddressFromRecord(lab as Record<string, unknown> | undefined)
+  );
+  const officeAddress = firstStr(
+    raw.office_address,
+    customerAddressFromRecord(office as Record<string, unknown> | undefined)
+  );
+
   return {
     id: `virtual-slip-${slipId}`,
     office: officeDisplay,
@@ -125,6 +165,8 @@ export function buildPickupDeliveryEntryFromSlip(slip: unknown): PickupDeliveryE
     location_id: locationId,
     customer_code: officeCode || undefined,
     customer_id: customerId,
+    lab_address: labAddress || undefined,
+    office_address: officeAddress || undefined,
     has_physical_impression: hasPhysical,
   };
 }

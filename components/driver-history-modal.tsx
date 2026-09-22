@@ -25,6 +25,8 @@ import {
   slipIsOfficeDropoff,
   slipIsLabDropoff,
   slipHasPhysicalImpression,
+  googleMapsSearchUrl,
+  slipDirectionsAddress,
   type SlipPickupDropoffAction,
 } from "@/lib/slip-location"
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
@@ -71,6 +73,54 @@ function DirectionsIcon() {
       <path d="M28.5882 6.60045C28.5882 11.2938 23.7667 13.9933 23.7667 13.9933C23.7667 13.9933 18.9453 11.2938 18.9453 6.60045C18.9453 5.29331 19.4533 4.03971 20.3575 3.11542C21.2617 2.19113 22.488 1.67188 23.7667 1.67188C25.0455 1.67188 26.2718 2.19113 27.176 3.11542C28.0802 4.03971 28.5882 5.29331 28.5882 6.60045Z" stroke="#1162A8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M6.08789 24.6725H25.1412C26.6897 24.6725 27.945 23.4172 27.945 21.8687V21.8687C27.945 20.3202 26.6897 19.0649 25.1412 19.0649H20.3172C18.9623 19.0649 17.8639 17.9665 17.8639 16.6115V16.6115C17.8639 15.2566 18.9623 14.1582 20.3172 14.1582H24.2486" stroke="#1162A8" strokeWidth="1.5" />
     </svg>
+  )
+}
+
+/** Opens Google Maps for the lab/office address where the slip is going. */
+function DirectionsLink({
+  locationId,
+  location,
+  labAddress,
+  officeAddress,
+  className,
+}: {
+  locationId?: number
+  location: string
+  labAddress?: string
+  officeAddress?: string
+  className?: string
+}) {
+  const address = slipDirectionsAddress(
+    { locationId, location },
+    { labAddress, officeAddress }
+  )
+  const href = googleMapsSearchUrl(address)
+  if (!href || !address) {
+    return (
+      <span
+        className={cn("inline-flex opacity-40", className)}
+        title="Address unavailable"
+        aria-label="Directions unavailable"
+      >
+        <DirectionsIcon />
+      </span>
+    )
+  }
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "inline-flex rounded-md p-0.5 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1162A8]",
+        className
+      )}
+      title={`Open directions to ${address}`}
+      aria-label={`Open Google Maps directions to ${address}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <DirectionsIcon />
+    </a>
   )
 }
 
@@ -139,6 +189,8 @@ export default function DriverHistoryModal({
           : Number(item.location_id) || undefined,
       customer_code: item.customer_code,
       customer_id: item.customer_id,
+      lab_address: firstNonEmpty(item.lab_address) || undefined,
+      office_address: firstNonEmpty(item.office_address) || undefined,
       // Missing flag ⇒ assume physical so lab drop-off still requires a photo.
       has_physical_impression:
         typeof item.has_physical_impression === "boolean"
@@ -794,7 +846,16 @@ export default function DriverHistoryModal({
                               className="h-5 w-5 shrink-0"
                             />
                           ) : null}
-                          <span className="leading-snug">{entry.location || "—"}</span>
+                          <span className="min-w-0 flex-1 leading-snug">{entry.location || "—"}</span>
+                          {!isManual ? (
+                            <DirectionsLink
+                              locationId={entry.location_id}
+                              location={entry.location}
+                              labAddress={entry.lab_address}
+                              officeAddress={entry.office_address}
+                              className="shrink-0"
+                            />
+                          ) : null}
                         </div>
                         <div className="mt-3 flex justify-end">
                           {isManual ? (
@@ -913,7 +974,14 @@ export default function DriverHistoryModal({
                               )}
                             </td>
                             <td className="px-2 py-4 text-center align-middle">
-                              {!isManual ? <DirectionsIcon /> : null}
+                              {!isManual ? (
+                                <DirectionsLink
+                                  locationId={entry.location_id}
+                                  location={entry.location}
+                                  labAddress={entry.lab_address}
+                                  officeAddress={entry.office_address}
+                                />
+                              ) : null}
                             </td>
                             <td className="px-2 py-4 text-center align-middle">
                               <Checkbox
