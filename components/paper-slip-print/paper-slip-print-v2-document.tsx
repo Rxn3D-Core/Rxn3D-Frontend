@@ -42,6 +42,17 @@ const SLIP_W_IN = SLIP_W / 96;
 const SLIP_H_IN = SLIP_H / 96;
 
 /**
+ * iOS AirPrint scales printed content to fit the paper WIDTH. The slip is
+ * narrower/taller than Letter portrait, so fit-to-width scales it up and the
+ * single slip spills onto 2–3 pages (Mac Safari / Chrome honor physical mm and
+ * stay on one page). Give each iOS sheet the Letter-portrait aspect ratio
+ * (width = height × 8.5/11) with the slip centered; fit-to-width and contain
+ * then both resolve to exactly one page. 8.5×11in is the printable reference.
+ */
+const LETTER_PORTRAIT_ASPECT = 8.5 / 11;
+const IOS_SHEET_W_MM = (SLIP_H_IN * LETTER_PORTRAIT_ASPECT * 25.4).toFixed(2);
+
+/**
  * Full-page portrait.
  * - Default (iOS AirPrint): print at physical mm size — no zoom/transform.
  * - Desktop fill: slight zoom + padding, but each sheet stays under one page
@@ -789,6 +800,43 @@ function fullPagePrintCss(): string {
           .paper-slip-v2-print-fill .paper-slip-v2-section {
             zoom: ${FULL_DESKTOP_ZOOM} !important;
             max-height: calc(${FULL_PAGE_MAX_H_MM}mm - ${FULL_DESKTOP_PAD_MM * 2}mm) !important;
+          }
+
+          /*
+           * iOS AirPrint: force each sheet to the Letter-portrait aspect ratio
+           * (width = height × 8.5/11) so fit-to-width scaling maps one slip to
+           * exactly one page instead of spilling onto 2–3 pages. The slip keeps
+           * its physical mm size and is centered inside the taller sheet.
+           */
+          .paper-slip-v2-print-ios .paper-slip-v2-sheet {
+            box-sizing: border-box !important;
+            width: ${IOS_SHEET_W_MM}mm !important;
+            max-width: ${IOS_SHEET_W_MM}mm !important;
+            height: ${SLIP_H_MM}mm !important;
+            max-height: ${SLIP_H_MM}mm !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: page !important;
+            page-break-after: always !important;
+          }
+          .paper-slip-v2-print-ios .paper-slip-v2-sheet:last-of-type {
+            break-after: auto !important;
+            page-break-after: auto !important;
+          }
+          .paper-slip-v2-print-ios .paper-slip-v2-section {
+            width: ${SLIP_W_MM}mm !important;
+            height: ${SLIP_H_MM}mm !important;
+            max-width: ${SLIP_W_MM}mm !important;
+            max-height: ${SLIP_H_MM}mm !important;
+            flex-shrink: 0 !important;
+            transform: none !important;
+            zoom: normal !important;
           }
         }
   `;
