@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useCallback } from "react"
 import { useToast } from "@/components/ui/use-toast"
 
 // Types for registration data
-export type UserRole = "lab_admin" | "lab_user" | "office_admin" | "doctor" | "office_user"
+export type UserRole = "lab_admin" | "lab_user" | "lab_driver" | "office_admin" | "doctor" | "office_user"
 
 export interface RegistrationUser {
   first_name: string

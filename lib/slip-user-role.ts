@@ -1,6 +1,6 @@
 /** Lab roles that may run driver / due-date / ready-to-send slip actions. */
 export function isLabSlipUserRole(role: string | null | undefined): boolean {
-  return role === "lab_admin" || role === "lab_user"
+  return role === "lab_admin" || role === "lab_user" || role === "lab_driver"
 }
 
 /**

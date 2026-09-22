@@ -607,6 +607,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     if (userRoles.includes("office_admin")) return "Office Admin"
     if (userRoles.includes("doctor_admin")) return "Doctor Admin"
     if (userRoles.includes("lab_user")) return "Lab User"
+    if (userRoles.includes("lab_driver")) return "Lab Driver"
     if (userRoles.includes("office_user")) return "Office User"
     if (userRoles.includes("doctor")) return "Doctor"
     return "User"

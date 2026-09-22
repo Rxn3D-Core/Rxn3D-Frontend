@@ -12,6 +12,8 @@ export function getAddUserButtonLabel(role?: string | null): string {
       return "Add Lab Admin"
     case "lab_user":
       return "Add Lab User"
+    case "lab_driver":
+      return "Add Lab Driver"
     case "office_admin":
       return "Add Office Admin"
     case "office_user":
@@ -32,6 +34,8 @@ export function getCreateUserTitle(role?: string | null): string {
       return "Create Lab Admin"
     case "lab_user":
       return "Create Lab User"
+    case "lab_driver":
+      return "Create Lab Driver"
     case "office_admin":
       return "Create Office Admin"
     case "office_user":
@@ -52,6 +56,8 @@ export function getRoleDisplayLabel(role?: string | null): string {
       return "Lab Admin"
     case "lab_user":
       return "Lab User"
+    case "lab_driver":
+      return "Lab Driver"
     case "office_admin":
       return "Office Admin"
     case "office_user":

@@ -677,7 +677,7 @@ export default function ChargeManagementPage() {
     if (!customerId) return {}
     const roles = user?.roles?.length ? user.roles : user?.role ? [user.role] : []
     const r = roles[0] ?? ""
-    if (r === "lab_admin" || r === "lab_user") return { lab_id: customerId }
+    if (r === "lab_admin" || r === "lab_user" || r === "lab_driver") return { lab_id: customerId }
     if (r === "office_admin" || r === "office_user") return { office_id: customerId }
     if (customerProfile?.type === "lab") return { lab_id: customerId }
     if (customerProfile?.type === "office") return { office_id: customerId }

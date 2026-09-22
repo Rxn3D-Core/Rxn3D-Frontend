@@ -12,6 +12,7 @@ export function getPrimaryRole(user?: UserWithRoles): string {
     if (user.roles.includes("superadmin")) return "superadmin"
     if (user.roles.includes("lab_admin")) return "lab_admin"
     if (user.roles.includes("lab_user")) return "lab_user"
+    if (user.roles.includes("lab_driver")) return "lab_driver"
     if (user.roles.includes("office_admin")) return "office_admin"
     if (user.roles.includes("office_user")) return "office_user"
     if (user.roles.includes("doctor_admin")) return "doctor_admin"

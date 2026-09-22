@@ -63,6 +63,7 @@ export function UserForm({
         ? [
           { value: "lab_admin", label: "Admin" },
           { value: "lab_user", label: "User" },
+          { value: "lab_driver", label: "Driver" },
         ]
         : [
           { value: "office_admin", label: "Admin" },

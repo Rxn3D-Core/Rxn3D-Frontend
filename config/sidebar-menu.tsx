@@ -269,6 +269,12 @@ export const labAdminMenu: MenuItem[] = [
         permission: ["manage_users", "create_user", "edit_user", "view_users"],
       },
       {
+        id: "lab-drivers",
+        title: "Lab Drivers",
+        path: "/lab-administrator/lab-drivers",
+        permission: ["manage_users", "create_user", "edit_user", "view_users"],
+      },
+      {
         id: "lab-schedule",
         title: "Lab Schedule",
         path: "/lab-administrator/lab-schedule",

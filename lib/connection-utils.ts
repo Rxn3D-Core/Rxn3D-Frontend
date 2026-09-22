@@ -8,7 +8,7 @@ export function categorizeConnections(
   connections: Connection[],
   role: string,
 ): { practices: Connection[]; labs: Connection[] } {
-  const isLabSide = role === "lab_admin" || role === "lab_user" || role === "superadmin"
+  const isLabSide = role === "lab_admin" || role === "lab_user" || role === "lab_driver" || role === "superadmin"
 
   if (isLabSide) {
     return { practices: connections, labs: [] }

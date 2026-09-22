@@ -14,8 +14,7 @@ import { useCreateUserInvitation } from "@/hooks/use-user-invitations"
 const LAB_ROLE_OPTIONS = [
   { value: "lab_user", label: "Lab User" },
   { value: "lab_admin", label: "Lab Admin" },
-  // Driver pickup/delivery is handled by lab_user — no separate lab_driver role.
-  // { value: "lab_driver", label: "Lab Driver" },
+  { value: "lab_driver", label: "Lab Driver" },
 ]
 
 export default function InviteLabTeamPage() {

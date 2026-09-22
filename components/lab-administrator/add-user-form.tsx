@@ -111,10 +111,10 @@ const getRoleOptions = (customerType: string | null) => {
       { value: "doctor", label: "Doctor" },
     ]
   }
-  // Default to lab roles. Driver pickup/delivery uses lab_user — no separate lab_driver role.
   return [
     { value: "lab_admin", label: "Lab Admin" },
     { value: "lab_user", label: "Lab User" },
+    { value: "lab_driver", label: "Lab Driver" },
   ]
 }
 

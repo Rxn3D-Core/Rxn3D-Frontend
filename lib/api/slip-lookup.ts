@@ -36,7 +36,7 @@ function resolveUserRole(): string | null {
 }
 
 function isLabListingRole(role: string | null): boolean {
-  return role === "lab_admin" || role === "lab_user"
+  return role === "lab_admin" || role === "lab_user" || role === "lab_driver"
 }
 
 function unwrapLabListingRows(payload: unknown): LabSlipListingRow[] {

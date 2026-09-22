@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast"
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 // Roles that should see the multi-location screen
-const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "office_admin", "office_user"]
+const MULTI_LOCATION_ROLES = ["lab_admin", "lab_user", "lab_driver", "office_admin", "office_user"]
 
 export interface LoginRequest {
   identifier: string
