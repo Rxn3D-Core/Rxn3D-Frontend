@@ -42,11 +42,22 @@ const SLIP_W_IN = SLIP_W / 96;
 const SLIP_H_IN = SLIP_H / 96;
 
 /**
- * Full-page portrait. Do not use transform:scale or zoom in print — iOS AirPrint
- * paginates that ink into blank pages 2–3 even when page 1 looks half-empty.
- * Print the artboard at its physical mm size (fits Letter and A4).
+ * Full-page portrait.
+ * - Default (iOS AirPrint): print at physical mm size — no zoom/transform.
+ * - Desktop fill: slight zoom + padding, but each sheet stays under one page
+ *   (bulk: N slips → N pages, never N+1 blank).
  */
-const FULL_PAGE_MAX_H_MM = 270;
+const FULL_PAGE_MAX_H_MM = 250;
+/** Outer margin around the slip on desktop fill (mm each side). */
+const FULL_DESKTOP_PAD_MM = 8;
+/** Zoom into the padded area; never exceed FULL_PAGE_MAX_H_MM including pad. */
+const FULL_DESKTOP_ZOOM = (
+  Math.min(
+    1.08,
+    (FULL_PAGE_MAX_H_MM - FULL_DESKTOP_PAD_MM * 2) / ((SLIP_H / 96) * 25.4),
+    (210 - FULL_DESKTOP_PAD_MM * 2) / ((SLIP_W / 96) * 25.4),
+  )
+).toFixed(4);
 
 /**
  * Half-page slot on landscape Letter: 5.5in × 8.5in. Use zoom (layout-aware)
@@ -683,7 +694,7 @@ function sharedPrintChromeCss(): string {
             width: auto !important;
             height: auto !important;
             max-height: none !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           main {
@@ -720,8 +731,9 @@ function fullPagePrintCss(): string {
 
         @media print {
           /*
-           * iOS AirPrint: no transform/zoom and no fixed page-height box.
-           * Those are what turned 1 slip into Pages 1–3 (blank trailing sheets).
+           * One slip = one page. Cap height + overflow:hidden so break-inside:avoid
+           * does not shove a slightly-tall sheet onto the next page (blank gap).
+           * Break AFTER each sheet except the last — never a trailing blank page.
            */
           .paper-slip-v2-sheet {
             box-sizing: border-box;
@@ -738,13 +750,13 @@ function fullPagePrintCss(): string {
             align-items: flex-start !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            break-after: avoid !important;
-            page-break-after: avoid !important;
+            break-after: page !important;
+            page-break-after: always !important;
           }
 
-          .paper-slip-v2-sheet + .paper-slip-v2-sheet {
-            break-before: page !important;
-            page-break-before: always !important;
+          .paper-slip-v2-sheet:last-of-type {
+            break-after: auto !important;
+            page-break-after: auto !important;
           }
 
           .paper-slip-v2-section {
@@ -761,6 +773,22 @@ function fullPagePrintCss(): string {
             zoom: normal !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
+          }
+
+          /* Mac/desktop: enlarge with breathing room; still clipped to one page. */
+          .paper-slip-v2-print-fill .paper-slip-v2-sheet {
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 210mm !important;
+            max-height: ${FULL_PAGE_MAX_H_MM}mm !important;
+            padding: ${FULL_DESKTOP_PAD_MM}mm !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            overflow: hidden !important;
+          }
+          .paper-slip-v2-print-fill .paper-slip-v2-section {
+            zoom: ${FULL_DESKTOP_ZOOM} !important;
+            max-height: calc(${FULL_PAGE_MAX_H_MM}mm - ${FULL_DESKTOP_PAD_MM * 2}mm) !important;
           }
         }
   `;

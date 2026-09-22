@@ -13,9 +13,9 @@
 | **Full page** | Portrait (`@page size: auto`) | 1 slip / Letter sheet, scaled up to fill (clip `8.5×11in`) | Use as-is |
 | **Half page** | Landscape Letter | 2 slips side by side (`5.5" × 8.5"` each, scaled) | Cut on dashed center line; each half is a portrait slip |
 
-## iOS one-page rule
+## Bulk full-page: N slips → N pages
 
-AirPrint on iPhone invents blank pages when print CSS uses `transform: scale`, `zoom` (unreliably), or a fixed full-page `height` (e.g. `11in`). Full-page portrait therefore prints the Figma artboard at **mm size only** (`~166 × 235mm`) inside a `max-height: 270mm` sheet.
+Each `.paper-slip-v2-sheet` gets `page-break-after: always` except `:last-of-type`. Sheet `max-height: 250mm` + `overflow: hidden` so a slightly tall slip cannot leave a blank page before the next (Safari `break-inside: avoid` quirk). Print root must not use `max-height` (that clipped slip 2+).
 
 ## Files
 

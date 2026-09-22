@@ -34,6 +34,19 @@ function prefersInPlacePrint(): boolean {
   return /safari/i.test(ua) && !/chrome|chromium|crios|fxios|edg/i.test(ua);
 }
 
+/** True iPhone/iPad — keep unscaled print to avoid AirPrint blank pages. */
+function isIOSDevice(): boolean {
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return true;
+  // iPadOS desktop UA
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
+/** Wrap slip HTML so desktop print CSS can zoom-to-fill (class in document styles). */
+function withDesktopPrintFill(html: string): string {
+  if (isIOSDevice()) return html;
+  return `<div class="paper-slip-v2-print-fill">${html}</div>`;
+}
+
 // iOS + desktop Safari: iframe.contentWindow.print() is unreliable (onload may
 // never fire after document.write; removing the iframe cancels the sheet).
 // Mount the slip on the current page and print the page itself instead.
@@ -70,7 +83,7 @@ function printHtmlInPlace(html: string): void {
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         height: auto !important;
       }
       body > :not(#${MOBILE_PRINT_ROOT_ID}) { display: none !important; }
@@ -79,8 +92,9 @@ function printHtmlInPlace(html: string): void {
         position: relative !important;
         width: auto !important;
         height: auto !important;
-        max-height: 270mm !important;
-        overflow: hidden !important;
+        /* Never cap the root — that clipped slip #2+ and invented blank pages. */
+        max-height: none !important;
+        overflow: visible !important;
         clip: auto !important;
         clip-path: none !important;
         pointer-events: auto !important;
@@ -88,10 +102,8 @@ function printHtmlInPlace(html: string): void {
         margin: 0 !important;
         padding: 0 !important;
       }
-      #${MOBILE_PRINT_ROOT_ID} .paper-slip-v2-sheet,
+      /* Per-sheet page breaks live in document CSS; do not force avoid on sheets. */
       #${MOBILE_PRINT_ROOT_ID} .paper-slip-v2-section {
-        break-after: avoid !important;
-        page-break-after: avoid !important;
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
@@ -102,7 +114,7 @@ function printHtmlInPlace(html: string): void {
   const root = document.createElement("div");
   root.id = MOBILE_PRINT_ROOT_ID;
   root.setAttribute("aria-hidden", "true");
-  root.innerHTML = html;
+  root.innerHTML = withDesktopPrintFill(html);
   document.body.appendChild(root);
 
   // Let Safari finish layout/paint of the injected slip before opening the sheet.
@@ -179,7 +191,7 @@ function printHtmlInIframe(html: string): void {
 
   doc.open();
   doc.write(
-    `<!DOCTYPE html><html class="${rootClass}"><head><style>body{margin:0}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${html}</body></html>`,
+    `<!DOCTYPE html><html class="${rootClass}"><head><style>body{margin:0}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${withDesktopPrintFill(html)}</body></html>`,
   );
   doc.close();
 
