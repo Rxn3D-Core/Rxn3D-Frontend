@@ -529,10 +529,12 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
   const dueDisplay = [header.dueDate, header.deliveryTime].filter(Boolean).join(" @ ");
 
   return (
+    // One Letter sheet per slip. Custom @page sizes are ignored by iOS AirPrint
+    // (preview forces US Letter); without a fixed 8.5×11 clip, scaled tooth-chart
+    // overflow spills into blank pages 2–3.
+    <div className="paper-slip-v2-sheet">
     <article
-      className={`paper-slip-v2-section relative mx-auto flex flex-col items-center overflow-hidden ${
-        section.pageBreakBefore ? "paper-slip-v2-page-break" : ""
-      }`}
+      className="paper-slip-v2-section relative mx-auto flex flex-col items-center overflow-hidden"
       data-slip-id={slip.slipId}
       style={{
         width: SLIP_W,
@@ -621,6 +623,7 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
         <PaperSlipV2CasePanBlock slip={slip} />
       </div>
     </article>
+    </div>
   );
 }
 
@@ -628,8 +631,10 @@ export function PaperSlipPrintV2Document({ sections }: { sections: PaperSlipPrin
   return (
     <>
       <style>{`
+        /* Letter matches iOS AirPrint / Brother defaults. Custom px @page sizes are
+           ignored on iPhone and caused 1 slip to paginate as 3 Letter sheets. */
         @page {
-          size: ${SLIP_W}px ${SLIP_H}px;
+          size: letter portrait;
           margin: 0;
         }
 
@@ -640,9 +645,19 @@ export function PaperSlipPrintV2Document({ sections }: { sections: PaperSlipPrin
           color-adjust: exact !important;
         }
 
-        /* Larger tooth chart; tight gap under chart to product box */
+        /* Screen: stack slips with breathing room */
+        .paper-slip-v2-sheet {
+          width: ${SLIP_W}px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        /* Larger tooth chart; tight gap under chart to product box.
+           overflow:hidden clips transform ink so print engines don't invent pages. */
         .paper-slip-v2-arch-chart {
           margin-bottom: 4px;
+          overflow: hidden;
+          width: 100%;
         }
         .paper-slip-v2-arch-chart > div {
           max-width: 100% !important;
@@ -657,19 +672,42 @@ export function PaperSlipPrintV2Document({ sections }: { sections: PaperSlipPrin
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            overflow: hidden !important;
+          }
+
+          .paper-slip-v2-sheet {
+            box-sizing: border-box;
+            width: 8.5in !important;
+            height: 11in !important;
+            max-height: 11in !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            break-after: page;
+            page-break-after: always;
+          }
+
+          .paper-slip-v2-sheet:last-child {
+            break-after: auto;
+            page-break-after: auto;
           }
 
           .paper-slip-v2-section {
             box-shadow: none !important;
             width: ${SLIP_W}px !important;
             height: ${SLIP_H}px !important;
+            max-height: 11in !important;
+            overflow: hidden !important;
+            flex-shrink: 0;
             break-inside: avoid;
             page-break-inside: avoid;
-          }
-
-          .paper-slip-v2-page-break {
-            break-before: page;
-            page-break-before: always;
           }
         }
       `}</style>

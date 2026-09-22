@@ -29,7 +29,20 @@ function printHtmlInPlace(html: string): void {
   style.id = `${MOBILE_PRINT_ROOT_ID}-style`;
   style.textContent = `
     @media print {
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        overflow: hidden !important;
+      }
       body > :not(#${MOBILE_PRINT_ROOT_ID}) { display: none !important; }
+      #${MOBILE_PRINT_ROOT_ID} {
+        display: block !important;
+        position: static !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
     }
   `;
   document.head.appendChild(style);

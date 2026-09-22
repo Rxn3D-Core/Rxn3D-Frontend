@@ -13,7 +13,9 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 | Inner white | `628 × 875` (flex-grow) |
 | Section gap | `5px` |
 
-`@page size: 628px 890px; margin: 0;`
+`@page size: letter portrait; margin: 0;`
+
+> **iOS / AirPrint:** Do not use custom `@page` sizes in CSS px (e.g. `628px 890px`). iPhone print sheets ignore them and force the printer paper size (usually US Letter). Unclipped transform overflow then paginates one slip across multiple blank Letter pages. Each slip is wrapped in a `.paper-slip-v2-sheet` that is exactly `8.5in × 11in` with `overflow: hidden` so one slip = one Letter page.
 
 ## Brand lockup
 
