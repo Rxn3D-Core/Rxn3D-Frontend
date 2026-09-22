@@ -87,4 +87,5 @@ export interface V2RowActions {
   onCancel: (row: V2CaseRowData) => void
   onDelete: (row: V2CaseRowData) => void
   onRestore: (row: V2CaseRowData) => void
+  onUndoLocation?: (row: V2CaseRowData) => void
 }

@@ -3,6 +3,11 @@ export function isLabSlipUserRole(role: string | null | undefined): boolean {
   return role === "lab_admin" || role === "lab_user" || role === "lab_driver"
 }
 
+/** Undo location step is restricted to lab admins (and superadmin acting as lab). */
+export function canUndoSlipLocation(role: string | null | undefined): boolean {
+  return role === "lab_admin" || role === "superadmin"
+}
+
 /**
  * Submit or change rush from listing / virtual slip after the case exists.
  * Office profiles may view rush status only; they submit rush during slip creation.
