@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, ty
 import { redirect, useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
+import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
 import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
@@ -494,6 +495,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Apply AuthData to app state, localStorage and navigate accordingly
   const setAuthFromData = (authData: AuthData, identifier?: string): boolean => {
     try {
+      // Fresh login/session — never continue a previous user's driver QR trip.
+      clearDriverQrLocalSession()
+
       setToken(authData.access_token)
       // Navigation is no longer blocked for unverified emails to support auto-login flows.
       // Verification status can be handled via UI banners if needed.

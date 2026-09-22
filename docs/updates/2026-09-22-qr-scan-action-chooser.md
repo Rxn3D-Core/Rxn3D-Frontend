@@ -28,6 +28,9 @@ In the pickup modal, users can:
 Expired keys and `qr_scan_batch_data` are cleared automatically; the next scan shows the
 action chooser again. (Server cache TTL remains 1 hour independently.)
 
+Also cleared on **login** (`setAuthFromData`) and **logout** (`clearSessionStorage`) so
+each auth cycle starts with a fresh driver QR trip.
+
 ### Location actions
 
 Resolved from current slip location via `GET /slip/slip/{id}/details` (identify only):
