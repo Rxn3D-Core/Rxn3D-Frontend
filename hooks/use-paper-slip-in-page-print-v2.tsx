@@ -41,9 +41,14 @@ function isIOSDevice(): boolean {
   return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
 }
 
-/** Wrap slip HTML so desktop print CSS can zoom-to-fill (class in document styles). */
+/**
+ * Wrap slip HTML for the print target (classes live in the document styles):
+ * - iOS: `paper-slip-v2-print-ios` — sheets get Letter-portrait aspect so
+ *   AirPrint's fit-to-width can't spill one slip onto 2–3 pages.
+ * - Other: `paper-slip-v2-print-fill` — desktop zoom-to-fill.
+ */
 function withDesktopPrintFill(html: string): string {
-  if (isIOSDevice()) return html;
+  if (isIOSDevice()) return `<div class="paper-slip-v2-print-ios">${html}</div>`;
   return `<div class="paper-slip-v2-print-fill">${html}</div>`;
 }
 
