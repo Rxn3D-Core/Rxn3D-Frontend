@@ -498,17 +498,6 @@ function PaperSlipV2Footer({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
           </div>
         </div>
       </div>
-
-      {(extras.labPhone || extras.labEmail) && (
-        <div
-          className="flex h-[28px] items-center justify-center px-[15px] text-center font-normal text-[#0A0B0E]"
-          style={{ fontFamily: "Inter, Arial, sans-serif", fontSize: 7, lineHeight: "8px" }}
-        >
-          {extras.labPhone ? `Lab Phone: ${extras.labPhone}` : ""}
-          {extras.labPhone && extras.labEmail ? "  •  " : ""}
-          {extras.labEmail ? `Email: ${extras.labEmail}` : ""}
-        </div>
-      )}
     </div>
   );
 }

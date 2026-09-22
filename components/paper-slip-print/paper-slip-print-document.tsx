@@ -383,14 +383,6 @@ function PaperSlipFooter({ slip }: { slip: PaperSlipPrintableSlipVM }) {
           </div>
         </div>
       </div>
-
-      {(slip.footer.labPhone || slip.footer.labEmail) && (
-        <div className="text-center text-[11px] text-[#4c4d55]">
-          {slip.footer.labPhone ? `Lab Phone: ${slip.footer.labPhone}` : ""}
-          {slip.footer.labPhone && slip.footer.labEmail ? "  •  " : ""}
-          {slip.footer.labEmail ? `Email: ${slip.footer.labEmail}` : ""}
-        </div>
-      )}
     </section>
   );
 }
