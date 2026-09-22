@@ -25,14 +25,18 @@ interface PendingPrint {
 const MOBILE_PRINT_ROOT_ID = "paper-slip-v2-mobile-print-root";
 const HTML_PREVIEW_ROOT_ID = "paper-slip-v2-html-preview-root";
 
-// width ≤1024 covers phones + tablets; avoids UA sniffing
-function isMobileOrTablet(): boolean {
-  return window.innerWidth <= 1024 || /android|ipad|iphone|ipod|mobile/i.test(navigator.userAgent);
+/** Phones/tablets, narrow windows, and desktop Safari (iframe.print is flaky). */
+function prefersInPlacePrint(): boolean {
+  if (window.innerWidth <= 1024) return true;
+  if (/android|ipad|iphone|ipod|mobile/i.test(navigator.userAgent)) return true;
+  const ua = navigator.userAgent;
+  // Desktop Safari: has Safari but not Chrome/Chromium/Edge/Firefox iOS wrappers.
+  return /safari/i.test(ua) && !/chrome|chromium|crios|fxios|edg/i.test(ua);
 }
 
-// iOS Safari's iframe.contentWindow.print() prints the parent page, not the
-// iframe content, so mount the slip on the current page and print the page
-// itself, hiding everything else during print.
+// iOS + desktop Safari: iframe.contentWindow.print() is unreliable (onload may
+// never fire after document.write; removing the iframe cancels the sheet).
+// Mount the slip on the current page and print the page itself instead.
 //
 // Keep the mount invisible on screen so cancel/print doesn't leave a paper-slip
 // preview under the virtual slip. Do not remove on afterprint — iOS fires that
@@ -101,7 +105,10 @@ function printHtmlInPlace(html: string): void {
   root.innerHTML = html;
   document.body.appendChild(root);
 
-  window.print();
+  // Let Safari finish layout/paint of the injected slip before opening the sheet.
+  window.setTimeout(() => {
+    window.print();
+  }, 50);
 }
 
 function printHtmlInIframe(html: string): void {
@@ -122,26 +129,63 @@ function printHtmlInIframe(html: string): void {
   // of the browser's default sans fallback.
   const rootClass = document.documentElement.className || "";
 
-  const doc = iframe.contentDocument!;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html class="${rootClass}"><head><style>body{margin:0}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${html}</body></html>`);
-  doc.close();
+  const doc = iframe.contentDocument;
+  if (!doc || !iframe.contentWindow) {
+    iframe.remove();
+    printHtmlInPlace(html);
+    return;
+  }
 
-  iframe.onload = () => {
+  let didPrint = false;
+  const printAndCleanup = () => {
+    if (didPrint) return;
+    didPrint = true;
     iframe.style.visibility = "visible";
-    const printAndCleanup = () => {
+    try {
+      iframe.contentWindow?.focus();
       iframe.contentWindow?.print();
-      window.setTimeout(() => iframe.remove(), 0);
+    } catch {
+      printHtmlInPlace(html);
+    }
+    // Do NOT remove the iframe on the same tick — Safari cancels the print sheet.
+    const removeIframe = () => {
+      iframe.remove();
+      window.removeEventListener("afterprint", removeIframe);
     };
-    // Wait for the iframe's fonts to be ready so the first (print) paint uses
-    // Inter rather than the fallback face.
+    window.addEventListener("afterprint", removeIframe);
+    window.setTimeout(removeIframe, 60_000);
+  };
+
+  const runWhenReady = () => {
     const fonts = iframe.contentDocument?.fonts;
     if (fonts?.ready) {
-      fonts.ready.then(printAndCleanup).catch(printAndCleanup);
+      const timeout = window.setTimeout(printAndCleanup, 2500);
+      fonts.ready
+        .then(() => {
+          window.clearTimeout(timeout);
+          printAndCleanup();
+        })
+        .catch(printAndCleanup);
     } else {
       printAndCleanup();
     }
   };
+
+  // Assign onload BEFORE write/close. Safari often skips onload if the handler
+  // is attached after document.write when readyState is already "complete".
+  iframe.onload = () => {
+    runWhenReady();
+  };
+
+  doc.open();
+  doc.write(
+    `<!DOCTYPE html><html class="${rootClass}"><head><style>body{margin:0}</style>${styleLinks}${inlineStyles}</head><body class="font-sans">${html}</body></html>`,
+  );
+  doc.close();
+
+  if (doc.readyState === "complete") {
+    window.setTimeout(runWhenReady, 0);
+  }
 }
 
 function ensureMountNode(htmlPreview: boolean): HTMLDivElement {
@@ -171,7 +215,7 @@ export function usePaperSlipInPagePrintV2() {
 
   const handleReady = useCallback((html: string) => {
     setJob(null);
-    if (isMobileOrTablet()) {
+    if (prefersInPlacePrint()) {
       printHtmlInPlace(html);
     } else {
       printHtmlInIframe(html);
