@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { LabBillingPageHeader } from "@/components/billing/lab-billing-page-header"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import {
+  CHARGE_MANAGEMENT_DEFAULT_SORT_BY,
+  CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
   CHARGE_MANAGEMENT_PER_PAGE,
   CHARGE_MANAGEMENT_PER_PAGE_OPTIONS,
   defaultChargeManagementFilters,
@@ -12,6 +14,8 @@ import {
   saveChargeManagementFilters,
   type ChargeManagementFiltersPrefs,
   type ChargeManagementPerPage,
+  type ChargeManagementSortBy,
+  type ChargeManagementSortDirection,
 } from "@/lib/charge-management-preferences"
 import {
   Filter,
@@ -30,6 +34,9 @@ import {
   ExternalLink,
   FileText,
   Check,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -371,6 +378,47 @@ function resolveAdvancedDateRangeValue(preset: string): AdvancedBillingSearchBod
   }
 }
 
+function ChargeSortableHeader({
+  label,
+  sortKey,
+  activeKey,
+  direction,
+  onSort,
+  title,
+}: {
+  label: string
+  sortKey: ChargeManagementSortBy
+  activeKey: ChargeManagementSortBy
+  direction: ChargeManagementSortDirection
+  onSort: (key: ChargeManagementSortBy) => void
+  title?: string
+}) {
+  const isActive = activeKey === sortKey
+  return (
+    <TableHead
+      className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap"
+      title={title}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex w-full items-center justify-center gap-1 hover:text-[#1162a8]"
+      >
+        {label}
+        {isActive ? (
+          direction === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </button>
+    </TableHead>
+  )
+}
+
 function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   const patient = inv.slip?.case?.patient_name ?? "—"
   const officeName = inv.office?.name
@@ -491,6 +539,10 @@ export default function ChargeManagementPage() {
   const [officeFilter, setOfficeFilter] = useState<string>("all")
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState<ChargeManagementPerPage>(CHARGE_MANAGEMENT_PER_PAGE)
+  const [sortBy, setSortBy] = useState<ChargeManagementSortBy>(CHARGE_MANAGEMENT_DEFAULT_SORT_BY)
+  const [sortDirection, setSortDirection] = useState<ChargeManagementSortDirection>(
+    CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
+  )
   const [filtersReady, setFiltersReady] = useState(false)
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
@@ -612,6 +664,8 @@ export default function ChargeManagementPage() {
     setOfficeFilter(prefs.officeFilter)
     setPage(prefs.page)
     setPerPage(prefs.perPage)
+    setSortBy(prefs.sortBy)
+    setSortDirection(prefs.sortDirection)
     setAdvDateRange(prefs.advDateRange)
     setAdvItemStatus(prefs.advItemStatus)
     setShowAdvancedFilters(prefs.showAdvancedFilters)
@@ -638,6 +692,8 @@ export default function ChargeManagementPage() {
       officeFilter,
       page,
       perPage,
+      sortBy,
+      sortDirection,
       advDateRange,
       advItemStatus,
       showAdvancedFilters,
@@ -660,6 +716,8 @@ export default function ChargeManagementPage() {
     officeFilter,
     page,
     perPage,
+    sortBy,
+    sortDirection,
     advDateRange,
     advItemStatus,
     showAdvancedFilters,
@@ -711,8 +769,8 @@ export default function ChargeManagementPage() {
       ...scopeFilter,
       page,
       per_page: perPage,
-      sort_by: "created_at",
-      sort_direction: "desc",
+      sort_by: sortBy,
+      sort_direction: sortDirection,
     }
     if (debouncedSearch) {
       params.patient_name = debouncedSearch
@@ -732,6 +790,8 @@ export default function ChargeManagementPage() {
     scopeFilter,
     page,
     perPage,
+    sortBy,
+    sortDirection,
     debouncedSearch,
     dateFrom,
     dateTo,
@@ -1112,8 +1172,8 @@ export default function ChargeManagementPage() {
         const merged: AdvancedBillingSearchBody = {
           ...body,
           per_page: perPage,
-          sort_by: body.sort_by ?? "created_at",
-          sort_direction: body.sort_direction ?? "desc",
+          sort_by: sortBy,
+          sort_direction: sortDirection,
         }
         if (customerProfile?.type === "lab" && customerProfile.name) {
           merged.lab_name = merged.lab_name ?? customerProfile.name
@@ -1132,7 +1192,7 @@ export default function ChargeManagementPage() {
         })
       }
     },
-    [advancedSearch, customerProfile, perPage, toast],
+    [advancedSearch, customerProfile, perPage, sortBy, sortDirection, toast],
   )
 
   useEffect(() => {
@@ -1998,6 +2058,20 @@ export default function ChargeManagementPage() {
     }
   }
 
+  const handleSort = useCallback(
+    (key: ChargeManagementSortBy) => {
+      if (sortBy === key) {
+        setSortDirection((dir) => (dir === "asc" ? "desc" : "asc"))
+      } else {
+        setSortBy(key)
+        setSortDirection(key === "due_date" ? "desc" : "asc")
+      }
+      setPage(1)
+      setAdvancedPage(1)
+    },
+    [sortBy],
+  )
+
   const filterBarDisabled = !customerId
   const actionDisabled = !customerId || bulkLoading || sendEmailLoading || generatingStatements
 
@@ -2346,12 +2420,42 @@ export default function ChargeManagementPage() {
                     disabled={charges.length === 0}
                   />
                 </TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Office Code</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Patient</TableHead>
+                <ChargeSortableHeader
+                  label="Office Code"
+                  sortKey="office_code"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
+                <ChargeSortableHeader
+                  label="Patient"
+                  sortKey="patient_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">U/L</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Product</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Grade</TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Stage</TableHead>
+                <ChargeSortableHeader
+                  label="Product"
+                  sortKey="product_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
+                <ChargeSortableHeader
+                  label="Grade"
+                  sortKey="grade_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
+                <ChargeSortableHeader
+                  label="Stage"
+                  sortKey="stage_name"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Edit the base price for this product. Changes will override system defaults.">Base total</TableHead>
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Add-on(s) with quantity (e.g. Crown x2).">Add-on</TableHead>
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap" title="Calculated subtotal before rush fees. Editable.">Sub Total</TableHead>
@@ -2362,7 +2466,13 @@ export default function ChargeManagementPage() {
                     <div className="mt-0.5 text-[11px] font-bold text-black tabular-nums">{formatMoney(selectedGrossTotal)}</div>
                   )}
                 </TableHead>
-                <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Due Date</TableHead>
+                <ChargeSortableHeader
+                  label="Due Date"
+                  sortKey="due_date"
+                  activeKey={sortBy}
+                  direction={sortDirection}
+                  onSort={handleSort}
+                />
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Status</TableHead>
                 <TableHead className="h-9 px-1.5 py-2 text-center text-[11px] font-semibold text-gray-700 whitespace-nowrap">Actions</TableHead>
               </TableRow>
