@@ -2744,12 +2744,17 @@ export function MandibularPanel({
                     hasRetentionOptions(apProduct) ? "fixed_stage" : "stage"
                   ) ||
                   "";
-                const apEstDaysText = resolveRemovableEstDaysText(cardProduct, apStageVal);
+                const apEstDaysText = resolveRemovableEstDaysText(
+                  cardProduct,
+                  apStageVal,
+                  assignedTeeth.length
+                );
                 const apRemEstDaysText = resolveRemovableEstDaysText(
                   cardProduct,
                   selectedStages[`mandibular_prep_${apRepTn}`] ||
                     getFieldValue("mandibular", apRepTn, "stage") ||
-                    ""
+                    "",
+                  assignedTeeth.length
                 );
                 const apLabelOnlyHeader =
                   isApRemovables &&
@@ -3957,7 +3962,7 @@ export function MandibularPanel({
               );
               const stageVal = selectedStages[`mandibular_prep_${repTnStage}`] || getFieldValue("mandibular", repTnStage, "stage");
               const stageDisplayName = parseStageDisplayName(stageVal);
-              const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName);
+              const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName, displayTeeth.length);
               const hasRushedRemovables = isProductRushed(
                 rushedProducts,
                 "mandibular",

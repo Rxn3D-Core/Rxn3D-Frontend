@@ -2840,7 +2840,11 @@ export function MaxillaryPanel({
                   ) ||
                   "";
                 const apStageObj = cardProduct?.stages?.find(s => s.name === apStageVal);
-                const apEstDaysText = resolveRemovableEstDaysText(cardProduct, apStageVal);
+                const apEstDaysText = resolveRemovableEstDaysText(
+                  cardProduct,
+                  apStageVal,
+                  assignedTeeth.length
+                );
                 const apLabelOnlyHeader =
                   isApRemovables &&
                   !hasConfiguredExtractions(
@@ -3996,7 +4000,7 @@ export function MaxillaryPanel({
               );
               const stageVal = selectedStages[`maxillary_prep_${repTnStage}`] || getFieldValue("maxillary", repTnStage, "stage");
               const stageDisplayName = parseStageDisplayName(stageVal);
-              const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName);
+              const estDays = resolveRemovableEstDaysText(cardProduct, stageDisplayName, displayTeeth.length);
               const hasRushedRemovables = isProductRushed(
                 rushedProducts,
                 "maxillary",

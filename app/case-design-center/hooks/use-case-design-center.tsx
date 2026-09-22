@@ -35,6 +35,7 @@ import {
   parseCompactSectionLines,
   rebuildCaseSummaryFromArchParts,
 } from "@/lib/format-case-summary-notes"
+import { resolveVariationDays } from "@/components/case-design-center/utils/variationHelpers"
 
 export function useCaseDesignCenter() {
   const router = useRouter()
@@ -7115,9 +7116,14 @@ export function useCaseDesignCenter() {
       }
       const user = JSON.parse(userStr)
 
-      // Compute delivery date from the longest estimated_days across all products
+      // Compute delivery date from the longest processing days across all products
+      // (variation days when set, else estimated_days)
       const maxEstimatedDays = productsToSubmit.reduce((max, sp) => {
-        return Math.max(max, sp.product?.estimated_days || 7)
+        const teethCount =
+          (sp.maxillaryTeeth?.length ?? 0) + (sp.mandibularTeeth?.length ?? 0)
+        const variationDays = resolveVariationDays(sp.product as any, teethCount)
+        const days = variationDays ?? sp.product?.estimated_days ?? 7
+        return Math.max(max, days)
       }, 7)
       const deliveryDateObj = new Date(Date.now() + maxEstimatedDays * 24 * 60 * 60 * 1000)
       const toApiDate = (d: Date) => d.toISOString().split("T")[0]
@@ -7598,13 +7604,15 @@ export function useCaseDesignCenter() {
       // Combine teeth for display
       const allTeeth = [...maxillaryTeeth, ...mandibularTeeth]
       const teethString = allTeeth.sort((a, b) => a - b).join(", ")
+      const variationDays = resolveVariationDays(sp.product as any, allTeeth.length)
+      const estDays = variationDays ?? sp.product.estimated_days ?? 7
 
       return {
         id: sp.id,
         name: sp.product.name,
         type: maxillaryTeeth.length > 0 ? "Upper" : "Lower",
         teeth: teethString,
-        deliveryDate: new Date(Date.now() + (sp.product.estimated_days || 7) * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        deliveryDate: new Date(Date.now() + estDays * 24 * 60 * 60 * 1000).toLocaleDateString(),
         abbreviation: sp.product.name.substring(0, 3).toUpperCase(),
         color: index === 0 ? "#ef4444" : "#6b7280",
         borderColor: index === 0 ? "#dc2626" : "#4b5563",

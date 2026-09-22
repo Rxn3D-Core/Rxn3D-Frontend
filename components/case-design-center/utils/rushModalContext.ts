@@ -3,6 +3,7 @@ import type { Matcher } from "react-day-picker";
 import type { BusinessHour } from "@/lib/api-business-settings";
 import type { Arch, ProductApiData } from "../types";
 import { hasRetentionOptions } from "./categoryHelpers";
+import { findVariationByTeethCount, resolveVariationDays } from "./variationHelpers";
 
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0,
@@ -136,6 +137,8 @@ export interface RushArchSlot {
   apiProductId: number;
   /** Stage row ID (ProductStage.id) — used for the delivery-date API call. */
   apiStageId?: number;
+  /** Matched variation ID when product has tooth-count variations. */
+  apiVariationId?: number;
   cardId: number;
   repTooth: number;
   isFixed: boolean;
@@ -190,8 +193,14 @@ export function addLabWorkingDays(
 
 export function resolveSlotWorkDays(
   product: ProductApiData | null | undefined,
-  stageName?: string
+  stageName?: string,
+  teethCount?: number
 ): number {
+  if (teethCount != null && teethCount > 0) {
+    const variationDays = resolveVariationDays(product, teethCount);
+    if (variationDays != null) return variationDays;
+  }
+
   if (stageName && product?.stages?.length) {
     const matched = product.stages.find((s) => s.name === stageName);
     if (matched?.days_to_process != null && matched.days_to_process > 0) {
@@ -202,6 +211,12 @@ export function resolveSlotWorkDays(
   if (defaultStage?.days_to_process != null && defaultStage.days_to_process > 0) {
     return defaultStage.days_to_process;
   }
+
+  const maxDays = product?.max_days_to_process;
+  if (maxDays != null && Number(maxDays) > 0) {
+    return Number(maxDays);
+  }
+
   return 10;
 }
 
@@ -379,7 +394,7 @@ function findAllSlotsForArch(arch: Arch, params: BuildRushArchSlotsParams): Rush
         }
       }
 
-      const workDaysToDeliver = resolveSlotWorkDays(product, resolvedStageName);
+      const workDaysToDeliver = resolveSlotWorkDays(product, resolvedStageName, teeth.length);
       const actualDelivery = addLabWorkingDays(
         params.submissionBaseDate ?? new Date(),
         workDaysToDeliver
@@ -392,12 +407,22 @@ function findAllSlotsForArch(arch: Arch, params: BuildRushArchSlotsParams): Rush
         matchedStage?.id ??
         product?.stages?.find((s) => s.is_default === "Yes")?.id;
 
+      const matchedVariation =
+        teeth.length > 0
+          ? findVariationByTeethCount(product?.variations ?? null, teeth.length)
+          : null;
+      const apiVariationId =
+        matchedVariation?.id != null && matchedVariation.id > 0
+          ? matchedVariation.id
+          : undefined;
+
       return {
         arch,
         archLabel,
         productName: product?.name?.trim() || "Product",
         apiProductId: product?.id ?? 0,
         apiStageId,
+        apiVariationId,
         cardId,
         repTooth,
         isFixed,

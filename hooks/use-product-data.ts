@@ -104,17 +104,19 @@ export function useDeliveryDate() {
   return useMutation({
     mutationFn: async ({ 
       productId, 
-      stageId 
+      stageId,
+      variationId,
     }: { 
       productId: number; 
-      stageId: number 
+      stageId?: number;
+      variationId?: number;
     }): Promise<DeliveryData> => {
-      return ProductApi.calculateDelivery(productId, stageId)
+      return ProductApi.calculateDelivery(productId, stageId, variationId)
     },
     onSuccess: (data, variables) => {
       // Cache the delivery data
       queryClient.setQueryData(
-        ['delivery-date', variables.productId, variables.stageId],
+        ['delivery-date', variables.productId, variables.stageId, variables.variationId],
         data
       )
       

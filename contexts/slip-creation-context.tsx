@@ -230,10 +230,10 @@ interface SlipCreationContextType {
   fetchProductRetentions: (labId: number, productId: number, params?: Record<string, any>) => Promise<void>
 
   deliveryDate: any | null
-  calculateDeliveryDate: (product_id: number, stage_id?: number) => Promise<void>
+  calculateDeliveryDate: (product_id: number, stage_id?: number, variation_id?: number) => Promise<void>
 
   rushFee: any | null
-  calculateRushFee: (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string) => Promise<void>
+  calculateRushFee: (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string, variation_id?: number) => Promise<void>
 
   caseDetails: any | null
   fetchCaseDetails: (caseId: number) => Promise<void>
@@ -722,12 +722,13 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     }
   }, [token])
 
-  const calculateDeliveryDate = useCallback(async (product_id: number, stage_id?: number) => {
+  const calculateDeliveryDate = useCallback(async (product_id: number, stage_id?: number, variation_id?: number) => {
     try {
       const labId = getSlipLabIdForCurrentProfile()
       const url = new URL(`/v1/slip/lab/${labId}/delivery-date`, process.env.NEXT_PUBLIC_API_BASE_URL)
       url.searchParams.append("product_id", String(product_id))
       if (stage_id) url.searchParams.append("stage_id", String(stage_id))
+      if (variation_id) url.searchParams.append("variation_id", String(variation_id))
       const res = await fetch(url.toString(), {
         method: "GET",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -745,11 +746,12 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
     }
   }, [token])
 
-  const calculateRushFee = useCallback(async (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string) => {
+  const calculateRushFee = useCallback(async (labId: number, product_id: number, stage_id?: number, target_delivery_date?: string, variation_id?: number) => {
     try {
       const url = new URL(`/v1/slip/lab/${labId}/rush-fee`, process.env.NEXT_PUBLIC_API_BASE_URL)
       url.searchParams.append("product_id", String(product_id))
       if (stage_id) url.searchParams.append("stage_id", String(stage_id))
+      if (variation_id) url.searchParams.append("variation_id", String(variation_id))
       if (target_delivery_date) url.searchParams.append("target_delivery_date", target_delivery_date)
       const res = await fetch(url.toString(), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
