@@ -68,19 +68,19 @@ import {
   loadDriverScanBatch,
   clearDriverScanBatch,
   hasActiveDriverPickupSession,
+  clearDriverQrLocalSession,
   DRIVER_QR_SCANNER_OPEN_EVENT,
 } from "@/lib/driver-qr-scan"
 import { fetchSlipQrIdentify, type SlipQrIdentifyResult } from "@/lib/api/slip-qr-identify"
 import {
   buildQrScanChooserActions,
-  resolveQrScanAudience,
+  resolveActiveQrScanAudience,
   type QrScanChooserAction,
   type QrScanChooserActionId,
 } from "@/lib/qr-scan-actions"
 import { QrScanActionChooser } from "@/components/qr-scan-action-chooser"
 import ReadyToSendModal from "@/components/ready-to-send-modal"
 import { buildVirtualSlipPath } from "@/lib/virtual-slip-routes"
-import { getPrimaryRole } from "@/lib/get-primary-role"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
 
 /** New Slip: solid gradient fill, white text */
@@ -121,7 +121,7 @@ interface Location {
 }
 
 export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
-  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext } = useAuth()
+  const { user, logout, updateSessionUser, isSuperadmin, hasPermission, hasAnyPermission, setCustomerId, selectedCustomerId, isActingAsLabAdmin, exitLabContext, profileRole } = useAuth()
   const { canDriverScanning } = usePlanCapabilities()
   const [scannerState, setScannerState] = useState<ScannerState>({
     isOpen: false,
@@ -237,17 +237,37 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     return () => { cancelled = true }
   }, [isSuperAdmin])
 
-  // Load persisted driver session + scan history on mount
+  // Load persisted driver session + active batch on mount (expired sessions are cleared).
   useEffect(() => {
     const savedSession = loadDriverSessionKey()
     if (savedSession) {
       qrSessionRef.current = savedSession
+    } else {
+      qrSessionRef.current = null
+    }
+    const batch = loadDriverScanBatch()
+    if (batch?.data?.length) {
+      setQrScanData(batch)
+      qrScanDataRef.current = batch
     }
   }, [])
 
   useEffect(() => {
     qrScanDataRef.current = qrScanData
     persistDriverScanBatch(qrScanData)
+  }, [qrScanData])
+
+  /** Cases in the current pickup/drop-off trip (not forever scan history). */
+  const activeTripCount = useMemo(() => {
+    const slips = Array.isArray(qrScanData?.data)
+      ? filterValidQrScanSlips(qrScanData.data)
+      : []
+    const caseIds = new Set(
+      slips
+        .map((s: { case_id?: number }) => s.case_id)
+        .filter((id): id is number => typeof id === "number" && id > 0),
+    )
+    return caseIds.size > 0 ? caseIds.size : slips.length
   }, [qrScanData])
 
   useEffect(() => {
@@ -435,13 +455,14 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         const identify = await fetchSlipQrIdentify(slipIds[0], caseId)
         setQrIdentify(identify)
 
-        const primaryRole = getPrimaryRole(user)
-        let audience = resolveQrScanAudience(primaryRole)
-        if (isOfficeSideUser || isOfficeCustomerContext()) {
-          audience = "office"
-        } else if (userRoles.includes("lab_driver") && primaryRole === "lab_driver") {
-          audience = "driver"
-        }
+        const audience = resolveActiveQrScanAudience({
+          profileRole,
+          userRoles,
+          customerType:
+            typeof window !== "undefined"
+              ? localStorage.getItem("customerType")
+              : null,
+        })
 
         const actions = buildQrScanChooserActions({
           audience,
@@ -449,8 +470,9 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             locationId: identify.locationId,
             location: identify.location,
           },
-          canPickupDropoff:
-            audience === "driver" || hasPermission("pickup_drop_off"),
+          // Lab + driver always get location-based pickup/drop-off in the chooser.
+          // Office never does. API still enforces pickup_drop_off on submit.
+          canPickupDropoff: audience === "lab" || audience === "driver",
         })
         setQrChooserActions(actions)
       } catch (error) {
@@ -469,7 +491,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         setQrChooserIdentifying(false)
       }
     },
-    [user, isOfficeSideUser, userRoles, hasPermission, toast],
+    [userRoles, profileRole, toast],
   )
 
   const handleQrChooserSelect = useCallback(
@@ -765,15 +787,59 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     [toast],
   )
 
-  // Clear scan history
+  // Clear scan history + active trip (scanner "Clear History")
   const clearScanHistory = useCallback(() => {
     setScanHistory([])
-    localStorage.removeItem("qr-scan-history")
+    setQrScanData(null)
+    qrScanDataRef.current = null
+    scannedQrTextsRef.current.clear()
+    setShowDriverHistoryModal(false)
+    qrScanLockRef.current = { text: null, until: 0 }
+    lastScannedCodeRef.current = ""
+
+    if (qrSessionRef.current) {
+      void clearDriverSession(qrSessionRef.current)
+      qrSessionRef.current = null
+    }
+    saveDriverSessionKey(null)
+    clearDriverScanBatch()
+    clearDriverQrLocalSession()
+
     toast({
       title: "History cleared",
-      description: "All scan history has been removed.",
+      description: "Scan history and pickup session cleared.",
+      duration: 3000,
     })
-  }, [toast])
+  }, [clearDriverSession, toast])
+
+  /** Restart camera + wipe active pickup trip (session, batch, badge count). */
+  const handleScannerRestart = useCallback(() => {
+    setScanHistory([])
+    setQrScanData(null)
+    qrScanDataRef.current = null
+    scannedQrTextsRef.current.clear()
+    setShowDriverHistoryModal(false)
+    qrScanLockRef.current = { text: null, until: 0 }
+    lastScannedCodeRef.current = ""
+
+    if (qrSessionRef.current) {
+      void clearDriverSession(qrSessionRef.current)
+      qrSessionRef.current = null
+    }
+    saveDriverSessionKey(null)
+    clearDriverScanBatch()
+    clearDriverQrLocalSession()
+
+    decoderActiveRef.current = true
+    processingRef.current = false
+    void driverQrScannerRef.current?.restart()
+
+    toast({
+      title: "Scanner restarted",
+      description: "Scan session cleared. You can start a new trip.",
+      duration: 3000,
+    })
+  }, [clearDriverSession, toast])
 
   const getPrimaryRole = () => {
     if (!isActingAsLabAdmin && userRoles.includes("superadmin")) return "Super Admin"
@@ -906,12 +972,12 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                     lineHeight: "21px",
                     fontFamily: "Inter, sans-serif",
                   }}>{t("header.scanCode", "Scan Code")}</span>
-                  {scanHistory.length > 0 && (
+                  {activeTripCount > 0 && (
                     <Badge
                       variant="secondary"
                       className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
                     >
-                      {scanHistory.length}
+                      {activeTripCount}
                     </Badge>
                   )}
                 </Button>
@@ -1144,12 +1210,12 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                       lineHeight: "21px",
                       fontFamily: "Inter, sans-serif",
                     }}>{t("header.scanCode", "Scan Code")}</span>
-                    {scanHistory.length > 0 && (
+                    {activeTripCount > 0 && (
                       <Badge
                         variant="secondary"
                         className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
                       >
-                        {scanHistory.length}
+                        {activeTripCount}
                       </Badge>
                     )}
                   </Button>
@@ -1270,16 +1336,18 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             </div>
 
             {scanHistory.length > 0 && (
-              <div className="hidden space-y-2 px-4 sm:block sm:px-0">
+              <div className="space-y-2 px-4 sm:px-0">
                 <h4 className="text-sm font-medium sm:text-base">Recent Scans</h4>
-                <div className="max-h-28 space-y-1 overflow-y-auto sm:max-h-36">
+                <div className="max-h-24 space-y-1 overflow-y-auto sm:max-h-36">
                   {scanHistory.slice(0, 3).map((scan) => (
                     <div
                       key={scan.id}
                       className="flex items-center justify-between rounded-lg bg-muted p-2.5 text-sm"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-2">
-                        <span className="truncate font-mono">{scan.text.substring(0, 24)}…</span>
+                        <span className="truncate font-mono text-xs sm:text-sm">
+                          {scan.text.substring(0, 24)}…
+                        </span>
                         <Badge variant="outline" className="shrink-0 text-xs">
                           {scan.format}
                         </Badge>
@@ -1288,7 +1356,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => copyToClipboard(scan.text)}
-                        className="shrink-0"
+                        className="h-9 shrink-0 px-3"
                       >
                         Copy
                       </Button>
@@ -1298,21 +1366,25 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
               </div>
             )}
 
-            <div className="sticky bottom-0 flex gap-3 border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:border-0 sm:px-0 sm:pb-0">
+            <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:flex-row sm:gap-3 sm:border-0 sm:px-0 sm:pb-0">
               <Button
-                onClick={() => driverQrScannerRef.current?.restart()}
-                className="h-12 flex-1 text-base"
+                onClick={handleScannerRestart}
+                className="h-12 w-full text-base sm:flex-1"
               >
                 Restart
               </Button>
-              <Button onClick={closeScanner} variant="outline" className="h-12 flex-1 text-base">
+              <Button
+                onClick={closeScanner}
+                variant="outline"
+                className="h-12 w-full text-base sm:flex-1"
+              >
                 Close
               </Button>
               <Button
                 onClick={clearScanHistory}
                 variant="outline"
-                disabled={scanHistory.length === 0}
-                className="hidden h-12 sm:inline-flex"
+                disabled={scanHistory.length === 0 && activeTripCount === 0}
+                className="h-12 w-full text-base sm:flex-1"
               >
                 Clear History
               </Button>

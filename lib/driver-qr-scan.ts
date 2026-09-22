@@ -198,11 +198,12 @@ export function isDriverSessionLocallyExpired(): boolean {
   return Date.now() >= expiresAt;
 }
 
-/** Drop local driver QR trip state (session key, expiry, batch). Does not call the API. */
+/** Drop local driver QR trip state (session key, expiry, batch, scan history). Does not call the API. */
 export function clearDriverQrLocalSession(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(DRIVER_QR_SESSION_STORAGE_KEY);
   localStorage.removeItem(DRIVER_QR_SESSION_EXPIRES_AT_KEY);
+  localStorage.removeItem("qr-scan-history");
   sessionStorage.removeItem(DRIVER_QR_BATCH_STORAGE_KEY);
 }
 

@@ -641,7 +641,7 @@ export default function DriverHistoryModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         showCloseButton={false}
-        className="flex w-[min(96vw,1080px)] max-w-none flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white p-0 shadow-xl max-h-[90dvh]"
+        className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-white p-0 shadow-xl sm:h-auto sm:max-h-[90dvh] sm:w-[min(96vw,1080px)] sm:rounded-xl sm:border sm:border-[#E5E7EB]"
       >
         <DialogTitle className="sr-only">{modalCopy.title}</DialogTitle>
 
@@ -655,7 +655,7 @@ export default function DriverHistoryModal({
           onClose={onClose}
         />
 
-        <div ref={scrollContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pb-2 sm:px-8">
+        <div ref={scrollContainerRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-2 sm:px-8">
           {!singleSlipMode && contextQrScanData ? (
             <p className="mb-3 text-xs text-green-700">
               QR scanned ({contextQrScanData.scanned_cases_count} cases)
@@ -737,9 +737,105 @@ export default function DriverHistoryModal({
                 </div>
               ) : null}
 
+              {/* Mobile: card list (QR / multi-slip) */}
+              <div className="space-y-3 md:hidden">
+                {loadingPickup ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div
+                      key={`m-skel-${i}`}
+                      className="h-24 animate-pulse rounded-xl border border-[#E5E7EB] bg-gray-100"
+                    />
+                  ))
+                ) : tableEntries.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-[#E5E7EB] px-4 py-8 text-center text-sm text-gray-600">
+                    {isQrScanFlow
+                      ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
+                      : 'No entries available. Click "Add Slip" to add one manually or scan a QR code.'}
+                  </p>
+                ) : (
+                  tableEntries.map((entry) => {
+                    const isManual = !entry.slip_id
+                    const rowAction = slipPickupDropoffAction({
+                      locationId: entry.location_id,
+                      location: entry.location,
+                    })
+                    return (
+                      <div
+                        key={`m-${entry.id}`}
+                        className="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-sm"
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-base font-semibold text-[#111827]">
+                              {entry.patientName || "—"}
+                            </p>
+                            <p className="mt-0.5 text-sm text-[#6B7280]">
+                              {[entry.office, entry.labName].filter(Boolean).join(" · ") || "—"}
+                            </p>
+                          </div>
+                          <Checkbox
+                            checked={entry.isChecked}
+                            onCheckedChange={() => handleCheckboxToggle(entry.id)}
+                            className="mt-1 h-5 w-5 border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8]"
+                            aria-label={`Select ${entry.patientName || "entry"}`}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-[#374151]">
+                          {rowAction ? (
+                            <Image
+                              src={
+                                rowAction === "dropoff"
+                                  ? "/icons/virtual-slip-center/drop-off.svg"
+                                  : "/icons/virtual-slip-center/pick-up.svg"
+                              }
+                              alt={rowAction === "dropoff" ? "Drop off" : "Pick up"}
+                              width={20}
+                              height={20}
+                              className="h-5 w-5 shrink-0"
+                            />
+                          ) : null}
+                          <span className="leading-snug">{entry.location || "—"}</span>
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          {isManual ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 text-red-600 hover:bg-red-50"
+                              onClick={() => handleDeleteManualEntry(entry.id)}
+                              type="button"
+                            >
+                              <Trash2 className="mr-1.5 h-4 w-4" />
+                              Remove
+                            </Button>
+                          ) : isQrScanFlow && typeof entry.case_id === "number" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-10 text-red-600 hover:bg-red-50"
+                              onClick={() => void handleRemoveQrCase(entry.case_id as number)}
+                              type="button"
+                              disabled={removingCaseId === entry.case_id || clearingBatch}
+                            >
+                              {removingCaseId === entry.case_id ? (
+                                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-1.5 h-4 w-4" />
+                              )}
+                              Remove
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Desktop: table */}
               <div
                 className={cn(
-                  "w-full overflow-x-auto",
+                  "hidden w-full overflow-x-auto md:block",
                   tableScrollable && "max-h-[min(42dvh,320px)] overflow-y-auto",
                 )}
               >
@@ -902,10 +998,10 @@ export default function DriverHistoryModal({
                 </table>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
                 <Button
                   variant="outline"
-                  className="border-[#1162A8] text-[#1162A8] hover:bg-blue-50"
+                  className="h-12 w-full border-[#1162A8] text-base text-[#1162A8] hover:bg-blue-50 sm:h-10 sm:w-auto sm:text-sm"
                   onClick={handleAddSlipClick}
                   type="button"
                   disabled={
@@ -922,7 +1018,7 @@ export default function DriverHistoryModal({
                 {isQrScanFlow && tableEntries.length > 0 ? (
                   <Button
                     variant="outline"
-                    className="border-red-300 text-red-700 hover:bg-red-50"
+                    className="h-12 w-full border-red-300 text-base text-red-700 hover:bg-red-50 sm:h-10 sm:w-auto sm:text-sm"
                     onClick={() => void handleClearBatch()}
                     type="button"
                     disabled={clearingBatch || removingCaseId != null}

@@ -3,6 +3,7 @@ import {
   slipPickupDropoffAction,
   type SlipLocationRef,
 } from "@/lib/slip-location";
+import { getActiveCustomerType, normalizeRoleSlug } from "@/lib/role-utils";
 
 export type QrScanAudience = "lab" | "driver" | "office";
 
@@ -19,11 +20,68 @@ export type QrScanChooserAction = {
   primary?: boolean;
 };
 
-/** Map primary role → QR chooser audience. */
+/** Map a single role slug → QR chooser audience. */
 export function resolveQrScanAudience(role: string | null | undefined): QrScanAudience {
-  const r = (role || "").trim().toLowerCase();
+  const r = normalizeRoleSlug(role);
   if (r === "lab_driver") return "driver";
   if (r === "lab_admin" || r === "lab_user") return "lab";
+  return "office";
+}
+
+/**
+ * Audience for the post-scan chooser using the active profile + customer type.
+ * Prefer lab/driver when the user is acting on a lab profile — do not force
+ * "office" just because the user also has an office role on another profile.
+ */
+export function resolveActiveQrScanAudience(params: {
+  profileRole?: string | null;
+  userRoles?: string[] | null;
+  customerType?: string | null;
+}): QrScanAudience {
+  const type = (
+    params.customerType ||
+    getActiveCustomerType() ||
+    ""
+  ).toLowerCase();
+
+  let role = normalizeRoleSlug(params.profileRole);
+  if (!role && typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("role");
+      if (stored) {
+        if (stored.startsWith("[")) {
+          const parsed = JSON.parse(stored) as string[];
+          role = normalizeRoleSlug(parsed[0]);
+        } else {
+          role = normalizeRoleSlug(stored);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (type === "office") return "office";
+
+  if (type === "lab") {
+    if (role === "lab_driver") return "driver";
+    return "lab";
+  }
+
+  if (role === "lab_driver") return "driver";
+  if (role === "lab_admin" || role === "lab_user") return "lab";
+  if (
+    role === "office_admin" ||
+    role === "office_user" ||
+    role === "doctor" ||
+    role === "doctor_admin"
+  ) {
+    return "office";
+  }
+
+  const roles = (params.userRoles || []).map((r) => normalizeRoleSlug(r));
+  if (roles.includes("lab_driver")) return "driver";
+  if (roles.includes("lab_admin") || roles.includes("lab_user")) return "lab";
   return "office";
 }
 
@@ -49,11 +107,14 @@ export function resolveQrMovementAction(
 export function buildQrScanChooserActions(params: {
   audience: QrScanAudience;
   locationRef: SlipLocationRef;
-  /** Lab staff with pickup_drop_off may run pick up / drop off. Drivers always may when location allows. */
+  /** When false, hide pick up / drop off. Lab/driver default true. */
   canPickupDropoff?: boolean;
 }): QrScanChooserAction[] {
   const { audience, locationRef } = params;
-  const canPickupDropoff = params.canPickupDropoff !== false;
+  const canPickupDropoff =
+    params.canPickupDropoff !== undefined
+      ? params.canPickupDropoff
+      : audience === "lab" || audience === "driver";
   const movement = resolveQrMovementAction(locationRef);
   const actions: QrScanChooserAction[] = [];
 
