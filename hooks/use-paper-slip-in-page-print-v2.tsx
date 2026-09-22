@@ -75,13 +75,21 @@ function printHtmlInPlace(html: string): void {
         position: relative !important;
         width: auto !important;
         height: auto !important;
-        overflow: visible !important;
+        max-height: 270mm !important;
+        overflow: hidden !important;
         clip: auto !important;
         clip-path: none !important;
         pointer-events: auto !important;
         visibility: visible !important;
         margin: 0 !important;
         padding: 0 !important;
+      }
+      #${MOBILE_PRINT_ROOT_ID} .paper-slip-v2-sheet,
+      #${MOBILE_PRINT_ROOT_ID} .paper-slip-v2-section {
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
       }
     }
   `;

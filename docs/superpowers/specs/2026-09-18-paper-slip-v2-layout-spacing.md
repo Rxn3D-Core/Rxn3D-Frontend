@@ -18,9 +18,9 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 
 > **Print layout chooser:** Before print, the app asks **Full page** (portrait, 1 slip/sheet) or **Half page** (landscape, 2 slips/sheet — cut down the middle). See `docs/updates/2026-09-22-paper-slip-full-vs-half-print-layout.md`.
 >
-> **Full page fill:** The slip is scaled (`transform`) to the largest size that still fits one Letter sheet (`8.5×11in` clip). That removes the large bottom gap and tightens left/right. In Chrome, set **Margins → None** for edge-to-edge (browser “Default” margins add extra white).
+> **Full page (iOS):** Print at physical mm size only — **no** `transform: scale`, **no** `zoom`, **no** fixed `height: 11in`. Those caused AirPrint “Pages 1–3” with blank trailing sheets. Sheet uses `height: auto` + `max-height: 270mm`.
 >
-> **Half page:** Each slip scales into a `5.5in × 8.5in` slot on landscape Letter.
+> **Half page:** Each slip uses `zoom` into a `5.5in × 8.5in` slot on landscape Letter (no transform).
 
 ## Brand lockup
 

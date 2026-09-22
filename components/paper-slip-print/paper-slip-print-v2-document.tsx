@@ -42,26 +42,19 @@ const SLIP_W_IN = SLIP_W / 96;
 const SLIP_H_IN = SLIP_H / 96;
 
 /**
- * Full-page portrait: scale the artboard up to fill Letter as much as possible
- * without exceeding one page. Letter aspect is wider than the slip, so height
- * is the limiter — that removes the large bottom gap and tightens L/R.
- * Small inset avoids Chrome “Default” margin / rounding creating page 2.
+ * Full-page portrait. Do not use transform:scale or zoom in print — iOS AirPrint
+ * paginates that ink into blank pages 2–3 even when page 1 looks half-empty.
+ * Print the artboard at its physical mm size (fits Letter and A4).
  */
-const FULL_PAGE_W_IN = 8.5;
-const FULL_PAGE_H_IN = 11;
-const FULL_PAGE_INSET_IN = 0.08;
-const FULL_SCALE = Math.min(
-  (FULL_PAGE_W_IN - FULL_PAGE_INSET_IN * 2) / SLIP_W_IN,
-  (FULL_PAGE_H_IN - FULL_PAGE_INSET_IN * 2) / SLIP_H_IN,
-).toFixed(4);
+const FULL_PAGE_MAX_H_MM = 270;
 
 /**
- * Half-page slot on landscape Letter: 5.5in × 8.5in. Scale the portrait artboard
- * to fit so after cutting, each half reads as a portrait slip.
+ * Half-page slot on landscape Letter: 5.5in × 8.5in. Use zoom (layout-aware)
+ * so iOS does not paginate transform overflow into blank sheets.
  */
 const HALF_SLOT_W_IN = 5.5;
 const HALF_SLOT_H_IN = 8.5;
-const HALF_SCALE = Math.min(
+const HALF_ZOOM = Math.min(
   HALF_SLOT_W_IN / SLIP_W_IN,
   HALF_SLOT_H_IN / SLIP_H_IN,
 ).toFixed(4);
@@ -700,6 +693,12 @@ function sharedPrintChromeCss(): string {
             background: #ffffff !important;
             display: block !important;
           }
+
+          /* Tooth-chart transform ink also invents blank iOS pages — flatten in print. */
+          .paper-slip-v2-arch-chart > div {
+            transform: none !important;
+            margin-bottom: 4px !important;
+          }
         }
   `;
 }
@@ -720,14 +719,17 @@ function fullPagePrintCss(): string {
         }
 
         @media print {
-          /* Fixed Letter frame + overflow clip keeps scaled slip on exactly 1 page. */
+          /*
+           * iOS AirPrint: no transform/zoom and no fixed page-height box.
+           * Those are what turned 1 slip into Pages 1–3 (blank trailing sheets).
+           */
           .paper-slip-v2-sheet {
             box-sizing: border-box;
-            width: ${FULL_PAGE_W_IN}in !important;
+            width: auto !important;
             max-width: 100% !important;
-            height: ${FULL_PAGE_H_IN}in !important;
-            max-height: ${FULL_PAGE_H_IN}in !important;
-            margin: 0 !important;
+            height: auto !important;
+            max-height: ${FULL_PAGE_MAX_H_MM}mm !important;
+            margin: 0 auto !important;
             padding: 0 !important;
             overflow: hidden !important;
             position: relative !important;
@@ -750,13 +752,13 @@ function fullPagePrintCss(): string {
             box-sizing: border-box !important;
             width: ${SLIP_W_MM}mm !important;
             height: ${SLIP_H_MM}mm !important;
-            max-width: none !important;
-            max-height: none !important;
+            max-width: 100% !important;
+            max-height: ${FULL_PAGE_MAX_H_MM}mm !important;
             overflow: hidden !important;
             position: relative !important;
             flex-shrink: 0;
-            transform: scale(${FULL_SCALE}) !important;
-            transform-origin: top center !important;
+            transform: none !important;
+            zoom: normal !important;
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
@@ -801,8 +803,8 @@ function halfPagePrintCss(): string {
         }
 
         .paper-slip-v2-half-slot .paper-slip-v2-section {
-          transform: scale(${HALF_SCALE});
-          transform-origin: center center;
+          zoom: ${HALF_ZOOM};
+          transform: none;
           flex-shrink: 0;
         }
 
@@ -810,7 +812,7 @@ function halfPagePrintCss(): string {
           .paper-slip-v2-landscape-page {
             box-sizing: border-box;
             width: 11in !important;
-            height: 8.5in !important;
+            height: auto !important;
             max-height: 8.5in !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -842,8 +844,8 @@ function halfPagePrintCss(): string {
             height: ${SLIP_H_MM}mm !important;
             overflow: hidden !important;
             position: relative !important;
-            transform: scale(${HALF_SCALE}) !important;
-            transform-origin: center center !important;
+            transform: none !important;
+            zoom: ${HALF_ZOOM};
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
