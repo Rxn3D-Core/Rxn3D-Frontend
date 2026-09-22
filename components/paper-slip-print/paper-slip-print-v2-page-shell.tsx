@@ -277,9 +277,9 @@ export function PaperSlipPrintV2PageShell({
     );
   }
 
-  // Show the document immediately for view mode + directly-opened tabs; only the
-  // hidden-handoff paths stay invisible until print fires (print ignores visibility).
-  const showDocument = viewOnly || printed || !isHiddenHandoff;
+  // Show the document immediately for view mode, onReady (client PDF capture), and
+  // directly-opened tabs. Only opener/popup handoff stays invisible until printed.
+  const showDocument = viewOnly || printed || !isHiddenHandoff || Boolean(onReady);
 
   return (
     <div ref={printRootRef} className={showDocument ? undefined : "invisible"}>
