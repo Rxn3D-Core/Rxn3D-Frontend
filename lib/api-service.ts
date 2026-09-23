@@ -44,17 +44,6 @@ const getAuthHeaders = () => {
   }
 }
 
-// Handle 401 responses and redirect to login
-const handleUnauthorized = () => {
-  if (typeof window !== 'undefined') {
-    // Clear all session data
-    clearSessionStorage()
-    
-    // Redirect to login
-    window.location.href = '/login'
-  }
-}
-
 // Centralized API service with error handling
 export class ApiService {
   static async request<T>(
@@ -73,11 +62,15 @@ export class ApiService {
     }
 
     try {
+      // 401 silent refresh + retry is handled by lib/fetch-interceptor.ts
       const response = await fetch(url, config)
       
-      // Handle 401 Unauthorized
       if (response.status === 401) {
-        handleUnauthorized()
+        // Interceptor already attempted refresh; treat as hard auth failure
+        clearSessionStorage()
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
         throw new Error('Unauthorized - Redirecting to login')
       }
       

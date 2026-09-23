@@ -1,3 +1,5 @@
+import { persistRefreshedToken } from "./token-refresh"
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 export type ValidateSessionAPIResult = {
@@ -16,7 +18,6 @@ export const validateSessionAPI = async (token: string): Promise<ValidateSession
     const response = await fetch(`${API_BASE_URL}/auth/validate_token`, {
       method: "GET",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-     
     })
 
     if (response.status === 401) {
@@ -39,7 +40,7 @@ export const validateSessionAPI = async (token: string): Promise<ValidateSession
 export type RefreshTokenAPIResult = {
   success: boolean
   newToken?: string
-  newExpiresIn?: number 
+  newExpiresIn?: number
   error?: string
   isCriticalFailure?: boolean
 }
@@ -49,7 +50,6 @@ export const refreshTokenAPI = async (currentToken: string): Promise<RefreshToke
     const response = await fetch(`${API_BASE_URL}/auth/refresh_token`, {
       method: "GET",
       headers: { Authorization: `Bearer ${currentToken}`, "Content-Type": "application/json" },
-     
     })
 
     if (!response.ok) {
@@ -57,17 +57,23 @@ export const refreshTokenAPI = async (currentToken: string): Promise<RefreshToke
       if (response.status === 401 || response.status === 403) {
         return {
           success: false,
-          error: errorData.message || `Refresh rejected: ${response.status}`,
+          error: errorData.message || errorData.error || `Refresh rejected: ${response.status}`,
           isCriticalFailure: true,
         }
       }
-      return { success: false, error: errorData.message || `Refresh failed: ${response.status}` }
+      return {
+        success: false,
+        error: errorData.message || errorData.error || `Refresh failed: ${response.status}`,
+      }
     }
 
     const data = await response.json()
-    // Ensure your refresh endpoint returns access_token and optionally expires_in
-    if (data.access_token) {
-      return { success: true, newToken: data.access_token, newExpiresIn: data.expires_in }
+    const accessToken: string | undefined = data?.data?.access_token ?? data?.access_token
+    const expiresIn: number | undefined = data?.data?.expires_in ?? data?.expires_in
+
+    if (accessToken) {
+      persistRefreshedToken(accessToken, expiresIn)
+      return { success: true, newToken: accessToken, newExpiresIn: expiresIn }
     }
     return { success: false, error: "No new token in refresh response" }
   } catch (error) {

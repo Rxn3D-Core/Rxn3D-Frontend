@@ -1,13 +1,26 @@
 const TOKEN_KEY = "token"
+const AUTH_TOKEN_COOKIE = "auth_token"
 const USER_KEY = "user"
 const TOKEN_EXPIRES_AT_KEY = "tokenExpiresAt"
+
+function setCookie(name: string, value: string, days = 30): void {
+  if (typeof document === "undefined") return
+  const date = new Date()
+  date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000)
+  document.cookie = `${name}=${value}; expires=${date.toUTCString()}; path=/; samesite=lax`
+}
+
+function clearCookie(name: string): void {
+  if (typeof document === "undefined") return
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; samesite=lax`
+}
 
 export const getAuthToken = (): string | null => {
   if (typeof window === "undefined") return null
   return localStorage.getItem(TOKEN_KEY)
 }
 
-export const getUserData = (): any | null => { 
+export const getUserData = (): any | null => {
   if (typeof window === "undefined") return null
   const userJson = localStorage.getItem(USER_KEY)
   try {
@@ -24,7 +37,7 @@ export const getTokenExpiresAt = (): number | null => {
   return expiresAtStr ? parseInt(expiresAtStr, 10) : null
 }
 
-export const setAuthTokenAndUser = (token: string, user: any, expiresInSeconds?: number): void => { 
+export const setAuthTokenAndUser = (token: string, user: any, expiresInSeconds?: number): void => {
   if (typeof window === "undefined") return
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(user))
@@ -39,7 +52,7 @@ export const setAuthTokenAndUser = (token: string, user: any, expiresInSeconds?:
         const expiresAt = payload.exp * 1000
         localStorage.setItem(TOKEN_EXPIRES_AT_KEY, expiresAt.toString())
       } else {
-        localStorage.removeItem(TOKEN_EXPIRES_AT_KEY) 
+        localStorage.removeItem(TOKEN_EXPIRES_AT_KEY)
       }
     } catch (e) {
       console.warn("Could not parse expiry from token for localStorage, removing expiry time.", e)
@@ -47,10 +60,9 @@ export const setAuthTokenAndUser = (token: string, user: any, expiresInSeconds?:
     }
   }
 
-  const date = new Date()
-  date.setTime(date.getTime() + (30 * 24 * 60 * 60 * 1000))
-  const cookieExpires = `; expires=${date.toUTCString()}`
-  document.cookie = `${TOKEN_KEY}=${token}${cookieExpires}; path=/; samesite=lax`
+  // Keep both cookie names in sync (legacy auth_token + auth-storage token)
+  setCookie(TOKEN_KEY, token)
+  setCookie(AUTH_TOKEN_COOKIE, token)
 }
 
 export const clearAuthData = (): void => {
@@ -58,5 +70,6 @@ export const clearAuthData = (): void => {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
   localStorage.removeItem(TOKEN_EXPIRES_AT_KEY)
-  document.cookie = `${TOKEN_KEY}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; samesite=lax`
+  clearCookie(TOKEN_KEY)
+  clearCookie(AUTH_TOKEN_COOKIE)
 }
