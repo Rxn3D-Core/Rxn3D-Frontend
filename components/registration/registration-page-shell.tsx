@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react"
 // Top support header hidden on open registration — matches login in-page layout (logo + form, no extra bar)
 // import { AuthHeader } from "@/components/auth-header"
 import { cn } from "@/lib/utils"
+import { SiteCopyrightFooter } from "@/components/site-copyright-footer"
 
 interface RegistrationPageShellProps {
   children: React.ReactNode
@@ -121,6 +122,7 @@ export function RegistrationPageShell({
           )}
         </div>
       </div>
+      <SiteCopyrightFooter />
     </div>
   )
 }

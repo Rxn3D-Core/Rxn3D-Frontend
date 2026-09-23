@@ -41,7 +41,6 @@ import {
 } from "@/lib/slip-user-role"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
@@ -837,10 +836,6 @@ export default function LabSlipV3Page() {
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-2">
-        <HIPAAComplianceBanner variant="default" showDetails={false} />
-      </div>
-
       <main className="w-full px-4 pb-8">
         <V3CaseWidget
           listingProfile="lab"

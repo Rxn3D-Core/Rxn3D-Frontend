@@ -3,7 +3,7 @@
 ## Flow
 
 1. User taps **Print paper slip**
-2. Dialog asks **Full page** or **Half page** (last choice remembered in `localStorage`)
+2. **iPhone and iPad only:** dialog asks **Full page** or **Half page** (last choice remembered in `localStorage`). Mac, Android, and every other desktop print **full page** with no dialog.
 3. The same v2 React slip (including `VirtualSlipToothChart` + tooth PNGs) is rendered, then printed as HTML (Safari/mobile: in-place; desktop: iframe)
 
 ## Layouts

@@ -16,6 +16,9 @@ const PUBLIC_ROUTES = [
   "/user-invitations",
   "/register",
   "/get-started",
+  "/hipaa-notice",
+  "/privacy-policy",
+  "/terms-of-service",
 ]
 
 /**

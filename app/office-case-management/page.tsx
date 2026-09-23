@@ -21,7 +21,6 @@ import CallLogModal from "@/components/call-log-modal"
 import PrintDriverTagsModal from "@/components/print-driver-tags-modal"
 import CaseActionModal from "@/components/CaseActionModal"
 import { useToast } from "@/components/ui/use-toast"
-import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useAdvancedBillingSearchMutation, useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { findBillingInvoiceIdFromSearchResults, resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
@@ -688,10 +687,6 @@ function OfficeCaseManagementPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-2">
-        <HIPAAComplianceBanner variant="default" showDetails={false} />
-      </div>
-
       <main className="w-full px-4 pb-8">
         <V3CaseWidget
           listingProfile="office"

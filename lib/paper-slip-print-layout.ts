@@ -11,6 +11,26 @@ export function isPaperSlipPrintLayout(value: unknown): value is PaperSlipPrintL
   return value === "full" || value === "half";
 }
 
+export interface PaperSlipPrintDeviceSignals {
+  userAgent?: string;
+  platform?: string;
+  maxTouchPoints?: number;
+}
+
+/**
+ * Full vs half is an iPhone/iPad AirPrint choice. Mac, Android, and desktop
+ * browsers always print full page and never see the chooser.
+ * iPadOS "Request Desktop Website" drops iPad from the UA and reports MacIntel
+ * with multi-touch; a real Mac reports maxTouchPoints 0.
+ */
+export function shouldOfferPaperSlipPrintLayoutChoice(
+  signals: PaperSlipPrintDeviceSignals = {},
+): boolean {
+  const userAgent = signals.userAgent ?? "";
+  if (/iphone|ipad|ipod/i.test(userAgent)) return true;
+  return signals.platform === "MacIntel" && (signals.maxTouchPoints ?? 0) > 1;
+}
+
 export function readStoredPaperSlipPrintLayout(): PaperSlipPrintLayout {
   if (typeof window === "undefined") return "full";
   try {
