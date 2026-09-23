@@ -106,7 +106,7 @@ export function resolveSlipRowActionVisibility(
     editSlip: slipInLab && !caseCancelled && !caseDeleted && canEditSlip,
     deleteSlip: !caseDeleted && canDeleteCase,
     restoreSlip: caseDeleted && canDeleteCase,
-    printDriverLabel: !caseCancelled && !caseDeleted,
+    printDriverLabel: allowDriverActions && !caseCancelled && !caseDeleted,
     printStatement: canPrintStatement && !caseCancelled && !caseDeleted,
     undoLocation:
       allowUndoLocation &&
