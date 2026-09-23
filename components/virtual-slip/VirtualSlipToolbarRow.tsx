@@ -80,7 +80,9 @@ export function VirtualSlipToolbarRow({
           return;
         }
 
-        router.push(buildVirtualSlipPath(caseId, resolvedId));
+        // Replace so slip→slip jumps do not stack history; the close control
+        // always returns to listing instead of a previous slip.
+        router.replace(buildVirtualSlipPath(caseId, resolvedId));
       } catch {
         setJumpSlipError("Unable to find slip");
       } finally {
@@ -99,7 +101,7 @@ export function VirtualSlipToolbarRow({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Back to case list view"
+                aria-label="Close to case list"
                 onClick={onBackToCaseList}
                 className="group flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center overflow-visible rounded-full transition-transform duration-200 ease-out hover:scale-[1.15] active:scale-95"
               >
@@ -115,7 +117,7 @@ export function VirtualSlipToolbarRow({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={8} className="text-xs font-medium">
-              Back to case list view
+              Close to case list
             </TooltipContent>
           </Tooltip>
         ) : null}
