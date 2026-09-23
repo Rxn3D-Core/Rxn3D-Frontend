@@ -49,9 +49,10 @@ export function clearSessionStorage(): void {
     console.error("Error clearing customer logo caches:", error)
   }
 
-  // Clear auth cookie
+  // Clear auth cookies (legacy names)
   try {
     document.cookie = "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; samesite=lax"
+    document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; samesite=lax"
   } catch (error) {
     console.error("Error clearing auth cookie:", error)
   }

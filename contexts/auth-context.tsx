@@ -21,14 +21,35 @@ import {
   type AvailablePermissionsPayload,
 } from "@/lib/permissions"
 import { formatUserStatusForApi } from "@/lib/user-status"
+import { getTokenExpiresAt } from "@/lib/auth-storage"
+import { refreshAccessToken } from "@/lib/token-refresh"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+
+const PROACTIVE_REFRESH_BEFORE_MS = 5 * 60 * 1000
+const PROACTIVE_REFRESH_CHECK_MS = 60 * 1000
 
 const setCookie = (name: string, value: string, days = 30) => {
   const date = new Date()
   date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000)
   const expires = `; expires=${date.toUTCString()}`
   document.cookie = `${name}=${value}${expires}; path=/; samesite=lax`
+}
+
+const persistAccessTokenExpiry = (accessToken: string, expiresInSeconds?: number) => {
+  if (typeof window === "undefined") return
+  if (typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)) {
+    localStorage.setItem("tokenExpiresAt", String(Date.now() + expiresInSeconds * 1000))
+    return
+  }
+  try {
+    const payload = JSON.parse(atob(accessToken.split(".")[1] ?? ""))
+    if (payload?.exp) {
+      localStorage.setItem("tokenExpiresAt", String(payload.exp * 1000))
+    }
+  } catch {
+    // ignore
+  }
 }
 
 type User = {
@@ -345,6 +366,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false)
   }, [])
 
+  // Keep React token state in sync when the global interceptor refreshes silently
+  useEffect(() => {
+    const onRefreshed = (event: Event) => {
+      const detail = (event as CustomEvent<{ accessToken?: string }>).detail
+      if (detail?.accessToken) {
+        setToken(detail.accessToken)
+      }
+    }
+    window.addEventListener("auth-token-refreshed", onRefreshed)
+    return () => window.removeEventListener("auth-token-refreshed", onRefreshed)
+  }, [])
+
+  // Proactive refresh for active tabs before access-token expiry
+  useEffect(() => {
+    if (!token || typeof window === "undefined") return
+
+    let cancelled = false
+
+    const maybeRefresh = async () => {
+      if (cancelled) return
+      if (document.visibilityState === "hidden") return
+      const expiresAt = getTokenExpiresAt()
+      if (!expiresAt) return
+      if (expiresAt - Date.now() > PROACTIVE_REFRESH_BEFORE_MS) return
+      const newToken = await refreshAccessToken()
+      if (!cancelled && newToken) {
+        setToken(newToken)
+      }
+    }
+
+    const onVisible = () => {
+      void maybeRefresh()
+    }
+
+    void maybeRefresh()
+    const intervalId = window.setInterval(() => {
+      void maybeRefresh()
+    }, PROACTIVE_REFRESH_CHECK_MS)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("focus", onVisible)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("focus", onVisible)
+    }
+  }, [token])
+
   // Sync localStorage when user object changes (e.g., after onboarding completion)
   useEffect(() => {
     if (!user) return
@@ -534,7 +604,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       localStorage.setItem("token", authData.access_token)
+      setCookie("token", authData.access_token)
       setCookie("auth_token", authData.access_token)
+      persistAccessTokenExpiry(authData.access_token, authData.expires_in)
 
       const avatarUrl =
         (authData.user as User & { avatar?: string }).avatar ?? authData.user.image
@@ -636,6 +708,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (response.ok) {
               const result = await response.json()
               localStorage.setItem("token", result.token)
+              persistAccessTokenExpiry(result.token)
+              setCookie("token", result.token)
+              setCookie("auth_token", result.token)
               localStorage.setItem("customerId", singleCustomer.id.toString())
               localStorage.setItem("selectedLocation", JSON.stringify(singleCustomer))
               setToken(result.token)
@@ -1385,6 +1460,9 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
 
           const result = await response.json()
           localStorage.setItem("token", result.token)
+          persistAccessTokenExpiry(result.token)
+          setCookie("token", result.token)
+          setCookie("auth_token", result.token)
           localStorage.setItem("customerId", String(customerId))
           setSelectedCustomerId(customerId)
           setToken(result.token)
