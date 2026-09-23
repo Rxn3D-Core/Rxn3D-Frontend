@@ -519,6 +519,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
   const mandibularNoActiveBoxTeeth: number[] = [];
   const maxillaryImplantDetailsByTooth: Record<number, ImplantDetailData> = {};
   const mandibularImplantDetailsByTooth: Record<number, ImplantDetailData> = {};
+  let selectedShadeGuide = "";
 
   for (let i = 0; i < apiProducts.length; i++) {
     const apiProduct: any = apiProducts[i];
@@ -622,6 +623,12 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       shadeFromSavedAdvanceFields(apiProduct, false),
       shadeFromNotes.teethShade
     );
+    if (!selectedShadeGuide) {
+      selectedShadeGuide = firstNonEmptyString(
+        apiProduct.teeth_shade_brand?.system_name,
+        apiProduct.teeth_shade?.brand?.system_name
+      );
+    }
     const gumShadeName: string = firstNonEmptyString(
       apiProduct.gum_shade?.name,
       apiProduct.gum_shade_name,
@@ -658,14 +665,19 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
       const productIdKey = isNonFixed ? `prep_${repTooth}` : `fixed_${repTooth}`;
 
       if (isNonFixed) {
-        if (teethShadeName) {
-          selectedShades[`${productIdKey}_${arch}_tooth_shade`] = teethShadeName;
-        }
-        if (gumShadeName) {
-          selectedShades[`${productIdKey}_${arch}_gum_shade`] = gumShadeName;
-        }
-        if (stumpShadeName) {
-          selectedShades[`${productIdKey}_${arch}_stump_shade`] = stumpShadeName;
+        // Write shade keys for every tooth in the product — the panel rep tooth is
+        // Math.min / first assigned, which can differ from teeth[0] briefly during
+        // edit preload (and from a virtual -cardId sentinel before teeth hydrate).
+        for (const tn of teeth) {
+          if (teethShadeName) {
+            selectedShades[`prep_${tn}_${arch}_tooth_shade`] = teethShadeName;
+          }
+          if (gumShadeName) {
+            selectedShades[`prep_${tn}_${arch}_gum_shade`] = gumShadeName;
+          }
+          if (stumpShadeName) {
+            selectedShades[`prep_${tn}_${arch}_stump_shade`] = stumpShadeName;
+          }
         }
       } else {
         // Fixed restoration: the panels read shades per-product via
@@ -800,7 +812,10 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
           values["fixed_shade_trio"] = JSON.stringify({
             teeth_shade_id:
               teethSource?.teeth_shade_id ?? teethSource?.id ?? null,
-            brand_id: teethSource?.brand?.id ?? null,
+            brand_id:
+              teethSource?.brand?.id ??
+              apiProduct.teeth_shade_brand?.id ??
+              null,
             name: teethShadeName,
           });
         }
@@ -816,11 +831,29 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
         }
         if (teethShadeName) {
           completed.push("teeth_shade");
-          values["teeth_shade"] = teethShadeName;
+          const teethSource = apiProduct.teeth_shade;
+          values["teeth_shade"] = JSON.stringify({
+            teeth_shade_id:
+              teethSource?.teeth_shade_id ?? teethSource?.id ?? null,
+            brand_id:
+              teethSource?.brand?.id ??
+              apiProduct.teeth_shade_brand?.id ??
+              null,
+            name: teethShadeName,
+          });
         }
         if (gumShadeName) {
           completed.push("gum_shade");
-          values["gum_shade"] = gumShadeName;
+          const gumSource = apiProduct.gum_shade;
+          values["gum_shade"] = JSON.stringify({
+            gum_shade_id:
+              gumSource?.gum_shade_id ?? gumSource?.id ?? null,
+            brand_id:
+              gumSource?.brand?.id ??
+              apiProduct.gum_shade_brand?.id ??
+              null,
+            name: gumShadeName,
+          });
         }
       }
 
@@ -1049,6 +1082,7 @@ export function buildVirtualSlipInitialState(apiProducts: unknown[]): VirtualSli
     mandibularNoActiveBoxTeeth,
     maxillaryImplantDetailsByTooth,
     mandibularImplantDetailsByTooth,
+    ...(selectedShadeGuide ? { selectedShadeGuide } : {}),
   };
 }
 

@@ -56,6 +56,7 @@ import {
   SHADE_FIELD_LABEL_CLASS,
 } from "../utils/shadeFieldDisplay";
 import { TeethShadePreviewIcon } from "./TeethShadePreviewIcon";
+import { useAutoOpenSuppressed } from "./auto-open-suppression";
 
 /* ------------------------------------------------------------------ */
 /*  Diamond SVG icons (Grade field)                                    */
@@ -431,19 +432,23 @@ export function GradeHoverSelector({
 /* ------------------------------------------------------------------ */
 
 export function AutoOpenShade({ hasValue, onOpen }: { hasValue: boolean; onOpen: () => void }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const opened = useRef(false);
   useEffect(() => {
+    if (autoOpenSuppressed) return;
     if (!hasValue && !opened.current) {
       opened.current = true;
       onOpen();
     }
-  }, [hasValue, onOpen]);
+  }, [autoOpenSuppressed, hasValue, onOpen]);
   return null;
 }
 
 export function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boolean; hasValue: boolean; onOpen: () => void }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const opened = useRef(false);
   useEffect(() => {
+    if (autoOpenSuppressed) return;
     if (visible && !hasValue && !opened.current) {
       opened.current = true;
       onOpen();
@@ -451,7 +456,7 @@ export function AutoOpenGumShade({ visible, hasValue, onOpen }: { visible: boole
     if (!visible || hasValue) {
       opened.current = false;
     }
-  }, [visible, hasValue, onOpen]);
+  }, [autoOpenSuppressed, visible, hasValue, onOpen]);
   return null;
 }
 
@@ -475,10 +480,11 @@ export function AutoOpenImpressionIfEmpty({
   /** When true (e.g. impression modal already open), skip auto-open */
   blockAutoOpen?: boolean;
 }) {
+  const autoOpenSuppressed = useAutoOpenSuppressed();
   const hasAutoOpenedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (blockAutoOpen) {
+    if (autoOpenSuppressed || blockAutoOpen) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
@@ -503,7 +509,7 @@ export function AutoOpenImpressionIfEmpty({
       timerRef.current = null;
       onOpenImpressionModal(arch, productId, toothNumber);
     }, 350);
-  }, [isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber, blockAutoOpen]);
+  }, [autoOpenSuppressed, isExpanded, isImpressionVisible, isImpressionEmpty, onOpenImpressionModal, arch, productId, toothNumber, blockAutoOpen]);
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
