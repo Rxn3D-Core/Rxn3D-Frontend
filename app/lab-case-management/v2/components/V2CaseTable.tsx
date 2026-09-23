@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
 import { isSlipCaseCancelled, isSlipCaseFinished } from "@/lib/slip-case-status"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 
 import { countVisibleV2Columns } from "../case-table-ui.mjs"
@@ -182,13 +183,13 @@ function isReadyToSendLocation(row: V2CaseRowData) {
 
 function formatDueDate(dueDate: string): string {
   if (!dueDate) return "—"
-  const due = new Date(dueDate)
-  if (isNaN(due.getTime())) return dueDate
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  due.setHours(0, 0, 0, 0)
+  // Parse as calendar day (YYYY-MM-DD) so MM/DD matches the API date on every device.
+  const due = parseSlipListingDueDate(dueDate)
+  if (!due) return dueDate
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
-  const mmdd = due.toLocaleDateString("en-US", { month: "2-digit", day: "2-digit" })
+  const mmdd = `${String(due.getMonth() + 1).padStart(2, "0")}/${String(due.getDate()).padStart(2, "0")}`
   const label = days === 0 ? "Today" : days < 0 ? `${Math.abs(days)}d ago` : `${days}d`
   return `${label} · ${mmdd}`
 }
