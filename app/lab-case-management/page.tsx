@@ -22,6 +22,7 @@ import { useSignatureRequirementSettings } from "@/hooks/use-signature-requireme
 import AddOnsModal from "@/components/add-ons-modal"
 import { buildVirtualSlipAddonInputs, type VirtualSlipAddonInputs } from "@/lib/virtual-slip-addon-inputs"
 import { virtualSlipRushSlotsShareProduct } from "@/lib/virtual-slip-rush-slots"
+import { parseSlipListingDueDate } from "@/lib/slip-listing-due-date"
 import { getBusinessSettings, type CaseSchedule, type BusinessHour } from "@/lib/api-business-settings"
 import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state"
 import { resolveLibraryCustomerId } from "@/components/case-design-center/utils/libraryCustomerId"
@@ -123,8 +124,8 @@ function getSortValue(row: V2CaseRowData, key: ColumnKey): string | number {
       return (row.digitalImpressions?.[0]?.code || row.digitalImpressions?.[0]?.name || "").toLowerCase()
     case "dueDate": {
       if (!row.dueDate) return Number.POSITIVE_INFINITY
-      const time = new Date(row.dueDate).getTime()
-      return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+      const due = parseSlipListingDueDate(row.dueDate)
+      return due ? due.getTime() : Number.POSITIVE_INFINITY
     }
     default:
       return ""
