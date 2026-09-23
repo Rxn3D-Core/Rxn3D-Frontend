@@ -6,6 +6,22 @@ import {
   isFixedRestorationProduct,
   resolveProductForRetentionCheck,
 } from "@/components/case-design-center/utils/categoryHelpers";
+import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
+
+/** Slip shade label: "Brand - System - A1" (drops brand when it matches system). */
+function formatSlipShadeLabel(
+  shadeName: string | null | undefined,
+  brand?: { name?: string | null; system_name?: string | null } | null,
+): string {
+  const code = (shadeName ?? "").trim();
+  if (!code) return "";
+  const guide = formatShadeGuideWithBrand(brand?.system_name, brand?.name);
+  if (!guide) return code;
+  // Avoid "Brand - Standard Pink - Standard Pink" when shade name equals system.
+  const system = formatShadeSystemName((brand?.system_name ?? "").trim());
+  if (system && system.toLowerCase() === code.toLowerCase()) return guide;
+  return `${guide} - ${code}`;
+}
 
 /**
  * Display-oriented view model for the redesigned (view-only) virtual slip page.
@@ -683,7 +699,8 @@ function buildProduct(apiProduct: any): ProductVM {
     if (!Array.isArray(apiProduct?.advance_fields)) return "";
     for (const saved of apiProduct.advance_fields) {
       if (saved?.advance_field?.field_type === "shade_guide") {
-        return firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        const code = firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        return formatSlipShadeLabel(code, saved?.teeth_shade_brand);
       }
     }
     return "";
@@ -694,13 +711,17 @@ function buildProduct(apiProduct: any): ProductVM {
     for (const saved of apiProduct.advance_fields) {
       const name: string = (saved?.advance_field?.name ?? "").toLowerCase();
       if (name.includes("stump") && saved?.advance_field?.field_type === "shade_guide") {
-        return firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        const code = firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
+        return formatSlipShadeLabel(code, saved?.teeth_shade_brand);
       }
     }
     return "";
   })();
 
   const fromNotes = parseSlipProductNotes(firstStr(apiProduct?.notes));
+
+  const teethShadeCode = firstStr(apiProduct?.teeth_shade?.name, apiProduct?.teeth_shade_name);
+  const gumShadeCode = firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name);
 
   return {
     apiProduct,
@@ -719,12 +740,14 @@ function buildProduct(apiProduct: any): ProductVM {
     stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
     status: firstStr(apiProduct?.status, "In Progress"),
     teethShade: firstStr(
-      apiProduct?.teeth_shade?.name,
-      apiProduct?.teeth_shade_name,
+      formatSlipShadeLabel(teethShadeCode, apiProduct?.teeth_shade_brand),
       teethShadeFromAdvance,
       fromNotes.teethShade,
     ),
-    gumShade: firstStr(apiProduct?.gum_shade?.name, apiProduct?.gum_shade_name, fromNotes.gumShade),
+    gumShade: firstStr(
+      formatSlipShadeLabel(gumShadeCode, apiProduct?.gum_shade_brand),
+      fromNotes.gumShade,
+    ),
     stumpShade: firstStr(
       apiProduct?.stump_shade?.name,
       apiProduct?.stump_shade_name,

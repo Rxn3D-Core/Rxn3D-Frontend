@@ -263,6 +263,11 @@ export interface VirtualSlipInitialState {
   /** Saved edit-slip implant and abutment selections keyed by tooth number. */
   maxillaryImplantDetailsByTooth: Record<number, ImplantDetailData>;
   mandibularImplantDetailsByTooth: Record<number, ImplantDetailData>;
+  /**
+   * Active teeth shade guide system_name from the slip (e.g. "IPS Shade System").
+   * Hydrated so edit-slip labels/picker match the originally selected brand guide.
+   */
+  selectedShadeGuide?: string;
 }
 
 export interface NotesProps {

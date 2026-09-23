@@ -6,6 +6,22 @@ import {
   isSplintedSlipProduct,
   parseSplintedTeethToLinks,
 } from "@/components/case-design-center/utils/splintHelpers";
+import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
+
+/** Slip shade label: "Brand - System - A1" (drops brand when it matches system). */
+function formatSlipShadeLabel(
+  shadeName: string | null | undefined,
+  brand?: { name?: string | null; system_name?: string | null } | null,
+): string {
+  const code = (shadeName ?? "").trim();
+  if (!code) return "";
+  const guide = formatShadeGuideWithBrand(brand?.system_name, brand?.name);
+  if (!guide) return code;
+  // Avoid "Brand - Standard Pink - Standard Pink" when shade name equals system.
+  const system = formatShadeSystemName((brand?.system_name ?? "").trim());
+  if (system && system.toLowerCase() === code.toLowerCase()) return guide;
+  return `${guide} - ${code}`;
+}
 
 export type PaperSlipArch = "maxillary" | "mandibular";
 export type PaperSlipArchMode = "extraction" | "retention" | "default";
@@ -400,8 +416,14 @@ function buildDetailFields(product: any, rowKind: PaperSlipDetailRowKind): Paper
   maybePush("Product", firstStr(product?.product?.name, product?.name));
   maybePush("Grade", firstStr(product?.grade?.name, product?.grade_name));
   maybePush("Stage", firstStr(product?.stage?.name, product?.stage_name));
-  maybePush("Teeth shade", firstStr(product?.teeth_shade?.name, product?.teeth_shade_name));
-  maybePush("Gum shade", firstStr(product?.gum_shade?.name, product?.gum_shade_name));
+  maybePush("Teeth shade", formatSlipShadeLabel(
+    firstStr(product?.teeth_shade?.name, product?.teeth_shade_name),
+    product?.teeth_shade_brand,
+  ));
+  maybePush("Gum shade", formatSlipShadeLabel(
+    firstStr(product?.gum_shade?.name, product?.gum_shade_name),
+    product?.gum_shade_brand,
+  ));
   maybePush("Stump shade", firstStr(product?.stump_shade?.name, product?.stump_shade_name));
   maybePush("Impression", formatImpressions(product?.impressions));
   maybePush("Add ons", formatAddOns(product?.addons));

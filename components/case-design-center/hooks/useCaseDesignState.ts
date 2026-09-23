@@ -3503,6 +3503,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
     if (Object.keys(s.selectedShades).length > 0) {
       shades.setSelectedShades(s.selectedShades);
     }
+    if (s.selectedShadeGuide) {
+      shades.setSelectedShadeGuide(s.selectedShadeGuide);
+    }
 
     // Stage selections
     if (Object.keys(s.selectedStages).length > 0) {

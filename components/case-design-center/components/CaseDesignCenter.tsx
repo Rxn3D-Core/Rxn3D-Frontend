@@ -17,7 +17,6 @@ import { ModalOrchestrator } from "./ModalOrchestrator";
 import { mockImpressions } from "../constants";
 import { hasRetentionOptions, isNonRetentionCategory, serializeStageFieldValue, serializeStageSelectionFromProduct } from "../utils/categoryHelpers";
 import { resolveProductForStageField } from "../utils/gradeHelpers";
-import { hasAdvanceField } from "./FixedRestorationFields";
 import {
   getCardRepresentativeTooth,
   getPrimaryCardRepresentativeTooth,
@@ -27,7 +26,10 @@ import { BackToProductsControl, CaseDesignHeaderActions } from "./CaseDesignHead
 import { ChangeProductConfirmModal } from "./ChangeProductConfirmModal";
 import { CaseDesignSummarySection } from "./CaseDesignSummarySection";
 import { useSlipProductCollector } from "../hooks/useSlipProductCollector";
-import { getFirstMissingShadeGuideField, getShadeGuideAdvanceFields } from "../utils/shadeGuideAdvanceFields";
+import {
+  getMissingFixedShadeFieldLabel,
+  isStoredShadeValuePresent,
+} from "../utils/fixedShadeCompleteness";
 import {
   getOpposingImpressionRequirement,
   isOppositeImpressionEnabled,
@@ -124,26 +126,29 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const [showSelectTeethToReplaceMaxillary, setShowSelectTeethToReplaceMaxillary] = useState(false);
   const [showSelectTeethToReplaceMandibular, setShowSelectTeethToReplaceMandibular] = useState(false);
   const getMissingFixedShadeField = useCallback(
-    (product: any, shadeProductId: string, arch: "maxillary" | "mandibular") => {
-      const missingNamedField = getFirstMissingShadeGuideField(
-        product?.advance_fields,
+    (
+      product: any,
+      shadeProductId: string,
+      arch: "maxillary" | "mandibular",
+      toothNumbers: number[] = []
+    ) => {
+      const toothCandidates =
+        toothNumbers.length > 0 ? toothNumbers : [Number(shadeProductId.replace(/\D/g, "")) || 0];
+      const toothShadeFieldDone = toothCandidates.some((tn) =>
+        isStoredShadeValuePresent(state.getFieldValue(arch, tn, "fixed_shade_trio"))
+      );
+      const stumpShadeFieldDone = toothCandidates.some((tn) =>
+        isStoredShadeValuePresent(state.getFieldValue(arch, tn, "fixed_stump_shade"))
+      );
+      return getMissingFixedShadeFieldLabel(
+        product,
         shadeProductId,
         arch,
-        state.getSelectedShade
+        state.getSelectedShade,
+        { toothShadeFieldDone, stumpShadeFieldDone }
       );
-      if (missingNamedField) return missingNamedField.name;
-
-      const shadeGuideFields = getShadeGuideAdvanceFields(product?.advance_fields);
-      if (shadeGuideFields.length > 0) return null;
-      if (hasAdvanceField("fixed_stump_shade", product?.advance_fields) && !state.getSelectedShade(shadeProductId, arch, "stump_shade")) {
-        return "Stump Shade";
-      }
-      if (hasAdvanceField("fixed_shade_trio", product?.advance_fields) && !state.getSelectedShade(shadeProductId, arch, "tooth_shade")) {
-        return "Tooth Shade";
-      }
-      return null;
     },
-    [state.getSelectedShade]
+    [state.getSelectedShade, state.getFieldValue]
   );
 
   const isAnyModalOpen =
@@ -1129,7 +1134,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const shadeProductId = product?.id
           ? `fixed_p_${product.id}`
           : `fixed_${Math.min(...teethInGroup)}`;
-        const missingShadeField = getMissingFixedShadeField(product, shadeProductId, arch);
+        const missingShadeField = getMissingFixedShadeField(
+          product,
+          shadeProductId,
+          arch,
+          teethInGroup
+        );
         if (missingShadeField) return missingShadeField;
       }
 
@@ -1159,14 +1169,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const productKey = String(product?.id ?? n);
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
+          const groupTeeth = maxillaryTeeth.filter(
+            (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
+          );
           const shadeId = product?.id
             ? `fixed_p_${product.id}`
-            : `fixed_${Math.min(
-                ...maxillaryTeeth.filter(
-                  (t) => String(state.getToothProduct("maxillary", t)?.id ?? t) === productKey
-                )
-              )}`;
-          if (getMissingFixedShadeField(product, shadeId, "maxillary")) return true;
+            : `fixed_${Math.min(...groupTeeth)}`;
+          if (getMissingFixedShadeField(product, shadeId, "maxillary", groupTeeth)) return true;
         }
       }
       // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
@@ -1184,14 +1193,13 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         const productKey = String(product?.id ?? n);
         if (!processedShadeGroups.has(productKey)) {
           processedShadeGroups.add(productKey);
+          const groupTeeth = mandibularTeeth.filter(
+            (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
+          );
           const shadeId = product?.id
             ? `fixed_p_${product.id}`
-            : `fixed_${Math.min(
-                ...mandibularTeeth.filter(
-                  (t) => String(state.getToothProduct("mandibular", t)?.id ?? t) === productKey
-                )
-              )}`;
-          if (getMissingFixedShadeField(product, shadeId, "mandibular")) return true;
+            : `fixed_${Math.min(...groupTeeth)}`;
+          if (getMissingFixedShadeField(product, shadeId, "mandibular", groupTeeth)) return true;
         }
       }
       // Fixed restoration products use fixed_impression field step (not arch-level selectedImpressions)
