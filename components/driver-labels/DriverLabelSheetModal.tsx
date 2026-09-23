@@ -30,7 +30,8 @@ import {
 } from "@/lib/driver-labels/label-layout"
 import {
   generateDriverLabelPdf,
-  printPdfDoc,
+  isSafariBrowser,
+  printPdfUrl,
   type DriverLabelSlip,
 } from "@/lib/driver-labels/generate-driver-label-pdf"
 import {
@@ -81,12 +82,19 @@ export default function DriverLabelSheetModal({
   const previewDoc = useRef<jsPDF | null>(null)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Safari's PDF plugin does not paint blob URLs in an iframe. Embed does, once
+  // object-src allows blob: and no ancestor has a CSS transform.
+  const [safariPreview, setSafariPreview] = useState(false)
   const [appliedSettings, setAppliedSettings] = useState<DriverLabelPrintSettings>(
     DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   )
   const [draftSettings, setDraftSettings] = useState<DriverLabelPrintSettings>(
     DEFAULT_DRIVER_LABEL_PRINT_SETTINGS,
   )
+
+  useEffect(() => {
+    setSafariPreview(isSafariBrowser())
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -249,21 +257,11 @@ export default function DriverLabelSheetModal({
 
   const handleDownload = () => previewDoc.current?.save(`driver-labels-${Date.now()}.pdf`)
 
-  const handlePrint = async () => {
-    if (!geo) return
-    setGenerating(true)
-    try {
-      const doc = await generateDriverLabelPdf(
-        mode === "roll" ? buildRollPayload() : buildSheetPayload(),
-        geo,
-        appliedSettings,
-      )
-      printPdfDoc(doc)
-    } catch (err) {
-      console.error("Failed to print driver labels", err)
-      alert("Failed to print the labels.")
-    } finally {
-      setGenerating(false)
+  const handlePrint = () => {
+    if (!previewUrl) return
+    // Must run in the click, before any await, or the browser blocks the tab.
+    if (!printPdfUrl(previewUrl)) {
+      alert("Allow pop-ups to print the labels.")
     }
   }
 
@@ -295,7 +293,8 @@ export default function DriverLabelSheetModal({
   return (
     <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className={`max-h-[93vh] w-[96vw] overflow-hidden rounded-2xl p-0 ${
+        noTransform
+        className={`max-h-[93vh] w-[96vw] rounded-2xl p-0 ${
           settingsOpen ? "max-w-[1180px]" : "max-w-[940px]"
         }`}
       >
@@ -335,18 +334,29 @@ export default function DriverLabelSheetModal({
                 </Button>
               </div>
             </div>
-            <div className="flex-1 bg-gray-100">
+            <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
               {previewUrl ? (
-                <iframe
-                  title="Driver labels preview"
-                  src={previewUrl}
-                  className="h-full w-full border-0"
-                />
+                safariPreview ? (
+                  <embed
+                    src={previewUrl}
+                    type="application/pdf"
+                    aria-label="Driver labels preview"
+                    width="100%"
+                    height="100%"
+                    className="h-full min-h-0 w-full flex-1"
+                  />
+                ) : (
+                  <iframe
+                    title="Driver labels preview"
+                    src={previewUrl}
+                    className="h-full min-h-0 w-full flex-1 border-0"
+                  />
+                )
               ) : null}
             </div>
           </div>
         ) : (
-          <div className="flex max-h-[93vh] flex-col">
+          <div className="flex max-h-[93vh] flex-col overflow-hidden rounded-2xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
               <div className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-3">

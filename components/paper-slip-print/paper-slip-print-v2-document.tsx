@@ -30,7 +30,8 @@ import { VirtualSlipOpposingSection } from "@/components/virtual-slip/VirtualSli
 /** Figma artboard size (CSS px). */
 const SLIP_W = 628;
 const SLIP_H = 890;
-const BLUE_TOP = 28;
+/** Inset from the slip’s left and right edges. */
+const SIDE_PAD = 10;
 
 /**
  * Physical size of the artboard at 96 CSS px/in — used in @media print so WebKit
@@ -290,7 +291,7 @@ function PaperSlipV2DetailGrid({ rows }: { rows: DetailGridRow[] }) {
 
   return (
     <div
-      className="mx-auto grid w-[550.05px] grid-cols-[176.02px_176.02px_176.02px] justify-center"
+      className="mx-[10px] grid w-[calc(100%-20px)] grid-cols-3"
       style={{ rowGap: 4 }}
     >
       {rows.map((row) => (
@@ -424,7 +425,7 @@ function PaperSlipV2Notes({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
 
   return (
     <section
-      className="mx-auto flex w-[570px] items-center justify-center px-[15px] py-[15px]"
+      className="mx-[10px] flex w-[calc(100%-20px)] items-center justify-center px-[15px] py-[15px]"
       style={{
         background: isRush ? "#FFE3E3" : "#FFFFFF",
         borderRadius: 7,
@@ -447,7 +448,7 @@ function PaperSlipV2RelatedSlips({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
   if (related.length === 0) return null;
 
   return (
-    <div className="flex w-full items-center gap-[6px] px-[15px]">
+    <div className="flex w-full items-center gap-[6px] px-[10px]">
       <span
         className="shrink-0 font-bold text-[#0A0B0E]"
         style={{ fontFamily: "Inter, Arial, sans-serif", fontSize: 10, lineHeight: "12px" }}
@@ -483,11 +484,11 @@ function PaperSlipV2Footer({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
   const { extras } = slip;
   return (
     <div className="flex w-full flex-col items-stretch gap-[5px]">
-      <div className="mx-auto h-px w-[586px] bg-[#B3B3B3]" />
+      <div className="mx-auto h-px w-[calc(100%-20px)] bg-[#B3B3B3]" />
 
       <PaperSlipV2RelatedSlips slip={slip} />
 
-      <div className="flex w-full justify-end px-[15px] pt-[20px]">
+      <div className="flex w-full justify-end px-[10px] pt-[20px]">
         <div className="relative w-[206px]">
           <div className="h-px w-full bg-[#B3B3B3]" />
           <div
@@ -506,7 +507,7 @@ function PaperSlipV2CasePanBlock({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
   return (
     <div className="flex w-full flex-col items-stretch gap-[5px]">
       <div
-        className="mx-auto h-px w-[586px]"
+        className="mx-auto h-px w-[calc(100%-20px)]"
         style={{
           backgroundImage:
             "repeating-linear-gradient(to right, #B3B3B3 0, #B3B3B3 4px, transparent 4px, transparent 8px)",
@@ -577,9 +578,9 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
       style={{
         width: SLIP_W,
         height: SLIP_H,
-        background: "#1162A8",
+        background: "#FFFFFF",
         border: "1px solid #7F7F7F",
-        paddingTop: BLUE_TOP,
+        paddingTop: SIDE_PAD,
         gap: 5,
       }}
     >
@@ -588,7 +589,7 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
         style={{ gap: 5 }}
       >
         {/* Brand lockup — Verdana 18 / 12.6 */}
-        <div className="flex h-[20.48px] w-full items-center justify-between px-[15px]">
+        <div className="flex h-[20.48px] w-full items-center justify-between px-[10px]">
           <div className="flex items-center gap-[7.79px]">
             {header.labLogo ? (
               <img
@@ -615,7 +616,7 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
         </div>
 
         {/* Two-column header meta — gap 4.18 between rows */}
-        <div className="flex w-full justify-center gap-[10px] py-[5px]">
+        <div className="flex w-full items-start justify-between px-[10px] py-[5px]">
           <div className="flex w-[299.19px] flex-col items-start" style={{ gap: 4.18 }}>
             <HeaderRow label="Code:" value={slip.extras.labCode || ""} />
             <HeaderRow label="Office" value={header.officeName || ""} />
@@ -632,14 +633,14 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
           </div>
         </div>
 
-        {/* Arch charts — Figma row, padding 0 15 15, gap 20 */}
-        <div className="flex w-full justify-center gap-[20px] px-[15px] pb-[15px]">
+        {/* Arch charts — padding 0 8px 15px, gap 20 */}
+        <div className="flex w-full justify-center gap-[20px] px-[8px] pb-[15px]">
           <PaperSlipV2ArchColumn arch={slip.vm.arches.maxillary} title="MAXILLARY" />
           <PaperSlipV2ArchColumn arch={slip.vm.arches.mandibular} title="MANDIBULAR" />
         </div>
 
         {showImplant ? (
-          <div className="flex w-full justify-center gap-[40px] px-[15px]">
+          <div className="flex w-full justify-center gap-[40px] px-[10px]">
             <PaperSlipV2LabelValueColumn rows={implantProductRows} />
             <PaperSlipV2ImplantPanel slip={slip} />
           </div>
@@ -649,7 +650,7 @@ function PaperSlipV2Section({ section }: { section: PaperSlipPrintV2SectionModel
 
         {showImplant ? (
           <p
-            className="px-[15px] text-center italic text-[#4C4D55]"
+            className="px-[10px] text-center italic text-[#4C4D55]"
             style={{ fontFamily: "Arial, sans-serif", fontSize: 11, lineHeight: "14px" }}
           >
             Scan QR / open virtual slip for advanced configuration details.

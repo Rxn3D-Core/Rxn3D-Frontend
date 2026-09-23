@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { CSP_CONNECT_SRC_EXTRA, CSP_FRAME_SRC, CSP_SCRIPT_SRC } from '@/lib/content-security-policy';
+import { CSP_CONNECT_SRC_EXTRA, CSP_FRAME_SRC, CSP_OBJECT_SRC, CSP_SCRIPT_SRC } from '@/lib/content-security-policy';
 
 function cspHttpApiConnectExtra(): string {
   const raw = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -81,7 +81,7 @@ export function middleware(request: NextRequest) {
     connect-src 'self' blob: https: ${CSP_CONNECT_SRC_EXTRA}${httpConnect};
     media-src 'self' blob: https:;
     worker-src 'self' blob:;
-    object-src 'none';
+    object-src ${CSP_OBJECT_SRC};
     frame-src ${CSP_FRAME_SRC};
     base-uri 'self';
     form-action 'self';

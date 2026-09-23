@@ -159,22 +159,24 @@ export default function LoginForm() {
   return (
     <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Fixed Header */}
-      <AuthHeader />
+      <AuthHeader className="shrink-0" />
 
       {/* Main Content Container - Takes remaining height */}
-      <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
-        {/* Left Side - Login Form */}
-        <div className="w-full lg:w-1/2 flex items-start lg:items-center justify-center px-5 pt-8 pb-6 sm:px-8 sm:pt-10 sm:pb-8 md:px-12 lg:px-8 lg:py-8 xl:px-16 overflow-y-auto">
-          <div className="w-full max-w-[460px]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+        {/* Left side stays fixed. Only the recent-login list scrolls. */}
+        <div className="flex min-h-0 w-full flex-col overflow-hidden lg:h-full lg:w-1/2">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-6 sm:px-8 sm:py-8 md:px-12 lg:px-10 lg:py-6 xl:px-16">
+          <div className="mx-auto my-auto flex min-h-0 w-full max-h-full max-w-[460px] flex-col overflow-hidden">
+            <div className="shrink-0">
             {/* Logo + welcome */}
-            <div className="mb-6 sm:mb-8 md:mb-10">
-              <Link href="/" className="inline-block mb-5 sm:mb-6">
+            <div className="mb-4">
+              <Link href="/" className="inline-block mb-3">
                 <Image
                   src="/images/rxn3d-logo.svg"
                   alt="RXN3D"
                   width={200}
                   height={64}
-                  className="h-14 w-auto sm:h-16 md:h-[4.5rem]"
+                  className="h-12 w-auto sm:h-14"
                   priority
                 />
               </Link>
@@ -186,7 +188,7 @@ export default function LoginForm() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {/* Username/Email input with floating label */}
               <Input
                 type="text"
@@ -297,12 +299,11 @@ export default function LoginForm() {
                 </Link>
               </p>
             </form>
+            </div>
 
-            {/* Enhanced Recent Sessions Section */}
             {sessionHistory.length > 0 && (
-              <div className="mt-8 sm:mt-10">
-                {/* Enhanced Divider */}
-                <div className="flex items-center justify-center text-sm text-slate-500 my-6 sm:my-8">
+              <div className="mt-5 flex min-h-0 flex-col overflow-hidden">
+                <div className="my-3 flex shrink-0 items-center justify-center text-sm text-slate-500">
                   <div className="border-t border-dashed border-slate-300 flex-1"></div>
                   <span className="px-4 bg-gradient-to-br from-slate-50 to-blue-50 font-medium">
                     {t("login.continueWith")}
@@ -311,7 +312,7 @@ export default function LoginForm() {
                 </div>
 
                 {/* Enhanced Recent Logins Header */}
-                <div className="flex items-center justify-between mb-4">
+                <div className="mb-3 flex shrink-0 items-center justify-between">
                   <div className="flex items-center text-sm text-slate-600 font-medium">
                     <Clock className="w-4 h-4 mr-2 text-blue-500" />
                     <span>Recent logins</span>
@@ -326,12 +327,11 @@ export default function LoginForm() {
                   </button>
                 </div>
 
-                {/* Enhanced Session History Cards */}
-                <div className="space-y-3">
+                <div className="min-h-0 space-y-2.5 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300">
                   {sessionHistory.map((session, index) => (
                     <button
                       key={index}
-                      className="w-full border-2 border-slate-200 rounded-xl py-3 px-4 text-left hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:border-blue-300 transition-all duration-200 flex items-center justify-between group shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                      className="w-full border border-slate-200 rounded-xl py-2.5 px-4 text-left hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:border-blue-300 transition-colors duration-200 flex items-center justify-between group"
                       onClick={() => handleQuickFill(session.identifier)}
                       disabled={loginMutation.isPending}
                       type="button"
@@ -354,6 +354,7 @@ export default function LoginForm() {
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
 

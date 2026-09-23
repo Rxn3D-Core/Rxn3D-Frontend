@@ -7,9 +7,9 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 | Token | Value |
 | --- | --- |
 | Artboard | `628px × 890px` |
-| Outer fill | `#1162A8` |
+| Outer fill | `#FFFFFF` (blue top band removed) |
 | Outer border | `1px solid #7F7F7F` |
-| Top blue pad | `28px` (nudged down from Figma `15px` for breathing room) |
+| Top pad | `10px` |
 | Inner white | `628 × 875` (flex-grow) |
 | Section gap | `5px` |
 
@@ -27,7 +27,7 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 | Element | Spec |
 | --- | --- |
 | Height | `20.48px` |
-| Horizontal pad | `15px` |
+| Horizontal pad | `10px` |
 | Logo | `21.29 × 11.76` |
 | Lab name | Verdana 700 / `18px` / lh `20px` / ls `-0.02em` |
 | Address | Verdana 400 / `12.6px` / lh `20px` / ls `-0.02em` |
@@ -42,8 +42,8 @@ Source of truth: Figma frame **PS - Partial one arch** (CSS export).
 | Value | Arial 400 / `14.2073px` / lh `15px` |
 | Left col width | `299.19px` |
 | Right col width | `218.52px` |
-| Column gap | `10px` |
-| Block padding | `5px 0` |
+| Column gap | space-between (columns sit at the side inset) |
+| Block padding | `5px 10px` |
 
 Left: Code, Office, Dr, Patient, Gender  
 Right: Case #, Slip #, Location, Pick up date, Due date
@@ -52,7 +52,7 @@ Right: Case #, Slip #, Location, Pick up date, Due date
 
 | Token | Value |
 | --- | --- |
-| Row padding | `0 15px 15px` |
+| Row padding | `0 8px 15px` |
 | Column gap | `20px` |
 | Column width | `298px` (bumped from Figma `280.67` for readability) |
 | Arch title | Inter 700 / `8.63608px` / lh `9px` / `#4C4D55` |
@@ -72,8 +72,8 @@ Tooth chart **props/logic unchanged** — `VirtualSlipToothChart` stays dynamic.
 
 | Token | Value |
 | --- | --- |
-| Width | `550.05px` |
-| Columns | `176.02 × 3` (value right \| label center \| value left) |
+| Width | `calc(100% - 20px)` (10px inset each side) |
+| Columns | 3 equal columns (value right \| label center \| value left) |
 | Font | Verdana / `12.0286px` / lh `22px` / ls `-0.02em` / `#4C4D55` |
 | Label weight | 700; values 400 |
 | Row height | `23px` |
@@ -82,7 +82,7 @@ Tooth chart **props/logic unchanged** — `VirtualSlipToothChart` stays dynamic.
 
 | Token | Value |
 | --- | --- |
-| Width | `570px` |
+| Width | `calc(100% - 20px)` (10px inset each side) |
 | Min height | `72px` |
 | Rush fill | `#FFE3E3`, radius `7px`, pad `15px` |
 | Body | Arial 400 / `12px` / lh `14px` / `#4C4D55` |
@@ -91,7 +91,7 @@ Tooth chart **props/logic unchanged** — `VirtualSlipToothChart` stays dynamic.
 
 | Token | Value |
 | --- | --- |
-| Divider | `586px`, `#B3B3B3` |
+| Divider | `calc(100% - 20px)`, `#B3B3B3` |
 | Related label | Inter 700 / `10px` |
 | Chip | `76 × 21`, radius `10px`, Inter 600 / `8.5px` |
 | Signature line | `206px`, label Inter 400 / `7px` |
