@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import { useTranslation } from "react-i18next"
 import { AuthHeader } from "./auth-header"
+import { SiteCopyrightFooter } from "@/components/site-copyright-footer"
 import { useLoginMutation } from "@/hooks/use-login"
 import { useSessionHistory } from "@/hooks/use-session-history"
 import { Input } from "@/components/ui/input"
@@ -436,6 +437,8 @@ export default function LoginForm() {
           </div>
         </div>
       </div>
+
+      <SiteCopyrightFooter />
     </div>
   )
 }

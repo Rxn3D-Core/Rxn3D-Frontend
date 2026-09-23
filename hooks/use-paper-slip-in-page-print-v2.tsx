@@ -7,6 +7,7 @@ import { PaperSlipPrintLayoutDialog } from "@/components/paper-slip-print/paper-
 import { isPaperSlipV2HtmlPreviewEnabled } from "@/lib/paper-slip-v2-html-preview";
 import {
   readStoredPaperSlipPrintLayout,
+  shouldOfferPaperSlipPrintLayoutChoice,
   storePaperSlipPrintLayout,
   type PaperSlipPrintLayout,
 } from "@/lib/paper-slip-print-layout";
@@ -36,9 +37,11 @@ function prefersInPlacePrint(): boolean {
 
 /** True iPhone/iPad — keep unscaled print to avoid AirPrint blank pages. */
 function isIOSDevice(): boolean {
-  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) return true;
-  // iPadOS desktop UA
-  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return shouldOfferPaperSlipPrintLayoutChoice({
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints,
+  });
 }
 
 /**
@@ -346,6 +349,11 @@ export function usePaperSlipInPagePrintV2() {
     // HTML preview skips the chooser so layout can be inspected without prompts.
     if (htmlPreview) {
       startPrintJob(slipIds, caseIds, readStoredPaperSlipPrintLayout());
+      return;
+    }
+    // Full vs half is iPhone/iPad only. Mac, Android, and desktop print full page.
+    if (!isIOSDevice()) {
+      startPrintJob(slipIds, caseIds, "full");
       return;
     }
     setChooserLayout(readStoredPaperSlipPrintLayout());

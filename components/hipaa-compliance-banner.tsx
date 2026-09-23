@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect, memo } from "react"
+import { useState, useMemo, useCallback, memo } from "react"
+import Link from "next/link"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Shield, Eye, Lock, AlertTriangle } from "lucide-react"
@@ -62,25 +63,11 @@ export const HIPAAComplianceBanner = memo(function HIPAAComplianceBanner({
   showDetails = false,
   onAcknowledge 
 }: HIPAAComplianceBannerProps) {
-  const [isExpanded, setIsExpanded] = useState(showDetails)
   const [showBanner, setShowBanner] = useState(true)
 
   // Memoize the current variant to prevent recalculation
   const currentVariant = useMemo(() => BANNER_VARIANTS[variant], [variant])
   const IconComponent = currentVariant.icon
-
-  useEffect(() => {
-    const autoHideTimeout = setTimeout(() => {
-      setShowBanner(false)
-    }, 5000)
-
-    return () => clearTimeout(autoHideTimeout)
-  }, [])
-
-  // Memoize event handlers to prevent recreation on every render
-  const handleToggleExpanded = useCallback(() => {
-    setIsExpanded(prev => !prev)
-  }, [])
 
   const handleHideBanner = useCallback(() => {
     setShowBanner(false)
@@ -107,17 +94,12 @@ export const HIPAAComplianceBanner = memo(function HIPAAComplianceBanner({
             </span>
           </div>
           
-          {isExpanded && <ExpandedDetails />}
+          {showDetails && <ExpandedDetails />}
         </div>
         
         <div className="flex items-center gap-2 ml-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleToggleExpanded}
-            className="text-xs"
-          >
-            {isExpanded ? "Hide" : "Details"}
+          <Button variant="ghost" size="sm" className="text-xs" asChild>
+            <Link href="/hipaa-notice">Details</Link>
           </Button>
           <div className="flex items-center ml-2">
             <Button

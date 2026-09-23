@@ -1,5 +1,6 @@
 import type React from "react"
 import { AuthHeader } from "@/components/auth-header"
+import { SiteCopyrightFooter } from "@/components/site-copyright-footer"
 
 export default function ResetPasswordLayout({
   children,
@@ -9,7 +10,8 @@ export default function ResetPasswordLayout({
   return (
     <div className="flex min-h-screen flex-col">
       <AuthHeader />
-      {children}
+      <div className="flex-1">{children}</div>
+      <SiteCopyrightFooter />
     </div>
   )
 }

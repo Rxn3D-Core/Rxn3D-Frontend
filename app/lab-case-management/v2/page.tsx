@@ -27,7 +27,6 @@ import RushRequestModal from "@/components/rush-request-modal"
 import SendCaseBackToOfficeModal from "@/components/send-case-back-to-office-modal"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast";
-import { HIPAAComplianceBanner } from "@/components/hipaa-compliance-banner"
 import { useGenerateVirtualStatementMutation } from "@/lib/redux/api/billingApi"
 import { resolveCaseStatementBillingId } from "@/lib/case-statement-print"
 import {
@@ -1072,10 +1071,6 @@ export default function LabSlipPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="px-4 py-2">
-        <HIPAAComplianceBanner variant="default" showDetails={false} />
-      </div>
-
       <main className="w-full px-4 pb-8">
         <V2CaseWidget
           attachmentsOnly={showWithAttachments}

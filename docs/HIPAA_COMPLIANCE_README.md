@@ -11,6 +11,11 @@ This document outlines the HIPAA compliance features implemented in the Rxn3D de
 **Files Created:**
 - `app/privacy-policy/page.tsx` - Comprehensive privacy policy page
 - `app/terms-of-service/page.tsx` - Terms of service with BAA language
+- `app/hipaa-notice/page.tsx` - Public HIPAA compliance notice
+
+**Footer:**
+- The copyright footer (`components/site-copyright-footer.tsx`) ends with a **HIPAA Compliance** link to `/hipaa-notice`.
+- Shown on login, forgot password, reset password, registration, onboarding, and the not-found page.
 
 **Features:**
 - Complete Notice of Privacy Practices
@@ -79,11 +84,11 @@ This document outlines the HIPAA compliance features implemented in the Rxn3D de
 ### 6. User Interface Enhancements
 
 **Files Modified:**
-- `app/lab-case-management/page.tsx` - Added compliance banner
+- Case listing pages do not show the compliance banner. The notice is available from the copyright footer via `/hipaa-notice`.
 - `components/onboarding/onboarding-layout.tsx` - Updated footer links
 
 **Features:**
-- HIPAA compliance banners on PHI-handling pages
+- The case listing pages (lab and office) do not show the HIPAA banner.
 - Privacy policy links in footer
 - User awareness notifications
 - Security reminders
@@ -157,6 +162,10 @@ This document outlines the HIPAA compliance features implemented in the Rxn3D de
    - Access via `/privacy-policy`
    - Review Notice of Privacy Practices
    - Understand patient rights and procedures
+
+2. **HIPAA Compliance Notice:**
+   - Open **HIPAA Compliance** at the end of the copyright footer
+   - Or go directly to `/hipaa-notice`
 
 2. **Security Awareness:**
    - Notice compliance banners on PHI pages
