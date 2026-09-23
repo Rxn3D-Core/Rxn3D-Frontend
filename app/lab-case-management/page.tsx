@@ -3,9 +3,14 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { useSearchParams } from "next/navigation"
+import { format } from "date-fns"
+import type { DateRange } from "react-day-picker"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SlipListingCalendarIcon } from "@/components/slip-listing/SlipListingCalendarIcon"
 import { X } from "lucide-react"
 import { useSlipContext } from "./SlipContext"
 import { useSlipCreation } from "@/contexts/slip-creation-context"
@@ -76,6 +81,12 @@ import type { V2CaseRowData } from "@/app/lab-case-management/v2/case-table-type
 
 function formatYmd(d: Date): string {
   return d.toISOString().slice(0, 10)
+}
+
+function formatDueDateRangeLabel(range: { start?: Date; end?: Date }): string {
+  if (!range.start) return "Due date range"
+  if (!range.end) return format(range.start, "MMM d, yyyy")
+  return `${format(range.start, "MMM d, yyyy")} – ${format(range.end, "MMM d, yyyy")}`
 }
 
 function getLabCustomerId(): number | null {
@@ -185,6 +196,7 @@ export default function LabSlipV3Page() {
   const [printDropdownOpen, setPrintDropdownOpen] = useState<number | null>(null)
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false)
   const [dateRange, setDateRange] = useState<{ start?: Date; end?: Date }>({})
+  const [dateRangeOpen, setDateRangeOpen] = useState(false)
   const [officeFilter, setOfficeFilter] = useState("All")
   const [productType, setProductType] = useState("All")
   const [doctorFilter, setDoctorFilter] = useState("All")
@@ -439,11 +451,28 @@ export default function LabSlipV3Page() {
 
   const handleClearAdvancedFilters = () => {
     setDateRange({})
+    setDateRangeOpen(false)
     setProductType("All")
     setDoctorFilter("All")
     setStageFilter("All")
     setOfficeFilter("All")
     setShowWithAttachments(false)
+  }
+
+  const selectedDueDateRange = useMemo<DateRange | undefined>(() => {
+    if (!dateRange.start && !dateRange.end) return undefined
+    return { from: dateRange.start, to: dateRange.end }
+  }, [dateRange.start, dateRange.end])
+
+  const handleDueDateRangeSelect = (range: DateRange | undefined) => {
+    if (!range?.from) {
+      setDateRange({})
+      return
+    }
+    setDateRange({ start: range.from, end: range.to })
+    if (range.to) {
+      setDateRangeOpen(false)
+    }
   }
 
   const allOnPageSelected = slipsPage.length > 0 && slipsPage.every((s) => selected.includes(s.id))
@@ -756,27 +785,27 @@ export default function LabSlipV3Page() {
 
 
   const advancedFilterContent = showAdvancedFilter ? (
-    <div className="border-b border-[#e5e7eb] bg-white px-4 py-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="border-b border-[#e5e7eb] bg-white px-4 py-3">
+      <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-medium text-gray-900">Advanced Filters</h3>
         <Button
           variant="ghost"
           size="sm"
-          className="text-blue-600 hover:text-blue-700"
+          className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700"
           onClick={handleClearAdvancedFilters}
         >
           Clear all Filters
         </Button>
       </div>
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <SearchableSelect
           value={officeFilter}
           onValueChange={(value) => setOfficeFilter(value || "All")}
           placeholder="All Offices"
           searchPlaceholder="Search offices..."
           emptyMessage="No offices found."
-          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
           options={officeFilterOptions}
         />
 
@@ -786,12 +815,12 @@ export default function LabSlipV3Page() {
           placeholder="All products"
           searchPlaceholder="Search products..."
           emptyMessage="No products found."
-          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
           options={productFilterOptions}
         />
 
         <Select value={stageFilter} onValueChange={setStageFilter}>
-          <SelectTrigger className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}>
+          <SelectTrigger className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}>
             <SelectValue placeholder="All Stages" />
           </SelectTrigger>
           <SelectContent>
@@ -801,29 +830,53 @@ export default function LabSlipV3Page() {
             ))}
           </SelectContent>
         </Select>
-      </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <SearchableSelect
           value={doctorFilter}
           onValueChange={(value) => setDoctorFilter(value || "All")}
           placeholder="All Doctors"
           searchPlaceholder="Search doctors..."
           emptyMessage="No doctors found."
-          className={SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}
+          className={`h-9 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
           options={doctorFilterOptions}
         />
 
-        <label className="flex items-center gap-2 text-base">
-          <span className="relative">
+        <Popover open={dateRangeOpen} onOpenChange={setDateRangeOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className={`group h-9 justify-start text-left font-normal sm:col-span-2 ${SLIP_LISTING_ADVANCED_FILTER_SELECT_TRIGGER_CLASS}`}
+            >
+              <SlipListingCalendarIcon className="mr-2 shrink-0" />
+              <span className={`truncate ${dateRange.start ? "" : "text-gray-500"}`}>
+                {formatDueDateRangeLabel(dateRange)}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              numberOfMonths={2}
+              defaultMonth={selectedDueDateRange?.from}
+              selected={selectedDueDateRange}
+              onSelect={handleDueDateRangeSelect}
+              disabled={(date) => date < new Date("1900-01-01")}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+
+        <label className="flex h-9 items-center gap-2 text-xs text-gray-700 sm:col-span-2">
+          <span className="relative shrink-0">
             <input
               type="checkbox"
               checked={showWithAttachments}
               onChange={(e) => setShowWithAttachments(e.target.checked)}
               className="sr-only"
             />
-            <span className={`block h-6 w-11 rounded-full transition-colors ${showWithAttachments ? "bg-blue-600" : "bg-gray-300"}`}>
-              <span className={`block h-5 w-5 translate-y-0.5 rounded-full bg-white shadow transition-transform ${showWithAttachments ? "translate-x-5" : "translate-x-0.5"}`} />
+            <span className={`block h-5 w-9 rounded-full transition-colors ${showWithAttachments ? "bg-blue-600" : "bg-gray-300"}`}>
+              <span className={`block h-4 w-4 translate-y-0.5 rounded-full bg-white shadow transition-transform ${showWithAttachments ? "translate-x-4" : "translate-x-0.5"}`} />
             </span>
           </span>
           Show only cases with attachments
