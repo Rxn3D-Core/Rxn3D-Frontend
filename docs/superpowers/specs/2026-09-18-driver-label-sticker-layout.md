@@ -58,7 +58,7 @@ Drawn in `lib/driver-labels/generate-driver-label-pdf.ts` → `drawSticker`.
 | STAGE·PAN | 9.5 | 600 | `#555B66` | 14 / 246, 125.5 |
 | PROD / STATUS | 9.5 | 600 | `#555B66` | 14, 145 / 164.5 |
 | PICKUP / DELIVER | 9.5 | 600 | `#555B66` | 14 / 203.84, 202 |
-| QR | 70×70 | — | — | 396, 14 |
+| QR | header band, right-aligned | — | — | top 8, right 12, bottom just above y 96 |
 | Rules | 1px | — | `#D3D7DE` | y 96, 192 |
 | Border | 1px, r 8 | — | `#1B1D21` | artboard |
 

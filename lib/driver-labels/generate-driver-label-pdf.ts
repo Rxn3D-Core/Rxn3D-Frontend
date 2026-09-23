@@ -188,10 +188,16 @@ function drawSticker(
   doc.setLineWidth((1 / FIGMA_DPI) * sFont);
   doc.roundedRect(x, y, w, h, radius, radius, "S");
 
-  // QR · 70×70 @ (396, 14) — always shown
-  const qrSize = (70 / FIGMA_DPI) * Math.min(sx, sy);
-  const qrX = x + (396 / FIGMA_DPI) * sx;
-  const qrY = y + (14 / FIGMA_DPI) * sy;
+  // QR fills the header band and stays right-aligned, stopping just above the
+  // y=96 rule. The old 70px mark used min(sx, sy), so on 4×2.5 stock the
+  // header grew and the code stayed small in the corner.
+  const qrTop = (8 / FIGMA_DPI) * sy;
+  const qrRightPad = (12 / FIGMA_DPI) * sx;
+  const ruleY = (96 / FIGMA_DPI) * sy;
+  const qrSize = Math.max(0, ruleY - (6 / FIGMA_DPI) * sy - qrTop);
+  const qrX = x + w - qrRightPad - qrSize;
+  const qrY = y + qrTop;
+  const headerMaxW = Math.max(160, ((qrX - x) / sx) * FIGMA_DPI - 14 - 8);
   if (qrDataUrl) {
     try {
       doc.addImage({
@@ -209,23 +215,23 @@ function drawSticker(
 
   // Header (locked: lab, patient, office; optional: doctor)
   drawFigmaLine(
-    doc, x, y, 14, 14, 368,
+    doc, x, y, 14, 14, headerMaxW,
     (slip.lab_name || "").toUpperCase(),
     12, COLOR_INK, sx, sy, true,
   );
   drawFigmaLine(
-    doc, x, y, 14, 36, 368,
+    doc, x, y, 14, 36, headerMaxW,
     `${L("pt")} ${val(slip.pt_name)}`,
     12, COLOR_INK, sx, sy, true,
   );
   drawFigmaLine(
-    doc, x, y, 14, 60, 368,
+    doc, x, y, 14, 60, headerMaxW,
     `${L("ofc")} ${val(slip.office_code)}`,
     9.5, COLOR_MUTED, sx, sy, true,
   );
   if (settings.showDoctor) {
     drawFigmaLine(
-      doc, x, y, 14, 76, 368,
+      doc, x, y, 14, 76, headerMaxW,
       `${L("dr")} ${val(slip.doctor_name)}`,
       9.5, COLOR_MUTED, sx, sy, true,
     );
@@ -326,15 +332,35 @@ export async function generateDriverLabelPdf(
   return doc;
 }
 
-/** Open a built PDF in a hidden iframe and trigger the browser print dialog. */
-export function printPdfDoc(doc: jsPDF) {
-  doc.autoPrint();
-  const blobUrl = doc.output("bloburl") as unknown as string;
-  const iframe = document.createElement("iframe");
-  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
-  iframe.src = blobUrl;
-  document.body.appendChild(iframe);
-  window.setTimeout(() => {
-    if (document.body.contains(iframe)) document.body.removeChild(iframe);
-  }, 60000);
+/** Desktop Safari. Chrome's UA also contains "Safari", so exclude it. */
+export function isSafariBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS/i.test(ua);
+}
+
+/**
+ * Open a PDF blob in a new tab and show the print dialog.
+ * Printing a hidden iframe from this modal does not: the dialog focus trap
+ * dismisses it, and Safari never runs the PDF OpenAction.
+ * Returns false when the browser blocks the tab.
+ */
+export function printPdfUrl(blobUrl: string): boolean {
+  const win = window.open(blobUrl, "_blank");
+  if (!win) return false;
+  let didPrint = false;
+  const printWin = () => {
+    if (didPrint || win.closed) return;
+    didPrint = true;
+    try {
+      win.addEventListener("afterprint", () => win.close());
+      win.focus();
+      win.print();
+    } catch {
+      didPrint = false;
+    }
+  };
+  win.addEventListener("load", () => window.setTimeout(printWin, 300));
+  window.setTimeout(printWin, 1000);
+  return true;
 }

@@ -65,18 +65,31 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
   showCloseButton?: boolean
   /** When true, renders as a true fullscreen dialog (inset-0, no centering transform, no max-h). */
   fullscreen?: boolean
+  /**
+   * Center with flexbox instead of translate, and skip zoom/slide motion.
+   * Safari will not paint a PDF iframe when an ancestor has a CSS transform.
+   */
+  noTransform?: boolean
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, showCloseButton, fullscreen, ...props }, ref) => {
+>(({ className, children, showCloseButton, fullscreen, noTransform, style, ...props }, ref) => {
   const renderDefaultClose =
     showCloseButton === true
       ? true
       : showCloseButton === false
         ? false
         : !contentClassUsesPaddingZero(className)
+  const centerWithoutTransform = Boolean(noTransform) && !fullscreen
+
+  const closeButton = renderDefaultClose ? (
+    <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm p-1 opacity-70 ring-offset-background transition-opacity hover:bg-accent hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:text-muted-foreground">
+      <X className="h-4 w-4" aria-hidden />
+      <span className="sr-only">Close</span>
+    </DialogPrimitive.Close>
+  ) : null
 
   return (
     <DialogPortal>
@@ -91,22 +104,42 @@ const DialogContent = React.forwardRef<
           if (shouldAllowDialogInteractOutside(e)) return
           e.preventDefault()
         }}
-        className={cn(
-          fullscreen
-            ? "fixed z-50 flex flex-col border-0 rounded-none p-0 shadow-none bg-background duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-            : "fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[90vh]",
-          className,
-        )}
-        style={fullscreen ? { top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100dvh", maxHeight: "100dvh", transform: "none", margin: 0 } : undefined}
+        className={
+          centerWithoutTransform
+            ? "pointer-events-none fixed inset-0 z-50 flex items-center justify-center border-0 bg-transparent p-0 shadow-none outline-none"
+            : cn(
+                fullscreen
+                  ? "fixed z-50 flex flex-col border-0 rounded-none p-0 shadow-none bg-background duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+                  : "fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[90vh]",
+                className,
+              )
+        }
         {...props}
+        style={
+          fullscreen
+            ? { top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100dvh", maxHeight: "100dvh", margin: 0, ...style, transform: "none" }
+            : centerWithoutTransform
+              ? { ...style, transform: "none" }
+              : style
+        }
       >
-        {children}
-        {renderDefaultClose ? (
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm p-1 opacity-70 ring-offset-background transition-opacity hover:bg-accent hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:text-muted-foreground">
-            <X className="h-4 w-4" aria-hidden />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        ) : null}
+        {centerWithoutTransform ? (
+          <div
+            className={cn(
+              "pointer-events-auto relative grid w-full max-h-[90vh] gap-4 border bg-background p-6 shadow-lg sm:rounded-lg",
+              className,
+            )}
+            style={{ transform: "none" }}
+          >
+            {children}
+            {closeButton}
+          </div>
+        ) : (
+          <>
+            {children}
+            {closeButton}
+          </>
+        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )
