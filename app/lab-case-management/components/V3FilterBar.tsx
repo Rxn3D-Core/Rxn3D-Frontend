@@ -259,40 +259,40 @@ export function V3FilterBar({
           </ActionIcon>
           <ActionIcon
             active={statusActive("In Progress")}
-            aria-label="In Progress"
-            title="In Progress"
+            aria-label="Cases in progress"
+            title="Cases in progress"
             onClick={() => onStatusChange("In Progress")}
           >
             <StatusAssetIcon active={statusActive("In Progress")} src="/icons/virtual-slip-actions/resume.svg" />
           </ActionIcon>
           <ActionIcon
             active={statusActive("On hold")}
-            aria-label="On Hold"
-            title="On Hold"
+            aria-label="Cases on hold"
+            title="Cases on hold"
             onClick={() => onStatusChange("On hold")}
           >
             <PauseActionIcon active={statusActive("On hold")} />
           </ActionIcon>
           <ActionIcon
             active={statusActive("cancelled")}
-            aria-label="Cancelled"
-            title="Cancelled"
+            aria-label="Cases cancelled"
+            title="Cases cancelled"
             onClick={() => onStatusChange("cancelled")}
           >
             <CancelActionIcon active={statusActive("cancelled")} />
           </ActionIcon>
           <ActionIcon
             active={statusActive("Finished")}
-            aria-label="Finished"
-            title="Finished"
+            aria-label="Cases finished"
+            title="Cases finished"
             onClick={() => onStatusChange("Finished")}
           >
             <StatusAssetIcon active={statusActive("Finished")} src="/icons/check.svg" />
           </ActionIcon>
           <ActionIcon
             active={statusActive("Deleted")}
-            aria-label="Deleted"
-            title="Deleted"
+            aria-label="Cases deleted"
+            title="Cases deleted"
             onClick={() => onStatusChange("Deleted")}
           >
             <DeletedActionIcon active={statusActive("Deleted")} />
