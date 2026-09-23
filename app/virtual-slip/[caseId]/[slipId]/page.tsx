@@ -286,11 +286,12 @@ export default function VirtualSlipV2Page() {
     setNotesRefreshKey((key) => key + 1);
   };
 
+  /** Close virtual slip → listing (not browser history back). */
   const goToCaseList = () => {
-    const route = isLabSlipUserRole(getStoredSlipUserRole())
+    const route = isLabSlipUserRole(userRole ?? getStoredSlipUserRole())
       ? "/lab-case-management"
       : "/office-case-management";
-    router.push(route);
+    router.replace(route);
   };
 
   const handlePrintInvoice = useCallback(() => {
