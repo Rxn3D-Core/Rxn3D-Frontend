@@ -1,10 +1,13 @@
 import { apiClient } from "@/lib/api/client"
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 
+type LabMatchField = "slip_number" | "case_number" | "casepan_number"
+
 type LabSlipListingRow = {
   id?: number
   slip_number?: string
-  number?: string
+  case?: { case_number?: string }
+  casepan?: { number?: string }
 }
 
 type OfficeCaseListingRow = {
@@ -67,14 +70,23 @@ function unwrapOfficeListingCases(payload: unknown): OfficeCaseListingRow[] {
   return []
 }
 
-function findExactSlipIdInLabRows(
+function findSlipIdInLabRows(
   rows: LabSlipListingRow[],
-  normalized: string
+  normalized: string,
+  fields: LabMatchField[]
 ): number | null {
   for (const row of rows) {
-    const slipNumber = (row.slip_number ?? row.number)?.trim().toLowerCase()
-    if (slipNumber === normalized && typeof row.id === "number") {
-      return row.id
+    if (typeof row.id !== "number") continue
+    for (const field of fields) {
+      const value =
+        field === "slip_number"
+          ? row.slip_number
+          : field === "case_number"
+            ? row.case?.case_number
+            : row.casepan?.number
+      if (value?.trim().toLowerCase() === normalized) {
+        return row.id
+      }
     }
   }
   return null
@@ -98,21 +110,53 @@ function findExactSlipIdInOfficeCases(
 
 async function searchLabListing(
   customerId: number,
-  slipNumber: string
-): Promise<number | null> {
+  query: string,
+  searchBy: LabMatchField[],
+  status?: string
+): Promise<LabSlipListingRow[]> {
   const response = await apiClient.get<unknown>("/slip/listing/lab", {
     params: {
       customer_id: customerId,
-      q: slipNumber,
+      q: query,
+      // Custom query serializer joins arrays with "," which the backend splits back.
+      search_by: searchBy,
+      ...(status ? { status } : {}),
       page: 1,
       per_page: 25,
     },
   })
 
-  return findExactSlipIdInLabRows(
-    unwrapLabListingRows(response.data),
-    normalizeSlipNumber(slipNumber)
+  return unwrapLabListingRows(response.data)
+}
+
+/**
+ * Lab lookup for the jump-to-slip box:
+ *  1. slip # / case # across all statuses
+ *  2. fallback: case pan # within In-Progress cases only
+ */
+async function lookupSlipIdInLab(
+  customerId: number,
+  trimmed: string
+): Promise<number | null> {
+  const normalized = normalizeSlipNumber(trimmed)
+
+  const primaryRows = await searchLabListing(customerId, trimmed, [
+    "slip_number",
+    "case_number",
+  ])
+  const primaryId = findSlipIdInLabRows(primaryRows, normalized, [
+    "slip_number",
+    "case_number",
+  ])
+  if (primaryId) return primaryId
+
+  const panRows = await searchLabListing(
+    customerId,
+    trimmed,
+    ["casepan_number"],
+    "In Progress"
   )
+  return findSlipIdInLabRows(panRows, normalized, ["casepan_number"])
 }
 
 async function searchOfficeListing(
@@ -135,7 +179,12 @@ async function searchOfficeListing(
 }
 
 /**
- * Resolve a display slip number to slip id via slip listing search (all cases for tenant).
+ * Resolve a display slip / case / case pan number to a slip id via listing search.
+ *
+ * Lab users: slip # and case # match across all statuses; a case pan # only
+ * resolves within In-Progress cases. Office users keep the existing slip-number
+ * lookup (office listing has no case pan search).
+ *
  * Returns null when no exact match is found.
  */
 export async function lookupSlipIdByNumber(
@@ -148,17 +197,12 @@ export async function lookupSlipIdByNumber(
   if (!customerId) return null
 
   const role = resolveUserRole()
-  const listingKinds = isLabListingRole(role)
-    ? (["lab"] as const)
-    : (["office", "lab"] as const)
-
-  for (const kind of listingKinds) {
-    const slipId =
-      kind === "lab"
-        ? await searchLabListing(customerId, trimmed)
-        : await searchOfficeListing(customerId, trimmed)
-    if (slipId) return slipId
+  if (isLabListingRole(role)) {
+    return lookupSlipIdInLab(customerId, trimmed)
   }
 
-  return null
+  const officeSlipId = await searchOfficeListing(customerId, trimmed)
+  if (officeSlipId) return officeSlipId
+
+  return lookupSlipIdInLab(customerId, trimmed)
 }

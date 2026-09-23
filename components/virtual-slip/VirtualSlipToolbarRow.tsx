@@ -23,9 +23,9 @@ export interface VirtualSlipToolbarRowProps {
   children: ReactNode;
 }
 
-/** Allow alphanumeric slip numbers (e.g. C00001-S01); reject case numbers / stray punctuation. */
+/** Allow slip / case / case pan identifiers (alphanumeric, hyphen, underscore). */
 function sanitizeSlipNumberInput(value: string): string {
-  return value.replace(/[^A-Za-z0-9-]/g, "");
+  return value.replace(/[^A-Za-z0-9_-]/g, "");
 }
 
 /** One row: jump-to-slip (left), center action icons, related slip chips (right). */
@@ -139,7 +139,7 @@ export function VirtualSlipToolbarRow({
                 if (e.key === "Enter") void navigateToSlip(jumpSlip);
               }}
               disabled={jumpSlipLoading}
-              placeholder="Jump to slip"
+              placeholder="Slip / case / pan #"
               aria-invalid={jumpSlipError ? true : undefined}
               aria-describedby={jumpSlipError ? "jump-to-slip-error" : undefined}
               className="w-[130px] shrink-0 rounded-[10px] border-[0.5px] border-[#4C4D55] bg-white px-[10px] py-[5px] font-sans text-[15.4px] tracking-[-0.02em] text-[#4C4D55] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 disabled:cursor-wait disabled:opacity-60"

@@ -84,7 +84,7 @@ export function VirtualSlipLocationAction({
   const action =
     showAddStageAction && onAddStage
       ? {
-          src: "/icons/virtual-slip-center/add-stage.svg",
+          src: "/icons/virtual-slip-center/add-stage.png",
           label: "Add stage",
           onClick: onAddStage,
         }

@@ -104,13 +104,15 @@ export function V3CaseWidget(props: Props) {
       {props.selected.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-4 py-3">
           <span className="mr-1 text-sm font-semibold text-blue-700">Bulk actions:</span>
-          <button
-            type="button"
-            className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
-            onClick={props.onBulkPrintDriverLabel}
-          >
-            Print Driver label
-          </button>
+          {!props.officeProfile && (
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
+              onClick={props.onBulkPrintDriverLabel}
+            >
+              Print Driver label
+            </button>
+          )}
           <button
             type="button"
             className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
