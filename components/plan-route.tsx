@@ -40,7 +40,9 @@ export function PlanRoute({
     router.replace(redirectTo)
   }, [allowed, authLoading, isLoading, user, router, redirectTo, pathname])
 
-  if (authLoading || isLoading) {
+  // Do not unmount gated pages while entitlements revalidate in the background
+  // (e.g. window focus). That remount resets Charge Management and similar pages.
+  if ((authLoading || isLoading) && !allowed) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
