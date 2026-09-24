@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -37,21 +38,33 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   const { user, selectedCustomerId, isSuperadmin, isActingAsLabAdmin } = useAuth()
   const [payload, setPayload] = useState<EntitlementsPayload | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const payloadRef = useRef(payload)
+  payloadRef.current = payload
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (opts?: { background?: boolean }) => {
     if (!user) {
       setPayload(null)
       return
     }
-    setIsLoading(true)
+    // Background refresh (tab/window focus): keep existing entitlements mounted.
+    // Flipping isLoading would unmount PlanRoute children (e.g. Charge Management).
+    const background = opts?.background === true && payloadRef.current != null
+    if (!background) {
+      setIsLoading(true)
+    }
     try {
       const labId = selectedCustomerId ?? undefined
       const data = await getEntitlements(labId)
       setPayload(data)
     } catch {
-      setPayload(null)
+      // Keep stale payload on background failure so gated pages do not remount/redirect.
+      if (!background) {
+        setPayload(null)
+      }
     } finally {
-      setIsLoading(false)
+      if (!background) {
+        setIsLoading(false)
+      }
     }
   }, [user, selectedCustomerId])
 
@@ -61,7 +74,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onFocus = () => {
-      void refetch()
+      void refetch({ background: true })
     }
     const onPlanError = () => {
       void refetch()
