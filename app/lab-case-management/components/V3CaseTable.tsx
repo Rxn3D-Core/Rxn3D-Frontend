@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
+import { Copy } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SLIP_LOCATION_FILTER_OPTIONS } from "@/app/lab-case-management/lab-slip-listing-constants"
@@ -12,6 +13,7 @@ import { isOfficeCustomerContext } from "@/lib/role-utils"
 import { SlipListingStatusBadge } from "@/components/slip-listing/SlipListingStatusBadge"
 import { SlipListingVsIcon } from "@/components/slip-listing/SlipListingVsIcon"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
+import { useToast } from "@/hooks/use-toast"
 import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/case-table-types"
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
 import { V3RowActionsPopover } from "./V3RowActionsPopover"
@@ -133,6 +135,7 @@ export function V3CaseTable(props: Props) {
   // shows all action icons inline, always, so it needs no popover state.
   const [popoverRow, setPopoverRow] = useState<number | null>(null)
   const mobilePopoverRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
   const officeProfile =
     props.officeProfile === true || isOfficeCustomerContext()
   // Lab listings tint rush rows amber; office profiles (admin / doctor / user)
@@ -154,6 +157,28 @@ export function V3CaseTable(props: Props) {
     document.addEventListener("pointerdown", onPointerDown)
     return () => document.removeEventListener("pointerdown", onPointerDown)
   }, [popoverRow])
+
+  /** Copies every office code in the current table listing — ignores row checkboxes. */
+  const handleCopyListedOfficeCodes = async (event: React.MouseEvent) => {
+    event.stopPropagation()
+    const codes = props.rows
+      .map((row) => (row.officeCode || "").trim())
+      .filter(Boolean)
+    if (codes.length === 0) {
+      toast({ title: "Nothing to copy", description: "No office codes in the current listing.", duration: 2500 })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(codes.join("\n"))
+      toast({
+        title: "Copied",
+        description: `${codes.length} office code${codes.length === 1 ? "" : "s"} copied to clipboard.`,
+        duration: 2500,
+      })
+    } catch {
+      toast({ title: "Copy failed", description: "Could not copy office codes.", variant: "destructive" })
+    }
+  }
 
   return (
     <>
@@ -446,6 +471,18 @@ export function V3CaseTable(props: Props) {
                   <span className="shrink-0" style={{ fontSize: 12, color: props.sortKey === column.key ? "#000" : "#9ca3af" }}>
                     {props.sortKey === column.key ? (props.sortDirection === "asc" ? "▲" : "▼") : "↕"}
                   </span>
+                  {column.key === "office" && !officeProfile && (
+                    <button
+                      type="button"
+                      data-row-interactive="true"
+                      className="shrink-0 rounded p-0.5 text-[#9ca3af] hover:bg-[#e5e7eb] hover:text-[#44413c]"
+                      aria-label="Copy all office codes in this listing"
+                      title="Copy office codes"
+                      onClick={handleCopyListedOfficeCodes}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </span>
               </th>
             )})}
