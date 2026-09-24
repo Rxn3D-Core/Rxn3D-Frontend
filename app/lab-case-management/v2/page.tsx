@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { createPortal } from "react-dom"
 import { useSearchParams } from "next/navigation"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { X } from "lucide-react"
@@ -50,7 +51,8 @@ import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
 
 function formatYmd(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  // Use local calendar date — toISOString() shifts the day back in timezones ahead of UTC.
+  return format(d, "yyyy-MM-dd")
 }
 
 function getLabCustomerId(): number | null {
