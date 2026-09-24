@@ -81,7 +81,8 @@ import type { ColumnKey } from "./components/V3FilterBar"
 import type { V2CaseRowData } from "@/app/lab-case-management/v2/case-table-types"
 
 function formatYmd(d: Date): string {
-  return d.toISOString().slice(0, 10)
+  // Use local calendar date — toISOString() shifts the day back in timezones ahead of UTC.
+  return format(d, "yyyy-MM-dd")
 }
 
 function formatDueDateRangeLabel(range: { start?: Date; end?: Date }): string {
