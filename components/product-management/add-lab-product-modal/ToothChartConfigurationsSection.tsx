@@ -30,6 +30,7 @@ import {
   resolveActiveProductExtractions,
 } from "@/lib/product-tooth-chart-preview-state"
 import { resolveRetentionOptionChartType } from "@/components/case-design-center/utils/retentionOptionChartType"
+import { resolveRetentionOptionCatalogId } from "@/lib/product-retention-links-form"
 import { cn } from "@/lib/utils"
 
 export interface ToothChartConfigurationsSectionProps {
@@ -91,29 +92,57 @@ export function ToothChartConfigurationsSection({
   const retentionEnabled = sections.retention !== false
   const extractionsEnabled = sections.extractions !== false
 
+  const activeLinkedRetentionRows = useMemo(
+    () =>
+      (watchedRetentionOptions as Array<{
+        retention_option_id: number
+        status?: string
+        name?: string
+        code?: string
+      }>).filter((row) => row.status !== "Inactive"),
+    [watchedRetentionOptions],
+  )
+
   const hasImplantRetentionOptionLinked = useMemo(() => {
     if (!retentionEnabled) return false
-    const linkedIds = new Set(
-      (watchedRetentionOptions as Array<{ retention_option_id: number; status?: string }>)
-        .filter((row) => row.status !== "Inactive")
-        .map((row) => Number(row.retention_option_id))
-        .filter((id) => Number.isFinite(id)),
-    )
-    if (linkedIds.size === 0) return false
-    return retentionOptionsCatalog.items.some((opt) => {
-      if (!linkedIds.has(Number(opt.id))) return false
+    if (activeLinkedRetentionRows.length === 0) return false
+    if (retentionOptionsCatalog.items.length === 0) return false
+
+    // Resolve via catalog id / global_relationship_id / name / code — same as remap —
+    // so Implant stays detected before ID remapping finishes.
+    return activeLinkedRetentionRows.some((row) => {
+      const catalogId = resolveRetentionOptionCatalogId(row, retentionOptionsCatalog.items)
+      if (catalogId == null) return false
+      const opt = retentionOptionsCatalog.items.find((item) => Number(item.id) === catalogId)
+      if (!opt) return false
       return resolveRetentionOptionChartType(catalogRetentionOptionToItem(opt)) === "Implant"
     })
-  }, [retentionEnabled, watchedRetentionOptions, retentionOptionsCatalog.items])
+  }, [retentionEnabled, activeLinkedRetentionRows, retentionOptionsCatalog.items])
 
   // Clear the implant-only flag when Implant option is unlinked or chart is off.
+  // Skip while the catalog is still loading / empty with linked rows — otherwise a
+  // race on modal open wipes Yes before Implant can be resolved, and saving another
+  // tab persists No.
   useEffect(() => {
+    if (retentionOptionsCatalog.isLoading) return
+    if (
+      retentionEnabled &&
+      activeLinkedRetentionRows.length > 0 &&
+      retentionOptionsCatalog.items.length === 0
+    ) {
+      return
+    }
+
     if (!defaultToothChartEnabled || !hasImplantRetentionOptionLinked) {
       if (allowSelectOnlyImplant) {
         setValue("allow_select_only_implant", "No", { shouldDirty: true })
       }
     }
   }, [
+    retentionOptionsCatalog.isLoading,
+    retentionOptionsCatalog.items.length,
+    retentionEnabled,
+    activeLinkedRetentionRows.length,
     defaultToothChartEnabled,
     hasImplantRetentionOptionLinked,
     allowSelectOnlyImplant,
