@@ -8,7 +8,7 @@ import {
 } from "@/components/case-design-center/utils/categoryHelpers";
 import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
 
-/** Gum / stump shade: "Brand - System - A1" (drops brand when it matches system). */
+/** Stump shade: "Brand - System - A1" (drops brand when it matches system). */
 function formatSlipShadeLabel(
   shadeName: string | null | undefined,
   brand?: { name?: string | null; system_name?: string | null } | null,
@@ -23,8 +23,8 @@ function formatSlipShadeLabel(
   return `${guide} - ${code}`;
 }
 
-/** Teeth shade: "System - A1" (no brand). Falls back to brand name when system is missing. */
-function formatTeethShadeLabel(
+/** Teeth and gum shade: "System - A1" (no brand). Falls back to brand name when system is missing. */
+function formatSystemShadeLabel(
   shadeName: string | null | undefined,
   brand?: { name?: string | null; system_name?: string | null } | null,
 ): string {
@@ -715,7 +715,7 @@ function buildProduct(apiProduct: any): ProductVM {
     for (const saved of apiProduct.advance_fields) {
       if (saved?.advance_field?.field_type === "shade_guide") {
         const code = firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
-        return formatTeethShadeLabel(code, saved?.teeth_shade_brand);
+        return formatSystemShadeLabel(code, saved?.teeth_shade_brand);
       }
     }
     return "";
@@ -755,12 +755,12 @@ function buildProduct(apiProduct: any): ProductVM {
     stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
     status: firstStr(apiProduct?.status, "In Progress"),
     teethShade: firstStr(
-      formatTeethShadeLabel(teethShadeCode, apiProduct?.teeth_shade_brand),
+      formatSystemShadeLabel(teethShadeCode, apiProduct?.teeth_shade_brand),
       teethShadeFromAdvance,
       fromNotes.teethShade,
     ),
     gumShade: firstStr(
-      formatSlipShadeLabel(gumShadeCode, apiProduct?.gum_shade_brand),
+      formatSystemShadeLabel(gumShadeCode, apiProduct?.gum_shade_brand),
       fromNotes.gumShade,
     ),
     stumpShade: firstStr(
