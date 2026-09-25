@@ -17,6 +17,10 @@ import { useImplants } from "@/lib/api/advance-mode-query"
 import { useCaseDesignStore } from "@/stores/caseDesignStore"
 import { clearSlipCreationStorage } from "@/utils/slip-creation-storage"
 import {
+  dropLinkedPendingAttachments,
+  pendingAttachmentIdsFromCache,
+} from "@/lib/case-design-attachment-cache"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -7151,8 +7155,19 @@ export function useCaseDesignCenter() {
         })
       })
 
+      const pendingAttachmentIds = pendingAttachmentIdsFromCache()
+      if (pendingAttachmentIds.length > 0 && payload.slips[0]) {
+        payload.slips[0] = {
+          ...payload.slips[0],
+          pending_attachment_ids: pendingAttachmentIds,
+        }
+      }
+
       // Call API
       const response = await slipCreationService.createSlip(payload, files.length > 0 ? files : undefined)
+      if (response.success && pendingAttachmentIds.length > 0) {
+        dropLinkedPendingAttachments(pendingAttachmentIds)
+      }
 
       if (response.success) {
         toast({
@@ -7167,7 +7182,13 @@ export function useCaseDesignCenter() {
         if (newSlipId && typeof window !== "undefined") {
           const cached = (window as any).__caseDesignAttachments as Array<any> | undefined
           const pending = Array.isArray(cached)
-            ? cached.filter((item) => item?.file instanceof File && !item.remoteId && !item.generatedPath)
+            ? cached.filter(
+                (item) =>
+                  item?.file instanceof File &&
+                  !item.remoteId &&
+                  !item.generatedPath &&
+                  item.source !== "attachment"
+              )
             : []
           for (const item of pending) {
             try {

@@ -401,7 +401,8 @@ export function mergeEditSlipProductWithBaseline(
     ),
     gum_shade_id: pickPositiveId(prepared.gum_shade_id, baseline.gum_shade_id),
     gum_shade_brand_id: pickPositiveId(prepared.gum_shade_brand_id, baseline.gum_shade_brand_id),
-    notes: pickString(prepared.notes, baseline.notes),
+    // Edit must not replace notes that were already selected on the slip.
+    notes: pickString(baseline.notes, undefined),
     rush: prepared.rush?.is_rush ? prepared.rush : baseline.rush ?? prepared.rush,
     teeth_selection: pickArray(prepared.teeth_selection, baseline.teeth_selection),
     impressions: pickArray(prepared.impressions, baseline.impressions),

@@ -52,7 +52,8 @@ export function CaseSummaryNotes(props: NotesProps) {
     setManualOverride(null);
   }, [props.addedProducts?.length]);
 
-  const noteText = manualOverride ?? dynamicNoteText;
+  const notesLocked = props.lockedNotes !== undefined;
+  const noteText = notesLocked ? props.lockedNotes : (manualOverride ?? dynamicNoteText);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -125,8 +126,10 @@ export function CaseSummaryNotes(props: NotesProps) {
               <textarea
                 ref={textareaRef}
                 value={noteText}
+                readOnly={notesLocked}
                 rows={expanded ? 10 : 2}
                 onChange={(e) => {
+                  if (notesLocked) return;
                   setManualOverride(e.target.value);
                   if (!expanded) {
                     requestAnimationFrame(syncTextareaHeight);

@@ -191,6 +191,8 @@ export interface SlipCreationSlip {
   created_by?: number;
   products: SlipCreationProduct[];
   notes?: SlipCreationNote[];
+  /** Attachment ids uploaded before this slip existed. */
+  pending_attachment_ids?: number[];
   pickup_date?: string | null;
   delivery_date?: string | null;
   delivery_time?: string | null;

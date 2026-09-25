@@ -7,10 +7,6 @@ import {
 } from "./slipPayloadMappers";
 import { snapshotToProduct } from "./caseSubmissionPayload";
 import {
-  buildSlipLevelNotes,
-  clearProductNotesWhenUsingCaseSummary,
-} from "./caseSummaryNotesPayload";
-import {
   buildBaselineEditSlipProducts,
   findBaselineProductForPrepared,
   mergeEditSlipProductWithBaseline,
@@ -24,6 +20,18 @@ const PRESERVED_EDIT_PRODUCT_STATUSES = new Set(["cancelled", "On hold", "Finish
 
 function isPreservedEditProductStatus(status: string | null | undefined): boolean {
   return PRESERVED_EDIT_PRODUCT_STATUSES.has(String(status ?? ""));
+}
+
+/** Keep product notes that were already stored. Drop notes generated from the live design. */
+function keepSelectedProductNotes(
+  product: EditSlipProduct,
+  baseline?: EditSlipProduct
+): EditSlipProduct {
+  const selected = baseline?.notes?.trim();
+  if (selected) return { ...product, notes: selected };
+  if (product.notes == null) return product;
+  const { notes: _notes, ...rest } = product;
+  return rest;
 }
 
 export type EditSlipPayload = {
@@ -46,7 +54,6 @@ export interface BuildEditSlipPayloadParams {
   casepanId?: number | null;
   casepanNumber?: string | null;
   labCustomerId?: number;
-  caseSummaryNotes?: string;
   /** Patient details from the editable header — sent so name/gender/age edits persist. */
   patientName?: string | null;
   gender?: string | null;
@@ -119,7 +126,6 @@ export async function buildEditSlipSubmissionPayloadAsync(
     casepanId,
     casepanNumber,
     labCustomerId,
-    caseSummaryNotes,
     patientName,
     gender,
     age,
@@ -161,7 +167,8 @@ export async function buildEditSlipSubmissionPayloadAsync(
     preparedProducts.length > 0
       ? preparedProducts.map((prepared, index) => {
           const baseline = findBaselineProductForPrepared(prepared, baselineProducts, index);
-          return baseline ? mergeEditSlipProductWithBaseline(prepared, baseline) : prepared;
+          const merged = baseline ? mergeEditSlipProductWithBaseline(prepared, baseline) : prepared;
+          return keepSelectedProductNotes(merged, baseline);
         })
       : baselineProducts
           .filter((baseline) => !isPreservedEditProductStatus(baseline.status))
@@ -186,10 +193,6 @@ export async function buildEditSlipSubmissionPayloadAsync(
 
   const products: EditSlipProduct[] = [...mergedActiveProducts, ...preservedProducts];
 
-  clearProductNotesWhenUsingCaseSummary(products, caseSummaryNotes);
-
-  const slipNotes = buildSlipLevelNotes(products, caseSummaryNotes, 0);
-
   const trimmedPatientName = patientName?.trim();
   const trimmedGender = gender?.trim();
   const parsedAge =
@@ -206,7 +209,6 @@ export async function buildEditSlipSubmissionPayloadAsync(
     ...(trimmedGender ? { gender: trimmedGender } : {}),
     ...(parsedAge !== undefined && !Number.isNaN(parsedAge) ? { age: parsedAge } : {}),
     products,
-    ...(slipNotes.length > 0 ? { notes: slipNotes } : {}),
   };
 
   if (process.env.NODE_ENV === "development") {

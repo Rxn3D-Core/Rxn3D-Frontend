@@ -87,6 +87,7 @@ interface ModalOrchestratorProps {
   /** Case/slip context for the attachment browser */
   attachmentCaseId?: number;
   attachmentSlipId?: number;
+  attachmentLabId?: number;
   attachmentDoctorName?: string;
   attachmentPatientName?: string;
   // Rush
@@ -227,6 +228,7 @@ export function ModalOrchestrator({
   onAttachFileCountsChange,
   attachmentCaseId,
   attachmentSlipId,
+  attachmentLabId,
   attachmentDoctorName,
   attachmentPatientName,
   // Rush
@@ -500,6 +502,7 @@ export function ModalOrchestrator({
         onClose={() => setShowAttachModal(false)}
         caseId={attachmentCaseId}
         slipId={attachmentSlipId}
+        labId={attachmentLabId}
         doctorName={attachmentDoctorName}
         patientName={attachmentPatientName}
         isCaseSubmitted={false}

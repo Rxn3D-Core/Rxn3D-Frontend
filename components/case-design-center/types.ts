@@ -143,6 +143,11 @@ export interface CaseDesignProps {
    */
   caseSummaryNotesRef?: React.MutableRefObject<string>;
   /**
+   * Edit slip: show these notes and do not regenerate them from the current design.
+   * An empty string still locks the field so a new summary is not generated.
+   */
+  lockedCaseSummaryNotes?: string;
+  /**
    * Pre-built state from the virtual slip API response.
    * When provided alongside caseSubmitted=true, hydrates all panels on first mount
    * without requiring interactive tooth selection. Has no effect in interactive mode.
@@ -183,6 +188,8 @@ export interface CaseDesignProps {
   /** Case/slip IDs for the attachment browser (available after submission) */
   attachmentCaseId?: number;
   attachmentSlipId?: number;
+  /** Lab id used to upload attachments before the slip exists. */
+  attachmentLabId?: number;
 }
 
 export interface AddedProduct {
@@ -302,6 +309,11 @@ export interface NotesProps {
   getImpressionDisplayText: (productId: string, arch: Arch, toothNumber?: number) => string;
   /** Fired when the displayed case summary text changes (auto-generated or user-edited). */
   onNotesChange?: (text: string) => void;
+  /**
+   * When set (including ""), show this text and do not rebuild notes from the design.
+   * Used on edit slip so the originally selected stage notes stay put.
+   */
+  lockedNotes?: string;
   /** Implant inclusions for right1 and right2 */
   right1Inclusion: string;
   right2Inclusion: string;
