@@ -58,6 +58,7 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
   // omitted here — they already live in the Location and Due Date columns.
   const btns: { label: string; icon: string; onClick: (e: React.MouseEvent) => void }[] = [
     visibility.print ? { label: "Print", icon: `${LI}/print.png`, onClick: act(() => actions.onPrintPaperSlip(row)) } : null,
+    visibility.printDriverLabel ? { label: "Print driver slip", icon: `${LI}/driver-slip.svg`, onClick: act(() => actions.onPrintDriverLabel(row)) } : null,
     visibility.invoice ? { label: "Invoice", icon: `/icons/virtual-slip-actions/print-invoice.svg`, onClick: act(() => actions.onPrintStatement(row)) } : null,
     visibility.attach ? { label: "Attach", icon: `${LI}/attachment.png`, onClick: act(() => actions.onAttachment(row)) } : null,
     visibility.addOns ? { label: "Add", icon: `${LI}/add.png`, onClick: act(() => actions.onAddOns(row)) } : null,
@@ -77,7 +78,6 @@ export const V3RowActionsPopover = forwardRef<HTMLDivElement, Props>(function V3
     visibility.cancel ? { label: "Cancel", fn: () => actions.onCancel(row) } : null,
     visibility.restoreSlip ? { label: "Resume", fn: () => actions.onRestore(row) } : null,
     visibility.deleteSlip ? { label: "Delete slip", fn: () => actions.onDelete(row) } : null,
-    visibility.printDriverLabel ? { label: "Print driver label", fn: () => actions.onPrintDriverLabel(row) } : null,
     visibility.printStatement ? { label: "Print statement", fn: () => actions.onPrintStatement(row) } : null,
   ].filter((item): item is { label: string; fn: () => void } => item != null)
 
@@ -265,7 +265,7 @@ const MobileActionsSheet = React.forwardRef<
           ))}
         </div>
 
-        {/* Overflow actions (call log, send back, undo, delete, print label) */}
+        {/* Overflow actions (call log, send back, undo, delete) */}
         {kebabItems.length > 0 && (
           <div className="border-t border-[#E2E4E8] px-2 py-2">
             {kebabItems.map(({ label, fn }) => (
