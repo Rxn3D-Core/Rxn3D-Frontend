@@ -8,7 +8,7 @@ import {
 } from "@/components/case-design-center/utils/categoryHelpers";
 import { formatShadeGuideWithBrand, formatShadeSystemName } from "@/components/case-design-center/utils/shadeFieldDisplay";
 
-/** Slip shade label: "Brand - System - A1" (drops brand when it matches system). */
+/** Gum / stump shade: "Brand - System - A1" (drops brand when it matches system). */
 function formatSlipShadeLabel(
   shadeName: string | null | undefined,
   brand?: { name?: string | null; system_name?: string | null } | null,
@@ -21,6 +21,21 @@ function formatSlipShadeLabel(
   const system = formatShadeSystemName((brand?.system_name ?? "").trim());
   if (system && system.toLowerCase() === code.toLowerCase()) return guide;
   return `${guide} - ${code}`;
+}
+
+/** Teeth shade: "System - A1" (no brand). Falls back to brand name when system is missing. */
+function formatTeethShadeLabel(
+  shadeName: string | null | undefined,
+  brand?: { name?: string | null; system_name?: string | null } | null,
+): string {
+  const code = (shadeName ?? "").trim();
+  if (!code) return "";
+  const system =
+    formatShadeSystemName((brand?.system_name ?? "").trim()) ||
+    (brand?.name ?? "").trim();
+  if (!system) return code;
+  if (system.toLowerCase() === code.toLowerCase()) return system;
+  return `${system} - ${code}`;
 }
 
 /**
@@ -700,7 +715,7 @@ function buildProduct(apiProduct: any): ProductVM {
     for (const saved of apiProduct.advance_fields) {
       if (saved?.advance_field?.field_type === "shade_guide") {
         const code = firstStr(saved?.teeth_shade?.name, saved?.advance_field_value);
-        return formatSlipShadeLabel(code, saved?.teeth_shade_brand);
+        return formatTeethShadeLabel(code, saved?.teeth_shade_brand);
       }
     }
     return "";
@@ -740,7 +755,7 @@ function buildProduct(apiProduct: any): ProductVM {
     stage: firstStr(apiProduct?.stage?.name, apiProduct?.stage_name, fromNotes.stage),
     status: firstStr(apiProduct?.status, "In Progress"),
     teethShade: firstStr(
-      formatSlipShadeLabel(teethShadeCode, apiProduct?.teeth_shade_brand),
+      formatTeethShadeLabel(teethShadeCode, apiProduct?.teeth_shade_brand),
       teethShadeFromAdvance,
       fromNotes.teethShade,
     ),
