@@ -57,6 +57,9 @@ const buttonClassMap: Record<string, { bg: string, icon: string }> = {
   warning: { bg: "#FFB400", icon: "#ffffff" },
 };
 
+/** Stable default — inline `["Upper","Lower"]` in the param list is a new array every render. */
+const DEFAULT_AVAILABLE_ARCHES: SlipArchType[] = ["Upper", "Lower"];
+
 const SCOPE_HINTS: Record<SlipActionScope, string> = {
   case: "Entire case — all arches stop",
   arch: "Upper or Lower only — the other arch continues",
@@ -79,7 +82,7 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
   warning,
   successMessage,
   enableScopePicker = false,
-  availableArches = ["Upper", "Lower"],
+  availableArches = DEFAULT_AVAILABLE_ARCHES,
   initialScope = "case",
   initialArch,
   lockScopeSelection = false,
@@ -95,12 +98,15 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
     return ["case", "arch"];
   }, [actionType]);
 
+  // Reset only when the dialog opens. Do not depend on `availableArches` by
+  // reference — a new array each parent render would clear the reason mid-typing.
   useEffect(() => {
     if (!open) return;
     setReason("");
     setScope(initialScope);
     setArch(initialArch ?? availableArches[0] ?? "Upper");
-  }, [open, initialScope, initialArch, availableArches]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: open transition only
+  }, [open]);
 
   const scopeQuestion = useMemo(() => {
     if (actionType === "hold") return "What would you like to hold?";
