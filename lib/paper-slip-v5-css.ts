@@ -218,7 +218,7 @@ body {
   flex-wrap: nowrap;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 0 0 4px;
+  padding: 0;
   gap: 16px;
   width: 100%;
   flex-shrink: 0;
@@ -227,7 +227,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
@@ -240,18 +240,20 @@ body {
   letter-spacing: -0.02em;
   color: #4C4D55;
   text-align: center;
-  padding: 2px 0;
+  padding: 0;
 }
 .ps-arch .teeth-row {
   width: 100%;
-  height: 96px;
+  height: 54px;
   min-width: 0;
+  display: flex;
+  justify-content: center;
   overflow: hidden;
 }
 .ps-arch .teeth-row svg {
-  width: 100%;
+  width: auto;
   max-width: 100%;
-  height: 96px;
+  height: 54px;
   display: block;
 }
 .ps-product-box {
@@ -263,7 +265,7 @@ body {
   background: #fff;
   padding: 10px 12px;
   text-align: center;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 .ps-product-title {
   font-family: Inter, Arial, sans-serif;
@@ -274,9 +276,11 @@ body {
 }
 .ps-product-teeth {
   font-family: Inter, Arial, sans-serif;
-  font-size: 15px;
-  line-height: 18px;
+  font-size: 14px;
+  line-height: 17px;
+  letter-spacing: -0.03em;
   color: #666;
+  white-space: nowrap;
 }
 .ps-details {
   width: 100%;
