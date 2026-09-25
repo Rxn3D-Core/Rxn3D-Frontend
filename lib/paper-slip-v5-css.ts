@@ -459,7 +459,8 @@ body {
 .ps-k { font-weight: 700; }
 .ps-v { font-weight: 400; }
 @media print {
-  /* Zero margin keeps Safari from printing the URL and date in the margin. */
+  /* Letter stays portrait. The slip is turned 90° into the top half (5.5in);
+     the bottom half stays blank so the sheet can be cut. Turn the half left to read it. */
   @page { size: letter portrait; margin: 0; }
   html, body {
     width: 8.5in !important;
@@ -468,17 +469,25 @@ body {
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
-    overflow: hidden !important;
+    overflow: clip !important;
   }
   body {
-    display: flex !important;
-    justify-content: center !important;
-    align-items: flex-start !important;
+    display: block !important;
     position: relative !important;
   }
-  .ps-page {
+  .ps-sheet {
     position: relative !important;
-    flex: 0 0 auto !important;
+    width: 8.5in !important;
+    height: 11in !important;
+    max-height: 11in !important;
+    overflow: clip !important;
+  }
+  .ps-page {
+    position: absolute !important;
+    top: 0 !important;
+    /* Origin sits on the right of the centered, rotated artboard.
+       Short side (628px) maps to the 5.5in half; long side stays inside 8.5in. */
+    left: calc((8.5in + 5.5in * 890 / 628) / 2) !important;
     width: 628px !important;
     max-width: 628px !important;
     height: 890px !important;
@@ -486,8 +495,9 @@ body {
     margin: 0 !important;
     padding: 4px 8px !important;
     overflow: hidden !important;
-    /* zoom changes layout size, so Safari paginates one letter page instead of the unscaled height. */
-    zoom: min(8.5in / 628px, 11in / 890px) !important;
+    zoom: 1 !important;
+    transform-origin: top left !important;
+    transform: rotate(90deg) scale(calc(5.5in / 628px)) !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     page-break-after: avoid !important;

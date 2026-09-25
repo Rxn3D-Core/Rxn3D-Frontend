@@ -533,15 +533,14 @@ const MULTI_SHEET_PRINT_CSS = `
     display: block !important;
   }
   .ps-sheet {
+    position: relative !important;
     width: 8.5in !important;
     height: 11in !important;
     max-height: 11in !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
-    display: flex !important;
-    justify-content: center !important;
-    align-items: flex-start !important;
+    overflow: clip !important;
+    display: block !important;
     break-after: page !important;
     page-break-after: always !important;
   }
