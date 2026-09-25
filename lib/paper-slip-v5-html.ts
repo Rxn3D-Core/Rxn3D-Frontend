@@ -265,7 +265,7 @@ function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string
     )
     .join("");
 
-  return `<div class="chart-label">${label}</div><div class="teeth-row"><svg width="290" height="96" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs>${patterns}</defs>${fills}${marks}${clasps}${numbers}</svg></div>`;
+  return `<div class="chart-label">${label}</div><div class="teeth-row"><svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs>${patterns}</defs>${fills}${marks}${clasps}${numbers}</svg></div>`;
 }
 
 function productBoxes(products: ProductVM[]): string {
