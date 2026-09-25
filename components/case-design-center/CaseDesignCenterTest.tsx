@@ -218,6 +218,11 @@ export default function Page() {
               attachmentPatientName={completedPatientName || undefined}
               attachmentCaseId={slipResponseData?.id ?? undefined}
               attachmentSlipId={slipResponseData?.slips?.[0]?.id ?? undefined}
+              attachmentLabId={
+                slipResponseData?.slips?.[0]?.id
+                  ? undefined
+                  : resolveLibraryCustomerId(completedLab?.id) ?? undefined
+              }
             />
             <div style={{ height: "80px" }} />
           </div>

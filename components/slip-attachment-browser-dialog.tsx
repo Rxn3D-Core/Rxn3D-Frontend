@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react"
-import { createPortal } from "react-dom"
+import { createPortal, flushSync } from "react-dom"
 import dynamic from "next/dynamic"
 import {
   X,
@@ -17,10 +17,15 @@ import {
   Paperclip,
   Trash2,
 } from "lucide-react"
+import { Check as UploadCheck } from "@/components/ui/custom-check"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SlipAttachmentsService, validateSlipAttachmentFile } from "@/services/slip-attachments-service"
+import {
+  forgetPendingAttachment,
+  rememberPendingAttachment,
+} from "@/lib/case-design-attachment-cache"
 import type { CaseAttachmentsData, SlipAttachmentRecord } from "@/services/slip-attachments-service"
 import { toProxiedFileUrl } from "@/lib/file-proxy"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
@@ -55,6 +60,11 @@ interface StagedFile {
   file: File
   url: string
   id: string
+  progress: number
+  status: "idle" | "uploading" | "done" | "error"
+  error?: string
+  remoteId?: number
+  fromImpression?: boolean
 }
 
 // Slip group for the right panel browser
@@ -568,6 +578,8 @@ export interface SlipAttachmentBrowserDialogProps {
   onClose: () => void
   caseId?: number
   slipId?: number
+  /** Lab that owns storage while the slip does not exist yet. */
+  labId?: number
   caseNumber?: string
   doctorName?: string
   patientName?: string
@@ -580,6 +592,7 @@ export default function SlipAttachmentBrowserDialog({
   onClose,
   caseId,
   slipId,
+  labId,
   caseNumber,
   doctorName,
   patientName,
@@ -600,6 +613,8 @@ export default function SlipAttachmentBrowserDialog({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const removedStageIds = useRef<Set<string>>(new Set())
+  const pendingUpload = !slipId && !!labId
 
   // ── Browser / filter state ──────────────────────────────────────────────────
   const [stageFilter, setStageFilter] = useState("all")
@@ -653,14 +668,33 @@ export default function SlipAttachmentBrowserDialog({
       // Pre-populate staged files from window cache (impression STL files land here)
       if (typeof window !== "undefined") {
         const cached = ((window as any).__caseDesignAttachments ?? []) as any[]
-        const localFiles = cached.filter((item: any) => item.file instanceof File && !item.remoteId)
-        setStagedFiles(
-          localFiles.map((item: any) => ({
+        const localFiles = cached.filter(
+          (item: any) => item.file instanceof File && (item.source !== "attachment" || !item.remoteId)
+        )
+        const alreadyPending = cached.filter(
+          (item: any) =>
+            item.source === "attachment" &&
+            typeof item.remoteId === "number" &&
+            item.file instanceof File
+        )
+        setStagedFiles([
+          ...localFiles.map((item: any) => ({
             file: item.file as File,
             url: item.url || URL.createObjectURL(item.file as File),
             id: `cache-${item._impressionKey ?? Date.now()}-${Math.random()}`,
-          }))
-        )
+            progress: 0,
+            status: "idle" as const,
+            fromImpression: Boolean(item._impressionKey),
+          })),
+          ...alreadyPending.map((item: any) => ({
+            file: item.file as File,
+            url: item.url || "",
+            id: `pending-${item.remoteId}`,
+            progress: 100,
+            status: "done" as const,
+            remoteId: item.remoteId as number,
+          })),
+        ])
       } else {
         setStagedFiles([])
       }
@@ -704,6 +738,61 @@ export default function SlipAttachmentBrowserDialog({
   const displayedPatientName = caseData?.patient_name ?? patientName
 
   // ── Upload handlers ─────────────────────────────────────────────────────────
+  const patchStaged = useCallback((localId: string, patch: Partial<StagedFile>, paintNow = false) => {
+    const apply = () => {
+      setStagedFiles((prev) => prev.map((f) => (f.id === localId ? { ...f, ...patch } : f)))
+    }
+    // Upload progress fires outside React events. Flush each tick so the bar
+    // tracks bytes sent instead of jumping when the request finishes.
+    if (paintNow) flushSync(apply)
+    else apply()
+  }, [])
+
+  const startPendingUpload = useCallback(
+    async (localId: string, file: File, url: string) => {
+      if (!labId) return
+      patchStaged(localId, { status: "uploading", progress: 0, error: undefined })
+      try {
+        const res = await SlipAttachmentsService.uploadPendingAttachment(
+          labId,
+          file,
+          { notes: label || undefined },
+          (progress) => patchStaged(localId, { status: "uploading", progress }, true)
+        )
+        const remoteId = res.data?.id
+        if (!remoteId) throw new Error(res.message || "Upload did not return an attachment id")
+        if (removedStageIds.current.has(localId)) {
+          await SlipAttachmentsService.deletePendingAttachment(remoteId)
+          return
+        }
+        patchStaged(localId, { status: "done", progress: 100, remoteId })
+        rememberPendingAttachment({ remoteId, file, url, notes: label || undefined })
+      } catch (e) {
+        if (removedStageIds.current.has(localId)) return
+        const message = e instanceof Error ? e.message : "Upload failed"
+        patchStaged(localId, { status: "error", error: message })
+        setUploadError(message)
+      }
+    },
+    [labId, label, patchStaged]
+  )
+
+  const uploadToExistingSlip = useCallback(
+    async (localId: string, file: File) => {
+      if (!slipId) return
+      patchStaged(localId, { status: "uploading", progress: 0, error: undefined })
+      const res = await SlipAttachmentsService.uploadSlipAttachment(
+        slipId,
+        file,
+        { notes: label || undefined },
+        (progress) => patchStaged(localId, { status: "uploading", progress }, true)
+      )
+      if (removedStageIds.current.has(localId)) return
+      patchStaged(localId, { status: "done", progress: 100, remoteId: res.data?.id })
+    },
+    [slipId, label, patchStaged]
+  )
+
   const addFiles = useCallback((files: File[]) => {
     setUploadError(null)
     setUploadSuccess(false)
@@ -714,10 +803,32 @@ export default function SlipAttachmentBrowserDialog({
         setUploadError(err)
         continue
       }
-      valid.push({ file, url: URL.createObjectURL(file), id: `${Date.now()}-${Math.random()}` })
+      valid.push({
+        file,
+        url: URL.createObjectURL(file),
+        id: `${Date.now()}-${Math.random()}`,
+        progress: 0,
+        status: pendingUpload || slipId ? "uploading" : "idle",
+      })
     }
+    if (valid.length === 0) return
     setStagedFiles((prev) => [...prev, ...valid])
-  }, [])
+    if (pendingUpload) {
+      valid.forEach((item) => {
+        void startPendingUpload(item.id, item.file, item.url)
+      })
+    } else if (slipId) {
+      valid.forEach((item) => {
+        void uploadToExistingSlip(item.id, item.file)
+          .then(() => fetchData())
+          .catch((e) => {
+            const message = e instanceof Error ? e.message : "Upload failed"
+            patchStaged(item.id, { status: "error", error: message })
+            setUploadError(message)
+          })
+      })
+    }
+  }, [pendingUpload, slipId, startPendingUpload, uploadToExistingSlip, fetchData, patchStaged])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -736,18 +847,66 @@ export default function SlipAttachmentBrowserDialog({
     [addFiles]
   )
 
+  const retryStaged = useCallback(
+    (item: StagedFile) => {
+      setUploadError(null)
+      if (pendingUpload) {
+        void startPendingUpload(item.id, item.file, item.url)
+        return
+      }
+      if (!slipId) return
+      void uploadToExistingSlip(item.id, item.file)
+        .then(() => fetchData())
+        .catch((e) => {
+          const message = e instanceof Error ? e.message : "Upload failed"
+          patchStaged(item.id, { status: "error", error: message })
+          setUploadError(message)
+        })
+    },
+    [pendingUpload, slipId, startPendingUpload, uploadToExistingSlip, fetchData, patchStaged]
+  )
+
+  const removeStaged = useCallback(
+    async (item: StagedFile) => {
+      removedStageIds.current.add(item.id)
+      if (item.url.startsWith("blob:")) URL.revokeObjectURL(item.url)
+      setStagedFiles((prev) => prev.filter((x) => x.id !== item.id))
+      if (item.remoteId && pendingUpload) {
+        forgetPendingAttachment(item.remoteId)
+        try {
+          await SlipAttachmentsService.deletePendingAttachment(item.remoteId)
+        } catch (e) {
+          setUploadError(e instanceof Error ? e.message : "Failed to delete attachment")
+        }
+      }
+    },
+    [pendingUpload]
+  )
+
   const handleAttachFiles = useCallback(async () => {
-    if (stagedFiles.length === 0) return
+    if (pendingUpload) {
+      const userFiles = stagedFiles.filter((f) => !f.fromImpression)
+      if (userFiles.some((f) => f.status !== "done")) return
+      onAttached?.()
+      onClose()
+      return
+    }
+    if (slipId) {
+      const userFiles = stagedFiles.filter((f) => !f.fromImpression)
+      if (userFiles.some((f) => f.status === "uploading" || f.status === "error")) return
+      onAttached?.()
+      onClose()
+      return
+    }
     if (!slipId) {
-      // No slip yet — add any newly staged files to window cache for upload on submit.
-      // Only append — never remove existing cached files (impression STLs live there).
+      // No slip and no lab — keep files locally until submit (impression STLs stay in the cache).
       if (typeof window !== "undefined") {
         const existing = ((window as any).__caseDesignAttachments ?? []) as any[]
         const existingNames = new Set(
           existing.filter((i: any) => i.file instanceof File).map((i: any) => (i.file as File).name)
         )
         const newFiles = stagedFiles
-          .filter((f) => !existingNames.has(f.file.name))
+          .filter((f) => !f.fromImpression && !existingNames.has(f.file.name))
           .map((f) => ({ file: f.file, url: f.url, type: "stl" as const, archived: false }))
         if (newFiles.length > 0) {
           ;(window as any).__caseDesignAttachments = [...existing, ...newFiles]
@@ -755,28 +914,8 @@ export default function SlipAttachmentBrowserDialog({
       }
       onAttached?.()
       onClose()
-      return
     }
-    setUploading(true)
-    setUploadError(null)
-    setUploadSuccess(false)
-    try {
-      for (const staged of stagedFiles) {
-        await SlipAttachmentsService.uploadSlipAttachment(slipId, staged.file, {
-          notes: label || undefined,
-        })
-      }
-      onAttached?.()
-      await fetchData()
-      setStagedFiles([])
-      setLabel("")
-      setUploadSuccess(true)
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed")
-    } finally {
-      setUploading(false)
-    }
-  }, [stagedFiles, slipId, label, fetchData, onAttached, onClose])
+  }, [stagedFiles, slipId, pendingUpload, onAttached, onClose])
 
   // ── File selection for preview ──────────────────────────────────────────────
   const handleSelectForPreview = useCallback(
@@ -839,6 +978,9 @@ export default function SlipAttachmentBrowserDialog({
 
   if (!open) return null
 
+  const createOnly = !slipId && !caseId
+  const liveUpload = createOnly || Boolean(slipId)
+
   return (
     <>
       {/* Backdrop */}
@@ -846,14 +988,12 @@ export default function SlipAttachmentBrowserDialog({
 
       {/* Dialog panel */}
       <div
-        className="fixed inset-0 z-[9991] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[9991] flex items-center justify-center p-2 sm:p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="flex max-h-[min(90vh,720px)] w-[min(96vw,1400px)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl md:h-[min(90vh,720px)] md:flex-row"
-        >
+        <div className="flex max-h-[min(90vh,720px)] w-[min(96vw,1400px)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl md:h-[min(90vh,720px)] md:flex-row">
           {/* ── Left panel: Upload ─────────────────────────────── */}
-          <div className="flex w-full shrink-0 flex-col border-b border-gray-200 bg-white md:w-[310px] md:border-b-0 md:border-r">
+          <div className="flex h-full min-h-0 w-full shrink-0 flex-col border-b border-gray-200 bg-white md:w-[310px] md:border-b-0 md:border-r">
             {/* Header */}
             <div className="flex items-center gap-2 px-5 pt-5 pb-2">
               <Paperclip className="w-5 h-5 text-gray-700" />
@@ -864,9 +1004,9 @@ export default function SlipAttachmentBrowserDialog({
             </p>
 
             {/* Drop zone */}
-            <div className="px-5 flex-1 flex flex-col gap-3 min-h-0">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
               <div
-                className={`rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-8 cursor-pointer transition-colors ${
+                className={`shrink-0 cursor-pointer rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-8 transition-colors ${
                   isDragging
                     ? "border-[#1162A8] bg-blue-50"
                     : "border-gray-300 hover:border-[#1162A8] hover:bg-blue-50/40"
@@ -891,27 +1031,121 @@ export default function SlipAttachmentBrowserDialog({
                 />
               </div>
 
-              {/* Staged file list */}
+              {/* Staged files — cards with live progress whenever a slip can take the upload */}
               {stagedFiles.length > 0 && (
+                liveUpload ? (
+                  <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto">
+                    {stagedFiles.map((f) => {
+                      const image = isImageFile(f.file.name)
+                      const waiting = f.status === "uploading" && f.progress >= 100
+                      const shown = Math.min(f.progress, 95)
+                      return (
+                        <div key={f.id} className="flex min-w-0 flex-col gap-1">
+                          <div className="relative h-[72px] w-full overflow-hidden rounded-md border border-gray-200 bg-gray-50">
+                            {image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={f.url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <FileText className="h-5 w-5 text-gray-300" />
+                              </div>
+                            )}
+                            {f.status === "done" && (
+                              <div className="absolute right-1 top-1">
+                                <UploadCheck size={20} aria-label="Uploaded" />
+                              </div>
+                            )}
+                            {f.status === "uploading" && (
+                              <div className="absolute inset-x-0 bottom-0 bg-white/95 px-1.5 py-1">
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                                  <div
+                                    className={`h-full rounded-full bg-[#1162A8] ${waiting ? "w-full animate-pulse" : ""}`}
+                                    style={waiting ? undefined : { width: `${shown}%` }}
+                                  />
+                                </div>
+                                <p className="mt-0.5 text-center text-[9px] font-medium text-[#1162A8]">
+                                  {waiting ? "Saving…" : `${shown}%`}
+                                </p>
+                              </div>
+                            )}
+                            {f.status !== "uploading" && !(slipId && f.status === "done") && (
+                              <button
+                                type="button"
+                                className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white/90 text-gray-500 shadow-sm hover:text-red-500"
+                                onClick={() => void removeStaged(f)}
+                                aria-label="Remove file"
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                            {f.status === "error" && (
+                              <button
+                                type="button"
+                                className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-[9px] font-medium text-[#1162A8]"
+                                onClick={() => retryStaged(f)}
+                              >
+                                Retry
+                              </button>
+                            )}
+                          </div>
+                          <span className="truncate text-[9px] text-gray-600" title={f.file.name}>
+                            {f.file.name}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
                 <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
                   {stagedFiles.map((f) => (
-                    <div key={f.id} className="flex items-center gap-2 text-xs text-gray-700 bg-gray-50 rounded px-2 py-1">
-                      <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                      <span className="flex-1 truncate">{f.file.name}</span>
-                      <span className="text-gray-400 flex-shrink-0">{formatBytes(f.file.size)}</span>
-                      <button
-                        type="button"
-                        className="text-gray-400 hover:text-red-500"
-                        onClick={() => {
-                          URL.revokeObjectURL(f.url)
-                          setStagedFiles((prev) => prev.filter((x) => x.id !== f.id))
-                        }}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                    <div key={f.id} className="flex flex-col gap-1 text-xs text-gray-700 bg-gray-50 rounded px-2 py-1">
+                      <div className="flex items-center gap-2">
+                        {f.status === "done" ? (
+                          <UploadCheck size={20} aria-label="Uploaded" />
+                        ) : (
+                          <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        )}
+                        <span className="flex-1 truncate">{f.file.name}</span>
+                        <span className="text-gray-400 flex-shrink-0">{formatBytes(f.file.size)}</span>
+                        {f.status === "error" && (
+                          <button
+                            type="button"
+                            className="text-[#1162A8] hover:underline flex-shrink-0"
+                            onClick={() => retryStaged(f)}
+                          >
+                            Retry
+                          </button>
+                        )}
+                        {f.status !== "uploading" && !(slipId && f.status === "done") && (
+                          <button
+                            type="button"
+                            className="text-gray-400 hover:text-red-500"
+                            onClick={() => void removeStaged(f)}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      {f.status === "uploading" && (
+                        <div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className={`h-full rounded-full bg-[#1162A8] ${f.progress >= 100 ? "w-full animate-pulse" : ""}`}
+                              style={f.progress >= 100 ? undefined : { width: `${Math.min(f.progress, 95)}%` }}
+                            />
+                          </div>
+                          <p className="mt-0.5 text-[10px] font-medium text-[#1162A8]">
+                            {f.progress >= 100 ? "Saving…" : `${Math.min(f.progress, 95)}%`}
+                          </p>
+                        </div>
+                      )}
+                      {f.status === "error" && f.error && (
+                        <p className="text-[10px] text-red-500">{f.error}</p>
+                      )}
                     </div>
                   ))}
                 </div>
+                )
               )}
 
               {/* Upload error */}
@@ -943,7 +1177,7 @@ export default function SlipAttachmentBrowserDialog({
             </div>
 
             {/* Actions */}
-            <div className="flex flex-col gap-2 border-t border-gray-100 px-5 py-4">
+            <div className="flex shrink-0 flex-col gap-2 border-t border-gray-100 px-5 py-4">
               {uploadSuccess && (
                 <p className="text-xs font-medium text-green-600">
                   Files uploaded successfully
@@ -951,25 +1185,37 @@ export default function SlipAttachmentBrowserDialog({
               )}
               <div className="flex gap-2">
                 <Button
-                  variant={stagedFiles.length > 0 ? "outline" : "default"}
+                  variant={liveUpload || stagedFiles.length > 0 ? "outline" : "default"}
                   size="sm"
                   className={
-                    stagedFiles.length > 0
+                    liveUpload || stagedFiles.length > 0
                       ? "h-9 flex-1 text-xs"
                       : "h-9 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85]"
                   }
                   onClick={onClose}
                   disabled={uploading}
                 >
-                  {stagedFiles.length > 0 ? "Cancel" : "Done"}
+                  {liveUpload || stagedFiles.length > 0 ? "Cancel" : "Done"}
                 </Button>
                 <Button
                   size="sm"
                   className="h-9 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85]"
                   onClick={handleAttachFiles}
-                  disabled={stagedFiles.length === 0 || uploading}
+                  disabled={
+                    liveUpload
+                      ? stagedFiles.some(
+                          (f) => !f.fromImpression && (f.status === "uploading" || f.status === "error")
+                        )
+                      : uploading || stagedFiles.length === 0
+                  }
                 >
-                  {uploading ? "Uploading…" : "Attach Files"}
+                  {liveUpload
+                    ? stagedFiles.some((f) => !f.fromImpression && f.status === "uploading")
+                      ? "Uploading…"
+                      : "Done"
+                    : uploading
+                      ? "Uploading…"
+                      : "Attach Files"}
                 </Button>
               </div>
             </div>

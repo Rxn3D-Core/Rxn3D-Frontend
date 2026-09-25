@@ -136,34 +136,79 @@ function toQueryString(params: Record<string, string | number | boolean | undefi
   return query ? `?${query}` : "";
 }
 
-async function uploadFormData<T>(endpoint: string, formData: FormData): Promise<T> {
+function authHeaders(): HeadersInit {
   const headers: HeadersInit = {};
   const token = typeof window === "undefined" ? null : localStorage.getItem("token");
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
+  return headers;
+}
 
-  const response = await fetch(`${baseUrl}${endpoint}`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
+function apiUrl(endpoint: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  return `${baseUrl}${endpoint}`;
+}
 
-  if (response.status === 401) {
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
+async function uploadFormData<T>(
+  endpoint: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void
+): Promise<T> {
+  if (!onProgress) {
+    const response = await fetch(apiUrl(endpoint), {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    });
+
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+      throw new Error("Unauthorized - Redirecting to login");
     }
-    throw new Error("Unauthorized - Redirecting to login");
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
   }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  return response.json();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", apiUrl(endpoint));
+    const token = typeof window === "undefined" ? null : localStorage.getItem("token");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onloadstart = () => onProgress(0);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      }
+    };
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        if (typeof window !== "undefined") window.location.href = "/login";
+        reject(new Error("Unauthorized - Redirecting to login"));
+        return;
+      }
+      let body: { message?: string } = {};
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch {
+        body = {};
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(body.message || `HTTP error! status: ${xhr.status}`));
+        return;
+      }
+      resolve(body as T);
+    };
+    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.send(formData);
+  });
 }
 
 export function validateSlipAttachmentFile(file: File): string | null {
@@ -217,7 +262,8 @@ export const SlipAttachmentsService = {
   uploadSlipAttachment(
     slipId: number,
     file: File,
-    options: SlipAttachmentUploadOptions = {}
+    options: SlipAttachmentUploadOptions = {},
+    onProgress?: (percent: number) => void
   ) {
     const validationError = validateSlipAttachmentFile(file);
     if (validationError) {
@@ -235,7 +281,42 @@ export const SlipAttachmentsService = {
 
     return uploadFormData<SlipAttachmentsApiResponse<SlipAttachmentRecord>>(
       `/slip/attachments/${slipId}/upload`,
-      formData
+      formData,
+      onProgress
+    );
+  },
+
+  uploadPendingAttachment(
+    labId: number,
+    file: File,
+    options: SlipAttachmentUploadOptions = {},
+    onProgress?: (percent: number) => void
+  ) {
+    const validationError = validateSlipAttachmentFile(file);
+    if (validationError) {
+      return Promise.reject(new Error(validationError));
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("lab_id", String(labId));
+    if (options.attachment_type) {
+      formData.append("attachment_type", options.attachment_type);
+    }
+    if (options.notes) {
+      formData.append("notes", options.notes);
+    }
+
+    return uploadFormData<SlipAttachmentsApiResponse<SlipAttachmentRecord>>(
+      `/slip/attachments/pending`,
+      formData,
+      onProgress
+    );
+  },
+
+  deletePendingAttachment(attachmentId: number) {
+    return ApiService.delete<SlipAttachmentsApiResponse<null>>(
+      `/slip/attachments/pending/${attachmentId}`
     );
   },
 

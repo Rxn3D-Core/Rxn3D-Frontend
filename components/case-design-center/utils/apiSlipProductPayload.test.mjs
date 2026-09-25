@@ -95,7 +95,28 @@ test("mergeEditSlipProductWithBaseline keeps API teeth when collector omits them
   assert.deepEqual(merged.tooth_chart, baseline.tooth_chart);
   assert.equal(merged.grade_id, 4);
   assert.equal(merged.teeth_shade_id, 11);
-  assert.equal(merged.notes, "Updated note");
+  assert.equal(merged.notes, undefined);
+});
+
+test("mergeEditSlipProductWithBaseline keeps the notes already selected on the slip", () => {
+  const baseline = {
+    type: "Upper",
+    category_id: 10,
+    product_id: 101,
+    subcategory_id: 20,
+    notes: "Original selected note",
+  };
+
+  const prepared = {
+    type: "Upper",
+    category_id: 10,
+    product_id: 101,
+    subcategory_id: 20,
+    notes: "Newly generated note",
+  };
+
+  const merged = mergeEditSlipProductWithBaseline(prepared, baseline);
+  assert.equal(merged.notes, "Original selected note");
 });
 
 test("mergeEditSlipProductWithBaseline prefers collector teeth when present", () => {

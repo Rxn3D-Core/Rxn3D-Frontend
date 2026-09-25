@@ -104,7 +104,7 @@ function addonLabel(products: ProductVM[]): string {
     products.map((product) => {
       if (product.addOns.length === 0) return "";
       if (product.addOns.length === 1) return product.addOns[0];
-      return `${product.addOns[0]} (+${product.addOns.length - 1})`;
+      return `${product.addOns[0]} +${product.addOns.length - 1} more`;
     })
   );
 }

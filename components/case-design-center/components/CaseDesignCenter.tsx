@@ -1894,7 +1894,9 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         mandibularImplantDetailByTooth={mandibularImplantDetailPeer}
         rushArchSlots={rushArchSlotsWithDelivery}
         caseHasAddons={caseHasAddons}
+        lockedCaseSummaryNotes={props.lockedCaseSummaryNotes}
         onCaseSummaryNotesChange={(text) => {
+          if (props.lockedCaseSummaryNotes !== undefined) return;
           if (props.caseSummaryNotesRef) {
             props.caseSummaryNotesRef.current = text;
           }
@@ -2114,6 +2116,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
         attachmentPatientName={props.attachmentPatientName}
         attachmentCaseId={props.attachmentCaseId}
         attachmentSlipId={props.attachmentSlipId}
+        attachmentLabId={props.attachmentLabId}
         showRushModal={state.showRushModal}
         setShowRushModal={state.setShowRushModal}
         currentRushArch={state.currentRushArch}
