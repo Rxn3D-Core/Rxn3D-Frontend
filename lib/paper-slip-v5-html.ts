@@ -116,12 +116,12 @@ function implantLabel(
   return uniqJoin(products.flatMap((product) => product.implants.map(pick)));
 }
 
-function detailRows(maxillary: ProductVM[], mandibular: ProductVM[]): Array<{ label: string; left: string; right: string }> {
+function detailRows(maxillary: ProductVM[], mandibular: ProductVM[]): Array<{ label: string; left: string; right: string; shade?: boolean }> {
   const rows = [
     { label: "Grade", left: uniqJoin(maxillary.map((p) => p.grade)), right: uniqJoin(mandibular.map((p) => p.grade)) },
     { label: "Stage", left: uniqJoin(maxillary.map((p) => p.stage)), right: uniqJoin(mandibular.map((p) => p.stage)) },
-    { label: "Teeth Shade", left: uniqJoin(maxillary.map((p) => p.teethShade)), right: uniqJoin(mandibular.map((p) => p.teethShade)) },
-    { label: "Gum Shade", left: uniqJoin(maxillary.map((p) => p.gumShade)), right: uniqJoin(mandibular.map((p) => p.gumShade)) },
+    { label: "Teeth Shade", left: uniqJoin(maxillary.map((p) => p.teethShade)), right: uniqJoin(mandibular.map((p) => p.teethShade)), shade: true },
+    { label: "Gum Shade", left: uniqJoin(maxillary.map((p) => p.gumShade)), right: uniqJoin(mandibular.map((p) => p.gumShade)), shade: true },
     { label: "Impression", left: uniqJoin(maxillary.map((p) => p.impression)), right: uniqJoin(mandibular.map((p) => p.impression)) },
     { label: "Add ons", left: addonLabel(maxillary), right: addonLabel(mandibular) },
     {
@@ -141,6 +141,42 @@ function detailRows(maxillary: ProductVM[], mandibular: ProductVM[]): Array<{ la
     },
   ];
   return rows.filter((row) => row.left !== "" || row.right !== "");
+}
+
+/** "System - A2" → shade stays beside the center label; the system sits on the outside. */
+function shadePieces(value: string): Array<{ system: string; shade: string }> {
+  return value
+    .split(" / ")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const at = part.lastIndexOf(" - ");
+      if (at === -1) return { system: "", shade: part };
+      return { system: part.slice(0, at), shade: part.slice(at + 3) };
+    });
+}
+
+function plainSide(value: string, side: "l" | "r"): string {
+  if (!value) return "";
+  return `<span class="ps-clip ps-clip-${side}"><span class="ps-clip-text">${esc(value)}</span></span>`;
+}
+
+function shadeSide(value: string, side: "l" | "r"): string {
+  const pairs = shadePieces(value)
+    .map(({ system, shade }) => {
+      const sys = system ? `<span class="ps-sys">${esc(system)}</span>` : "";
+      const code = `<span class="ps-shade">${esc(shade)}</span>`;
+      return `<span class="ps-shade-pair">${side === "l" ? `${sys}${code}` : `${code}${sys}`}</span>`;
+    })
+    .join(`<span class="ps-shade-sep">/</span>`);
+  if (!pairs) return "";
+  return `<span class="ps-shade-line ps-shade-line-${side}">${pairs}</span>`;
+}
+
+function detailRowHtml(row: { label: string; left: string; right: string; shade?: boolean }): string {
+  const left = row.shade ? shadeSide(row.left, "l") : plainSide(row.left, "l");
+  const right = row.shade ? shadeSide(row.right, "r") : plainSide(row.right, "r");
+  return `<div class="ps-detail-row"><div class="val-l">${left}</div><div class="lbl">${esc(row.label)}</div><div class="val-r">${right}</div></div>`;
 }
 
 function defaultToothUrl(tooth: number): string {
@@ -277,12 +313,7 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
   const maxSummary = productSummary(maxillary);
   const mandSummary = productSummary(mandibular);
   const qr = qrCodeUrl || existingQr(details);
-  const rows = detailRows(maxillary, mandibular)
-    .map(
-      (row) =>
-        `<tr><td class="val-l">${esc(row.left)}</td><td class="lbl">${esc(row.label)}</td><td class="val-r">${esc(row.right)}</td></tr>`
-    )
-    .join("");
+  const rows = detailRows(maxillary, mandibular).map(detailRowHtml).join("");
 
   const logo = header.labLogo
     ? `<img class="ps-logo" src="${esc(header.labLogo)}" alt="Lab logo">`
@@ -336,7 +367,7 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
       <div class="ps-arch">${chartSvg("maxillary", vm.arches.maxillary)}${productBoxes(maxillary)}</div>
       <div class="ps-arch">${chartSvg("mandibular", vm.arches.mandibular)}${productBoxes(mandibular)}</div>
     </div>
-    <table class="ps-details">${rows}</table>
+    <div class="ps-details">${rows}</div>
     <div class="ps-qr-note">Scan QR / open virtual slip for full details.</div>
     ${note ? `<div class="ps-notes">${esc(note)}</div>` : ""}
     <div class="ps-sig-wrap">
@@ -437,19 +468,26 @@ function printHtmlInCurrentWindow(html: string): void {
     @media print {
       ${slipCss}
       html, body {
+        width: 8.5in !important;
+        height: 11in !important;
+        max-height: 11in !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
-        height: auto !important;
-        overflow: visible !important;
+        overflow: hidden !important;
       }
       body > :not(#${IOS_PRINT_ROOT_ID}) { display: none !important; }
       #${IOS_PRINT_ROOT_ID} {
-        display: block !important;
-        position: static !important;
-        width: auto !important;
-        height: auto !important;
-        overflow: visible !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        position: relative !important;
+        width: 8.5in !important;
+        height: 11in !important;
+        max-height: 11in !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
         clip: auto !important;
         visibility: visible !important;
         pointer-events: auto !important;
