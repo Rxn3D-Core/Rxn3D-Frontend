@@ -177,8 +177,6 @@ export interface VirtualSlipHeaderProps {
   onPrintInvoice?: () => void;
   /** Prints Blade portrait-v4 HTML from API (base64 → iframe print). */
   onPrintPaperSlipV4?: () => void;
-  /** Prints portrait v5 HTML built in the browser from images already on the page. */
-  onPrintPaperSlipV5?: () => void;
   locationAction?: VirtualSlipLocationActionProps;
 }
 
@@ -187,7 +185,6 @@ export function VirtualSlipHeader({
   onPrint,
   onPrintInvoice,
   onPrintPaperSlipV4,
-  onPrintPaperSlipV5,
   locationAction,
 }: VirtualSlipHeaderProps) {
   return (
@@ -226,16 +223,6 @@ export function VirtualSlipHeader({
             />
 
             <div className="flex shrink-0 items-center gap-[18px]">
-              {onPrintPaperSlipV5 ? (
-                <button
-                  type="button"
-                  onClick={onPrintPaperSlipV5}
-                  className="hidden font-sans text-[10px] font-medium leading-none text-[#1162A8] underline-offset-2 hover:underline lg:inline"
-                  title="Print paper slip v5 from images already on this page"
-                >
-                  v5
-                </button>
-              ) : null}
               {onPrintPaperSlipV4 ? (
                 <button
                   type="button"
@@ -267,15 +254,6 @@ export function VirtualSlipHeader({
               textClassName="min-w-0 text-[clamp(14px,1.2vw,20px)] font-bold leading-tight text-[#4C4D55] text-right"
             />
           </div>
-          {onPrintPaperSlipV5 ? (
-            <button
-              type="button"
-              onClick={onPrintPaperSlipV5}
-              className="w-full border-b border-[#D9D9D9] py-2 text-center font-sans text-[13px] font-semibold text-[#1162A8] lg:hidden"
-            >
-              v5
-            </button>
-          ) : null}
 
           <div className="grid min-w-0 flex-1 grid-cols-5 items-center gap-x-[clamp(16px,1.4vw,28px)] py-[4px]">
             <Column

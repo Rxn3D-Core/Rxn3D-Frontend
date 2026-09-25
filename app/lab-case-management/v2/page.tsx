@@ -41,12 +41,11 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2"
+import { printPaperSlipV5ForSlip, printPaperSlipV5ForSlips } from "@/lib/print-paper-slip-v5-from-slip"
 import {
   resolveListingPaperSlipId,
-  resolveListingPaperSlipIds,
+  resolveListingPaperSlipJobs,
 } from "@/lib/paper-slip-listing-print-ids"
-import { LoadingOverlay } from "@/components/ui/loading-overlay"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
 
@@ -70,7 +69,6 @@ function canPrintStatement(row: { billingId?: number | null }): boolean {
 export default function LabSlipPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2();
   // Get customerType from localStorage and use as userRole
   let userRole = 'lab';
   if (typeof window !== 'undefined') {
@@ -682,19 +680,31 @@ export default function LabSlipPage() {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" });
       return;
     }
-    printPaperSlip([idToSend], []);
+    void printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+      toast({
+        title: "Unable to print paper slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    });
   }
 
   // Bulk print handler — selected row slip ids only.
   const handleBulkPrintPaperSlip = () => {
     if (!selected.length) return;
     const selectedRows = slips.filter(slip => selected.includes(slip.id));
-    const slipIds = resolveListingPaperSlipIds(selectedRows);
-    if (!slipIds.length) {
+    const jobs = resolveListingPaperSlipJobs(selectedRows);
+    if (!jobs.length) {
       toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
       return;
     }
-    printPaperSlip(slipIds, []);
+    void printPaperSlipV5ForSlips(jobs).catch((error: unknown) => {
+      toast({
+        title: "Unable to print paper slip",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    });
   };
 
 
@@ -1193,9 +1203,6 @@ export default function LabSlipPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        {paperSlipPortal}
-        <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
         {/* File Attachment Modal */}
         {showAttachModal && selectedCaseForAttachment && createPortal(

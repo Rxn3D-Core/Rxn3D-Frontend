@@ -25,3 +25,18 @@ export function resolveListingPaperSlipIds(
   }
   return ids;
 }
+
+/** Slip id plus case id, in listing order, for v5 bulk print. */
+export function resolveListingPaperSlipJobs(
+  rows: Array<{ id?: number | null; caseId?: number }>,
+): Array<{ slipId: number; caseId?: number }> {
+  const jobs: Array<{ slipId: number; caseId?: number }> = [];
+  const seen = new Set<number>();
+  for (const row of rows) {
+    const slipId = resolveListingPaperSlipId(row);
+    if (slipId == null || seen.has(slipId)) continue;
+    seen.add(slipId);
+    jobs.push({ slipId, caseId: row.caseId });
+  }
+  return jobs;
+}
