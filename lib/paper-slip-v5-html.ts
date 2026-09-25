@@ -176,7 +176,7 @@ function shadeSide(value: string, side: "l" | "r"): string {
 function detailRowHtml(row: { label: string; left: string; right: string; shade?: boolean }): string {
   const left = row.shade ? shadeSide(row.left, "l") : plainSide(row.left, "l");
   const right = row.shade ? shadeSide(row.right, "r") : plainSide(row.right, "r");
-  return `<div class="ps-detail-row"><div class="val-l">${left}</div><div class="lbl">${esc(row.label)}</div><div class="val-r">${right}</div></div>`;
+  return `<div class="val-l">${left}</div><div class="lbl">${esc(row.label)}</div><div class="val-r">${right}</div>`;
 }
 
 function defaultToothUrl(tooth: number): string {
