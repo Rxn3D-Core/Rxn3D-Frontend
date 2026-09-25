@@ -280,23 +280,81 @@ body {
 }
 .ps-details {
   width: 100%;
-  border-collapse: collapse;
-  table-layout: auto;
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
 }
-.ps-details td {
+.ps-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  min-height: 22px;
   font-family: Verdana, Geneva, sans-serif;
   font-size: 15px;
   line-height: 22px;
   letter-spacing: -0.02em;
   color: #1A1A1A;
-  vertical-align: middle;
-  padding: 1px 0;
-  height: auto;
 }
-.ps-details td.val-l { text-align: right; font-weight: 400; padding-right: 10px; }
-.ps-details td.lbl { width: 1%; white-space: nowrap; text-align: center; font-weight: 700; padding: 0 4px; }
-.ps-details td.val-r { text-align: left; font-weight: 400; padding-left: 10px; }
+.ps-detail-row .lbl {
+  text-align: center;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+.ps-detail-row .val-l,
+.ps-detail-row .val-r {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 400;
+}
+.ps-clip {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* rtl puts the ellipsis on the outer edge and keeps the end of the text by the label. */
+.ps-clip-l {
+  direction: rtl;
+  text-align: right;
+}
+.ps-clip-text {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.ps-clip-r { text-align: left; }
+.ps-shade-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.ps-shade-line-l { justify-content: flex-end; }
+.ps-shade-line-r { justify-content: flex-start; }
+.ps-shade-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+.ps-shade {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.ps-sys {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ps-shade-sep { flex: 0 0 auto; }
 .ps-qr-note {
   width: 100%;
   padding: 2px 0;
@@ -397,26 +455,38 @@ body {
 .ps-k { font-weight: 700; }
 .ps-v { font-weight: 400; }
 @media print {
-  @page { size: letter portrait; margin: 0.12in; }
+  /* Zero margin keeps Safari from printing the URL and date in the margin. */
+  @page { size: letter portrait; margin: 0; }
   html, body {
-    width: 100% !important;
-    height: 100% !important;
+    width: 8.5in !important;
+    height: 11in !important;
+    max-height: 11in !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
     overflow: hidden !important;
   }
-  body { display: block !important; }
+  body {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    position: relative !important;
+  }
   .ps-page {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100% !important;
-    max-height: 100% !important;
+    position: relative !important;
+    flex: 0 0 auto !important;
+    width: 628px !important;
+    max-width: 628px !important;
+    height: 890px !important;
+    max-height: 890px !important;
     margin: 0 !important;
     padding: 4px 8px !important;
     overflow: hidden !important;
+    /* zoom changes layout size, so Safari paginates one letter page instead of the unscaled height. */
+    zoom: min(8.5in / 628px, 11in / 890px) !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    page-break-after: avoid !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
