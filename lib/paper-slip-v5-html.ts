@@ -452,6 +452,10 @@ function printHtmlInCurrentWindow(html: string): void {
 
   const parsed = new DOMParser().parseFromString(html, "text/html");
   const slipCss = parsed.querySelector("style")?.textContent ?? "";
+  const multi = html.includes('class="ps-sheet"');
+  const pageBox = multi
+    ? "width: 8.5in !important; height: auto !important; max-height: none !important; overflow: visible !important;"
+    : "width: 8.5in !important; height: 11in !important; max-height: 11in !important; overflow: hidden !important;";
 
   const style = document.createElement("style");
   style.id = `${IOS_PRINT_ROOT_ID}-style`;
@@ -468,26 +472,20 @@ function printHtmlInCurrentWindow(html: string): void {
     @media print {
       ${slipCss}
       html, body {
-        width: 8.5in !important;
-        height: 11in !important;
-        max-height: 11in !important;
+        ${pageBox}
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
-        overflow: hidden !important;
       }
       body > :not(#${IOS_PRINT_ROOT_ID}) { display: none !important; }
       #${IOS_PRINT_ROOT_ID} {
-        display: flex !important;
+        display: ${multi ? "block" : "flex"} !important;
         justify-content: center !important;
         align-items: flex-start !important;
         position: relative !important;
-        width: 8.5in !important;
-        height: 11in !important;
-        max-height: 11in !important;
+        ${pageBox}
         margin: 0 !important;
         padding: 0 !important;
-        overflow: hidden !important;
         clip: auto !important;
         visibility: visible !important;
         pointer-events: auto !important;
@@ -526,16 +524,83 @@ function printHtmlInCurrentWindow(html: string): void {
   window.setTimeout(finish, 120_000);
 }
 
+const MULTI_SHEET_PRINT_CSS = `
+@media print {
+  html, body {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  .ps-sheet {
+    width: 8.5in !important;
+    height: 11in !important;
+    max-height: 11in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+  .ps-sheet:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+}
+`;
+
+/** One letter page per slip. A single slip stays the original one-page document. */
+function combinePaperSlipHtml(documents: string[]): string {
+  const pages = documents.filter(Boolean);
+  if (pages.length <= 1) return pages[0] ?? "";
+  const sheets = pages
+    .map((html) => {
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      const page = parsed.querySelector(".ps-page");
+      return `<div class="ps-sheet">${page?.outerHTML ?? ""}</div>`;
+    })
+    .join("");
+  const doc = new DOMParser().parseFromString(pages[0], "text/html");
+  const style = doc.querySelector("style");
+  if (style) style.textContent = `${style.textContent ?? ""}${MULTI_SHEET_PRINT_CSS}`;
+  doc.body.innerHTML = sheets;
+  return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+}
+
+function printPaperSlipV5Html(html: string): void {
+  const isIos =
+    typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (isIos) {
+    printHtmlInCurrentWindow(html);
+    return;
+  }
+  printHtmlViaHiddenIframe(html);
+}
+
+async function renderPaperSlipV5Html(input: PaperSlipV5Input): Promise<string> {
+  const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
+  const qr = existingQr(details) || (await qrDataUrl(input.caseId, input.slipId));
+  return buildPaperSlipV5Html(input, qr);
+}
+
 /** Build the slip from data already on the page and open the browser print dialog. */
 export async function printPaperSlipV5(input: PaperSlipV5Input): Promise<void> {
   const isIos =
     typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
   if (isIos) {
+    const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
     const qr = existingQr(details) || qrDataUrlSync(input.caseId, input.slipId);
     printHtmlInCurrentWindow(buildPaperSlipV5Html(input, qr));
     return;
   }
-  const qr = existingQr(details) || (await qrDataUrl(input.caseId, input.slipId));
-  printHtmlViaHiddenIframe(buildPaperSlipV5Html(input, qr));
+  printPaperSlipV5Html(await renderPaperSlipV5Html(input));
+}
+
+/** One print dialog, one letter page per slip. */
+export async function printPaperSlipV5Many(inputs: PaperSlipV5Input[]): Promise<void> {
+  const htmls = await Promise.all(inputs.map((input) => renderPaperSlipV5Html(input)));
+  printPaperSlipV5Html(combinePaperSlipHtml(htmls));
 }

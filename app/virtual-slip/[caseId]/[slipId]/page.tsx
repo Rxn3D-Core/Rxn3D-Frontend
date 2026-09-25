@@ -65,11 +65,9 @@ import {
   isLabSlipUserRole,
 } from "@/lib/slip-user-role";
 import { isOfficeCustomerContext } from "@/lib/role-utils";
-import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2";
 import { printPortraitV4PaperSlips } from "@/lib/print-paper-slip-v4-html";
 import { printPaperSlipV5 } from "@/lib/paper-slip-v5-html";
 import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
-import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 import { useBusinessSettingsQuery } from "@/hooks/use-business-settings";
 import { resolveLabIdFromSlipDetails } from "@/lib/add-stage/preload-state";
@@ -522,12 +520,6 @@ export default function VirtualSlipV2Page() {
     router.push(`/add-new-stage?sourceSlipId=${slipId}`);
   }, [router, slipId]);
 
-  const { print: printPaperSlip, portal: paperSlipPortal, isPrinting } = usePaperSlipInPagePrintV2();
-  const handlePrint = useCallback(() => {
-    if (!slipId || isNaN(slipId)) return;
-    printPaperSlip([slipId], []);
-  }, [slipId, printPaperSlip]);
-
   const [printingV4, setPrintingV4] = useState(false);
   const handlePrintPaperSlipV4 = useCallback(async () => {
     if (!slipId || isNaN(slipId) || printingV4) return;
@@ -574,11 +566,16 @@ export default function VirtualSlipV2Page() {
   // A freshly created slip is marked by the submit flow; consuming the flag
   // auto-opens the paper slip print window once — reloads never re-trigger it.
   useEffect(() => {
-    if (!slipId || isNaN(slipId)) return;
+    if (!slipId || isNaN(slipId) || !vm) return;
     if (consumeSlipAutoPrint(slipId)) {
-      printPaperSlip([slipId], []);
+      void printPaperSlipV5({
+        vm,
+        caseId: caseId || routeCaseId,
+        slipId,
+        details: virtualSlipDetails,
+      });
     }
-  }, [slipId, printPaperSlip]);
+  }, [slipId, vm, caseId, routeCaseId, virtualSlipDetails]);
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
@@ -735,10 +732,9 @@ export default function VirtualSlipV2Page() {
     <div className="flex min-h-full flex-col bg-white">
       <VirtualSlipHeader
         header={vm.header}
-        onPrint={handlePrint}
+        onPrint={handlePrintPaperSlipV5}
         onPrintInvoice={handlePrintInvoice}
         onPrintPaperSlipV4={handlePrintPaperSlipV4}
-        onPrintPaperSlipV5={userRole === "lab_admin" ? handlePrintPaperSlipV5 : undefined}
         locationAction={{
           pickupDropoffAction:
             canRunLabDriverActions && showPickupDropoffFab ? pickupDropoffAction : null,
@@ -1209,9 +1205,6 @@ export default function VirtualSlipV2Page() {
         location={vm.header.location}
         signatureRequired={readyToSendRequired}
       />
-
-      {paperSlipPortal}
-      <LoadingOverlay isLoading={isPrinting} title="Preparing Paper Slip" message="Please wait while we prepare your paper slip for printing…" />
 
       <SlipAttachmentBrowserDialog
         open={showAttachModal}
