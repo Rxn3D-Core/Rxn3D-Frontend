@@ -92,6 +92,18 @@ export type QrScanSlipLike = {
   current_driver_location?: string;
 };
 
+/** True when both refs are the same slip location (id when present, otherwise name). */
+export function slipLocationsMatch(a: SlipLocationRef, b: SlipLocationRef): boolean {
+  const idA = a.locationId;
+  const idB = b.locationId;
+  if (typeof idA === "number" && idA > 0 && typeof idB === "number" && idB > 0) {
+    return idA === idB;
+  }
+  const nameA = (a.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const nameB = (b.location || "").toLowerCase().replace(/\s+/g, " ").trim();
+  return nameA !== "" && nameA === nameB;
+}
+
 /** Keep only slips that are in a valid QR pick-up / drop-off location. */
 export function filterValidQrScanSlips<T extends QrScanSlipLike>(slips: T[]): T[] {
   return slips.filter((item) =>

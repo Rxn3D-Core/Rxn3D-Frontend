@@ -13,7 +13,13 @@ import { cn } from "@/lib/utils"
 import { useDriverSlip, QRScanResponseData } from "@/contexts/DriverSlipContext"
 import { useSlipContext } from "../app/lab-case-management/SlipContext"
 import { useToast } from "@/hooks/use-toast"
-import { loadDriverSessionKey } from "@/lib/driver-qr-scan"
+import {
+  loadDriverSessionKey,
+  beginPickupAddSlipScan,
+  DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT,
+  DRIVER_QR_SCANNER_CLOSED_EVENT,
+} from "@/lib/driver-qr-scan"
+import { apiClient } from "@/lib/api/client"
 import {
   buildPickupDeliveryEntryFromSlip,
   type PickupDeliveryEntry,
@@ -22,6 +28,7 @@ import {
   slipPickupDropoffAction,
   slipNextLocationIdFromRef,
   filterValidQrScanSlips,
+  slipLocationsMatch,
   slipIsOfficeDropoff,
   slipIsLabDropoff,
   slipHasPhysicalImpression,
@@ -163,7 +170,9 @@ export default function DriverHistoryModal({
   const [submitting, setSubmitting] = useState(false)
   const [removingCaseId, setRemovingCaseId] = useState<number | null>(null)
   const [clearingBatch, setClearingBatch] = useState(false)
+  const [addingByScan, setAddingByScan] = useState(false)
   const lastFetchedSlipIdRef = useRef<number | null>(null)
+  const addingByScanRef = useRef(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Convert QR scan data to delivery entries (valid pick-up / drop-off locations only)
@@ -218,6 +227,43 @@ export default function DriverHistoryModal({
     if (!slip) return null
     return typeof slip === 'number' ? slip : slip.slip_id || slip.id || null
   }, [slip])
+
+  /** Location of the slip that opened this modal. The list stays on this location only. */
+  const anchorLocation = useMemo(() => {
+    if (!slip || typeof slip === "number") return null
+    const raw = slip as Record<string, unknown>
+    const locationObj = raw.location
+    const locationName =
+      typeof locationObj === "string"
+        ? locationObj
+        : firstNonEmpty(
+            (locationObj as { current?: { name?: string }; name?: string } | null)?.current?.name,
+            (locationObj as { name?: string } | null)?.name,
+          )
+    const locationIdRaw = raw.locationId ?? raw.location_id
+    const locationId =
+      typeof locationIdRaw === "number"
+        ? locationIdRaw
+        : Number(locationIdRaw)
+    if (!locationName && !(Number.isFinite(locationId) && locationId > 0)) return null
+    return {
+      locationId: Number.isFinite(locationId) && locationId > 0 ? locationId : undefined,
+      location: locationName,
+    }
+  }, [slip])
+
+  const keepSameLocation = useCallback(
+    (entries: DeliveryEntry[]) => {
+      if (!anchorLocation) return entries
+      return entries.filter((entry) =>
+        slipLocationsMatch(
+          { locationId: entry.location_id, location: entry.location },
+          anchorLocation,
+        ),
+      )
+    },
+    [anchorLocation],
+  )
 
   const pickupDropoffAction = useMemo((): SlipPickupDropoffAction | null => {
     if (!singleSlipMode || !slip) return null
@@ -358,7 +404,7 @@ export default function DriverHistoryModal({
       try {
         const res = await fetchPickupDeliverySlips(Number(slipId))
         if (res && res.success && Array.isArray(res.data)) {
-          const entries = convertQRDataToDeliveryEntries(res.data)
+          const entries = keepSameLocation(convertQRDataToDeliveryEntries(res.data))
           setDeliveryEntries(entries)
           lastFetchedSlipIdRef.current = Number(slipId)
         } else {
@@ -373,7 +419,7 @@ export default function DriverHistoryModal({
     }
 
     void loadPickup()
-  }, [isOpen, slipId, fetchPickupDeliverySlips, singleSlipMode])
+  }, [isOpen, slipId, fetchPickupDeliverySlips, singleSlipMode, keepSameLocation])
 
   // Reset state when modal closes
   useEffect(() => {
@@ -384,6 +430,8 @@ export default function DriverHistoryModal({
       setPickupError(null)
       setSubmitting(false)
       lastFetchedSlipIdRef.current = null
+      setAddingByScan(false)
+      addingByScanRef.current = false
     }
   }, [isOpen])
 
@@ -405,26 +453,111 @@ export default function DriverHistoryModal({
     )
   }
 
-  const handleAddCase = () => {
-    const newId = String(Date.now())
-    const newEntry: DeliveryEntry = {
-      id: newId,
-      office: "",
-      labName: "",
-      patientName: "",
-      location: "",
-      isChecked: false,
-    }
-    setDeliveryEntries((prevEntries) => [...prevEntries, newEntry])
-  }
-
   const handleAddSlipClick = () => {
     if (isQrScanFlow) {
       onRequestScan?.()
       return
     }
-    handleAddCase()
+    const lock = anchorLocation ?? (
+      deliveryEntries.find((entry) => entry.location || entry.location_id)
+        ? {
+            locationId: deliveryEntries.find((entry) => entry.location_id)?.location_id,
+            location: deliveryEntries.find((entry) => entry.location)?.location || "",
+          }
+        : null
+    )
+    if (!lock || (!lock.location && !lock.locationId)) {
+      toast({
+        title: "No location",
+        description: "Open a slip that is ready to pick up or drop off first.",
+        variant: "destructive",
+      })
+      return
+    }
+    addingByScanRef.current = true
+    setAddingByScan(true)
+    beginPickupAddSlipScan({
+      locationId: lock.locationId,
+      location: lock.location,
+    })
   }
+
+  const finishAddByScan = useCallback(() => {
+    addingByScanRef.current = false
+    setAddingByScan(false)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen || singleSlipMode) return
+
+    const onScanned = (event: Event) => {
+      const detail = (event as CustomEvent<{ slipIds?: number[] }>).detail
+      const scannedSlipId = detail?.slipIds?.[0]
+      finishAddByScan()
+      if (typeof scannedSlipId !== "number") return
+
+      void (async () => {
+        try {
+          const { data } = await apiClient.get<unknown>(`/slip/slip/${scannedSlipId}/details`)
+          const root = data && typeof data === "object" ? (data as Record<string, unknown>) : null
+          const details =
+            root?.data && typeof root.data === "object" && !Array.isArray(root.data)
+              ? root.data
+              : data
+          const entry = buildPickupDeliveryEntryFromSlip(details)
+          if (!entry) {
+            toast({
+              title: "Could not add slip",
+              description: "This QR code did not match a slip.",
+              variant: "destructive",
+            })
+            return
+          }
+          const lock = anchorLocation
+          if (
+            lock &&
+            !slipLocationsMatch(
+              { locationId: entry.location_id, location: entry.location },
+              lock,
+            )
+          ) {
+            toast({
+              title: "Different location",
+              description: `That slip is “${entry.location || "another location"}”. Only slips at “${lock.location}” can be added.`,
+              variant: "destructive",
+            })
+            return
+          }
+          let alreadyListed = false
+          setDeliveryEntries((prev) => {
+            if (prev.some((row) => row.slip_id === entry.slip_id)) {
+              alreadyListed = true
+              return prev
+            }
+            return [...prev, { ...entry, id: `scan-${entry.slip_id}`, isChecked: true }]
+          })
+          if (alreadyListed) {
+            toast({ title: "Already added", description: "This slip is already in the list." })
+          }
+        } catch {
+          toast({
+            title: "Could not add slip",
+            description: "Failed to look up the scanned slip.",
+            variant: "destructive",
+          })
+        }
+      })()
+    }
+
+    const onClosed = () => finishAddByScan()
+
+    window.addEventListener(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, onScanned)
+    window.addEventListener(DRIVER_QR_SCANNER_CLOSED_EVENT, onClosed)
+    return () => {
+      window.removeEventListener(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, onScanned)
+      window.removeEventListener(DRIVER_QR_SCANNER_CLOSED_EVENT, onClosed)
+    }
+  }, [isOpen, singleSlipMode, anchorLocation, finishAddByScan, toast])
 
   const handleUpdateManualEntry = (id: string, field: keyof DeliveryEntry, value: string) => {
     setDeliveryEntries((prevEntries) =>
@@ -690,7 +823,13 @@ export default function DriverHistoryModal({
       : undefined
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog
+      open={isOpen}
+      modal={!addingByScan}
+      onOpenChange={(open) => {
+        if (!open && !addingByScanRef.current) onClose()
+      }}
+    >
       <DialogContent
         showCloseButton={false}
         className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-white p-0 shadow-xl sm:h-auto sm:max-h-[90dvh] sm:w-[min(96vw,1080px)] sm:rounded-xl sm:border sm:border-[#E5E7EB]"
@@ -802,7 +941,7 @@ export default function DriverHistoryModal({
                   <p className="rounded-xl border border-dashed border-[#E5E7EB] px-4 py-8 text-center text-sm text-gray-600">
                     {isQrScanFlow
                       ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
-                      : 'No entries available. Click "Add Slip" to add one manually or scan a QR code.'}
+                      : 'No slips at this location. Click "Add Slip" to scan a QR code.'}
                   </p>
                 ) : (
                   tableEntries.map((entry) => {
@@ -933,7 +1072,7 @@ export default function DriverHistoryModal({
                         <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-600">
                           {isQrScanFlow
                             ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
-                            : 'No entries available. Click "Add Slip" to add one manually or scan a QR code.'}
+                            : 'No slips at this location. Click "Add Slip" to scan a QR code.'}
                         </td>
                       </tr>
                     ) : (

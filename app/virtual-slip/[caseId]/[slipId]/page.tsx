@@ -66,6 +66,7 @@ import {
 } from "@/lib/slip-user-role";
 import { isOfficeCustomerContext } from "@/lib/role-utils";
 import { usePaperSlipInPagePrintV2 } from "@/hooks/use-paper-slip-in-page-print-v2";
+import { printPortraitV4PaperSlips } from "@/lib/print-paper-slip-v4-html";
 import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
@@ -526,6 +527,32 @@ export default function VirtualSlipV2Page() {
     printPaperSlip([slipId], []);
   }, [slipId, printPaperSlip]);
 
+  const [printingV4, setPrintingV4] = useState(false);
+  const handlePrintPaperSlipV4 = useCallback(async () => {
+    if (!slipId || isNaN(slipId) || printingV4) return;
+    setPrintingV4(true);
+    try {
+      const result = await printPortraitV4PaperSlips({ slipIds: [slipId] });
+      if (!result.ok && result.status !== 401) {
+        toast({
+          title: "Unable to print paper slip",
+          description: result.error,
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Unable to print paper slip",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setPrintingV4(false);
+    }
+  }, [slipId, printingV4, toast]);
+
   // A freshly created slip is marked by the submit flow; consuming the flag
   // auto-opens the paper slip print window once — reloads never re-trigger it.
   useEffect(() => {
@@ -692,6 +719,7 @@ export default function VirtualSlipV2Page() {
         header={vm.header}
         onPrint={handlePrint}
         onPrintInvoice={handlePrintInvoice}
+        onPrintPaperSlipV4={handlePrintPaperSlipV4}
         locationAction={{
           pickupDropoffAction:
             canRunLabDriverActions && showPickupDropoffFab ? pickupDropoffAction : null,

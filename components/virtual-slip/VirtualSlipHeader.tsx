@@ -175,6 +175,8 @@ export interface VirtualSlipHeaderProps {
   header: VirtualSlipHeaderVM;
   onPrint?: () => void;
   onPrintInvoice?: () => void;
+  /** Prints Blade portrait-v4 HTML from API (base64 → iframe print). */
+  onPrintPaperSlipV4?: () => void;
   locationAction?: VirtualSlipLocationActionProps;
 }
 
@@ -182,6 +184,7 @@ export function VirtualSlipHeader({
   header,
   onPrint,
   onPrintInvoice,
+  onPrintPaperSlipV4,
   locationAction,
 }: VirtualSlipHeaderProps) {
   return (
@@ -220,6 +223,17 @@ export function VirtualSlipHeader({
             />
 
             <div className="flex shrink-0 items-center gap-[18px]">
+              {onPrintPaperSlipV4 ? (
+                <button
+                  type="button"
+                  onClick={onPrintPaperSlipV4}
+                  className="font-sans text-[10px] font-medium leading-none text-[#1162A8] underline-offset-2 hover:underline"
+                  title="Print Blade paper slip v4"
+                  style={{ display: "none" }}
+                >
+                  v4
+                </button>
+              ) : null}
               <HeaderActionButton
                 src={`${HEADER_ICON_BASE}/printer.svg?v=1`}
                 label="Print"

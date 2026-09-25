@@ -13,6 +13,9 @@ Frontend now sends this field on library product create/update. Backend needs to
 - Shown only when **Default tooth chart** is on **and** a linked retention option resolves to chart type **Implant**.
 - Label: “Allow user to select only implant”.
 - Cleared to `"No"` when the chart is off or the Implant option is unlinked.
+  Do **not** clear while the retention-options catalog is still loading (or linked
+  rows exist but catalog items are empty) — that race was wiping `"Yes"` on edit
+  open and causing unrelated product updates to persist `"No"`.
 
 ## API
 

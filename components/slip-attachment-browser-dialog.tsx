@@ -598,6 +598,7 @@ export default function SlipAttachmentBrowserDialog({
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Browser / filter state ──────────────────────────────────────────────────
@@ -665,6 +666,7 @@ export default function SlipAttachmentBrowserDialog({
       }
       setLabel("")
       setUploadError(null)
+      setUploadSuccess(false)
       setSelectedForPreview([])
     }
   }, [open, fetchData])
@@ -704,6 +706,7 @@ export default function SlipAttachmentBrowserDialog({
   // ── Upload handlers ─────────────────────────────────────────────────────────
   const addFiles = useCallback((files: File[]) => {
     setUploadError(null)
+    setUploadSuccess(false)
     const valid: StagedFile[] = []
     for (const file of files) {
       const err = validateSlipAttachmentFile(file)
@@ -756,6 +759,7 @@ export default function SlipAttachmentBrowserDialog({
     }
     setUploading(true)
     setUploadError(null)
+    setUploadSuccess(false)
     try {
       for (const staged of stagedFiles) {
         await SlipAttachmentsService.uploadSlipAttachment(slipId, staged.file, {
@@ -766,6 +770,7 @@ export default function SlipAttachmentBrowserDialog({
       await fetchData()
       setStagedFiles([])
       setLabel("")
+      setUploadSuccess(true)
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : "Upload failed")
     } finally {
@@ -938,24 +943,35 @@ export default function SlipAttachmentBrowserDialog({
             </div>
 
             {/* Actions */}
-            <div className="px-5 py-4 border-t border-gray-100 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 h-9 text-xs"
-                onClick={onClose}
-                disabled={uploading}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1 h-9 text-xs bg-[#1162A8] hover:bg-[#0d4a85] text-white"
-                onClick={handleAttachFiles}
-                disabled={stagedFiles.length === 0 || uploading}
-              >
-                {uploading ? "Uploading…" : "Attach Files"}
-              </Button>
+            <div className="flex flex-col gap-2 border-t border-gray-100 px-5 py-4">
+              {uploadSuccess && (
+                <p className="text-xs font-medium text-green-600">
+                  Files uploaded successfully
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  variant={stagedFiles.length > 0 ? "outline" : "default"}
+                  size="sm"
+                  className={
+                    stagedFiles.length > 0
+                      ? "h-9 flex-1 text-xs"
+                      : "h-9 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85]"
+                  }
+                  onClick={onClose}
+                  disabled={uploading}
+                >
+                  {stagedFiles.length > 0 ? "Cancel" : "Done"}
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-9 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85]"
+                  onClick={handleAttachFiles}
+                  disabled={stagedFiles.length === 0 || uploading}
+                >
+                  {uploading ? "Uploading…" : "Attach Files"}
+                </Button>
+              </div>
             </div>
           </div>
 
