@@ -70,6 +70,10 @@ import {
   hasActiveDriverPickupSession,
   clearDriverQrLocalSession,
   DRIVER_QR_SCANNER_OPEN_EVENT,
+  DRIVER_QR_SCANNER_CLOSED_EVENT,
+  DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT,
+  peekPickupAddSlipScan,
+  clearPickupAddSlipScan,
 } from "@/lib/driver-qr-scan"
 import { fetchSlipQrIdentify, type SlipQrIdentifyResult } from "@/lib/api/slip-qr-identify"
 import {
@@ -631,6 +635,18 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
           // scan-qr while the API request is in flight or after a failure.
           stopActiveDecoder()
 
+          // Pickup modal Add Slip: hand the QR back to that modal (same location only).
+          if (peekPickupAddSlipScan()) {
+            clearPickupAddSlipScan()
+            window.dispatchEvent(
+              new CustomEvent(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, {
+                detail: { caseId, slipIds, rawText: parsedDriverQr.rawText },
+              }),
+            )
+            closeScannerRef.current()
+            return
+          }
+
           // Already scanned in this session — don't hit the backend again with
           // the same slip; just stop the scanner and surface a gentle notice.
           if (scannedQrTextsRef.current.has(parsedDriverQr.rawText)) {
@@ -726,8 +742,13 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     void driverQrScannerRef.current?.stop()
     // Keep lastScannedCodeRef / lastScanTimeRef so a still-active decoder frame
     // cannot immediately re-hit scan-qr with the same QR after a failed attempt.
+    const addSlipCancelled = peekPickupAddSlipScan() != null
+    if (addSlipCancelled) clearPickupAddSlipScan()
     setScannerState({ isOpen: false })
     processingRef.current = false
+    if (addSlipCancelled) {
+      window.dispatchEvent(new CustomEvent(DRIVER_QR_SCANNER_CLOSED_EVENT))
+    }
   }, [stopActiveDecoder])
 
   closeScannerRef.current = closeScanner
@@ -1304,7 +1325,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         <DialogContent
           showCloseButton={false}
           fullscreen
-          className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden bg-background p-0 sm:h-[100dvh]"
+          className="!z-[200] flex h-[100dvh] max-h-[100dvh] w-screen max-w-none flex-col gap-0 overflow-hidden bg-background p-0 sm:h-[100dvh]"
         >
           <DialogHeader className="shrink-0 border-b px-4 py-3 text-left sm:px-6 sm:py-4">
             <DialogTitle className="flex items-center justify-between gap-3 text-lg sm:text-xl">

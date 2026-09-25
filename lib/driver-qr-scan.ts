@@ -9,6 +9,33 @@ export const DRIVER_QR_SESSION_EXPIRES_AT_KEY = "qr_scan_session_expires_at";
 export const DRIVER_QR_BATCH_STORAGE_KEY = "qr_scan_batch_data";
 /** Dispatched to open the header scanner from other pages (e.g. native-camera landing). */
 export const DRIVER_QR_SCANNER_OPEN_EVENT = "rxn3d:open-driver-qr-scanner";
+/** Scanner closed without a slip (Add Slip from the pickup modal). */
+export const DRIVER_QR_SCANNER_CLOSED_EVENT = "rxn3d:driver-qr-scanner-closed";
+/** A slip QR was scanned while the pickup modal is waiting to add one slip. */
+export const DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT = "rxn3d:pickup-slip-scanned";
+
+export type PickupAddSlipLock = {
+  locationId?: number;
+  location: string;
+};
+
+/** Set while Add Slip on the pickup modal is waiting for one QR scan. */
+let pendingPickupAddSlip: PickupAddSlipLock | null = null;
+
+export function beginPickupAddSlipScan(lock: PickupAddSlipLock) {
+  pendingPickupAddSlip = lock;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(DRIVER_QR_SCANNER_OPEN_EVENT));
+  }
+}
+
+export function peekPickupAddSlipScan(): PickupAddSlipLock | null {
+  return pendingPickupAddSlip;
+}
+
+export function clearPickupAddSlipScan() {
+  pendingPickupAddSlip = null;
+}
 
 /** Local pickup/drop-off trip TTL (frontend). Refreshed on each successful scan save. */
 export const DRIVER_QR_SESSION_TTL_MS = 30 * 60 * 1000;
