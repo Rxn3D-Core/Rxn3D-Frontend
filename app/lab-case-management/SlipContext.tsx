@@ -20,6 +20,8 @@ type Slip = {
   pan: string;
   panColor: string;
   panColorStyle?: React.CSSProperties;
+  /** Current user's pan-row highlight (lab listing). */
+  panToggled?: boolean;
   officeCode: string;
   patient: string;
   product: string;
@@ -146,6 +148,7 @@ type SlipContextType = {
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
   readyToSend: (slipId: number, signature?: string) => Promise<ReadyToSendResponse | null>;
   updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
+  toggleSlipPan: (slipId: number) => Promise<{ success: boolean; pan_toggled?: boolean; message?: string } | null>;
 };
 
 const SlipContext = createContext<SlipContextType | undefined>(undefined);
@@ -203,6 +206,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     panColorStyle: apiSlip.casepan?.color_code
       ? { backgroundColor: apiSlip.casepan.color_code }
       : undefined,
+    panToggled: Boolean(apiSlip.pan_toggled),
     officeCode: apiSlip.office?.code || "",
     patient: apiSlip.case?.patient_name || "",
     product: formatSlipListingProducts(apiSlip.products),
@@ -367,6 +371,56 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
   const updateSlipAttachmentState = useCallback((slipId: number, hasAttachment: boolean) => {
     setSlips((currentSlips) => applySlipAttachmentState(currentSlips, slipId, hasAttachment));
+  }, []);
+
+  const toggleSlipPan = useCallback(async (slipId: number) => {
+    try {
+      const token = getToken();
+      let previous = false;
+      setSlips((current) => {
+        previous = Boolean(current.find((s) => s.id === slipId)?.panToggled);
+        return current.map((s) =>
+          s.id === slipId ? { ...s, panToggled: !previous } : s,
+        );
+      });
+
+      const res = await fetch(buildApiUrl(`/slip/action/${slipId}/toggle-pan`), {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Accept: "application/json",
+        },
+      });
+
+      if (res.status === 401) {
+        setSlips((current) =>
+          current.map((s) => (s.id === slipId ? { ...s, panToggled: previous } : s)),
+        );
+        handleUnauthorized();
+        return null;
+      }
+
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.success) {
+        setSlips((current) =>
+          current.map((s) => (s.id === slipId ? { ...s, panToggled: previous } : s)),
+        );
+        return {
+          success: false,
+          message: body?.message || `Request failed (${res.status})`,
+        };
+      }
+
+      const toggled = Boolean(body?.data?.pan_toggled);
+      setSlips((current) =>
+        current.map((s) => (s.id === slipId ? { ...s, panToggled: toggled } : s)),
+      );
+
+      return { success: true, pan_toggled: toggled, message: body?.message };
+    } catch (error) {
+      console.error("Error toggling slip pan highlight:", error);
+      return null;
+    }
   }, []);
 
   const fetchOfficeSlips = useCallback(async (customerId: number) => {
@@ -841,6 +895,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       fetchPickupDeliverySlips,
       readyToSend,
       updateSlipAttachmentState,
+      toggleSlipPan,
     }}>
       {children}
     </SlipContext.Provider>
