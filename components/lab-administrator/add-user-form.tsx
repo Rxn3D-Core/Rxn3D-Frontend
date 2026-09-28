@@ -280,7 +280,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
   }
 
   const validateImageFile = (file: File): boolean => {
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
@@ -498,7 +498,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                         <input
                           id="avatar-upload"
                           type="file"
-                          accept="image/jpeg,image/jpg,image/png"
+                          accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                           className="hidden"
                           onChange={handleAvatarUpload}
                         />
@@ -805,7 +805,7 @@ export function AddUserForm({ onCancel, onSuccess, user, lockedRole }: AddUserFo
                           <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center bg-gray-50">
                             <input
                               type="file"
-                              accept="image/jpeg,image/jpg,image/png"
+                              accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                               onChange={handleSignatureUpload}
                               className="hidden"
                               id="signature-upload"

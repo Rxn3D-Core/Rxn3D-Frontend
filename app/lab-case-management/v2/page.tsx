@@ -41,10 +41,12 @@ import { VirtualSlipPauseIcon } from "@/components/virtual-slip/VirtualSlipPause
 import { resolveListingCustomerId } from "@/lib/customer-scope"
 import { slipListingStatusLabel } from "@/components/slip-listing/SlipListingStatusTabs"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
-import { printPaperSlipV5ForSlip, printPaperSlipV5ForSlips } from "@/lib/print-paper-slip-v5-from-slip"
+import { printPaperSlipV5ForSlip } from "@/lib/print-paper-slip-v5-from-slip"
+// Multiple paper slip print disabled from listing
+// import { printPaperSlipV5ForSlips } from "@/lib/print-paper-slip-v5-from-slip"
 import {
   resolveListingPaperSlipId,
-  resolveListingPaperSlipJobs,
+  // resolveListingPaperSlipJobs,
 } from "@/lib/paper-slip-listing-print-ids"
 import { useDebounce } from "@/lib/performance-utils"
 import { V2CaseWidget } from "./components/V2CaseWidget"
@@ -689,23 +691,24 @@ export default function LabSlipPage() {
     });
   }
 
+  // Multiple paper slip print disabled from listing
   // Bulk print handler — selected row slip ids only.
-  const handleBulkPrintPaperSlip = () => {
-    if (!selected.length) return;
-    const selectedRows = slips.filter(slip => selected.includes(slip.id));
-    const jobs = resolveListingPaperSlipJobs(selectedRows);
-    if (!jobs.length) {
-      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
-      return;
-    }
-    void printPaperSlipV5ForSlips(jobs).catch((error: unknown) => {
-      toast({
-        title: "Unable to print paper slip",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
-    });
-  };
+  // const handleBulkPrintPaperSlip = () => {
+  //   if (!selected.length) return;
+  //   const selectedRows = slips.filter(slip => selected.includes(slip.id));
+  //   const jobs = resolveListingPaperSlipJobs(selectedRows);
+  //   if (!jobs.length) {
+  //     toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" });
+  //     return;
+  //   }
+  //   void printPaperSlipV5ForSlips(jobs).catch((error: unknown) => {
+  //     toast({
+  //       title: "Unable to print paper slip",
+  //       description: error instanceof Error ? error.message : "Please try again.",
+  //       variant: "destructive",
+  //     });
+  //   });
+  // };
 
 
   const handlePrintDriverLabel = (slip: any) => {
@@ -1103,7 +1106,8 @@ export default function LabSlipPage() {
           onAttachmentsOnlyChange={setShowWithAttachments}
           onBulkArchive={() => setArchiveConfirm(-1)}
           onBulkPrintDriverLabels={() => void handleBulkDriverPrint()}
-          onBulkPrintPaperSlips={() => void handleBulkPrintPaperSlip()}
+          // Multiple paper slip print disabled from listing
+          // onBulkPrintPaperSlips={() => void handleBulkPrintPaperSlip()}
           onBulkPrintStatement={() => {
             if (selectedStatementRow) handlePrintStatement(selectedStatementRow)
           }}

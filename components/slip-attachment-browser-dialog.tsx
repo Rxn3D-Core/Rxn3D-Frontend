@@ -417,7 +417,7 @@ function PreviewPanel({
           </div>
           <span className="text-xs font-semibold text-gray-900">MyStudio</span>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 mr-5">
           <button
             type="button"
             className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 transition"
@@ -430,11 +430,11 @@ function PreviewPanel({
           </button>
           <button
             type="button"
-            className="w-6 h-6 rounded flex items-center justify-center hover:bg-gray-100 transition"
+            className="w-7 h-7 rounded flex items-center justify-center hover:bg-gray-100 transition"
             title="Close preview"
             onClick={onClear}
           >
-            <X className="w-3.5 h-3.5 text-gray-500" />
+            <X className="w-6 h-6 text-gray-500" />
           </button>
         </div>
       </div>
@@ -1471,7 +1471,7 @@ export default function SlipAttachmentBrowserDialog({
                     className="p-1 rounded hover:bg-gray-200 flex-shrink-0 ml-2"
                     onClick={onClose}
                   >
-                    <X className="w-4 h-4 text-gray-500" />
+                    <X className="w-5 h-5 text-gray-500" />
                   </button>
                 </div>
 

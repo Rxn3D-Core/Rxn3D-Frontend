@@ -7,131 +7,86 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { useSlipSettings } from "@/hooks/use-slip-settings"
-import type { FieldRequirement } from "@/lib/api/slip-settings"
 import type { SlipSettingsFormState } from "@/lib/slip-settings-utils"
 
-type VisibilityFieldKey =
-  | "show_patient_name"
-  | "show_gender"
-  | "show_age"
-  | "show_slip_number"
-
-const VISIBILITY_FIELDS: {
-  key: VisibilityFieldKey
-  label: string
-  description: string
-}[] = [
-  {
-    key: "show_patient_name",
-    label: "Patient Name",
-    description: "Show patient name on the slip header",
-  },
-  {
-    key: "show_gender",
-    label: "Gender",
-    description: "Show patient gender on the slip header",
-  },
-  {
-    key: "show_age",
-    label: "Age",
-    description: "Show patient age on the slip header",
-  },
-  {
-    key: "show_slip_number",
-    label: "Slip Number",
-    description: "Show slip number on the slip header",
-  },
-]
-
-type SignatureFieldKey =
-  | "require_signature_pickup_from_office"
-  | "require_signature_pickup_from_lab"
-  | "require_signature_drop_at_lab"
-  | "require_signature_drop_at_office"
-  | "require_signature_ready_to_send"
-
-const SIGNATURE_FIELDS: {
-  key: SignatureFieldKey
-  label: string
-  description: string
-}[] = [
-  {
-    key: "require_signature_pickup_from_office",
-    label: "Pickup from office",
-    description:
-      "Driver must sign when picking up a slip that is “In office ready to pickup”.",
-  },
-  {
-    key: "require_signature_pickup_from_lab",
-    label: "Pickup from lab",
-    description:
-      "Driver must sign when picking up a slip that is “In lab ready to pickup”.",
-  },
-  {
-    key: "require_signature_drop_at_lab",
-    label: "Drop off at lab",
-    description:
-      "Driver must sign when dropping a slip that is “On route to the lab”.",
-  },
-  {
-    key: "require_signature_drop_at_office",
-    label: "Drop off at office",
-    description:
-      "Driver must sign when dropping a slip that is “On route to the office”.",
-  },
-  {
-    key: "require_signature_ready_to_send",
-    label: "Ready to send",
-    description:
-      "Require a signature on the lab “Ready to Send” action. Off by default.",
-  },
-]
-
-function RequirementSelector({
-  id,
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
+type LocationActionConfig = {
   id: string
   label: string
-  value: FieldRequirement
-  disabled?: boolean
-  onChange: (value: FieldRequirement) => void
-}) {
-  return (
-    <div
-      className={`ml-0 sm:ml-4 mt-3 pt-3 border-t border-gray-100 ${
-        disabled ? "opacity-50 pointer-events-none" : ""
-      }`}
-    >
-      <p className="text-xs font-medium text-gray-700 mb-2">{label}</p>
-      <RadioGroup
-        value={value}
-        onValueChange={(next) => onChange(next as FieldRequirement)}
-        className="flex flex-col sm:flex-row gap-3 sm:gap-6"
-        disabled={disabled}
-      >
-        <div className="flex items-center gap-2">
-          <RadioGroupItem value="optional" id={`${id}-optional`} />
-          <Label htmlFor={`${id}-optional`} className="text-sm font-normal cursor-pointer">
-            Optional on create slip
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <RadioGroupItem value="required" id={`${id}-required`} />
-          <Label htmlFor={`${id}-required`} className="text-sm font-normal cursor-pointer">
-            Required on create slip
-          </Label>
-        </div>
-      </RadioGroup>
-    </div>
-  )
+  description: string
+  signatureKey:
+    | "require_signature_pickup_from_office"
+    | "require_signature_pickup_from_lab"
+    | "require_signature_drop_at_lab"
+    | "require_signature_drop_at_office"
+  photoEnableKey:
+    | "enable_photo_pickup_from_office"
+    | "enable_photo_pickup_from_lab"
+    | "enable_photo_drop_at_lab"
+    | "enable_photo_drop_at_office"
+  photoRequireKey:
+    | "require_photo_pickup_from_office"
+    | "require_photo_pickup_from_lab"
+    | "require_photo_drop_at_lab"
+    | "require_photo_drop_at_office"
+  allowMultipleKey:
+    | "allow_multiple_pickup_from_office"
+    | "allow_multiple_pickup_from_lab"
+    | "allow_multiple_drop_at_lab"
+    | "allow_multiple_drop_at_office"
+  allowMultipleLabel: string
+  allowMultipleDescription: string
 }
+
+const LOCATION_ACTIONS: LocationActionConfig[] = [
+  {
+    id: "pickup-from-office",
+    label: "In office ready to pickup",
+    description: "Driver picks up slips from the office.",
+    signatureKey: "require_signature_pickup_from_office",
+    photoEnableKey: "enable_photo_pickup_from_office",
+    photoRequireKey: "require_photo_pickup_from_office",
+    allowMultipleKey: "allow_multiple_pickup_from_office",
+    allowMultipleLabel: "Allow multiple pickups",
+    allowMultipleDescription: "Submit several office pickups in one action.",
+  },
+  {
+    id: "drop-at-lab",
+    label: "On route to the lab",
+    description: "Driver drops slips off at the lab.",
+    signatureKey: "require_signature_drop_at_lab",
+    photoEnableKey: "enable_photo_drop_at_lab",
+    photoRequireKey: "require_photo_drop_at_lab",
+    allowMultipleKey: "allow_multiple_drop_at_lab",
+    allowMultipleLabel: "Allow multiple drop-offs",
+    allowMultipleDescription:
+      "Off = one at a time (use when each slip needs its own photo).",
+  },
+  {
+    id: "pickup-from-lab",
+    label: "In lab ready to pickup",
+    description: "Driver picks up slips from the lab.",
+    signatureKey: "require_signature_pickup_from_lab",
+    photoEnableKey: "enable_photo_pickup_from_lab",
+    photoRequireKey: "require_photo_pickup_from_lab",
+    allowMultipleKey: "allow_multiple_pickup_from_lab",
+    allowMultipleLabel: "Allow multiple pickups",
+    allowMultipleDescription: "Submit several lab pickups in one action.",
+  },
+  {
+    id: "drop-at-office",
+    label: "On route to the office",
+    description: "Driver drops slips off at the office.",
+    signatureKey: "require_signature_drop_at_office",
+    photoEnableKey: "enable_photo_drop_at_office",
+    photoRequireKey: "require_photo_drop_at_office",
+    allowMultipleKey: "allow_multiple_drop_at_office",
+    allowMultipleLabel: "Allow multiple drop-offs",
+    allowMultipleDescription:
+      "Off = one at a time (use when each slip needs its own photo).",
+  },
+]
 
 export function SlipSettingsPage() {
   const router = useRouter()
@@ -152,16 +107,12 @@ export function SlipSettingsPage() {
     setForm((prev) => ({ ...prev, ...patch }))
   }
 
-  const handleVisibilityToggle = (key: VisibilityFieldKey, enabled: boolean) => {
-    patchForm({ [key]: enabled } as Partial<SlipSettingsFormState>)
-  }
-
   const handleSave = async () => {
     const ok = await save()
     if (ok) {
       toast({
         title: "Settings saved",
-        description: "Slip header and field requirements were updated.",
+        description: "Driver signature, photo, and multi-slip settings were updated.",
       })
       router.push("/dashboard")
     }
@@ -172,29 +123,6 @@ export function SlipSettingsPage() {
     router.push("/dashboard")
   }
 
-  const handleSelectAll = () => {
-    patchForm({
-      show_patient_name: true,
-      show_gender: true,
-      show_age: true,
-      show_slip_number: true,
-    })
-  }
-
-  const handleDeselectAll = () => {
-    patchForm({
-      show_patient_name: false,
-      show_gender: false,
-      show_age: false,
-      show_slip_number: false,
-    })
-  }
-
-  const fieldStatusItems = VISIBILITY_FIELDS.map(({ key, label }) => ({
-    label,
-    enabled: form[key],
-  }))
-
   return (
     <div className="h-full w-full bg-[#F9F9F9] overflow-auto">
       <div className="w-full h-full px-4 sm:px-6 lg:px-8 py-4">
@@ -202,7 +130,7 @@ export function SlipSettingsPage() {
           <div className="bg-[linear-gradient(256.66deg,#2AA6DE_0%,#82298D_50%,#C9539F_100%)] text-white rounded-lg px-5 py-3 shadow-sm">
             <h1 className="text-lg sm:text-xl font-bold">Slip Settings</h1>
             <p className="text-blue-100 text-xs sm:text-sm">
-              Configure slip header visibility and whether gender and age are required when creating slips
+              Configure signature, proof photo, and multi-slip rules per pickup/drop-off location
             </p>
           </div>
         </div>
@@ -220,147 +148,166 @@ export function SlipSettingsPage() {
           <div className="lg:col-span-2">
             <Card>
               <CardContent className="p-4">
-                <Tabs defaultValue="signature">
-                  <TabsList>
-                    <TabsTrigger value="signature">Signature Requirements</TabsTrigger>
-                  </TabsList>
+                <CardDescription className="mb-3 block">
+                  For each location, set whether signature and photo are required, and whether multiple slips can be submitted together.
+                </CardDescription>
 
-                  {/* Slip Header Fields tab hidden — gender/age are now product-level settings. */}
-                  <TabsContent value="header" className="hidden mt-4">
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <CardDescription className="flex-1">
-                        Toggle which fields appear on the slip header. For gender and age, choose whether they are optional or required on the create-slip form (only when shown).
-                      </CardDescription>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSelectAll}
-                          disabled={isLoading || isSaving}
-                          className="whitespace-nowrap"
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-10 text-gray-500 gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Loading slip settings…</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {LOCATION_ACTIONS.map((action) => {
+                      const photoEnabled = form[action.photoEnableKey]
+
+                      return (
+                        <div
+                          key={action.id}
+                          className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm"
                         >
-                          Select All
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDeselectAll}
-                          disabled={isLoading || isSaving}
-                          className="whitespace-nowrap"
-                        >
-                          Deselect All
-                        </Button>
-                      </div>
-                    </div>
+                          <div className="mb-3">
+                            <span className="text-sm font-medium text-gray-900">
+                              {action.label}
+                            </span>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {action.description}
+                            </p>
+                          </div>
 
-                    {isLoading ? (
-                      <div className="flex items-center justify-center py-10 text-gray-500 gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Loading slip settings…</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {VISIBILITY_FIELDS.map((field) => {
-                          const showRequirement =
-                            field.key === "show_gender" || field.key === "show_age"
-                          const isShown = form[field.key]
-
-                          return (
-                            <div
-                              key={field.key}
-                              className="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1">
-                                  <span className="text-sm font-medium text-gray-900">
-                                    {field.label}
-                                  </span>
-                                  <p className="text-xs text-gray-500 mt-0.5">
-                                    {field.description}
-                                  </p>
-                                </div>
-                                <Switch
-                                  checked={isShown}
-                                  disabled={isSaving}
-                                  onCheckedChange={(checked) =>
-                                    handleVisibilityToggle(field.key, checked)
-                                  }
-                                />
-                              </div>
-
-                              {showRequirement && field.key === "show_gender" && (
-                                <RequirementSelector
-                                  id="gender-requirement"
-                                  label="Gender on create slip"
-                                  value={form.gender_requirement}
-                                  disabled={!isShown || isSaving}
-                                  onChange={(gender_requirement) =>
-                                    patchForm({ gender_requirement })
-                                  }
-                                />
-                              )}
-
-                              {showRequirement && field.key === "show_age" && (
-                                <RequirementSelector
-                                  id="age-requirement"
-                                  label="Age on create slip"
-                                  value={form.age_requirement}
-                                  disabled={!isShown || isSaving}
-                                  onChange={(age_requirement) =>
-                                    patchForm({ age_requirement })
-                                  }
-                                />
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* --------------------- Signature Requirements --------------------- */}
-                  <TabsContent value="signature" className="mt-4">
-                    <CardDescription className="mb-3 block">
-                      Control when a signature is required for driver pickup/drop-off actions and the lab “Ready to Send” action.
-                    </CardDescription>
-
-                    {isLoading ? (
-                      <div className="flex items-center justify-center py-10 text-gray-500 gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Loading signature settings…</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {SIGNATURE_FIELDS.map((field) => (
-                          <div
-                            key={field.key}
-                            className="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-                          >
+                          <div className="space-y-3 border-t border-gray-100 pt-3">
                             <div className="flex items-center gap-3">
                               <div className="flex-1">
-                                <span className="text-sm font-medium text-gray-900">
-                                  {field.label}
+                                <span className="text-sm text-gray-900">
+                                  Signature required
+                                </span>
+                              </div>
+                              <Switch
+                                checked={form[action.signatureKey]}
+                                disabled={isSaving}
+                                onCheckedChange={(checked) =>
+                                  patchForm({
+                                    [action.signatureKey]: checked,
+                                  } as Partial<SlipSettingsFormState>)
+                                }
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <span className="text-sm text-gray-900">
+                                  Photo upload
+                                </span>
+                              </div>
+                              <Switch
+                                checked={photoEnabled}
+                                disabled={isSaving}
+                                onCheckedChange={(checked) =>
+                                  patchForm({
+                                    [action.photoEnableKey]: checked,
+                                    ...(!checked
+                                      ? { [action.photoRequireKey]: false }
+                                      : {}),
+                                  } as Partial<SlipSettingsFormState>)
+                                }
+                              />
+                            </div>
+
+                            {photoEnabled ? (
+                              <div className="ml-0 sm:ml-4 pl-0 sm:pl-1">
+                                <p className="text-xs font-medium text-gray-700 mb-2">
+                                  Photo requirement
+                                </p>
+                                <RadioGroup
+                                  value={
+                                    form[action.photoRequireKey]
+                                      ? "required"
+                                      : "optional"
+                                  }
+                                  onValueChange={(next) =>
+                                    patchForm({
+                                      [action.photoRequireKey]:
+                                        next === "required",
+                                    } as Partial<SlipSettingsFormState>)
+                                  }
+                                  className="flex flex-col sm:flex-row gap-3 sm:gap-6"
+                                  disabled={isSaving}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <RadioGroupItem
+                                      value="optional"
+                                      id={`${action.id}-photo-optional`}
+                                    />
+                                    <Label
+                                      htmlFor={`${action.id}-photo-optional`}
+                                      className="text-sm font-normal cursor-pointer"
+                                    >
+                                      Optional
+                                    </Label>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <RadioGroupItem
+                                      value="required"
+                                      id={`${action.id}-photo-required`}
+                                    />
+                                    <Label
+                                      htmlFor={`${action.id}-photo-required`}
+                                      className="text-sm font-normal cursor-pointer"
+                                    >
+                                      Required
+                                    </Label>
+                                  </div>
+                                </RadioGroup>
+                              </div>
+                            ) : null}
+
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <span className="text-sm text-gray-900">
+                                  {action.allowMultipleLabel}
                                 </span>
                                 <p className="text-xs text-gray-500 mt-0.5">
-                                  {field.description}
+                                  {action.allowMultipleDescription}
                                 </p>
                               </div>
                               <Switch
-                                checked={form[field.key]}
+                                checked={form[action.allowMultipleKey]}
                                 disabled={isSaving}
                                 onCheckedChange={(checked) =>
-                                  patchForm({ [field.key]: checked } as Partial<SlipSettingsFormState>)
+                                  patchForm({
+                                    [action.allowMultipleKey]: checked,
+                                  } as Partial<SlipSettingsFormState>)
                                 }
                               />
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
+                        </div>
+                      )
+                    })}
 
-                {/* Shared footer — saves all settings across both tabs */}
+                    <div className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">
+                            Ready to send
+                          </span>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Require a signature on the lab “Ready to Send” action. Off by default.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={form.require_signature_ready_to_send}
+                          disabled={isSaving}
+                          onCheckedChange={(checked) =>
+                            patchForm({ require_signature_ready_to_send: checked })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3 mt-4 pt-3 border-t">
                   <Button
                     variant="outline"
@@ -406,9 +353,9 @@ export function SlipSettingsPage() {
                       </div>
                     </div>
                     <div>
-                      <h4 className="font-semibold text-sm mb-1">Show/Hide Fields</h4>
+                      <h4 className="font-semibold text-sm mb-1">Per location</h4>
                       <p className="text-sm text-gray-600">
-                        Use the toggle on each field to control slip header visibility.
+                        Each pickup/drop-off location has signature, photo, and allow-multiple controls together.
                       </p>
                     </div>
                   </div>
@@ -420,9 +367,9 @@ export function SlipSettingsPage() {
                       </div>
                     </div>
                     <div>
-                      <h4 className="font-semibold text-sm mb-1">Optional vs Required</h4>
+                      <h4 className="font-semibold text-sm mb-1">Photo optional vs required</h4>
                       <p className="text-sm text-gray-600">
-                        For gender and age, set whether the field is optional or required when users create a slip. Required only applies when the field is shown.
+                        Turn on photo upload first, then choose whether the photo is optional or required.
                       </p>
                     </div>
                   </div>
@@ -449,31 +396,9 @@ export function SlipSettingsPage() {
                       <h4 className="font-semibold text-sm text-blue-900">Note</h4>
                     </div>
                     <p className="text-sm text-blue-800">
-                      These settings apply to slip headers and create-slip validation for your lab. They are managed here only—not from the case design center or virtual slip views.
+                      Turn off allow-multiple on route locations when each slip needs its own proof photo.
                     </p>
                   </div>
-                </div>
-
-                <div className="pt-3 border-t">
-                  <h4 className="font-semibold text-sm mb-2">Field Status</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    {fieldStatusItems.map((field) => (
-                      <li key={field.label} className="flex items-center gap-2">
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            field.enabled ? "bg-green-500" : "bg-gray-300"
-                          }`}
-                        />
-                        <span
-                          className={
-                            field.enabled ? "" : "line-through text-gray-400"
-                          }
-                        >
-                          {field.label}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
               </CardContent>
             </Card>

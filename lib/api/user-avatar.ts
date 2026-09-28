@@ -4,8 +4,13 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
 /** Matches the backend `avatar` validation rule on POST /users/{id}/avatar. */
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024
-export const AVATAR_ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png"] as const
-export const AVATAR_ACCEPT_ATTRIBUTE = ".jpg,.jpeg,.png"
+export const AVATAR_ACCEPTED_TYPES = [
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/svg+xml",
+] as const
+export const AVATAR_ACCEPT_ATTRIBUTE = ".jpg,.jpeg,.png,.svg"
 
 export interface UploadUserAvatarInput {
   userId: number
@@ -33,7 +38,7 @@ const ensureAbsoluteUrl = (path: string): string => {
  */
 export function validateAvatarFile(file: File): string | null {
   if (!AVATAR_ACCEPTED_TYPES.includes(file.type as (typeof AVATAR_ACCEPTED_TYPES)[number])) {
-    return "Please choose a JPG or PNG image."
+    return "Please choose a JPG, PNG, or SVG image."
   }
   if (file.size > AVATAR_MAX_BYTES) {
     return "Image must be smaller than 5 MB."

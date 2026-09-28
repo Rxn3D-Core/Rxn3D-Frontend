@@ -479,7 +479,7 @@ export function CreateUserModal({
   const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
@@ -504,7 +504,7 @@ export function CreateUserModal({
   const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
@@ -718,7 +718,7 @@ export function CreateUserModal({
                             <>
                               <input
                                 type="file"
-                                accept="image/jpeg,image/jpg,image/png"
+                                accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                                 onChange={handleAvatarUpload}
                                 className="hidden"
                                 id="avatar-upload"
@@ -1123,7 +1123,7 @@ export function CreateUserModal({
                               <input
                                 type="file"
                                 className="hidden"
-                                accept="image/jpeg,image/jpg,image/png"
+                                accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                                 onChange={handleSignatureUpload}
                               />
                             </label>

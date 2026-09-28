@@ -412,7 +412,7 @@ export function AddFieldModal({
     }
     
     const imageType = match[1].toLowerCase()
-    const allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    const allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
     if (!allowedTypes.includes(imageType)) {
       return { valid: false, error: `Invalid image type. Allowed types: ${allowedTypes.join(', ')}` }
     }

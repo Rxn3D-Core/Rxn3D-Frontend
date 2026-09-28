@@ -269,7 +269,7 @@ export function CreateToothStatusModal({
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
     if (!allowed.includes(file.type)) {
       toast({
         title: "Invalid file type",
@@ -504,7 +504,7 @@ export function CreateToothStatusModal({
                         <input
                           ref={imageInputRef}
                           type="file"
-                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                           className="hidden"
                           onChange={handleImageFileChange}
                         />
