@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useTranslation } from "react-i18next"
+import { cn } from "@/lib/utils"
 
 interface DeleteConfirmationModalProps {
   isOpen: boolean
@@ -18,6 +19,9 @@ interface DeleteConfirmationModalProps {
   cancelText?: string
   isLoading?: boolean
   isCustomNo?: boolean
+  /** When the parent UI sits above default dialog z-index (e.g. custom overlays). */
+  contentClassName?: string
+  overlayClassName?: string
 }
 
 export function DeleteConfirmationModal({
@@ -32,6 +36,8 @@ export function DeleteConfirmationModal({
   cancelText,
   isLoading = false,
   isCustomNo = false,
+  contentClassName,
+  overlayClassName,
 }: DeleteConfirmationModalProps) {
   const { t } = useTranslation()
   const confirmInFlightRef = useRef(false)
@@ -82,7 +88,11 @@ export function DeleteConfirmationModal({
         if (!open && !isLoading && !confirmInFlightRef.current) onClose()
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent
+        className={cn("max-w-md", contentClassName)}
+        overlayClassName={overlayClassName}
+        showCloseButton={false}
+      >
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0">
             <AlertTriangle className="h-5 w-5 text-red-500 mt-0.5" />

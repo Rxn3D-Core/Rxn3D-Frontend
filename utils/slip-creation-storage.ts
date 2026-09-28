@@ -1,4 +1,5 @@
 import { resetFrontendListCaches } from "@/lib/cache/frontend-list-cache"
+import { clearCaseDesignAttachmentCache } from "@/lib/case-design-attachment-cache"
 
 /**
  * Utility functions for managing slip creation storage
@@ -14,6 +15,7 @@ import { resetFrontendListCaches } from "@/lib/cache/frontend-list-cache"
  * - Slip drafts and pending slips (caseDesignCache, slipDraft, etc.)
  * - Product selections (savedProducts, selectedProduct, productDetails_*, etc.)
  * - React Query list caches (doctors, offices/labs, library products) and in-memory product details
+ * - Pending create-slip attachments (window.__caseDesignAttachments)
  * - Any other slip creation state
  *
  * Does NOT clear auth/session keys (user, token, role, customerId).
@@ -21,6 +23,16 @@ import { resetFrontendListCaches } from "@/lib/cache/frontend-list-cache"
 export function clearSlipCreationStorage() {
   if (typeof window === "undefined") {
     return
+  }
+
+  // Drop staged create-slip attachments so they don't leak into the next slip
+  const pendingAttachmentIds = clearCaseDesignAttachmentCache()
+  if (pendingAttachmentIds.length > 0) {
+    void import("@/services/slip-attachments-service").then(({ SlipAttachmentsService }) => {
+      pendingAttachmentIds.forEach((id) => {
+        void SlipAttachmentsService.deletePendingAttachment(id).catch(() => {})
+      })
+    })
   }
 
   // Clear localStorage items used across choose-lab, choose-doctor, patient-input, and case-design-center

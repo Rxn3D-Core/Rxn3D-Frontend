@@ -70,12 +70,14 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
    * Safari will not paint a PDF iframe when an ancestor has a CSS transform.
    */
   noTransform?: boolean
+  /** Optional class for the backdrop overlay (e.g. raise z-index above custom fixed UIs). */
+  overlayClassName?: string
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, showCloseButton, fullscreen, noTransform, style, ...props }, ref) => {
+>(({ className, children, showCloseButton, fullscreen, noTransform, overlayClassName, style, ...props }, ref) => {
   const renderDefaultClose =
     showCloseButton === true
       ? true
@@ -93,7 +95,7 @@ const DialogContent = React.forwardRef<
 
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         ref={ref}
         onInteractOutside={(e) => {

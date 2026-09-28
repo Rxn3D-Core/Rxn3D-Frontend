@@ -60,3 +60,14 @@ export function dropLinkedPendingAttachments(ids: number[]) {
     readCache().filter((item) => !(item.source === "attachment" && item.remoteId && linked.has(item.remoteId)))
   );
 }
+
+/** Clears all staged/pending create-slip attachments from the window cache. */
+export function clearCaseDesignAttachmentCache(): number[] {
+  const pendingIds = pendingAttachmentIdsFromCache();
+  writeCache([]);
+  if (typeof window !== "undefined") {
+    delete (window as unknown as { __caseDesignAttachments?: CachedCaseDesignAttachment[] })
+      .__caseDesignAttachments;
+  }
+  return pendingIds;
+}
