@@ -20,7 +20,7 @@ import { V3RowActionsPopover } from "./V3RowActionsPopover"
 import type { ColumnKey } from "./V3FilterBar"
 
 const AMBER = "#FFE2A1"
-const PAN_ROW_HIGHLIGHT = "#8dbbff"
+const PAN_ROW_HIGHLIGHT = "#FFE4FC"
 const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
