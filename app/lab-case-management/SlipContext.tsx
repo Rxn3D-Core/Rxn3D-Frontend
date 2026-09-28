@@ -374,16 +374,20 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleSlipPan = useCallback(async (slipId: number) => {
-    try {
-      const token = getToken();
-      let previous = false;
-      setSlips((current) => {
-        previous = Boolean(current.find((s) => s.id === slipId)?.panToggled);
-        return current.map((s) =>
-          s.id === slipId ? { ...s, panToggled: !previous } : s,
-        );
-      });
+    const token = getToken();
+    let previous = false;
+    let next = false;
 
+    // Flip UI immediately — do not wait for the server round-trip.
+    setSlips((current) => {
+      previous = Boolean(current.find((s) => s.id === slipId)?.panToggled);
+      next = !previous;
+      return current.map((s) =>
+        s.id === slipId ? { ...s, panToggled: next } : s,
+      );
+    });
+
+    try {
       const res = await fetch(buildApiUrl(`/slip/action/${slipId}/toggle-pan`), {
         method: "POST",
         headers: {
@@ -411,14 +415,17 @@ export function SlipProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      const toggled = Boolean(body?.data?.pan_toggled);
-      setSlips((current) =>
-        current.map((s) => (s.id === slipId ? { ...s, panToggled: toggled } : s)),
-      );
-
-      return { success: true, pan_toggled: toggled, message: body?.message };
+      // Trust optimistic state on success — avoid a second paint from the response.
+      return {
+        success: true,
+        pan_toggled: next,
+        message: body?.message,
+      };
     } catch (error) {
       console.error("Error toggling slip pan highlight:", error);
+      setSlips((current) =>
+        current.map((s) => (s.id === slipId ? { ...s, panToggled: previous } : s)),
+      );
       return null;
     }
   }, []);
