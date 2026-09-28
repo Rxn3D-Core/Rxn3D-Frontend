@@ -27,7 +27,7 @@ export interface QRScanResponseData {
   lab_address?: string | null;
   /** Formatted office address for Directions / Google Maps. */
   office_address?: string | null;
-  /** False when the slip is fully digital (STL) — lab drop-off may skip photo/signature. */
+  /** False when the slip is fully digital (STL) — lab drop-off may skip signature. */
   has_physical_impression?: boolean;
 }
 

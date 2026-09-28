@@ -333,8 +333,8 @@ export default function DriverHistoryModal({
     })
   }, [singleSlipMode, deliveryEntries, driverSettings, entryHasPhysicalImpression])
 
-  /** Selected slips that need a drop-off proof photo. */
-  const photoRequiredSlipIds = useMemo(() => {
+  /** Selected drop-off slips that can receive an optional proof photo. */
+  const photoEligibleSlipIds = useMemo(() => {
     const relevant = singleSlipMode
       ? deliveryEntries
       : deliveryEntries.filter((entry) => entry.isChecked)
@@ -342,15 +342,12 @@ export default function DriverHistoryModal({
       .filter((entry) => {
         if (typeof entry.slip_id !== "number") return false
         const ref = { locationId: entry.location_id, location: entry.location }
-        if (slipIsOfficeDropoff(ref)) return true
-        if (slipIsLabDropoff(ref) && entryHasPhysicalImpression(entry)) return true
-        return false
+        return slipIsOfficeDropoff(ref) || slipIsLabDropoff(ref)
       })
       .map((entry) => entry.slip_id as number)
-  }, [singleSlipMode, deliveryEntries, entryHasPhysicalImpression])
+  }, [singleSlipMode, deliveryEntries])
 
-  const dropoffPhotoRequired = photoRequiredSlipIds.length > 0
-  const dropoffPhotoMissing = dropoffPhotoRequired && !image
+  const showDropoffPhoto = photoEligibleSlipIds.length > 0
 
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
@@ -698,15 +695,6 @@ export default function DriverHistoryModal({
       return
     }
 
-    if (dropoffPhotoMissing) {
-      toast({
-        title: "Photo required",
-        description: "Please attach a photo before completing this drop-off.",
-        variant: "destructive",
-      })
-      return
-    }
-
     setSubmitting(true)
     try {
       if (slipIds.length > 0) {
@@ -734,7 +722,7 @@ export default function DriverHistoryModal({
             slip_ids: slipIds,
             to_location_id: toLocationId,
             notes: effectiveSignature || undefined,
-            // Drop-off proof photo when present (required for office / physical lab drop-off).
+            // Drop-off proof photo when present (optional).
             images:
               isDropoff && image
                 ? { [slipIds[0]]: image.file }
@@ -759,8 +747,8 @@ export default function DriverHistoryModal({
         }
 
         const dropoffImages =
-          photoRequiredSlipIds.length > 0 && image
-            ? Object.fromEntries(photoRequiredSlipIds.map((id) => [id, image.file]))
+          photoEligibleSlipIds.length > 0 && image
+            ? Object.fromEntries(photoEligibleSlipIds.map((id) => [id, image.file]))
             : undefined
 
         const result = await submitScannedSlips(slipIds, effectiveSignature, {
@@ -809,18 +797,12 @@ export default function DriverHistoryModal({
     : []
 
   const confirmDisabled = singleSlipMode
-    ? deliveryEntries.length === 0 || (signatureRequired && !signature.trim()) || dropoffPhotoMissing
+    ? deliveryEntries.length === 0 || (signatureRequired && !signature.trim())
     : deliveryEntries.filter((e) => e.isChecked).length === 0 ||
-      (signatureRequired && !signature.trim()) ||
-      dropoffPhotoMissing
+      (signatureRequired && !signature.trim())
 
-  const singleSlipPhotoRequired =
-    isOfficeDropoff || (isLabDropoff && singleSlipHasPhysicalImpression)
-  const singleSlipPhotoHint = isOfficeDropoff
-    ? "Photo required for office drop-off"
-    : isLabDropoff && singleSlipHasPhysicalImpression
-      ? "Photo required for lab drop-off (physical impression)"
-      : undefined
+  const singleSlipPhotoHint =
+    isOfficeDropoff || isLabDropoff ? "Photo optional for this drop-off" : undefined
 
   return (
     <Dialog
@@ -878,7 +860,6 @@ export default function DriverHistoryModal({
                     image={image}
                     onChange={setImage}
                     onRejected={handleRejectedImages}
-                    required={singleSlipPhotoRequired}
                     hint={singleSlipPhotoHint}
                   />
                   {signatureRequired ? (
@@ -1240,14 +1221,13 @@ export default function DriverHistoryModal({
                 ) : null}
               </div>
 
-              {dropoffPhotoRequired ? (
+              {showDropoffPhoto ? (
                 <div className="mt-5 space-y-2">
                   <ImageDropzone
                     image={image}
                     onChange={setImage}
                     onRejected={handleRejectedImages}
-                    required
-                    hint="Photo required for this drop-off"
+                    hint="Photo optional for this drop-off"
                   />
                 </div>
               ) : null}
@@ -1273,8 +1253,8 @@ export default function DriverHistoryModal({
           onConfirm={handleSubmit}
           confirmLabel={modalCopy.confirmLabel}
           confirmDisabled={confirmDisabled}
-          // Drop-off: only show Confirm once required photo (and signature when needed) are done.
-          hideConfirmUntilReady={isDropoff || dropoffPhotoRequired || signatureRequired}
+          // Drop-off / signature: hide Confirm until required fields are done.
+          hideConfirmUntilReady={isDropoff || showDropoffPhoto || signatureRequired}
           submitting={submitting}
         />
       </DialogContent>

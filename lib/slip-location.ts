@@ -162,7 +162,7 @@ export function slipShowsPickupDropoff(ref: SlipLocationRef): boolean {
 
 /**
  * True when the next driver action delivers to the office (location 5 → 6).
- * Office drop-off requires a proof photo on change-location / submit-scanned-slips.
+ * Office drop-off accepts an optional proof photo on change-location / submit-scanned-slips.
  */
 export function slipIsOfficeDropoff(ref: SlipLocationRef): boolean {
   if (slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_OFFICE)) return true;
@@ -172,7 +172,7 @@ export function slipIsOfficeDropoff(ref: SlipLocationRef): boolean {
 
 /**
  * True when the next driver action delivers to the lab (location 2 → 3).
- * Lab drop-off requires a photo only when the slip has a physical impression.
+ * Lab drop-off accepts an optional proof photo (fully digital slips also skip signature).
  */
 export function slipIsLabDropoff(ref: SlipLocationRef): boolean {
   if (slipAtLocation(ref, SLIP_LOCATION_ON_ROUTE_TO_LAB)) return true;
@@ -244,8 +244,8 @@ export function slipDirectionsAddress(
 }
 
 /**
- * True when lab drop-off should require a photo.
- * False only when every selected impression is digital and at least one exists.
+ * True when lab drop-off should treat the slip as having a physical tray
+ * (affects signature skip for fully digital cases).
  * Prefers `has_physical_impression` from QR scan; unknown slips default to true.
  */
 export function slipHasPhysicalImpression(slip: unknown): boolean {
