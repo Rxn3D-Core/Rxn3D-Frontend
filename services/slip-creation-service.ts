@@ -283,6 +283,7 @@ export interface SlipCreationResponse {
         delivery_time: string | null;
         pickup_date: string | null;
         pickup_time: string | null;
+        final_date?: string | null;
       } | null;
     }>;
   };

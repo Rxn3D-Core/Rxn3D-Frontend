@@ -6,6 +6,7 @@ import { caseDesignInter } from "../case-design-inter-font";
 import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { isLabCustomerContext } from "@/lib/role-utils";
 import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
+import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -162,27 +163,23 @@ export function PatientHeader({
   const status = firstSlip?.status ?? slipResponseData?.case_status ?? "";
   const location = firstSlip?.location?.name ?? "";
 
+  // Calendar day from the API string prefix — never `new Date(iso)`, which
+  // shifts the day across timezones (UTC midnight → previous local evening).
   const formatDate = (iso: string | null | undefined) => {
     if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    return `${String(d.getMonth() + 1).padStart(2, "0")}/ ${String(d.getDate()).padStart(2, "0")}/ ${String(d.getFullYear()).slice(2)}`;
-  };
-
-  const formatTime = (iso: string | null | undefined) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const ampm = h >= 12 ? "pm" : "am";
-    const hour = h % 12 || 12;
-    return m === 0 ? `${hour} ${ampm}` : `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return "";
+    const [, year, month, day] = m;
+    return `${month}/${day}/${year.slice(2)}`;
   };
 
   const pickupDate = formatDate(firstSlip?.delivery?.pickup_date);
-  const dueDate = formatDate(firstSlip?.delivery?.delivery_date);
-  const deliveryTime = formatTime(firstSlip?.delivery?.delivery_time);
+  const dueDate = formatDate(
+    firstSlip?.delivery?.final_date ?? firstSlip?.delivery?.delivery_date
+  );
+  const deliveryTime = resolveSlipDeliveryTimeDisplay(
+    firstSlip?.delivery?.delivery_time
+  );
 
   const useSessionCreatedBy =
     createdByNameProp === undefined && createdByImageUrlProp === undefined;

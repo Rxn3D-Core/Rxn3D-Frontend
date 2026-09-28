@@ -813,6 +813,11 @@ export function SlipCreationProvider({ children }: { children: ReactNode }) {
 
     const requestPromise = (async () => {
       try {
+        // Drop a different slip's cached details immediately so auto-print and
+        // header dates cannot briefly use the previous slip's due date.
+        setVirtualSlipDetails((prev: { id?: number } | null) =>
+          prev?.id === slipId ? prev : null
+        )
         const url = new URL(`/v1/slip/slip/${slipId}/details`, process.env.NEXT_PUBLIC_API_BASE_URL)
         const res = await fetch(url.toString(), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},

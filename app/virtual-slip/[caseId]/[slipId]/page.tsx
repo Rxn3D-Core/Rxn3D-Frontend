@@ -565,8 +565,15 @@ export default function VirtualSlipV2Page() {
 
   // A freshly created slip is marked by the submit flow; consuming the flag
   // auto-opens the paper slip print window once — reloads never re-trigger it.
+  // Wait until details for THIS slipId are loaded. Otherwise a stale previous
+  // slip still in context can print the wrong due date (often off by a day).
   useEffect(() => {
+    if (loading) return;
     if (!slipId || isNaN(slipId) || !vm) return;
+    const detailsId = Number(
+      (virtualSlipDetails as { id?: number } | null)?.id
+    );
+    if (!Number.isFinite(detailsId) || detailsId !== slipId) return;
     if (consumeSlipAutoPrint(slipId)) {
       void printPaperSlipV5({
         vm,
@@ -575,7 +582,7 @@ export default function VirtualSlipV2Page() {
         details: virtualSlipDetails,
       });
     }
-  }, [slipId, vm, caseId, routeCaseId, virtualSlipDetails]);
+  }, [loading, slipId, vm, caseId, routeCaseId, virtualSlipDetails]);
 
   const submitCaseStatusAction = async (
     action: Exclude<CaseStatusModal, null>,
