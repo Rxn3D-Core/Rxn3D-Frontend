@@ -236,7 +236,13 @@ export function OfficeSlipProvider({ children }: { children: ReactNode }) {
           ? slip.new_stage_eligible.trim().toLowerCase() === "yes"
           : Boolean(slip.new_stage_eligible),
       attachment: slip.attachments?.has_attachments || false,
-      dueDate: slip.delivery?.delivery_date ? new Date(slip.delivery.delivery_date).toLocaleDateString() : "",
+      dueDate: (() => {
+        const raw = slip.delivery?.delivery_date;
+        if (!raw) return "";
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+        if (m) return `${m[2]}/${m[3]}/${m[1].slice(2)}`;
+        return new Date(raw).toLocaleDateString();
+      })(),
       overdue: false, // You can implement overdue logic based on delivery date
       labName: apiCase.lab?.name,
       doctorName: apiCase.doctor?.name,
