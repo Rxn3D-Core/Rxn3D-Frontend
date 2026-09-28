@@ -8,6 +8,11 @@ export function canUndoSlipLocation(role: string | null | undefined): boolean {
   return role === "lab_admin" || role === "superadmin"
 }
 
+/** Pan row highlight toggle on lab listing — lab admins only for now. */
+export function canToggleSlipPan(role: string | null | undefined): boolean {
+  return role === "lab_admin" || role === "superadmin"
+}
+
 /**
  * Submit or change rush from listing / virtual slip after the case exists.
  * Office profiles may view rush status only; they submit rush during slip creation.

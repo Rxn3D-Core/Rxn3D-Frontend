@@ -43,6 +43,7 @@ import {
 } from "@/lib/slip-location"
 import {
   canUndoSlipLocation,
+  canToggleSlipPan,
   getStoredSlipUserRole,
 } from "@/lib/slip-user-role"
 import { useRouter } from "next/navigation"
@@ -252,6 +253,7 @@ export default function LabSlipV3Page() {
   const [undoLocationSubmitting, setUndoLocationSubmitting] = useState(false)
 
   const allowUndoLocation = canUndoSlipLocation(getStoredSlipUserRole())
+  const allowPanToggle = canToggleSlipPan(getStoredSlipUserRole())
 
   const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
 
@@ -261,6 +263,7 @@ export default function LabSlipV3Page() {
     slips, loading, fetchLabSlips, fetchDriverPrintData,
     createCustomDeliveryDate, fetchOfficeSlips, fetchCustomDeliveryDates,
     readyToSend, labListingPagination, updateSlipAttachmentState, rushCasePanColor,
+    toggleSlipPan,
   } = useSlipContext()
   const { fetchProductAddons, requestSlipRush, cancelSlipRush, cancelSlip, softDeleteSlip, restoreSlip, holdSlip, sendBackToOfficeSlip } = useSlipCreation()
   const { canCancelCase, canDeleteCase } = usePermissionCapabilities()
@@ -953,12 +956,16 @@ export default function LabSlipV3Page() {
             onUndoLocation: allowUndoLocation
               ? (slip) => { setSelectedSlipForUndoLocation(slip); setUndoLocationModalOpen(true) }
               : undefined,
+            onTogglePan: allowPanToggle
+              ? (slip) => { void toggleSlipPan(slip.id) }
+              : undefined,
           }}
           canPrintStatement={canPrintStatement}
           canSendBack={canSendBackToOffice}
           canCancelCase={canCancelCase}
           canDeleteCase={canDeleteCase}
           allowUndoLocation={allowUndoLocation}
+          allowPanToggle={allowPanToggle}
           onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
           // Multiple paper slip print disabled from listing
           // onBulkPrintPaperSlip={handleBulkPrintPaperSlip}

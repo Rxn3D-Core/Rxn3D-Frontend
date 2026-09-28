@@ -20,6 +20,7 @@ import { V3RowActionsPopover } from "./V3RowActionsPopover"
 import type { ColumnKey } from "./V3FilterBar"
 
 const AMBER = "#FFE2A1"
+const PAN_ROW_HIGHLIGHT = "#8dbbff"
 const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
@@ -54,6 +55,8 @@ interface Props {
   canDeleteCase?: boolean
   /** Lab admin only — undo one location step from the ⋯ menu. */
   allowUndoLocation?: boolean
+  /** Lab admin only — click pan chip to toggle row highlight. */
+  allowPanToggle?: boolean
   /**
    * Office profile listing: the counterparty column reads "Lab", driver
    * actions are withheld, and rush rows lose the amber highlight (a
@@ -208,7 +211,11 @@ export function V3CaseTable(props: Props) {
               const dueDateColor = dueDateTextColor(row)
               // The amber rush highlight is a lab-visibility cue — office
               // profiles keep the rush bolt icon but not the tinted row.
-              const cardBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
+              const cardBg = row.panToggled
+                ? PAN_ROW_HIGHLIGHT
+                : row.rush && highlightRushRows
+                  ? AMBER
+                  : "#FFFFFF"
               const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
@@ -345,6 +352,46 @@ export function V3CaseTable(props: Props) {
                             ? "driverHistory"
                             : null
                         : null
+                      const panChipStyle = {
+                        background: PAN_BG,
+                        height: 24 as const,
+                        ...row.panColorStyle,
+                        ...(row.rush && highlightRushRows && props.rushCasePanColor
+                          ? { backgroundColor: props.rushCasePanColor }
+                          : null),
+                      }
+
+                      const panChip = row.pan ? (
+                        props.allowPanToggle && props.rowActions.onTogglePan ? (
+                          <button
+                            type="button"
+                            data-row-interactive="true"
+                            aria-label={row.panToggled ? "Remove pan highlight" : "Highlight pan row"}
+                            aria-pressed={Boolean(row.panToggled)}
+                            className="flex items-center justify-center shrink-0 rounded-[6px] px-3 border-0"
+                            title={row.panToggled ? "Remove row highlight" : "Highlight this row"}
+                            style={{ ...panChipStyle, cursor: "pointer" }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              props.rowActions.onTogglePan?.(row)
+                            }}
+                          >
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Inter, sans-serif" }}>
+                              {row.pan}
+                            </span>
+                          </button>
+                        ) : (
+                          <div
+                            className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
+                            style={panChipStyle}
+                          >
+                            <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Inter, sans-serif" }}>
+                              {row.pan}
+                            </span>
+                          </div>
+                        )
+                      ) : null
+
                       const locationInner = (
                         <>
                           <img
@@ -367,48 +414,36 @@ export function V3CaseTable(props: Props) {
                               {row.location}
                             </span>
                           </div>
-                          {row.pan && (
-                            <div
-                              className="flex items-center justify-center shrink-0 rounded-[6px] px-3"
-                              style={{
-                                background: PAN_BG,
-                                height: 24,
-                                ...row.panColorStyle,
-                                ...(row.rush && highlightRushRows && props.rushCasePanColor
-                                  ? { backgroundColor: props.rushCasePanColor }
-                                  : null),
-                              }}
-                            >
-                              <span style={{ fontSize: 14, fontWeight: 700, color: "#F7F7F7", fontFamily: "Inter, sans-serif" }}>
-                                {row.pan}
-                              </span>
-                            </div>
-                          )}
                         </>
                       )
-                      return mobileLocationAction ? (
-                        <button
-                          type="button"
-                          className="flex w-full flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
-                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
-                          title={mobileLocationAction === "addStage" ? "Add stage" : mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            mobileLocationAction === "addStage"
-                              ? props.rowActions.onAddStage(row)
-                              : mobileLocationAction === "readyToSend"
-                              ? props.rowActions.onReadyToSend(row)
-                              : props.rowActions.onDriverHistory(row)
-                          }}
-                        >
-                          {locationInner}
-                        </button>
-                      ) : (
-                        <div
-                          className="flex flex-row items-center gap-2 rounded-[10px] px-2 py-2"
-                          style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
-                        >
-                          {locationInner}
+                      return (
+                        <div className="flex w-full flex-row items-center gap-2">
+                          {mobileLocationAction ? (
+                            <button
+                              type="button"
+                              className="flex min-w-0 flex-1 flex-row items-center gap-2 rounded-[10px] px-2 py-2 text-left"
+                              style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)", cursor: "pointer" }}
+                              title={mobileLocationAction === "addStage" ? "Add stage" : mobileLocationAction === "readyToSend" ? "Mark ready to send" : "View driver history"}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                mobileLocationAction === "addStage"
+                                  ? props.rowActions.onAddStage(row)
+                                  : mobileLocationAction === "readyToSend"
+                                  ? props.rowActions.onReadyToSend(row)
+                                  : props.rowActions.onDriverHistory(row)
+                              }}
+                            >
+                              {locationInner}
+                            </button>
+                          ) : (
+                            <div
+                              className="flex min-w-0 flex-1 flex-row items-center gap-2 rounded-[10px] px-2 py-2"
+                              style={{ background: "rgba(255,255,255,0.6)", border: "1.1px solid rgba(0,0,0,0.05)" }}
+                            >
+                              {locationInner}
+                            </div>
+                          )}
+                          {panChip}
                         </div>
                       )
                     })()}
@@ -506,11 +541,16 @@ export function V3CaseTable(props: Props) {
             </tr>
           ) : (
             props.rows.map((row) => {
-              const rowBg = row.rush && highlightRushRows ? AMBER : "#FFFFFF"
+              const rowBg = row.panToggled
+                ? PAN_ROW_HIGHLIGHT
+                : row.rush && highlightRushRows
+                  ? AMBER
+                  : "#FFFFFF"
               const dueDateColor = dueDateTextColor(row)
               // Only lab rush rows lock hover (amber stays put). Office rush rows
-              // use normal zebra + hover like every other row.
-              const isLocked = !!row.rush && highlightRushRows
+              // use normal zebra + hover like every other row. Pan-toggled rows
+              // also lock so the blue highlight stays visible.
+              const isLocked = !!row.panToggled || (!!row.rush && highlightRushRows)
               const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
@@ -571,6 +611,7 @@ export function V3CaseTable(props: Props) {
                       rushCasePanColor={props.rushCasePanColor}
                       showTimestamp={props.visibleColumns.has("timestamp")}
                       allowDriverActions={!officeProfile}
+                      allowPanToggle={!officeProfile && Boolean(props.allowPanToggle)}
                       highlightRushRows={highlightRushRows}
                       virtualSlipHref={virtualSlipHref}
                       openSlipLabel={openSlipLabel}
@@ -617,6 +658,7 @@ function DesktopCell({
   rushCasePanColor,
   showTimestamp,
   allowDriverActions,
+  allowPanToggle,
   highlightRushRows,
   virtualSlipHref,
   openSlipLabel,
@@ -625,6 +667,7 @@ function DesktopCell({
   dueDateColor: string
   showTimestamp: boolean
   allowDriverActions: boolean
+  allowPanToggle: boolean
   highlightRushRows: boolean
   row: V2CaseRowData
   rowActions: V2RowActions
@@ -663,28 +706,50 @@ function DesktopCell({
   }
 
   if (column.key === "panProduct") {
+    const panChip = (
+      <div
+        className="flex items-center justify-center"
+        style={{
+          background: PAN_BG,
+          borderRadius: 6,
+          width: 94,
+          maxWidth: "100%",
+          height: 24,
+          gap: 10,
+          ...row.panColorStyle,
+          ...(row.rush && highlightRushRows && rushCasePanColor
+            ? { backgroundColor: rushCasePanColor }
+            : null),
+          ...(allowPanToggle ? { cursor: "pointer" } : null),
+        }}
+      >
+        <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
+          {row.pan || "—"}
+        </span>
+      </div>
+    )
+
     return (
       <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
         <div className="flex min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 3, height: 52 }}>
-          <div
-            className="flex items-center justify-center"
-            style={{
-              background: PAN_BG,
-              borderRadius: 6,
-              width: 94,
-              maxWidth: "100%",
-              height: 24,
-              gap: 10,
-              ...row.panColorStyle,
-              ...(row.rush && highlightRushRows && rushCasePanColor
-                ? { backgroundColor: rushCasePanColor }
-                : null),
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
-              {row.pan || "—"}
-            </span>
-          </div>
+          {allowPanToggle && rowActions.onTogglePan ? (
+            <button
+              type="button"
+              data-row-interactive="true"
+              aria-label={row.panToggled ? "Remove pan highlight" : "Highlight pan row"}
+              aria-pressed={Boolean(row.panToggled)}
+              className="p-0 border-0 bg-transparent"
+              title={row.panToggled ? "Remove row highlight" : "Highlight this row"}
+              onClick={(e) => {
+                e.stopPropagation()
+                rowActions.onTogglePan?.(row)
+              }}
+            >
+              {panChip}
+            </button>
+          ) : (
+            panChip
+          )}
           <div className="w-full truncate" style={{ fontSize: 14, lineHeight: "16px", color: "#575757" }}>
             {row.product || "—"}
           </div>

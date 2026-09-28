@@ -9,6 +9,8 @@ export interface V2CaseRowData {
   slipNumber?: string
   pan: string
   panColorStyle?: CSSProperties
+  /** Current user's pan-row highlight (lab listing only). */
+  panToggled?: boolean
   officeCode: string
   patient: string
   product: string
@@ -88,4 +90,5 @@ export interface V2RowActions {
   onDelete: (row: V2CaseRowData) => void
   onRestore: (row: V2CaseRowData) => void
   onUndoLocation?: (row: V2CaseRowData) => void
+  onTogglePan?: (row: V2CaseRowData) => void
 }
