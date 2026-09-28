@@ -39,7 +39,7 @@ import {
 import { getUserAvatar, getUserProfileImageUrl } from "@/utils/avatar-utils"
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024
-const AVATAR_ACCEPT = "image/jpeg,image/jpg,image/png"
+const AVATAR_ACCEPT = "image/jpeg,image/jpg,image/png,image/svg+xml"
 
 interface UserProfileModalProps {
   isOpen: boolean
@@ -144,7 +144,7 @@ export function UserProfileModal({
       URL.revokeObjectURL(avatarPreview)
     }
 
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png"]
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
       setAvatarError("Avatar must be a JPG or PNG image.")
       return

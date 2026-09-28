@@ -29,7 +29,6 @@ import {
   slipNextLocationIdFromRef,
   filterValidQrScanSlips,
   slipLocationsMatch,
-  slipIsOfficeDropoff,
   slipIsLabDropoff,
   slipHasPhysicalImpression,
   googleMapsSearchUrl,
@@ -39,7 +38,12 @@ import {
 import { postSlipDriverHistoryChangeLocation } from "@/lib/api/slip-driver-history"
 import { getCurrentUserName } from "@/lib/current-user"
 import { useSignatureRequirementSettings } from "@/hooks/use-signature-requirement-settings"
-import { driverActionRequiresSignature } from "@/lib/slip-settings-utils"
+import {
+  driverActionAllowsMultiple,
+  driverActionPhotoEnabled,
+  driverActionRequiresPhoto,
+  driverActionRequiresSignature,
+} from "@/lib/slip-settings-utils"
 import type { UploadedImage } from "@/lib/image-to-base64"
 import {
   CaseDriverHistorySection,
@@ -47,6 +51,7 @@ import {
   DeliveryModalFooter,
   DeliveryModalHeader,
   ImageDropzone,
+  RowImageUpload,
   SignaturePad,
   type DeliveryInfoField,
 } from "@/components/driver-delivery/delivery-parts"
@@ -161,7 +166,10 @@ export default function DriverHistoryModal({
 }: DriverHistoryModalProps) {
   const [deliveryEntries, setDeliveryEntries] = useState<DeliveryEntry[]>([])
   const [signature, setSignature] = useState("")
-  const [image, setImage] = useState<UploadedImage | null>(null)
+  /** Proof photos keyed by slip_id — one image per slip when multi-selected. */
+  const [imagesBySlipId, setImagesBySlipId] = useState<
+    Record<number, UploadedImage>
+  >({})
   const { qrScanData: contextQrScanData, qrScanLoading, qrScanError, sessionKey } = useDriverSlip()
   const { submitScannedSlips, fetchPickupDeliverySlips, removeScannedCase, clearDriverSession } = useSlipContext()
   const { toast } = useToast()
@@ -277,16 +285,6 @@ export default function DriverHistoryModal({
 
   const isDropoff = singleSlipMode && pickupDropoffAction === "dropoff"
   const isPickup = singleSlipMode && pickupDropoffAction === "pickup"
-  const isOfficeDropoff = useMemo(() => {
-    if (!singleSlipMode || !slip) return false
-    const entry = buildPickupDeliveryEntryFromSlip(slip)
-    if (!entry) return false
-    return slipIsOfficeDropoff({
-      locationId: entry.location_id,
-      location: entry.location,
-    })
-  }, [singleSlipMode, slip])
-
   const isLabDropoff = useMemo(() => {
     if (!singleSlipMode || !slip) return false
     const entry = buildPickupDeliveryEntryFromSlip(slip)
@@ -303,8 +301,9 @@ export default function DriverHistoryModal({
     return slipHasPhysicalImpression(slip)
   }, [singleSlipMode, slip])
 
-  // Per-lab signature requirement settings (loaded while the modal is open).
-  const { driverSettings } = useSignatureRequirementSettings(isOpen)
+  // Per-lab signature / photo / multi-slip settings (loaded while the modal is open).
+  const { driverSettings, photoSettings, allowMultipleSettings } =
+    useSignatureRequirementSettings(isOpen)
 
   const entryHasPhysicalImpression = useCallback((entry: DeliveryEntry): boolean => {
     if (typeof entry.has_physical_impression === "boolean") {
@@ -333,21 +332,107 @@ export default function DriverHistoryModal({
     })
   }, [singleSlipMode, deliveryEntries, driverSettings, entryHasPhysicalImpression])
 
-  /** Selected drop-off slips that can receive an optional proof photo. */
-  const photoEligibleSlipIds = useMemo(() => {
+  /** Selected slips whose location has photo upload enabled. */
+  const photoEligibleEntries = useMemo(() => {
     const relevant = singleSlipMode
       ? deliveryEntries
       : deliveryEntries.filter((entry) => entry.isChecked)
-    return relevant
-      .filter((entry) => {
-        if (typeof entry.slip_id !== "number") return false
-        const ref = { locationId: entry.location_id, location: entry.location }
-        return slipIsOfficeDropoff(ref) || slipIsLabDropoff(ref)
-      })
-      .map((entry) => entry.slip_id as number)
-  }, [singleSlipMode, deliveryEntries])
+    return relevant.filter((entry) => {
+      if (typeof entry.slip_id !== "number") return false
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionPhotoEnabled(ref, photoSettings)
+    })
+  }, [singleSlipMode, deliveryEntries, photoSettings])
 
-  const showDropoffPhoto = photoEligibleSlipIds.length > 0
+  const photoEligibleSlipIds = useMemo(
+    () =>
+      photoEligibleEntries
+        .map((entry) => entry.slip_id)
+        .filter((id): id is number => typeof id === "number"),
+    [photoEligibleEntries]
+  )
+
+  const showProofPhoto = photoEligibleSlipIds.length > 0
+
+  const photoRequired = useMemo(() => {
+    const relevant = singleSlipMode
+      ? deliveryEntries
+      : deliveryEntries.filter((entry) => entry.isChecked)
+    return relevant.some((entry) => {
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionRequiresPhoto(ref, photoSettings)
+    })
+  }, [singleSlipMode, deliveryEntries, photoSettings])
+
+  const missingPhotoSlipIds = useMemo(() => {
+    if (!photoRequired) return [] as number[]
+    return photoEligibleSlipIds.filter((id) => !imagesBySlipId[id])
+  }, [photoRequired, photoEligibleSlipIds, imagesBySlipId])
+
+  const entryNeedsPhoto = useCallback(
+    (entry: DeliveryEntry): boolean => {
+      if (typeof entry.slip_id !== "number") return false
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionPhotoEnabled(ref, photoSettings)
+    },
+    [photoSettings]
+  )
+
+  const entryPhotoRequired = useCallback(
+    (entry: DeliveryEntry): boolean => {
+      if (!entryNeedsPhoto(entry)) return false
+      const ref = { locationId: entry.location_id, location: entry.location }
+      return driverActionRequiresPhoto(ref, photoSettings)
+    },
+    [entryNeedsPhoto, photoSettings]
+  )
+
+  const setSlipImage = useCallback((slipId: number, next: UploadedImage | null) => {
+    setImagesBySlipId((prev) => {
+      if (!next) {
+        if (!(slipId in prev)) return prev
+        const { [slipId]: _removed, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [slipId]: next }
+    })
+  }, [])
+
+  /** Anchor location for multi-slip rules (clicked slip / first listed). */
+  const allowMultiple = useMemo(() => {
+    // Prefer the slip that opened the modal so listing location_id quirks
+    // cannot re-enable Add Slip when multi is off for this location.
+    if (anchorLocation) {
+      return driverActionAllowsMultiple(anchorLocation, allowMultipleSettings)
+    }
+    const anchor =
+      deliveryEntries.find((entry) => entry.isChecked) ?? deliveryEntries[0]
+    if (!anchor) return false
+    return driverActionAllowsMultiple(
+      { locationId: anchor.location_id, location: anchor.location },
+      allowMultipleSettings
+    )
+  }, [deliveryEntries, allowMultipleSettings, anchorLocation])
+
+  /** Keep only the clicked slip when this location disallows multiple. */
+  const limitEntriesForAllowMultiple = useCallback(
+    (entries: DeliveryEntry[]): DeliveryEntry[] => {
+      if (entries.length === 0) return entries
+      const clickedId = slipId != null ? Number(slipId) : null
+      const preferred =
+        (clickedId != null
+          ? entries.find((entry) => entry.slip_id === clickedId)
+          : null) ?? entries[0]
+      const locationRef = anchorLocation ?? {
+        locationId: preferred.location_id,
+        location: preferred.location,
+      }
+      const allows = driverActionAllowsMultiple(locationRef, allowMultipleSettings)
+      if (allows) return entries
+      return [{ ...preferred, isChecked: true }]
+    },
+    [allowMultipleSettings, slipId, anchorLocation]
+  )
 
   const modalCopy = useMemo(
     () => pickupDropoffModalCopy(singleSlipMode ? pickupDropoffAction : null),
@@ -364,6 +449,14 @@ export default function DriverHistoryModal({
         : deliveryEntries,
     [deliveryEntries, isQrScanFlow]
   )
+
+  /** Show Photo column when this location has photo upload enabled. */
+  const showPhotoColumn = useMemo(() => {
+    if (anchorLocation && driverActionPhotoEnabled(anchorLocation, photoSettings)) {
+      return true
+    }
+    return tableEntries.some((entry) => entryNeedsPhoto(entry))
+  }, [anchorLocation, photoSettings, tableEntries, entryNeedsPhoto])
 
   // Logged-in user's name — used as the drop-off signature when settings do not require one.
   const currentUserName = useMemo(() => getCurrentUserName(), [isOpen])
@@ -401,7 +494,9 @@ export default function DriverHistoryModal({
       try {
         const res = await fetchPickupDeliverySlips(Number(slipId))
         if (res && res.success && Array.isArray(res.data)) {
-          const entries = keepSameLocation(convertQRDataToDeliveryEntries(res.data))
+          const entries = limitEntriesForAllowMultiple(
+            keepSameLocation(convertQRDataToDeliveryEntries(res.data))
+          )
           setDeliveryEntries(entries)
           lastFetchedSlipIdRef.current = Number(slipId)
         } else {
@@ -416,14 +511,21 @@ export default function DriverHistoryModal({
     }
 
     void loadPickup()
-  }, [isOpen, slipId, fetchPickupDeliverySlips, singleSlipMode, keepSameLocation])
+  }, [
+    isOpen,
+    slipId,
+    fetchPickupDeliverySlips,
+    singleSlipMode,
+    keepSameLocation,
+    limitEntriesForAllowMultiple,
+  ])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setDeliveryEntries([])
       setSignature("")
-      setImage(null)
+      setImagesBySlipId({})
       setPickupError(null)
       setSubmitting(false)
       lastFetchedSlipIdRef.current = null
@@ -432,25 +534,45 @@ export default function DriverHistoryModal({
     }
   }, [isOpen])
 
+  // When multi-slip is disallowed, show only the clicked slip in the listing.
+  useEffect(() => {
+    if (allowMultiple || singleSlipMode) return
+    setDeliveryEntries((prev) => limitEntriesForAllowMultiple(prev))
+  }, [allowMultiple, singleSlipMode, deliveryEntries.length, limitEntriesForAllowMultiple])
+
   // Header checkbox: check if all are selected
-  const allChecked = tableEntries.length > 0 && tableEntries.every(entry => entry.isChecked)
+  const allChecked = tableEntries.length > 0 && tableEntries.every((entry) => entry.isChecked)
 
   const handleCheckboxToggle = (id: string) => {
-    setDeliveryEntries((prevEntries) =>
-      prevEntries.map((entry) =>
-        entry.id === id ? { ...entry, isChecked: !entry.isChecked } : entry,
-      ),
-    )
+    setDeliveryEntries((prevEntries) => {
+      const target = prevEntries.find((entry) => entry.id === id)
+      if (!target) return prevEntries
+      if (target.isChecked) {
+        return prevEntries.map((entry) =>
+          entry.id === id ? { ...entry, isChecked: false } : entry
+        )
+      }
+      if (!allowMultiple) {
+        return prevEntries.map((entry) => ({
+          ...entry,
+          isChecked: entry.id === id,
+        }))
+      }
+      return prevEntries.map((entry) =>
+        entry.id === id ? { ...entry, isChecked: true } : entry
+      )
+    })
   }
 
-  // Select/deselect all
   const handleAllToggle = () => {
+    if (!allowMultiple) return
     setDeliveryEntries((prevEntries) =>
-      prevEntries.map((entry) => ({ ...entry, isChecked: !allChecked })),
+      prevEntries.map((entry) => ({ ...entry, isChecked: !allChecked }))
     )
   }
 
   const handleAddSlipClick = () => {
+    if (!allowMultiple) return
     if (isQrScanFlow) {
       onRequestScan?.()
       return
@@ -526,15 +648,27 @@ export default function DriverHistoryModal({
             return
           }
           let alreadyListed = false
+          let blockedBySingle = false
           setDeliveryEntries((prev) => {
             if (prev.some((row) => row.slip_id === entry.slip_id)) {
               alreadyListed = true
+              return prev
+            }
+            if (!allowMultiple && prev.some((row) => row.isChecked)) {
+              blockedBySingle = true
               return prev
             }
             return [...prev, { ...entry, id: `scan-${entry.slip_id}`, isChecked: true }]
           })
           if (alreadyListed) {
             toast({ title: "Already added", description: "This slip is already in the list." })
+          } else if (blockedBySingle) {
+            toast({
+              title: "One slip at a time",
+              description:
+                "This location only allows one slip per submit. Finish the current slip first.",
+              variant: "destructive",
+            })
           }
         } catch {
           toast({
@@ -554,7 +688,7 @@ export default function DriverHistoryModal({
       window.removeEventListener(DRIVER_QR_PICKUP_SLIP_SCANNED_EVENT, onScanned)
       window.removeEventListener(DRIVER_QR_SCANNER_CLOSED_EVENT, onClosed)
     }
-  }, [isOpen, singleSlipMode, anchorLocation, finishAddByScan, toast])
+  }, [isOpen, singleSlipMode, anchorLocation, finishAddByScan, toast, allowMultiple])
 
   const handleUpdateManualEntry = (id: string, field: keyof DeliveryEntry, value: string) => {
     setDeliveryEntries((prevEntries) =>
@@ -680,6 +814,24 @@ export default function DriverHistoryModal({
       return
     }
 
+    if (!allowMultiple && selectedCases.length > 1) {
+      toast({
+        title: "One slip at a time",
+        description: "This location only allows one slip per submit.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (missingPhotoSlipIds.length > 0) {
+      toast({
+        title: "Photo required",
+        description: "Please attach a proof photo for each selected slip.",
+        variant: "destructive",
+      })
+      return
+    }
+
     // When slip settings require a signature for this location, use the pad input.
     // Drop-off with signature disabled still auto-signs with the current user's name,
     // except fully digital lab drop-offs (no physical tray) skip signature entirely.
@@ -718,14 +870,15 @@ export default function DriverHistoryModal({
             return
           }
 
+          const singleImage = imagesBySlipId[slipIds[0]]
           const result = await postSlipDriverHistoryChangeLocation({
             slip_ids: slipIds,
             to_location_id: toLocationId,
             notes: effectiveSignature || undefined,
-            // Drop-off proof photo when present (optional).
+            // Proof photo when present (and location has photo enabled).
             images:
-              isDropoff && image
-                ? { [slipIds[0]]: image.file }
+              showProofPhoto && singleImage
+                ? { [slipIds[0]]: singleImage.file }
                 : undefined,
           })
           if (result.success) {
@@ -746,13 +899,20 @@ export default function DriverHistoryModal({
           return
         }
 
-        const dropoffImages =
-          photoEligibleSlipIds.length > 0 && image
-            ? Object.fromEntries(photoEligibleSlipIds.map((id) => [id, image.file]))
+        const proofImages =
+          photoEligibleSlipIds.length > 0
+            ? Object.fromEntries(
+                photoEligibleSlipIds
+                  .filter((id) => imagesBySlipId[id])
+                  .map((id) => [id, imagesBySlipId[id].file])
+              )
             : undefined
 
         const result = await submitScannedSlips(slipIds, effectiveSignature, {
-          images: dropoffImages,
+          images:
+            proofImages && Object.keys(proofImages).length > 0
+              ? proofImages
+              : undefined,
         })
         if (result && result.success) {
           toast({ title: "Submission Successful", description: result.message || "Scanned slips submitted successfully", duration: 3000 })
@@ -797,12 +957,41 @@ export default function DriverHistoryModal({
     : []
 
   const confirmDisabled = singleSlipMode
-    ? deliveryEntries.length === 0 || (signatureRequired && !signature.trim())
+    ? deliveryEntries.length === 0 ||
+      (signatureRequired && !signature.trim()) ||
+      missingPhotoSlipIds.length > 0
     : deliveryEntries.filter((e) => e.isChecked).length === 0 ||
-      (signatureRequired && !signature.trim())
+      (signatureRequired && !signature.trim()) ||
+      missingPhotoSlipIds.length > 0
 
-  const singleSlipPhotoHint =
-    isOfficeDropoff || isLabDropoff ? "Photo optional for this drop-off" : undefined
+  const proofPhotoHint = photoRequired
+    ? "Photo required for this slip"
+    : "Photo optional for this slip"
+
+  const singleListedSlipId = useMemo(() => {
+    if (singleSlipMode && typeof singleEntry?.slip_id === "number") {
+      return singleEntry.slip_id
+    }
+    if (tableEntries.length === 1 && typeof tableEntries[0]?.slip_id === "number") {
+      return tableEntries[0].slip_id as number
+    }
+    return null
+  }, [singleSlipMode, singleEntry, tableEntries])
+
+  const singleSlipPhotoId =
+    singleListedSlipId ??
+    (typeof photoEligibleSlipIds[0] === "number" ? photoEligibleSlipIds[0] : undefined)
+
+  /**
+   * Auto-open the upload picker when there is only one slip that still needs
+   * a photo (mobile OS then offers Camera or Gallery).
+   */
+  const autoOpenCameraSlipId =
+    singleListedSlipId != null &&
+    showPhotoColumn &&
+    !imagesBySlipId[singleListedSlipId]
+      ? singleListedSlipId
+      : null
 
   return (
     <Dialog
@@ -854,14 +1043,55 @@ export default function DriverHistoryModal({
                 onLoaded={scrollToBottom}
               />
 
-              {isDropoff ? (
+              {showProofPhoto && typeof singleSlipPhotoId === "number" ? (
                 <div className="space-y-3 pt-2">
                   <ImageDropzone
-                    image={image}
-                    onChange={setImage}
+                    image={imagesBySlipId[singleSlipPhotoId] ?? null}
+                    onChange={(next) => setSlipImage(singleSlipPhotoId, next)}
                     onRejected={handleRejectedImages}
-                    hint={singleSlipPhotoHint}
+                    required={photoRequired}
+                    hint={proofPhotoHint}
+                    autoOpenCamera={
+                      autoOpenCameraSlipId === singleSlipPhotoId
+                    }
                   />
+                  {isDropoff ? (
+                    signatureRequired ? (
+                      <SignaturePad
+                        value={signature}
+                        onChange={setSignature}
+                        onSubmit={() => {
+                          if (!confirmDisabled && !submitting) void handleSubmit();
+                        }}
+                        placeholder="Receiver's Signature"
+                      />
+                    ) : (
+                      <p className="text-center text-sm text-[#6B7280]">
+                        {isLabDropoff && !singleSlipHasPhysicalImpression
+                          ? "Digital case — signature not required"
+                          : (
+                            <>
+                              Signed automatically as{" "}
+                              <span className="font-semibold text-[#111827]">
+                                {currentUserName || "current user"}
+                              </span>
+                            </>
+                          )}
+                      </p>
+                    )
+                  ) : signatureRequired ? (
+                    <SignaturePad
+                      value={signature}
+                      onChange={setSignature}
+                      onSubmit={() => {
+                        if (!confirmDisabled && !submitting) void handleSubmit();
+                      }}
+                      placeholder="Receiver's Signature"
+                    />
+                  ) : null}
+                </div>
+              ) : isDropoff ? (
+                <div className="space-y-3 pt-2">
                   {signatureRequired ? (
                     <SignaturePad
                       value={signature}
@@ -945,12 +1175,31 @@ export default function DriverHistoryModal({
                               {[entry.office, entry.labName].filter(Boolean).join(" · ") || "—"}
                             </p>
                           </div>
-                          <Checkbox
-                            checked={entry.isChecked}
-                            onCheckedChange={() => handleCheckboxToggle(entry.id)}
-                            className="mt-1 h-5 w-5 border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8]"
-                            aria-label={`Select ${entry.patientName || "entry"}`}
-                          />
+                          <div className="flex shrink-0 items-start gap-2">
+                            {typeof entry.slip_id === "number" &&
+                            showPhotoColumn ? (
+                              <RowImageUpload
+                                image={imagesBySlipId[entry.slip_id] ?? null}
+                                onChange={(next) =>
+                                  setSlipImage(entry.slip_id as number, next)
+                                }
+                                onRejected={handleRejectedImages}
+                                required={
+                                  entry.isChecked && entryPhotoRequired(entry)
+                                }
+                                autoOpenCamera={
+                                  autoOpenCameraSlipId === entry.slip_id
+                                }
+                                label="Proof photo"
+                              />
+                            ) : null}
+                            <Checkbox
+                              checked={entry.isChecked}
+                              onCheckedChange={() => handleCheckboxToggle(entry.id)}
+                              className="mt-1 h-5 w-5 border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8]"
+                              aria-label={`Select ${entry.patientName || "entry"}`}
+                            />
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-[#374151]">
                           {rowAction ? (
@@ -1029,6 +1278,7 @@ export default function DriverHistoryModal({
                         <Checkbox
                           checked={allChecked}
                           onCheckedChange={handleAllToggle}
+                          disabled={!allowMultiple}
                           className="mx-auto border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8] data-[state=checked]:text-white"
                           aria-label="Select all"
                         />
@@ -1036,6 +1286,11 @@ export default function DriverHistoryModal({
                       <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Lab</th>
                       <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Office</th>
                       <th className="min-w-[140px] px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Patient Name</th>
+                      {showPhotoColumn ? (
+                        <th className="w-[56px] px-2 py-3 text-center text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">
+                          Photo
+                        </th>
+                      ) : null}
                       <th className="w-[52px] px-2 py-3" />
                     </tr>
                   </thead>
@@ -1043,14 +1298,14 @@ export default function DriverHistoryModal({
                     {loadingPickup ? (
                       Array.from({ length: 3 }).map((_, i) => (
                         <tr key={`skeleton-${i}`} className="border-b border-dashed border-[#E5E7EB]">
-                          <td colSpan={7} className="px-5 py-4">
+                          <td colSpan={8} className="px-5 py-4">
                             <div className="h-4 w-full max-w-md animate-pulse rounded bg-gray-200" />
                           </td>
                         </tr>
                       ))
                     ) : tableEntries.length === 0 ? (
                       <tr className="border-b border-dashed border-[#E5E7EB]">
-                        <td colSpan={7} className="px-5 py-10 text-center text-sm text-gray-600">
+                        <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-600">
                           {isQrScanFlow
                             ? 'No slips scanned yet. Tap "Scan Slip" to scan a QR code.'
                             : 'No slips at this location. Click "Add Slip" to scan a QR code.'}
@@ -1063,6 +1318,8 @@ export default function DriverHistoryModal({
                           locationId: entry.location_id,
                           location: entry.location,
                         })
+                        const showRowPhoto =
+                          typeof entry.slip_id === "number" && showPhotoColumn
                         return (
                           <tr key={entry.id} className="border-b border-dashed border-[#E5E7EB] text-[14px] text-[#374151] last:border-b-0">
                             <td className="px-4 py-4 align-middle sm:px-5">
@@ -1148,6 +1405,29 @@ export default function DriverHistoryModal({
                                 <span>{entry.patientName}</span>
                               )}
                             </td>
+                            {showPhotoColumn ? (
+                              <td className="px-2 py-4 text-center align-middle">
+                                {showRowPhoto ? (
+                                  <RowImageUpload
+                                    image={
+                                      imagesBySlipId[entry.slip_id as number] ??
+                                      null
+                                    }
+                                    onChange={(next) =>
+                                      setSlipImage(entry.slip_id as number, next)
+                                    }
+                                    onRejected={handleRejectedImages}
+                                    required={
+                                      entry.isChecked && entryPhotoRequired(entry)
+                                    }
+                                    autoOpenCamera={
+                                      autoOpenCameraSlipId === entry.slip_id
+                                    }
+                                    label="Proof photo"
+                                  />
+                                ) : null}
+                              </td>
+                            ) : null}
                             <td className="px-2 py-4 text-center align-middle">
                               {isManual ? (
                                 <Button
@@ -1187,22 +1467,24 @@ export default function DriverHistoryModal({
               </div>
 
               <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
-                <Button
-                  variant="outline"
-                  className="h-12 w-full border-[#1162A8] text-base text-[#1162A8] hover:bg-blue-50 sm:h-10 sm:w-auto sm:text-sm"
-                  onClick={handleAddSlipClick}
-                  type="button"
-                  disabled={
-                    (isQrScanFlow && !onRequestScan) || clearingBatch || removingCaseId != null
-                  }
-                >
-                  {isQrScanFlow ? (
-                    <QrCode className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Plus className="mr-2 h-4 w-4" />
-                  )}
-                  {isQrScanFlow ? "Scan Slip" : "Add Slip"}
-                </Button>
+                {allowMultiple ? (
+                  <Button
+                    variant="outline"
+                    className="h-12 w-full border-[#1162A8] text-base text-[#1162A8] hover:bg-blue-50 sm:h-10 sm:w-auto sm:text-sm"
+                    onClick={handleAddSlipClick}
+                    type="button"
+                    disabled={
+                      (isQrScanFlow && !onRequestScan) || clearingBatch || removingCaseId != null
+                    }
+                  >
+                    {isQrScanFlow ? (
+                      <QrCode className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" />
+                    )}
+                    {isQrScanFlow ? "Scan Slip" : "Add Slip"}
+                  </Button>
+                ) : null}
                 {isQrScanFlow && tableEntries.length > 0 ? (
                   <Button
                     variant="outline"
@@ -1220,17 +1502,6 @@ export default function DriverHistoryModal({
                   </Button>
                 ) : null}
               </div>
-
-              {showDropoffPhoto ? (
-                <div className="mt-5 space-y-2">
-                  <ImageDropzone
-                    image={image}
-                    onChange={setImage}
-                    onRejected={handleRejectedImages}
-                    hint="Photo optional for this drop-off"
-                  />
-                </div>
-              ) : null}
 
               {signatureRequired && (
                 <div className="mt-5">
@@ -1254,7 +1525,7 @@ export default function DriverHistoryModal({
           confirmLabel={modalCopy.confirmLabel}
           confirmDisabled={confirmDisabled}
           // Drop-off / signature: hide Confirm until required fields are done.
-          hideConfirmUntilReady={isDropoff || showDropoffPhoto || signatureRequired}
+          hideConfirmUntilReady={showProofPhoto || signatureRequired || photoRequired}
           submitting={submitting}
         />
       </DialogContent>

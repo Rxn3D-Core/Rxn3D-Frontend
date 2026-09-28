@@ -145,9 +145,9 @@ export default function UserInvitationPage() {
   const handleSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
     if (!allowedTypes.includes(file.type)) {
-      toast({ title: "Invalid file type", description: "Upload a JPG, PNG, GIF, or WEBP image.", variant: "destructive" })
+      toast({ title: "Invalid file type", description: "Upload a JPG, PNG, GIF, WEBP, or SVG image.", variant: "destructive" })
       return
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -543,7 +543,7 @@ export default function UserInvitationPage() {
               <label className="mb-1 block text-xs font-medium text-gray-700">Signature *</label>
               <input
                 type="file"
-                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                 onChange={handleSignatureUpload}
                 disabled={isSubmitting}
                 className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#1162a8] file:px-3 file:py-1.5 file:text-white"

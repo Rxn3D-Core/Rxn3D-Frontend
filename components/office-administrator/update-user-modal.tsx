@@ -250,7 +250,7 @@ export function UpdateUserModal({
   const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (!["image/jpeg", "image/jpg", "image/png"].includes(file.type)) {
+    if (!["image/jpeg", "image/jpg", "image/png", "image/svg+xml"].includes(file.type)) {
       showSignatureMessage("Please upload a JPG or PNG image")
       return
     }
@@ -802,7 +802,7 @@ export function UpdateUserModal({
                       <input
                         type="file"
                         className="hidden"
-                        accept="image/jpeg,image/jpg,image/png"
+                        accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                         onChange={handleSignatureUpload}
                       />
                     </label>

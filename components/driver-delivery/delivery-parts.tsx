@@ -300,6 +300,7 @@ export function ImageDropzone({
   onRejected,
   required = false,
   hint,
+  autoOpenCamera = false,
 }: {
   image: UploadedImage | null;
   onChange: (image: UploadedImage | null) => void;
@@ -308,8 +309,11 @@ export function ImageDropzone({
   required?: boolean;
   /** Optional helper line under the main drop text. */
   hint?: string;
+  /** When true and no image yet, open the device picker once (camera/gallery on mobile). */
+  autoOpenCamera?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoOpenedRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -327,6 +331,19 @@ export function ImageDropzone({
     },
     [onChange, onRejected]
   );
+
+  useEffect(() => {
+    if (!autoOpenCamera || image || busy || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.click();
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [autoOpenCamera, image, busy]);
+
+  useEffect(() => {
+    if (!image) autoOpenedRef.current = false;
+  }, [image]);
 
   if (image) {
     return (
@@ -404,11 +421,11 @@ export function ImageDropzone({
         <Upload className="h-6 w-6 text-[#9CA3AF]" aria-hidden />
       )}
       <p className="text-sm text-[#6B7280]">
-        {hint ?? "Drag & drop a photo here or click to browse"}
+        {hint ?? "Upload a proof photo"}
       </p>
       <p className="text-xs text-[#9CA3AF]">
         {required ? "Required · " : ""}
-        Image only (JPG, PNG, GIF, WEBP) · max 10MB
+        Image only (JPG, PNG, GIF, WEBP, SVG) · max 10MB
       </p>
       <input
         ref={inputRef}
@@ -421,6 +438,135 @@ export function ImageDropzone({
         }}
       />
     </div>
+  );
+}
+
+/** Compact per-row photo control for the pickup/drop-off table listing. */
+export function RowImageUpload({
+  image,
+  onChange,
+  onRejected,
+  required = false,
+  disabled = false,
+  label = "Photo",
+  autoOpenCamera = false,
+}: {
+  image: UploadedImage | null;
+  onChange: (image: UploadedImage | null) => void;
+  onRejected?: (names: string[]) => void;
+  required?: boolean;
+  disabled?: boolean;
+  label?: string;
+  /** When true and no image yet, open the device picker once (camera/gallery on mobile). */
+  autoOpenCamera?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autoOpenedRef = useRef(false);
+  const [busy, setBusy] = useState(false);
+
+  const addFiles = useCallback(
+    async (files: FileList | File[]) => {
+      setBusy(true);
+      try {
+        const { images: added, rejected } = await filesToUploadedImages(files);
+        if (rejected.length && onRejected) onRejected(rejected);
+        if (added.length) onChange(added[0]);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onChange, onRejected]
+  );
+
+  useEffect(() => {
+    if (!autoOpenCamera || image || disabled || busy || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
+    const timer = window.setTimeout(() => {
+      inputRef.current?.click();
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [autoOpenCamera, image, disabled, busy]);
+
+  useEffect(() => {
+    if (!image) autoOpenedRef.current = false;
+  }, [image]);
+
+  if (disabled) {
+    return <span className="inline-block h-9 w-9" aria-hidden />;
+  }
+
+  if (image) {
+    return (
+      <div className="relative inline-flex">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="block h-9 w-9 overflow-hidden rounded-md border border-[#E5E7EB] transition-opacity hover:opacity-80"
+          title={`Replace ${label.toLowerCase()}`}
+          disabled={busy}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image.dataUrl}
+            alt={image.name}
+            className="h-full w-full object-cover"
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#9CA3AF] shadow ring-1 ring-[#E5E7EB] hover:bg-red-50 hover:text-red-600"
+          aria-label={`Remove ${label.toLowerCase()}`}
+          title="Remove photo"
+        >
+          <X className="h-2.5 w-2.5" />
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) void addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-md border border-dashed transition-colors",
+          required
+            ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] hover:border-[#D97706]"
+            : "border-[#CBD5E1] bg-[#F9FAFB] text-[#9CA3AF] hover:border-[#0E66B2] hover:text-[#0E66B2]"
+        )}
+        title={required ? `${label} required` : `Upload ${label.toLowerCase()}`}
+        aria-label={required ? `${label} required` : `Upload ${label.toLowerCase()}`}
+      >
+        {busy ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Upload className="h-4 w-4" aria-hidden />
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) void addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </>
   );
 }
 

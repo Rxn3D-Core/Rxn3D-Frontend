@@ -54,7 +54,8 @@ interface Props {
   onMoreMenuRowChange: (id: number | null) => void
   // bulk actions — statement printing and archiving stay row-level only
   onBulkPrintDriverLabel: () => void
-  onBulkPrintPaperSlip: () => void
+  // Multiple paper slip print disabled from listing
+  // onBulkPrintPaperSlip: () => void
   // pagination
   currentPage: number
   totalPages: number
@@ -113,6 +114,7 @@ export function V3CaseWidget(props: Props) {
               Print Driver label
             </button>
           )}
+          {/* Multiple paper slip print disabled from listing
           <button
             type="button"
             className="rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-100"
@@ -120,6 +122,7 @@ export function V3CaseWidget(props: Props) {
           >
             Print Paper slip
           </button>
+          */}
         </div>
       )}
       <V3CaseTable

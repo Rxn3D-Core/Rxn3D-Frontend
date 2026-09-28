@@ -5,7 +5,7 @@
  * (`images[{slip_id}]`). We keep the original File for upload and a data-URL
  * for inline preview. Only image files within the size limit are accepted.
  *
- * Allowed types (per API): jpeg, jpg, png, gif, webp. Max 10MB each.
+ * Allowed types (per API): jpeg, jpg, png, gif, webp, svg. Max 10MB each.
  */
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
@@ -16,6 +16,16 @@ export const ALLOWED_IMAGE_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
+  "image/svg+xml",
+];
+
+const ALLOWED_IMAGE_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".svg",
 ];
 
 export type UploadedImage = {
@@ -29,10 +39,16 @@ export type UploadedImage = {
 };
 
 export function isAllowedImage(file: File): boolean {
-  return (
-    typeof file.type === "string" &&
-    (ALLOWED_IMAGE_TYPES.includes(file.type) || file.type.startsWith("image/"))
-  );
+  if (typeof file.type === "string" && file.type.length > 0) {
+    if (
+      ALLOWED_IMAGE_TYPES.includes(file.type) ||
+      file.type.startsWith("image/")
+    ) {
+      return true;
+    }
+  }
+  const name = file.name.toLowerCase();
+  return ALLOWED_IMAGE_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
 export function fileToDataUrl(file: File): Promise<string> {

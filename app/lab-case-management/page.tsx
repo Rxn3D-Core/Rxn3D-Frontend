@@ -68,10 +68,12 @@ import {
   saveSlipListingLocationFilters,
   saveSlipListingStatusFilters,
 } from "@/lib/slip-listing-preferences"
-import { printPaperSlipV5ForSlip, printPaperSlipV5ForSlips } from "@/lib/print-paper-slip-v5-from-slip"
+import { printPaperSlipV5ForSlip } from "@/lib/print-paper-slip-v5-from-slip"
+// Multiple paper slip print disabled from listing
+// import { printPaperSlipV5ForSlips } from "@/lib/print-paper-slip-v5-from-slip"
 import {
   resolveListingPaperSlipId,
-  resolveListingPaperSlipJobs,
+  // resolveListingPaperSlipJobs,
 } from "@/lib/paper-slip-listing-print-ids"
 import { useDebounce } from "@/lib/performance-utils"
 import { V3CaseWidget } from "./components/V3CaseWidget"
@@ -778,22 +780,23 @@ export default function LabSlipV3Page() {
     }
   }
 
-  const handleBulkPrintPaperSlip = () => {
-    if (!selected.length) return
-    const selectedRows = slips.filter((slip) => selected.includes(slip.id))
-    const jobs = resolveListingPaperSlipJobs(selectedRows)
-    if (!jobs.length) {
-      toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
-      return
-    }
-    void printPaperSlipV5ForSlips(jobs).catch((error: unknown) => {
-      toast({
-        title: "Unable to print paper slip",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      })
-    })
-  }
+  // Multiple paper slip print disabled from listing
+  // const handleBulkPrintPaperSlip = () => {
+  //   if (!selected.length) return
+  //   const selectedRows = slips.filter((slip) => selected.includes(slip.id))
+  //   const jobs = resolveListingPaperSlipJobs(selectedRows)
+  //   if (!jobs.length) {
+  //     toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
+  //     return
+  //   }
+  //   void printPaperSlipV5ForSlips(jobs).catch((error: unknown) => {
+  //     toast({
+  //       title: "Unable to print paper slip",
+  //       description: error instanceof Error ? error.message : "Please try again.",
+  //       variant: "destructive",
+  //     })
+  //   })
+  // }
 
 
   const advancedFilterContent = showAdvancedFilter ? (
@@ -957,7 +960,8 @@ export default function LabSlipV3Page() {
           canDeleteCase={canDeleteCase}
           allowUndoLocation={allowUndoLocation}
           onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
-          onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
+          // Multiple paper slip print disabled from listing
+          // onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
           printMenuRow={printDropdownOpen}
           moreMenuRow={menuRow}
           onPrintMenuRowChange={setPrintDropdownOpen}

@@ -266,7 +266,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
     const file = e.target.files?.[0]
     if (file) {
       // Validate file type
-      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
       if (!allowedTypes.includes(file.type)) {
         alert("Invalid image type. Please upload a JPG, JPEG, PNG, GIF, or WebP image.")
         if (fileInputRef.current) fileInputRef.current.value = ""
@@ -451,7 +451,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
                       )}
                       <input
                         type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"
                         ref={fileInputRef}
                         style={{ display: "none" }}
                         onChange={handleImageChange}
