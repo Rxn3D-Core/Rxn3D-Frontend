@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { createPortal, flushSync } from "react-dom"
 import dynamic from "next/dynamic"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   X,
   Upload,
@@ -30,6 +31,7 @@ import type { CaseAttachmentsData, SlipAttachmentRecord } from "@/services/slip-
 import { toProxiedFileUrl } from "@/lib/file-proxy"
 import { usePlanCapabilities } from "@/hooks/use-plan-capabilities"
 import FileAttachmentModalContent from "./file-attachment-modal-content"
+import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 
 const STLCanvasOnly = dynamic(() => import("@/components/stl-canvas-only"), { ssr: false })
 
@@ -400,8 +402,7 @@ function PreviewPanel({
     const count = items.length
     if (count <= 1) setSelectedLayout("1x1")
     else if (count === 2) setSelectedLayout("2col")
-    else if (count === 3) setSelectedLayout("3col")
-    else setSelectedLayout("2x2")
+    else setSelectedLayout("2x2") // 3+ → 4-split
   }, [items.length])
 
   const activeLayout = LAYOUT_OPTIONS.find((l) => l.id === selectedLayout) ?? LAYOUT_OPTIONS[0]
@@ -626,7 +627,20 @@ export default function SlipAttachmentBrowserDialog({
   // ── Preview state ───────────────────────────────────────────────────────────
   const [selectedForPreview, setSelectedForPreview] = useState<SlipAttachmentRecord[]>([])
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<number | null>(null)
+  const [attachmentPendingDelete, setAttachmentPendingDelete] = useState<SlipAttachmentRecord | null>(null)
   const showPreview = selectedForPreview.length > 0
+  // Upload panel vs MyStudio are mutually exclusive on existing cases
+  const [uploadExpanded, setUploadExpanded] = useState(true)
+
+  useEffect(() => {
+    if (showPreview) setUploadExpanded(false)
+    else setUploadExpanded(true)
+  }, [showPreview])
+
+  const openUploadPanel = useCallback(() => {
+    setSelectedForPreview([])
+    setUploadExpanded(true)
+  }, [])
 
   // ── Fullscreen (My Studio) ──────────────────────────────────────────────────
   const [showFullscreen, setShowFullscreen] = useState(false)
@@ -665,8 +679,10 @@ export default function SlipAttachmentBrowserDialog({
   useEffect(() => {
     if (open) {
       void fetchData()
-      // Pre-populate staged files from window cache (impression STL files land here)
-      if (typeof window !== "undefined") {
+      // Only hydrate create-slip staged files when there is no existing slip yet.
+      // Existing slips must not inherit leftover create-flow attachments.
+      const shouldHydrateCreateCache = !slipId
+      if (typeof window !== "undefined" && shouldHydrateCreateCache) {
         const cached = ((window as any).__caseDesignAttachments ?? []) as any[]
         const localFiles = cached.filter(
           (item: any) => item.file instanceof File && (item.source !== "attachment" || !item.remoteId)
@@ -702,13 +718,19 @@ export default function SlipAttachmentBrowserDialog({
       setUploadError(null)
       setUploadSuccess(false)
       setSelectedForPreview([])
+      setUploadExpanded(true)
     }
-  }, [open, fetchData])
+  }, [open, fetchData, slipId])
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const slipGroups = useMemo<SlipGroup[]>(() => {
     if (!caseData) return []
-    return caseData.slips
+    return [...caseData.slips]
+      // Latest slip first
+      .sort((a, b) => {
+        const byDate = new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        return byDate !== 0 ? byDate : b.id - a.id
+      })
       .map((slip) => ({
         slipId: slip.id,
         slipNumber: slip.slip_number ?? String(slip.id),
@@ -943,29 +965,50 @@ export default function SlipAttachmentBrowserDialog({
   }, [])
 
   const handleDelete = useCallback(
-    async (record: SlipAttachmentRecord) => {
+    (record: SlipAttachmentRecord) => {
       if (isCaseSubmitted) return
-      const confirmed = window.confirm(
-        `Permanently delete "${record.file_name}"? This removes the file from storage and cannot be undone.`
-      )
-      if (!confirmed) return
-
-      setDeletingAttachmentId(record.id)
-      setUploadError(null)
-      try {
-        const res = await SlipAttachmentsService.deleteAttachment(record.id)
-        if (!res.success) throw new Error(res.message || "Failed to delete attachment")
-        setSelectedForPreview((prev) => prev.filter((r) => r.id !== record.id))
-        await fetchData()
-        onAttached?.()
-      } catch (e) {
-        setUploadError(e instanceof Error ? e.message : "Failed to delete attachment")
-      } finally {
-        setDeletingAttachmentId(null)
-      }
+      setAttachmentPendingDelete(record)
     },
-    [fetchData, isCaseSubmitted, onAttached]
+    [isCaseSubmitted]
   )
+
+  const confirmDeleteAttachment = useCallback(async () => {
+    const record = attachmentPendingDelete
+    if (!record) return
+
+    setDeletingAttachmentId(record.id)
+    setUploadError(null)
+    try {
+      const res = await SlipAttachmentsService.deleteAttachment(record.id)
+      if (!res.success) throw new Error(res.message || "Failed to delete attachment")
+      setSelectedForPreview((prev) => prev.filter((r) => r.id !== record.id))
+      // Remove locally — avoid refetching the full attachment list
+      setCaseData((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          slips: prev.slips.map((slip) => ({
+            ...slip,
+            attachments: slip.attachments.filter((a) => a.id !== record.id),
+          })),
+          all_attachments: (prev.all_attachments ?? []).filter((a) => a.id !== record.id),
+          summary: prev.summary
+            ? {
+                ...prev.summary,
+                slip_attachment_count: Math.max(0, (prev.summary.slip_attachment_count ?? 1) - 1),
+                total_count: Math.max(0, (prev.summary.total_count ?? 1) - 1),
+              }
+            : prev.summary,
+        }
+      })
+      setAttachmentPendingDelete(null)
+      onAttached?.()
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Failed to delete attachment")
+    } finally {
+      setDeletingAttachmentId(null)
+    }
+  }, [attachmentPendingDelete, onAttached])
 
   const toggleSlip = useCallback((slipId: number) => {
     setExpandedSlips((prev) => {
@@ -992,205 +1035,374 @@ export default function SlipAttachmentBrowserDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex max-h-[min(90vh,720px)] w-[min(96vw,1400px)] flex-col overflow-hidden rounded-xl bg-white shadow-2xl md:h-[min(90vh,720px)] md:flex-row">
-          {/* ── Left panel: Upload ─────────────────────────────── */}
-          <div className="flex h-full min-h-0 w-full shrink-0 flex-col border-b border-gray-200 bg-white md:w-[310px] md:border-b-0 md:border-r">
+          {/* ── Left panel: Upload (slides open/closed) ─ */}
+          <AnimatePresence initial={false} mode="sync">
+          {!createOnly && !uploadExpanded ? (
+            <motion.button
+              key="upload-strip"
+              type="button"
+              onClick={openUploadPanel}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 40, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+              className="flex h-full shrink-0 flex-col items-center gap-2 overflow-hidden border-r border-gray-200 bg-gray-50 py-4 text-gray-500 hover:bg-blue-50 hover:text-[#1162A8]"
+              title="Open attachment upload"
+              aria-label="Open attachment upload"
+            >
+              <Paperclip className="h-4 w-4 shrink-0" />
+              <span
+                className="shrink-0 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                Upload
+              </span>
+            </motion.button>
+          ) : (
+          <motion.div
+            key="upload-panel"
+            initial={createOnly ? false : { width: 40, opacity: 0 }}
+            animate={{
+              width: createOnly ? "100%" : "50%",
+              opacity: 1,
+            }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+            className={`flex h-full min-h-0 flex-col overflow-hidden bg-white ${
+              createOnly
+                ? "flex-1"
+                : "shrink-0 border-b border-gray-200 md:border-b-0 md:border-r"
+            }`}
+          >
             {/* Header */}
-            <div className="flex items-center gap-2 px-5 pt-5 pb-2">
+            <div className={`flex items-center gap-2 px-5 ${createOnly ? "pt-4 pb-1" : "pt-5 pb-2"}`}>
               <Paperclip className="w-5 h-5 text-gray-700" />
               <span className="text-base font-semibold text-gray-900">Attachment</span>
+              {createOnly ? (
+                <button
+                  type="button"
+                  className="ml-auto rounded p-1 hover:bg-gray-100"
+                  onClick={onClose}
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="ml-auto rounded p-1 hover:bg-gray-100"
+                  onClick={() => setUploadExpanded(false)}
+                  aria-label="Collapse upload"
+                  title="Collapse upload"
+                >
+                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                </button>
+              )}
             </div>
-            <p className="px-5 pb-4 text-xs text-gray-500 leading-relaxed">
+            <p className={`px-5 text-xs text-gray-500 leading-relaxed ${createOnly ? "pb-3" : "pb-4"}`}>
               Upload case files, scans, photos or documents related to this treatment.
             </p>
 
-            {/* Drop zone */}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
-              <div
-                className={`shrink-0 cursor-pointer rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-8 transition-colors ${
-                  isDragging
-                    ? "border-[#1162A8] bg-blue-50"
-                    : "border-gray-300 hover:border-[#1162A8] hover:bg-blue-50/40"
-                }`}
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-8 h-8 text-gray-400" />
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">Drag &amp; drop files here</p>
-                  <p className="text-xs text-gray-400">or click to browse files.</p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx,.obj"
-                  onChange={handleFileInputChange}
-                />
-              </div>
+            {createOnly ? (
+              /* Create-slip: side-by-side so content fits modal height */
+              <div className="flex min-h-0 flex-1 gap-4 px-5 pb-2">
+                {/* Left controls */}
+                <div className="flex w-[280px] shrink-0 flex-col gap-3">
+                  <div
+                    className={`flex min-h-0 flex-1 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed transition-colors ${
+                      isDragging
+                        ? "border-[#1162A8] bg-blue-50"
+                        : "border-gray-300 hover:border-[#1162A8] hover:bg-blue-50/40"
+                    }`}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-7 w-7 text-gray-400" />
+                    <div className="px-3 text-center">
+                      <p className="text-xs text-gray-500">Drag &amp; drop files here</p>
+                      <p className="text-xs text-gray-400">or click to browse files.</p>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx,.obj"
+                      onChange={handleFileInputChange}
+                    />
+                  </div>
 
-              {/* Staged files — cards with live progress whenever a slip can take the upload */}
-              {stagedFiles.length > 0 && (
-                liveUpload ? (
-                  <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto">
-                    {stagedFiles.map((f) => {
-                      const image = isImageFile(f.file.name)
-                      const waiting = f.status === "uploading" && f.progress >= 100
-                      const shown = Math.min(f.progress, 95)
-                      return (
-                        <div key={f.id} className="flex min-w-0 flex-col gap-1">
-                          <div className="relative h-[72px] w-full overflow-hidden rounded-md border border-gray-200 bg-gray-50">
-                            {image ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={f.url} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center">
-                                <FileText className="h-5 w-5 text-gray-300" />
-                              </div>
-                            )}
-                            {f.status === "done" && (
-                              <div className="absolute right-1 top-1">
-                                <UploadCheck size={20} aria-label="Uploaded" />
-                              </div>
-                            )}
-                            {f.status === "uploading" && (
-                              <div className="absolute inset-x-0 bottom-0 bg-white/95 px-1.5 py-1">
-                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                                  <div
-                                    className={`h-full rounded-full bg-[#1162A8] ${waiting ? "w-full animate-pulse" : ""}`}
-                                    style={waiting ? undefined : { width: `${shown}%` }}
-                                  />
+                  <label className="flex shrink-0 cursor-pointer items-start gap-2">
+                    <Checkbox
+                      checked={makeAvailable}
+                      onCheckedChange={(v) => setMakeAvailable(Boolean(v))}
+                      className="mt-0.5"
+                    />
+                    <span className="text-xs leading-relaxed text-gray-700">
+                      Make files available to related cases
+                    </span>
+                  </label>
+
+                  {uploadError && (
+                    <p className="shrink-0 text-xs text-red-500">{uploadError}</p>
+                  )}
+                </div>
+
+                {/* Right: file previews */}
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-gray-100 bg-gray-50/60 p-3">
+                  {stagedFiles.length === 0 ? (
+                    <div className="flex flex-1 items-center justify-center text-sm text-gray-400">
+                      Uploaded files will appear here
+                    </div>
+                  ) : (
+                    <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-3 overflow-y-auto sm:grid-cols-4 lg:grid-cols-6">
+                      {stagedFiles.map((f) => {
+                        const image = isImageFile(f.file.name)
+                        const waiting = f.status === "uploading" && f.progress >= 100
+                        const shown = Math.min(f.progress, 95)
+                        return (
+                          <div key={f.id} className="flex min-w-0 flex-col gap-1.5">
+                            <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-gray-200 bg-white">
+                              {image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={f.url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center">
+                                  <FileText className="h-8 w-8 text-gray-300" />
                                 </div>
-                                <p className="mt-0.5 text-center text-[9px] font-medium text-[#1162A8]">
-                                  {waiting ? "Saving…" : `${shown}%`}
-                                </p>
+                              )}
+                              {f.status === "done" && (
+                                <div className="absolute right-1.5 top-1.5">
+                                  <UploadCheck size={22} aria-label="Uploaded" />
+                                </div>
+                              )}
+                              {f.status === "uploading" && (
+                                <div className="absolute inset-x-0 bottom-0 bg-white/95 px-2 py-1.5">
+                                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                                    <div
+                                      className={`h-full rounded-full bg-[#1162A8] ${waiting ? "w-full animate-pulse" : ""}`}
+                                      style={waiting ? undefined : { width: `${shown}%` }}
+                                    />
+                                  </div>
+                                  <p className="mt-1 text-center text-xs font-semibold text-[#1162A8]">
+                                    {waiting ? "Saving…" : `${shown}%`}
+                                  </p>
+                                </div>
+                              )}
+                              {f.status !== "uploading" && !(slipId && f.status === "done") && (
+                                <button
+                                  type="button"
+                                  className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-gray-500 shadow-sm hover:text-red-500"
+                                  onClick={() => void removeStaged(f)}
+                                  aria-label="Remove file"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
+                              {f.status === "error" && (
+                                <button
+                                  type="button"
+                                  className="absolute inset-x-0 bottom-0 bg-white/90 py-1 text-xs font-medium text-[#1162A8]"
+                                  onClick={() => retryStaged(f)}
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            </div>
+                            <span className="truncate text-xs font-medium text-gray-700" title={f.file.name}>
+                              {f.file.name}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Drop zone */}
+                <div className="flex min-h-0 flex-1 flex-col gap-3 px-5">
+                  <div
+                    className={`shrink-0 cursor-pointer rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 py-8 transition-colors ${
+                      isDragging
+                        ? "border-[#1162A8] bg-blue-50"
+                        : "border-gray-300 hover:border-[#1162A8] hover:bg-blue-50/40"
+                    }`}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="w-8 h-8 text-gray-400" />
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">Drag &amp; drop files here</p>
+                      <p className="text-xs text-gray-400">or click to browse files.</p>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx,.obj"
+                      onChange={handleFileInputChange}
+                    />
+                  </div>
+
+                  {/* Staged files — cards with live progress whenever a slip can take the upload */}
+                  {stagedFiles.length > 0 && (
+                    liveUpload ? (
+                      <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-3 overflow-y-auto">
+                        {stagedFiles.map((f) => {
+                          const image = isImageFile(f.file.name)
+                          const waiting = f.status === "uploading" && f.progress >= 100
+                          const shown = Math.min(f.progress, 95)
+                          return (
+                            <div key={f.id} className="flex min-w-0 flex-col gap-1.5">
+                              <div className="relative aspect-square w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                                {image ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={f.url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center">
+                                    <FileText className="h-8 w-8 text-gray-300" />
+                                  </div>
+                                )}
+                                {f.status === "done" && (
+                                  <div className="absolute right-1.5 top-1.5">
+                                    <UploadCheck size={22} aria-label="Uploaded" />
+                                  </div>
+                                )}
+                                {f.status === "uploading" && (
+                                  <div className="absolute inset-x-0 bottom-0 bg-white/95 px-2 py-1.5">
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                                      <div
+                                        className={`h-full rounded-full bg-[#1162A8] ${waiting ? "w-full animate-pulse" : ""}`}
+                                        style={waiting ? undefined : { width: `${shown}%` }}
+                                      />
+                                    </div>
+                                    <p className="mt-1 text-center text-xs font-semibold text-[#1162A8]">
+                                      {waiting ? "Saving…" : `${shown}%`}
+                                    </p>
+                                  </div>
+                                )}
+                                {f.status !== "uploading" && !(slipId && f.status === "done") && (
+                                  <button
+                                    type="button"
+                                    className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/90 text-gray-500 shadow-sm hover:text-red-500"
+                                    onClick={() => void removeStaged(f)}
+                                    aria-label="Remove file"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                )}
+                                {f.status === "error" && (
+                                  <button
+                                    type="button"
+                                    className="absolute inset-x-0 bottom-0 bg-white/90 py-1 text-xs font-medium text-[#1162A8]"
+                                    onClick={() => retryStaged(f)}
+                                  >
+                                    Retry
+                                  </button>
+                                )}
                               </div>
+                              <span className="truncate text-xs font-medium text-gray-700" title={f.file.name}>
+                                {f.file.name}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                    <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
+                      {stagedFiles.map((f) => (
+                        <div key={f.id} className="flex flex-col gap-1 text-xs text-gray-700 bg-gray-50 rounded px-2 py-1">
+                          <div className="flex items-center gap-2">
+                            {f.status === "done" ? (
+                              <UploadCheck size={20} aria-label="Uploaded" />
+                            ) : (
+                              <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
                             )}
-                            {f.status !== "uploading" && !(slipId && f.status === "done") && (
-                              <button
-                                type="button"
-                                className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-white/90 text-gray-500 shadow-sm hover:text-red-500"
-                                onClick={() => void removeStaged(f)}
-                                aria-label="Remove file"
-                              >
-                                <X className="h-2.5 w-2.5" />
-                              </button>
-                            )}
+                            <span className="flex-1 truncate">{f.file.name}</span>
+                            <span className="text-gray-400 flex-shrink-0">{formatBytes(f.file.size)}</span>
                             {f.status === "error" && (
                               <button
                                 type="button"
-                                className="absolute inset-x-0 bottom-0 bg-white/90 py-0.5 text-[9px] font-medium text-[#1162A8]"
+                                className="text-[#1162A8] hover:underline flex-shrink-0"
                                 onClick={() => retryStaged(f)}
                               >
                                 Retry
                               </button>
                             )}
+                            {f.status !== "uploading" && !(slipId && f.status === "done") && (
+                              <button
+                                type="button"
+                                className="text-gray-400 hover:text-red-500"
+                                onClick={() => void removeStaged(f)}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
-                          <span className="truncate text-[9px] text-gray-600" title={f.file.name}>
-                            {f.file.name}
-                          </span>
+                          {f.status === "uploading" && (
+                            <div>
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                  className={`h-full rounded-full bg-[#1162A8] ${f.progress >= 100 ? "w-full animate-pulse" : ""}`}
+                                  style={f.progress >= 100 ? undefined : { width: `${Math.min(f.progress, 95)}%` }}
+                                />
+                              </div>
+                              <p className="mt-0.5 text-[10px] font-medium text-[#1162A8]">
+                                {f.progress >= 100 ? "Saving…" : `${Math.min(f.progress, 95)}%`}
+                              </p>
+                            </div>
+                          )}
+                          {f.status === "error" && f.error && (
+                            <p className="text-[10px] text-red-500">{f.error}</p>
+                          )}
                         </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                <div className="flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
-                  {stagedFiles.map((f) => (
-                    <div key={f.id} className="flex flex-col gap-1 text-xs text-gray-700 bg-gray-50 rounded px-2 py-1">
-                      <div className="flex items-center gap-2">
-                        {f.status === "done" ? (
-                          <UploadCheck size={20} aria-label="Uploaded" />
-                        ) : (
-                          <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                        )}
-                        <span className="flex-1 truncate">{f.file.name}</span>
-                        <span className="text-gray-400 flex-shrink-0">{formatBytes(f.file.size)}</span>
-                        {f.status === "error" && (
-                          <button
-                            type="button"
-                            className="text-[#1162A8] hover:underline flex-shrink-0"
-                            onClick={() => retryStaged(f)}
-                          >
-                            Retry
-                          </button>
-                        )}
-                        {f.status !== "uploading" && !(slipId && f.status === "done") && (
-                          <button
-                            type="button"
-                            className="text-gray-400 hover:text-red-500"
-                            onClick={() => void removeStaged(f)}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                      {f.status === "uploading" && (
-                        <div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className={`h-full rounded-full bg-[#1162A8] ${f.progress >= 100 ? "w-full animate-pulse" : ""}`}
-                              style={f.progress >= 100 ? undefined : { width: `${Math.min(f.progress, 95)}%` }}
-                            />
-                          </div>
-                          <p className="mt-0.5 text-[10px] font-medium text-[#1162A8]">
-                            {f.progress >= 100 ? "Saving…" : `${Math.min(f.progress, 95)}%`}
-                          </p>
-                        </div>
-                      )}
-                      {f.status === "error" && f.error && (
-                        <p className="text-[10px] text-red-500">{f.error}</p>
-                      )}
+                      ))}
                     </div>
-                  ))}
+                    )
+                  )}
+
+                  {/* Upload error */}
+                  {uploadError && (
+                    <p className="text-xs text-red-500">{uploadError}</p>
+                  )}
+
+                  {/* Make available checkbox */}
+                  <label className="mt-auto flex items-start gap-2 cursor-pointer pb-2">
+                    <Checkbox
+                      checked={makeAvailable}
+                      onCheckedChange={(v) => setMakeAvailable(Boolean(v))}
+                      className="mt-0.5"
+                    />
+                    <span className="text-xs text-gray-700 leading-relaxed">
+                      Make files available to related cases
+                    </span>
+                  </label>
                 </div>
-                )
-              )}
-
-              {/* Upload error */}
-              {uploadError && (
-                <p className="text-xs text-red-500">{uploadError}</p>
-              )}
-
-              {/* Label textarea */}
-              <div className="mt-auto">
-                <textarea
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="Label or describe this attachment"
-                  className="w-full h-[80px] resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#1162A8] focus:ring-1 focus:ring-[#1162A8]"
-                />
-              </div>
-
-              {/* Make available checkbox */}
-              <label className="flex items-start gap-2 cursor-pointer pb-2">
-                <Checkbox
-                  checked={makeAvailable}
-                  onCheckedChange={(v) => setMakeAvailable(Boolean(v))}
-                  className="mt-0.5"
-                />
-                <span className="text-xs text-gray-700 leading-relaxed">
-                  Make files available to related cases
-                </span>
-              </label>
-            </div>
+              </>
+            )}
 
             {/* Actions */}
-            <div className="flex shrink-0 flex-col gap-2 border-t border-gray-100 px-5 py-4">
+            <div className={`flex shrink-0 flex-col gap-2 border-t border-gray-100 px-5 ${createOnly ? "py-3" : "py-4"}`}>
               {uploadSuccess && (
                 <p className="text-xs font-medium text-green-600">
                   Files uploaded successfully
                 </p>
               )}
-              <div className="flex gap-2">
+              <div className={`flex gap-2 ${createOnly ? "justify-center" : ""}`}>
                 <Button
                   variant={liveUpload || stagedFiles.length > 0 ? "outline" : "default"}
                   size="sm"
                   className={
                     liveUpload || stagedFiles.length > 0
-                      ? "h-9 flex-1 text-xs"
-                      : "h-9 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85]"
+                      ? `h-9 text-xs ${createOnly ? "min-w-[96px] px-4" : "flex-1"}`
+                      : `h-9 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85] ${createOnly ? "min-w-[96px] px-4" : "flex-1"}`
                   }
                   onClick={onClose}
                   disabled={uploading}
@@ -1199,7 +1411,7 @@ export default function SlipAttachmentBrowserDialog({
                 </Button>
                 <Button
                   size="sm"
-                  className="h-9 flex-1 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85]"
+                  className={`h-9 bg-[#1162A8] text-xs text-white hover:bg-[#0d4a85] ${createOnly ? "min-w-[96px] px-4" : "flex-1"}`}
                   onClick={handleAttachFiles}
                   disabled={
                     liveUpload
@@ -1219,182 +1431,200 @@ export default function SlipAttachmentBrowserDialog({
                 </Button>
               </div>
             </div>
-          </div>
+          </motion.div>
+          )}
+          </AnimatePresence>
 
-          {/* ── Right panel: Browser ───────────────────────────── */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
-            {/* File browser */}
-            <div
-              className={`flex min-h-0 min-w-0 flex-col overflow-hidden transition-all ${
-                showPreview ? "md:w-[45%] md:flex-none" : "flex-1"
-              } ${showPreview ? "max-md:max-h-[40%]" : "flex-1"}`}
-            >
-              {/* Header row */}
-              <div className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 bg-gray-50">
-                <div className="flex items-center gap-4 min-w-0 overflow-hidden">
-                  {displayedDocName && (
-                    <span className="text-xs text-gray-700 font-medium flex-shrink-0">
-                      Dr: <span className="font-semibold text-gray-900">{displayedDocName}</span>
-                    </span>
-                  )}
-                  {displayedPatientName && (
-                    <span className="text-xs text-gray-700 flex-shrink-0">
-                      Patient: <span className="font-semibold text-gray-900">{displayedPatientName}</span>
-                    </span>
-                  )}
-                  {caseData && (
-                    <span className="text-xs text-gray-500 flex-shrink-0">
-                      Total Size: {totalSizeMB} MB
-                    </span>
+          {/* ── Right panel: Browser (existing cases only) ───── */}
+          {!createOnly && (
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
+              {/* File browser — slides to 50% when MyStudio opens */}
+              <motion.div
+                initial={false}
+                animate={{ width: showPreview ? "50%" : "100%" }}
+                transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+                className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${
+                  showPreview ? "md:flex-none" : "flex-1"
+                } ${showPreview ? "max-md:max-h-[40%]" : "flex-1"}`}
+              >
+                {/* Header row */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-b flex-shrink-0 bg-gray-50">
+                  <div className="flex items-center gap-4 min-w-0 overflow-hidden">
+                    {displayedDocName && (
+                      <span className="text-xs text-gray-700 font-medium flex-shrink-0">
+                        Dr: <span className="font-semibold text-gray-900">{displayedDocName}</span>
+                      </span>
+                    )}
+                    {displayedPatientName && (
+                      <span className="text-xs text-gray-700 flex-shrink-0">
+                        Patient: <span className="font-semibold text-gray-900">{displayedPatientName}</span>
+                      </span>
+                    )}
+                    {caseData && (
+                      <span className="text-xs text-gray-500 flex-shrink-0">
+                        Total Size: {totalSizeMB} MB
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="p-1 rounded hover:bg-gray-200 flex-shrink-0 ml-2"
+                    onClick={onClose}
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+
+                {/* Filter bar */}
+                <div className="flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 flex-wrap">
+                  <Select value={stageFilter} onValueChange={setStageFilter}>
+                    <SelectTrigger className="h-7 w-[110px] text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Stages</SelectItem>
+                      {availableStages.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
+                    <SelectTrigger className="h-7 w-[110px] text-[11px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Visibility</SelectItem>
+                      <SelectItem value="public">Public</SelectItem>
+                      <SelectItem value="private">Private</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <button
+                    type="button"
+                    className="h-7 text-[11px] px-2.5 rounded-md font-medium flex items-center transition-opacity hover:opacity-80"
+                    style={hideArchived
+                      ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", color: "#fff", border: "1.5px solid transparent" }
+                      : { background: "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box", border: "1.5px solid transparent", color: "#82298D" }
+                    }
+                    onClick={() => setHideArchived((v) => !v)}
+                  >
+                    <Archive className="w-3 h-3 mr-1" />
+                    {hideArchived ? "Hide Archived" : "Show Archived"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="h-7 text-[11px] px-2.5 rounded-md font-medium transition-opacity hover:opacity-80"
+                    style={selectMultiple
+                      ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", color: "#fff", border: "1.5px solid transparent" }
+                      : { background: "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box", border: "1.5px solid transparent", color: "#82298D" }
+                    }
+                    onClick={() => {
+                      setSelectMultiple((v) => !v)
+                      if (selectMultiple) setSelectedForPreview([])
+                    }}
+                  >
+                    Select Multiple
+                  </button>
+                </div>
+
+                {/* Scrollable sections */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+                      Loading attachments…
+                    </div>
+                  ) : error ? (
+                    <div className="flex flex-col items-center justify-center h-32 gap-2">
+                      <p className="text-red-500 text-sm">{error}</p>
+                      <Button size="sm" variant="outline" onClick={fetchData}>Retry</Button>
+                    </div>
+                  ) : !caseId ? (
+                    <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+                      No case associated yet
+                    </div>
+                  ) : slipGroups.length === 0 ? (
+                    <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+                      No attachments found
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {slipGroups.map((group) => {
+                        const isExpanded = expandedSlips.has(group.slipId)
+                        return (
+                          <div key={group.slipId}>
+                            {/* Section header */}
+                            <button
+                              type="button"
+                              className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition"
+                              onClick={() => toggleSlip(group.slipId)}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                              )}
+                              <FolderOpen className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                              <span className="text-sm font-medium text-gray-800">{group.stageName}</span>
+                              <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-600 font-medium">
+                                {group.attachments.length} file{group.attachments.length !== 1 ? "s" : ""}
+                              </span>
+                              <span className="ml-auto text-xs text-gray-400 flex-shrink-0">
+                                Slip # {group.slipNumber}
+                              </span>
+                            </button>
+
+                            {/* File thumbnails */}
+                            {isExpanded && (
+                              <div className="px-4 pb-4">
+                                <div className="flex gap-3 flex-wrap">
+                                  {group.attachments.map((record) => (
+                                    <FileCard
+                                      key={record.id}
+                                      record={record}
+                                      selected={selectedForPreview.some((r) => r.id === record.id)}
+                                      onSelect={handleSelectForPreview}
+                                      onDownload={handleDownload}
+                                      onDelete={handleDelete}
+                                      canDelete={!isCaseSubmitted}
+                                      deleting={deletingAttachmentId === record.id}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="p-1 rounded hover:bg-gray-200 flex-shrink-0 ml-2"
-                  onClick={onClose}
-                >
-                  <X className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
+              </motion.div>
 
-              {/* Filter bar */}
-              <div className="flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 flex-wrap">
-                <Select value={stageFilter} onValueChange={setStageFilter}>
-                  <SelectTrigger className="h-7 w-[110px] text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Stages</SelectItem>
-                    {availableStages.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
-                  <SelectTrigger className="h-7 w-[110px] text-[11px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Visibility</SelectItem>
-                    <SelectItem value="public">Public</SelectItem>
-                    <SelectItem value="private">Private</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <button
-                  type="button"
-                  className="h-7 text-[11px] px-2.5 rounded-md font-medium flex items-center transition-opacity hover:opacity-80"
-                  style={hideArchived
-                    ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", color: "#fff", border: "1.5px solid transparent" }
-                    : { background: "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box", border: "1.5px solid transparent", color: "#82298D" }
-                  }
-                  onClick={() => setHideArchived((v) => !v)}
-                >
-                  <Archive className="w-3 h-3 mr-1" />
-                  {hideArchived ? "Hide Archived" : "Show Archived"}
-                </button>
-
-                <button
-                  type="button"
-                  className="h-7 text-[11px] px-2.5 rounded-md font-medium transition-opacity hover:opacity-80"
-                  style={selectMultiple
-                    ? { background: "linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%)", color: "#fff", border: "1.5px solid transparent" }
-                    : { background: "linear-gradient(white,white) padding-box, linear-gradient(256.66deg,#2AA6DE 0%,#82298D 50%,#C9539F 100%) border-box", border: "1.5px solid transparent", color: "#82298D" }
-                  }
-                  onClick={() => {
-                    setSelectMultiple((v) => !v)
-                    if (selectMultiple) setSelectedForPreview([])
-                  }}
-                >
-                  Select Multiple
-                </button>
-              </div>
-
-              {/* Scrollable sections */}
-              <div className="flex-1 overflow-y-auto min-h-0">
-                {loading ? (
-                  <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-                    Loading attachments…
-                  </div>
-                ) : error ? (
-                  <div className="flex flex-col items-center justify-center h-32 gap-2">
-                    <p className="text-red-500 text-sm">{error}</p>
-                    <Button size="sm" variant="outline" onClick={fetchData}>Retry</Button>
-                  </div>
-                ) : !caseId ? (
-                  <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-                    No case associated yet
-                  </div>
-                ) : slipGroups.length === 0 ? (
-                  <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
-                    No attachments found
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {slipGroups.map((group) => {
-                      const isExpanded = expandedSlips.has(group.slipId)
-                      return (
-                        <div key={group.slipId}>
-                          {/* Section header */}
-                          <button
-                            type="button"
-                            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 transition"
-                            onClick={() => toggleSlip(group.slipId)}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                            )}
-                            <FolderOpen className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                            <span className="text-sm font-medium text-gray-800">{group.stageName}</span>
-                            <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-100 text-[10px] text-gray-600 font-medium">
-                              {group.attachments.length} file{group.attachments.length !== 1 ? "s" : ""}
-                            </span>
-                            <span className="ml-auto text-xs text-gray-400 flex-shrink-0">
-                              Slip # {group.slipNumber}
-                            </span>
-                          </button>
-
-                          {/* File thumbnails */}
-                          {isExpanded && (
-                            <div className="px-4 pb-4">
-                              <div className="flex gap-3 flex-wrap">
-                                {group.attachments.map((record) => (
-                                  <FileCard
-                                    key={record.id}
-                                    record={record}
-                                    selected={selectedForPreview.some((r) => r.id === record.id)}
-                                    onSelect={handleSelectForPreview}
-                                    onDownload={handleDownload}
-                                    onDelete={handleDelete}
-                                    canDelete={!isCaseSubmitted}
-                                    deleting={deletingAttachmentId === record.id}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+              {/* Preview panel — slides in from the right at 50% */}
+              <AnimatePresence initial={false}>
+                {showPreview && (
+                  <motion.div
+                    key="mystudio-panel"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: "50%", opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+                    className="flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
+                  >
+                    <div className="flex h-full w-[min(50vw,700px)] min-w-[280px] flex-1 flex-col">
+                      <PreviewPanel
+                        items={selectedForPreview}
+                        onClear={() => setSelectedForPreview([])}
+                        onFullscreen={() => setShowFullscreen(true)}
+                      />
+                    </div>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
-
-            {/* Preview panel */}
-            {showPreview && (
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col md:w-[55%] md:flex-none">
-                <PreviewPanel
-                  items={selectedForPreview}
-                  onClear={() => setSelectedForPreview([])}
-                  onFullscreen={() => setShowFullscreen(true)}
-                />
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -1417,6 +1647,25 @@ export default function SlipAttachmentBrowserDialog({
           </div>,
           document.body
         )}
+
+      <DeleteConfirmationModal
+        isOpen={Boolean(attachmentPendingDelete)}
+        onClose={() => {
+          if (deletingAttachmentId == null) setAttachmentPendingDelete(null)
+        }}
+        onConfirm={confirmDeleteAttachment}
+        title="Delete attachment?"
+        description={
+          attachmentPendingDelete
+            ? `Permanently delete "${attachmentPendingDelete.file_name}"? This removes the file from storage and cannot be undone.`
+            : undefined
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        isLoading={deletingAttachmentId != null}
+        overlayClassName="z-[10050]"
+        contentClassName="z-[10051]"
+      />
     </>
   )
 }
