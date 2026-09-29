@@ -22,6 +22,7 @@ interface Props {
   onSearchChange: (value: string) => void
   onSearchEnter: () => void
   onAdvancedFilterClick: () => void
+  advancedFilterActive?: boolean
   advancedFilterContent?: ReactNode
   locations: string[]
   onLocationChange: (value: string) => void
@@ -94,6 +95,7 @@ export function V3CaseWidget(props: Props) {
         onSearchChange={props.onSearchChange}
         onSearchEnter={props.onSearchEnter}
         onAdvancedFilterClick={props.onAdvancedFilterClick}
+        advancedFilterActive={props.advancedFilterActive}
         locations={props.locations}
         onLocationChange={props.onLocationChange}
         statuses={props.statuses}

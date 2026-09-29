@@ -63,6 +63,7 @@ interface Props {
   onSearchChange: (value: string) => void
   onSearchEnter: () => void
   onAdvancedFilterClick: () => void
+  advancedFilterActive?: boolean
   locations: string[]
   onLocationChange: (value: string) => void
   statuses: string[]
@@ -79,6 +80,7 @@ export function V3FilterBar({
   onSearchChange,
   onSearchEnter,
   onAdvancedFilterClick,
+  advancedFilterActive = false,
   locations,
   onLocationChange,
   statuses,
@@ -242,7 +244,18 @@ export function V3FilterBar({
       </div>
 
         <div className="order-2 flex shrink-0 items-center gap-2 md:order-none">
-        <IconBtn aria-label="Filters" tooltip="Filters" onClick={onAdvancedFilterClick}><Filter className="h-5 w-5" /></IconBtn>
+        <svg width="0" height="0" className="absolute" aria-hidden>
+          <defs>
+            <linearGradient id="v3IconStroke" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2AA6DE" />
+              <stop offset="51.11%" stopColor="#82298D" />
+              <stop offset="100%" stopColor="#C9539F" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <IconBtn aria-label="Filters" tooltip="Filters" active={advancedFilterActive} onClick={onAdvancedFilterClick}>
+          <Filter className="h-5 w-5" stroke={advancedFilterActive ? "url(#v3IconStroke)" : "currentColor"} />
+        </IconBtn>
 
         {/* Columns toggle button + panel */}
         <div ref={colPanelRef} className="shrink-0" style={{ position: "relative" }}>
@@ -252,7 +265,7 @@ export function V3FilterBar({
             active={colPanelOpen}
             onClick={() => setColPanelOpen((o) => !o)}
           >
-            <Columns className="h-5 w-5" />
+            <Columns className="h-5 w-5" stroke={colPanelOpen ? "url(#v3IconStroke)" : "currentColor"} />
           </IconBtn>
 
           {colPanelOpen && (
