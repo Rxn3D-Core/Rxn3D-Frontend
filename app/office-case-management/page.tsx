@@ -711,6 +711,13 @@ function OfficeCaseManagementPage() {
             }
           }}
           onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
+          advancedFilterActive={
+            officeFilter !== "All" ||
+            productType !== "All" ||
+            doctorFilter !== "All" ||
+            stageFilter !== "All" ||
+            showWithAttachments
+          }
           advancedFilterContent={advancedFilterContent}
           locations={selectedLocations}
           onLocationChange={handleLocationFilterChange}

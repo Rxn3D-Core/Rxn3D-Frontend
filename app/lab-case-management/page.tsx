@@ -919,6 +919,15 @@ export default function LabSlipV3Page() {
             }
           }}
           onAdvancedFilterClick={() => setShowAdvancedFilter((open) => !open)}
+          advancedFilterActive={
+            !!dateRange.start ||
+            !!dateRange.end ||
+            officeFilter !== "All" ||
+            productType !== "All" ||
+            doctorFilter !== "All" ||
+            stageFilter !== "All" ||
+            showWithAttachments
+          }
           advancedFilterContent={advancedFilterContent}
           locations={selectedLocations}
           onLocationChange={handleLocationFilterChange}
