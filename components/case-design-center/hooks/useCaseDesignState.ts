@@ -287,9 +287,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
     });
   };
   const isPrepPonticExpanded = (toothNumber: number) => expandedPrepPontic[toothNumber] !== false;
-  // In read-only (virtual slip) mode, always show both arches regardless of initialArch.
-  const [showMaxillary, setShowMaxillary] = useState(props.caseSubmitted ? true : props.initialArch !== "mandibular");
-  const [showMandibular, setShowMandibular] = useState(props.caseSubmitted ? true : props.initialArch !== "maxillary");
+  // In read-only (virtual slip) and edit-slip modes, always show both arches regardless of initialArch.
+  const showBothArchesByDefault = Boolean(props.caseSubmitted || props.preloadInitialSlipState);
+  const [showMaxillary, setShowMaxillary] = useState(showBothArchesByDefault ? true : props.initialArch !== "mandibular");
+  const [showMandibular, setShowMandibular] = useState(showBothArchesByDefault ? true : props.initialArch !== "maxillary");
   const [showDetails, setShowDetails] = useState(false);
 
   // Opposing arch extraction map: toothNumber → extractionCode
@@ -1756,9 +1757,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
         const virtualTooth = -ap.id;
         const existingVirtual = toothFieldProgress.getToothProduct(arch, virtualTooth);
         if (
-          !existingVirtual ||
-          existingVirtual.id !== product.id ||
-          !isHydratedProductApiData(existingVirtual)
+          existingVirtual !== product &&
+          (!existingVirtual ||
+            existingVirtual.id !== product.id ||
+            !isHydratedProductApiData(existingVirtual))
         ) {
           toothFieldProgress.setToothProduct(arch, virtualTooth, product);
           autoPopulateDefaultAddons(arch, virtualTooth, product);
@@ -1787,8 +1789,9 @@ export function useCaseDesignState(props: CaseDesignProps) {
             for (const tn of cardTeeth) {
               const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
               if (
-                existingOnTooth?.id === product.id &&
-                isHydratedProductApiData(existingOnTooth)
+                existingOnTooth === product ||
+                (existingOnTooth?.id === product.id &&
+                  isHydratedProductApiData(existingOnTooth))
               ) {
                 continue;
               }
@@ -1824,8 +1827,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
         continue;
       }
 
+      // Cache only holds full detail responses; products with no advance fields / shades
+      // are still complete and must not be refetched every run (refetch → setToothProduct → rerun).
       const cached = cachedProductRef.current.get(ap.productId);
-      if (cached && isHydratedProductApiData(cached)) {
+      if (cached) {
         applyIfReady(cached);
         continue;
       }
