@@ -2,7 +2,7 @@ import { addDays, format, startOfDay } from "date-fns";
 import type { Matcher } from "react-day-picker";
 import type { BusinessHour } from "@/lib/api-business-settings";
 import type { Arch, ProductApiData } from "../types";
-import { hasRetentionOptions } from "./categoryHelpers";
+import { hasRetentionOptions, parseStageDisplayName } from "./categoryHelpers";
 import { findVariationByTeethCount, resolveVariationDays } from "./variationHelpers";
 
 const DAY_NAME_TO_INDEX: Record<string, number> = {
@@ -236,7 +236,8 @@ export function resolveSlotStageName(
     (isFixed
       ? getFieldValue?.(arch, repTooth, "fixed_stage")
       : getFieldValue?.(arch, repTooth, "stage"));
-  if (fromMap?.trim()) return fromMap.trim();
+  const fromMapName = parseStageDisplayName(fromMap).trim();
+  if (fromMapName) return fromMapName;
   const defaultStage = product?.stages?.find((s) => s.is_default === "Yes");
   return defaultStage?.name;
 }
