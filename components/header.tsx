@@ -928,14 +928,28 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
               <HeaderWaffleLauncher />
-              <Image
-                src="/images/rxn3d-latest.png"
-                alt="RXN3D"
-                width={195}
-                height={76}
-                priority
-                className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
-              />
+              {isSuperAdmin ? (
+                <Image
+                  src="/images/rxn3d-latest.png"
+                  alt="RXN3D"
+                  width={195}
+                  height={76}
+                  priority
+                  className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
+                />
+              ) : (() => {
+                const selectedLocationObj = typeof window !== 'undefined'
+                  ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
+                  : null
+                const customerId = selectedLocation || selectedLocationObj?.id || null
+                return customerId ? (
+                  <CustomerLogo
+                    customerId={customerId}
+                    alt="Company Logo"
+                    className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0 max-w-[160px] md:max-w-[200px] lg:max-w-[240px]"
+                  />
+                ) : null
+              })()}
               {!isSuperAdmin && canCreateSlip && (
                 <Button
                   className={`${NEW_SLIP_BUTTON_CLASS} hidden sm:inline-flex`}
@@ -1007,7 +1021,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
 
             {/* Center Section - Logo or Search */}
             <div className="flex-1 flex items-center justify-center min-w-0 mx-2 sm:mx-4 md:mx-6">
-              {isSuperAdmin ? (
+              {isSuperAdmin && (
                 <div className="w-full max-w-md lg:max-w-lg xl:max-w-xl">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -1017,22 +1031,6 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                       className="w-full pl-10 pr-4 h-8 sm:h-9 md:h-10 text-sm border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8] focus:border-[#1162a8] dark:bg-gray-800 dark:border-gray-700"
                     />
                   </div>
-                </div>
-              ) : (
-                <div className="hidden 2xl:flex [body[data-sidebar-expanded='false']_&]:flex items-center justify-center max-w-full">
-                  {(() => {
-                    const selectedLocationObj = typeof window !== 'undefined'
-                      ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
-                      : null
-                    const customerId = selectedLocation || selectedLocationObj?.id || null
-                    return customerId ? (
-                      <CustomerLogo
-                        customerId={customerId}
-                        alt="Company Logo"
-                        className="h-10 sm:h-14 md:h-16 lg:h-[72px] w-auto object-contain max-w-[240px] sm:max-w-[280px] md:max-w-[320px] lg:max-w-[360px]"
-                      />
-                    ) : null
-                  })()}
                 </div>
               )}
             </div>
@@ -1128,7 +1126,7 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="h-10 w-10 sm:h-11 sm:w-11 md:h-12 md:w-12 lg:h-14 lg:w-14 p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
+                    className="h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14 lg:h-[4.5rem] lg:w-[4.5rem] p-0 rounded-full hover:ring-2 hover:ring-[#1162a8] transition-all"
                   >
                     <Avatar className="h-full w-full ring-2 ring-gray-200 dark:ring-gray-700">
                       <AvatarImage

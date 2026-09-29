@@ -356,10 +356,12 @@ export default function LabSlipV3Page() {
   const allStages = useMemo(() => Array.from(seenStagesRef.current).sort((a, b) => a.localeCompare(b)), [slips])
 
   const officeFilterOptions = useMemo(() => {
+    const seen = new Set<string>()
     const fromConnections = connectedOffices
       .map((office) => {
         const value = (office.code || office.name || "").trim()
-        if (!value) return null
+        if (!value || seen.has(value)) return null
+        seen.add(value)
         const label = office.code && office.name && office.code !== office.name
           ? `${office.name} (${office.code})`
           : office.name || office.code || value
@@ -367,7 +369,6 @@ export default function LabSlipV3Page() {
       })
       .filter((option): option is { value: string; label: string } => Boolean(option))
 
-    const seen = new Set(fromConnections.map((option) => option.value))
     const fromSlips = Array.from(seenOfficesRef.current)
       .filter((code) => code && !seen.has(code))
       .map((code) => ({ value: code, label: code }))
