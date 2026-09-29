@@ -71,9 +71,19 @@ export function printHtmlViaHiddenIframe(html: string): void {
 
   const waitForImages = (): Promise<void> => {
     const images = Array.from(doc.images ?? []);
-    if (images.length === 0) return Promise.resolve();
+    // SVG <image> is not in doc.images and has no load state, so preload its URLs.
+    const svgHrefs = Array.from(doc.querySelectorAll("svg image"))
+      .map((el) => el.getAttribute("href") || el.getAttribute("xlink:href") || "")
+      .filter(Boolean);
+    const svgImages = Array.from(new Set(svgHrefs)).map((href) => {
+      const img = new win.Image();
+      img.src = new URL(href, doc.baseURI).href;
+      return img;
+    });
+    const all = [...images, ...svgImages];
+    if (all.length === 0) return Promise.resolve();
     return Promise.all(
-      images.map(
+      all.map(
         (img) =>
           new Promise<void>((resolve) => {
             if (img.complete && img.naturalWidth > 0) {
