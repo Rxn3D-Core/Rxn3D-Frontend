@@ -103,6 +103,8 @@ export interface CaseDesignProps {
   /** Lab customer id for library API calls in the inline add-product picker. */
   labCustomerId?: number | null;
   onBackToProducts?: (productCardId?: number) => void;
+  /** Swap the product on one added product card (keeps field values the new product shares). */
+  onEditProductCard?: (productCardId: number, arch: "maxillary" | "mandibular") => void;
   /**
    * Navigate back to the category-selection step of the new-case wizard.
    * Invoked when a Fixed Restoration accordion is deleted so the user can pick
@@ -199,6 +201,8 @@ export interface AddedProduct {
   product: any;
   arch: string;
   expanded: boolean;
+  /** Create-slip edit: this card took over the initial (card 0) product's teeth on its arch. */
+  replacesInitialProduct?: boolean;
 }
 
 /**

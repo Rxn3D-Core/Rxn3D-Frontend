@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { buildLabOnboardCompleteBody } from "@/lib/lab-onboard-complete-payload"
 import { postLabOnboardComplete } from "@/lib/api-lab-onboarding"
 import { useToast } from "@/components/ui/use-toast"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function BusinessHoursPage() {
   const router = useRouter()
@@ -73,7 +74,7 @@ export default function BusinessHoursPage() {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
         hasRedirectedRef.current = true
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, onboardingStatus, onboardingApiError, router])
@@ -131,7 +132,7 @@ export default function BusinessHoursPage() {
       const result = await submitBusinessSettings(Number(customerId), customerType)
       if (result) {
         await refetchOnboardingStatus()
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     } else if (customerType.toLowerCase() === "lab") {
       setIsCompleting(true)
@@ -150,7 +151,7 @@ export default function BusinessHoursPage() {
         
         // Refetch status and redirect
         await refetchOnboardingStatus()
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       } catch (err) {
         console.error("Lab onboarding completion failed:", err)
         const description =

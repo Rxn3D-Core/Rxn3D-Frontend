@@ -535,6 +535,10 @@ interface MaxillaryPanelProps {
   caseSubmitted?: boolean;
   /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
   preloadInitialSlipState?: boolean;
+  /** Swap the product on a product card (0 = initial product) while keeping shared field values. */
+  onEditProductCard?: (cardId: number) => void;
+  /** Removable card 0 was deleted on this arch. */
+  onCard0Removed?: () => void;
   /** True once the removables impression field has been completed — reveals tooth chart and ToothStatusBoxes */
   removablesImpressionDone?: boolean;
 
@@ -894,6 +898,8 @@ export function MaxillaryPanel({
   card0ProductPanelVisible = false,
   caseSubmitted = false,
   preloadInitialSlipState = false,
+  onEditProductCard,
+  onCard0Removed,
   maxillaryTeeth,
   handleMaxillaryToothClick,
   maxillaryRetentionTypes,
@@ -1478,6 +1484,16 @@ export function MaxillaryPanel({
 
   /** Per-product extractions/status when multiple products share one arch (incl. fixed + removable). */
   const useMaxillaryArchSharedRemovable = false;
+
+  /** After deleting removable card 0: drop its leftover sentinel/product-only teeth on this arch. */
+  const clearCard0RemovableLeftovers = () => {
+    MAXILLARY_ALL_TEETH.forEach((tn) => {
+      if (getToothProductCard("maxillary", tn) === 0 && getToothProduct("maxillary", tn)) {
+        clearToothProgress("maxillary", tn);
+      }
+    });
+    onCard0Removed?.();
+  };
 
   useEffect(() => {
     if (caseSubmitted || !card0SkipsLegacyDefaults) return;
@@ -2902,6 +2918,7 @@ export function MaxillaryPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
+                          onEditProduct={onEditProductCard ? () => onEditProductCard(ap.id) : undefined}
                           onPlusClick={
                             apLabelOnlyHeader
                               ? undefined
@@ -3099,6 +3116,7 @@ export function MaxillaryPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedProductAccordionToggle(ap)}
+                          onEditProduct={onEditProductCard ? () => onEditProductCard(ap.id) : undefined}
                           onPlusClick={() => {
                             setActiveExtractionCode(null);
                             // Re-activating product selection resets Done so the button re-appears
@@ -3679,6 +3697,7 @@ export function MaxillaryPanel({
                         isExpanded={card0FixedExpanded}
                         caseSubmitted={caseSubmitted}
                         hasRush={hasRushed}
+                        onEditProduct={onEditProductCard ? () => onEditProductCard(0) : undefined}
                         onPlusClick={() => {
                           setActiveExtractionCode(null);
                           // Re-activating product selection resets Done so the button re-appears
@@ -4057,6 +4076,7 @@ export function MaxillaryPanel({
                       clearToothProgress("maxillary", tn);
                       handleMaxillaryToothDeselect(tn);
                     });
+                    clearCard0RemovableLeftovers();
                     const archStillHasTeeth = MAXILLARY_ALL_TEETH.some((tn) =>
                       getToothProduct("maxillary", tn)
                     );
@@ -4070,6 +4090,7 @@ export function MaxillaryPanel({
                       caseSubmitted={caseSubmitted}
                       hasRush={!!hasRushedRemovables}
                       onToggleExpand={handleCard0RemovableAccordionToggle}
+                      onEditProduct={onEditProductCard ? () => onEditProductCard(0) : undefined}
                       onPlusClick={
                         card0LabelOnlyHeader
                           ? undefined
@@ -4123,6 +4144,7 @@ export function MaxillaryPanel({
                           clearToothProgress("maxillary", tn);
                           handleMaxillaryToothDeselect(tn);
                         });
+                        clearCard0RemovableLeftovers();
                         const archStillHasTeeth = MAXILLARY_ALL_TEETH.some((tn) =>
                           getToothProduct("maxillary", tn)
                         );

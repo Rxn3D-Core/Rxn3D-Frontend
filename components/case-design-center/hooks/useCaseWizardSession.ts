@@ -113,6 +113,8 @@ export function useCaseWizardSession({
   const [caseDesignMounted, setCaseDesignMounted] = useState(false);
   const wizardCompletingRef = useRef(false);
   const productSwapCardIdRef = useRef<number | null>(null);
+  const productSwapArchRef = useRef<"maxillary" | "mandibular">("maxillary");
+  const [hasSwappedProduct, setHasSwappedProduct] = useState(false);
   const [demographicModalOpen, setDemographicModalOpen] = useState(false);
   const [pendingDemographicDetails, setPendingDemographicDetails] = useState<CaseDesignProductDetails | null>(null);
   const [pendingInlineAdd, setPendingInlineAdd] = useState<{
@@ -181,31 +183,49 @@ export function useCaseWizardSession({
     if (result.category) setLastSelectedCategory(Number(result.category) || null);
     if (result.product) setLastSelectedSubProduct(Number(result.product) || null);
 
-    if (wizardMode === "backToProducts" && bootstrap && addedProducts.length > 0) {
+    if (
+      wizardMode === "backToProducts" &&
+      (productSwapCardIdRef.current != null || (bootstrap && addedProducts.length > 0))
+    ) {
       const swappedProductId = Number(result.material) || undefined;
       const details = swappedProductId
         ? await fetchProductDetails(swappedProductId, completedLab?.id)
         : null;
       const categoryName = details?.category_name || result.categoryName || "";
       const swapId = productSwapCardIdRef.current ?? addedProducts[0]?.id;
-      setAddedProducts((prev) =>
-        prev.map((ap) =>
-          ap.id !== swapId
-            ? ap
-            : {
-                ...ap,
-                productId: swappedProductId,
-                product: buildAddedProductStub(details, {
-                  name: result.materialName || result.product || "Untitled Product",
-                  categoryName,
-                  subcategoryName: details?.subcategory_name,
-                  subcategoryId: Number(result.product) || undefined,
-                  imageUrl: details?.image_url ?? undefined,
-                }),
-              }
-        )
-      );
+      const productStub = buildAddedProductStub(details, {
+        name: result.materialName || result.product || "Untitled Product",
+        categoryName,
+        subcategoryName: details?.subcategory_name,
+        subcategoryId: Number(result.product) || undefined,
+        imageUrl: details?.image_url ?? undefined,
+      });
+      if (swapId === 0) {
+        // Card 0 (initial product) can span both arches: hand its teeth on the chosen
+        // arch to a new card instead of changing selectedProductId (which resets the slip).
+        if (swappedProductId && swappedProductId !== selectedProductId) {
+          const arch = productSwapArchRef.current;
+          setAddedProducts((prev) => [
+            {
+              id: nextAddedProductCardId(prev),
+              productId: swappedProductId,
+              product: productStub,
+              arch,
+              expanded: true,
+              replacesInitialProduct: true,
+            },
+            ...prev.map((product) => ({ ...product, expanded: false })),
+          ]);
+        }
+      } else {
+        setAddedProducts((prev) =>
+          prev.map((ap) =>
+            ap.id !== swapId ? ap : { ...ap, productId: swappedProductId, product: productStub }
+          )
+        );
+      }
       productSwapCardIdRef.current = null;
+      setHasSwappedProduct(true);
       setWizardMode("initial");
       setLabEditMode(false);
       setDoctorEditModalOpen(false);
@@ -301,6 +321,7 @@ export function useCaseWizardSession({
   };
 
   const handleBackToProducts = (productCardId?: number) => {
+    productSwapCardIdRef.current = null;
     if (bootstrap && addedProducts.length > 0) {
       const fromCard =
         productCardId != null && productCardId > 0
@@ -315,6 +336,24 @@ export function useCaseWizardSession({
         setPendingProductArch(target.arch);
       }
     }
+    setWizardMode("backToProducts");
+    setWizardComplete(false);
+  };
+
+  const handleEditProductCard = (productCardId: number, arch: "maxillary" | "mandibular") => {
+    if (productCardId === 0) {
+      if (!selectedProductId) return;
+      productSwapCardIdRef.current = 0;
+    } else {
+      const target = addedProducts.find((product) => product.id === productCardId);
+      if (!target) return;
+      productSwapCardIdRef.current = target.id;
+      const ids = catalogIdsFromAddedProduct(target.product);
+      setLastSelectedCategory(ids.categoryId);
+      setLastSelectedSubProduct(ids.subcategoryId);
+    }
+    productSwapArchRef.current = arch;
+    setPendingProductArch(arch);
     setWizardMode("backToProducts");
     setWizardComplete(false);
   };
@@ -509,6 +548,7 @@ export function useCaseWizardSession({
     lastSelectedCategory,
     lastSelectedSubProduct,
     addedProducts,
+    hasSwappedProduct,
     caseDesignMounted,
     labEditMode,
     doctorEditModalOpen,
@@ -526,6 +566,7 @@ export function useCaseWizardSession({
     completeInlineAddProduct,
     cancelInlineAddProduct,
     handleBackToProducts,
+    handleEditProductCard,
     handleBackToCategories,
     handleTopBarEditLab,
     handleEditDoctor,

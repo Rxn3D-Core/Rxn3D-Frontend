@@ -65,6 +65,7 @@ export default function Page() {
     completeInlineAddProduct,
     cancelInlineAddProduct,
     handleBackToProducts,
+    handleEditProductCard,
     handleBackToCategories,
     handleTopBarEditLab,
     handleEditDoctor,
@@ -196,6 +197,7 @@ export default function Page() {
               onInlineAddProductCancel={cancelInlineAddProduct}
               labCustomerId={resolveLibraryCustomerId(completedLab?.id) ?? null}
               onBackToProducts={handleBackToProducts}
+              onEditProductCard={handleEditProductCard}
               onBackToCategories={handleBackToCategories}
               selectedProductId={selectedProductId}
               selectedProductName={selectedProductName}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { useQuery } from "@tanstack/react-query"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { Search, Star, Pencil, Filter } from "lucide-react"
@@ -655,8 +656,8 @@ export default function ChooseLabPage() {
               // Preserve doctorId when navigating back to choose-doctor
               router.push(`/choose-doctor?doctorId=${doctorId}`)
             } else {
-              // Otherwise go back to dashboard
-              router.push("/dashboard")
+              // Otherwise go back to the case list
+              router.push(getActiveLandingPath())
             }
           }}
         />

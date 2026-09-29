@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 
 export function OnboardingCheck() {
@@ -35,7 +36,7 @@ export function OnboardingCheck() {
       isOnboardingComplete
     ) {
       hasRedirectedRef.current = true
-      router.replace("/dashboard")
+      router.replace(getActiveLandingPath(user))
       return
     }
 

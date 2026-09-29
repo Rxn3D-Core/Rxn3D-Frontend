@@ -475,6 +475,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
                 onInlineAddProductCancel={wizard.cancelInlineAddProduct}
                 labCustomerId={labCustomerId}
                 onBackToProducts={wizard.handleBackToProducts}
+                onEditProductCard={wizard.handleEditProductCard}
                 onBackToCategories={wizard.handleBackToCategories}
                 selectedProductId={wizard.selectedProductId}
                 selectedProductName={wizard.selectedProductName}

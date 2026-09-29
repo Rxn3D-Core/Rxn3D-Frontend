@@ -180,6 +180,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const addStageStageHistoryForModal =
     props.addStageContext?.historyByArch?.[state.currentStageArch] ?? undefined;
 
+  const [card0RemovedArches, setCard0RemovedArches] = useState<{
+    maxillary?: boolean;
+    mandibular?: boolean;
+  }>({});
+
   // Unified setter used by both CenterNavigation and MandibularPanel so the override state stays in sync.
   const handleSetShowMandibular = useCallback((v: boolean) => {
     state.setShowMandibular(v);
@@ -252,8 +257,24 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // Show accordion when card 0 initial product is Fixed Restoration AND teeth have been selected
   const activeProductIsFixed = hasRetentionOptions(state.initialProductDetails);
   const activeProductIsRemovable = initialProductIsNonFixed;
+  const card0ReplacedOnMaxillary = (props.addedProducts ?? []).some(
+    (ap) => ap.replacesInitialProduct && ap.arch === "maxillary"
+  );
+  const card0ReplacedOnMandibular = (props.addedProducts ?? []).some(
+    (ap) => ap.replacesInitialProduct && ap.arch === "mandibular"
+  );
+  // Deleting card 0 on an arch must not re-seed its sentinel tooth (which would keep a
+  // phantom card-0 product in notes); card 0 still returns if the user re-selects teeth for it.
+  const markCard0Removed = useCallback(
+    (arch: "maxillary" | "mandibular") => {
+      setCard0RemovedArches((prev) => (prev[arch] ? prev : { ...prev, [arch]: true }));
+      state.endGuidedBothArchFlow();
+    },
+    [state.endGuidedBothArchFlow]
+  );
   const maxillaryHasFixedCard0 =
     activeProductIsFixed &&
+    !card0ReplacedOnMaxillary &&
     ((card0DefaultToothChartEnabled &&
       !!props.selectedProductId &&
       (props.initialArch === "maxillary" || props.initialArch === "both")) ||
@@ -262,6 +283,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       ));
   const mandibularHasFixedCard0 =
     activeProductIsFixed &&
+    !card0ReplacedOnMandibular &&
     ((card0DefaultToothChartEnabled &&
       !!props.selectedProductId &&
       (props.initialArch === "mandibular" || props.initialArch === "both")) ||
@@ -299,10 +321,12 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   // when the initial arch is single-sided and the other arch has its own added-product removable.
   const maxillaryHasRemovablesCard0 =
     activeProductIsRemovable &&
+    !card0ReplacedOnMaxillary &&
     !!props.selectedProductId &&
     (props.initialArch === "maxillary" || props.initialArch === "both");
   const mandibularHasRemovablesCard0 =
     activeProductIsRemovable &&
+    !card0ReplacedOnMandibular &&
     !!props.selectedProductId &&
     (props.initialArch === "mandibular" || props.initialArch === "both");
 
@@ -1258,12 +1282,16 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   );
 
   useEffect(() => {
-    if (maxillaryHasRemovablesCard0) assignCard0Sentinel("maxillary", MAXILLARY_SENTINEL);
-  }, [maxillaryHasRemovablesCard0, assignCard0Sentinel]);
+    if (maxillaryHasRemovablesCard0 && !card0RemovedArches.maxillary) {
+      assignCard0Sentinel("maxillary", MAXILLARY_SENTINEL);
+    }
+  }, [maxillaryHasRemovablesCard0, card0RemovedArches.maxillary, assignCard0Sentinel]);
 
   useEffect(() => {
-    if (mandibularHasRemovablesCard0) assignCard0Sentinel("mandibular", MANDIBULAR_SENTINEL);
-  }, [mandibularHasRemovablesCard0, assignCard0Sentinel]);
+    if (mandibularHasRemovablesCard0 && !card0RemovedArches.mandibular) {
+      assignCard0Sentinel("mandibular", MANDIBULAR_SENTINEL);
+    }
+  }, [mandibularHasRemovablesCard0, card0RemovedArches.mandibular, assignCard0Sentinel]);
 
   // ── Catch-up: assign product to card 0 teeth that have retention types but no product ──
   // This handles cases where teeth were clicked before the product was ready, or rapid clicks
@@ -1318,12 +1346,11 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
   // Product accordions stay hidden until the user picks at least one tooth for card 0.
   // Sentinel tooth assignment alone does not count as a user selection.
-  // Preloaded slips (add-new-stage / edit-slip) use addedProducts instead of selectedProductId.
-  // Removable added products must reveal fields even though card-0 removables flags stay false.
-  const preloadHasAddedRemovables =
-    !!props.preloadInitialSlipState &&
-    (hasSelectionOnlyProductForArch("maxillary") ||
-      hasSelectionOnlyProductForArch("mandibular"));
+  // Removable added products must reveal fields even when card 0 has no teeth
+  // (preloaded slips, or card 0 deleted on its arch during slip creation).
+  const hasAddedRemovables =
+    hasSelectionOnlyProductForArch("maxillary") ||
+    hasSelectionOnlyProductForArch("mandibular");
 
   const productFieldsVisible =
     maxillaryHasImpression ||
@@ -1334,7 +1361,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
       mandibularCard0ProductPanelVisible) ||
     maxillaryHasFixedAdded ||
     mandibularHasFixedAdded ||
-    preloadHasAddedRemovables ||
+    hasAddedRemovables ||
     (initialProductHasOppositeSection &&
       props.initialArch === "mandibular" &&
       mandibularTeethSelected) ||
@@ -1519,22 +1546,45 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const isAddingMaxillaryProduct = inlineAddProductArch === "maxillary";
   const isAddingMandibularProduct = inlineAddProductArch === "mandibular";
   const [showChangeProductConfirm, setShowChangeProductConfirm] = useState(false);
+  const [changeProductCard, setChangeProductCard] = useState<{
+    cardId: number;
+    arch: "maxillary" | "mandibular";
+  } | null>(null);
   const onBackToProducts = props.onBackToProducts;
+  const onEditProductCard = props.onEditProductCard;
+  const editProductCardForArch = (arch: "maxillary" | "mandibular") =>
+    !props.caseSubmitted && onEditProductCard
+      ? (cardId: number) => {
+          setChangeProductCard({ cardId, arch });
+          setShowChangeProductConfirm(true);
+        }
+      : undefined;
   return (
     <>
     <ChangeProductConfirmModal
       open={showChangeProductConfirm}
-      preserveFields={!!props.preloadInitialSlipState}
-      onCancel={() => setShowChangeProductConfirm(false)}
+      preserveFields={!!props.preloadInitialSlipState || changeProductCard != null}
+      onCancel={() => {
+        setShowChangeProductConfirm(false);
+        setChangeProductCard(null);
+      }}
       onConfirm={() => {
         setShowChangeProductConfirm(false);
-        onBackToProducts?.(state.activeProductCardId);
+        if (changeProductCard) {
+          onEditProductCard?.(changeProductCard.cardId, changeProductCard.arch);
+        } else {
+          onBackToProducts?.(state.activeProductCardId);
+        }
+        setChangeProductCard(null);
       }}
     />
     <div className="relative">
       {!props.caseSubmitted && props.onBackToProducts && (
         <BackToProductsControl
-          onBackToProducts={() => setShowChangeProductConfirm(true)}
+          onBackToProducts={() => {
+            setChangeProductCard(null);
+            setShowChangeProductConfirm(true);
+          }}
           className="absolute left-0 top-0 z-30"
         />
       )}
@@ -1581,6 +1631,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           card0ProductPanelVisible={maxillaryCard0ProductPanelVisible}
           caseSubmitted={props.caseSubmitted}
           preloadInitialSlipState={props.preloadInitialSlipState}
+          onEditProductCard={editProductCardForArch("maxillary")}
+          onCard0Removed={() => markCard0Removed("maxillary")}
           disabled={!props.caseSubmitted && isAddingMandibularProduct}
           // Tooth selection
           maxillaryTeeth={state.maxillaryTeeth}
@@ -1741,6 +1793,8 @@ export function CaseDesignCenter(props: CaseDesignProps) {
           showDetails={showProductDetails}
           card0ProductPanelVisible={mandibularCard0ProductPanelVisible}
           preloadInitialSlipState={props.preloadInitialSlipState}
+          onEditProductCard={editProductCardForArch("mandibular")}
+          onCard0Removed={() => markCard0Removed("mandibular")}
           caseSubmitted={props.caseSubmitted}
           disabled={
             props.caseSubmitted

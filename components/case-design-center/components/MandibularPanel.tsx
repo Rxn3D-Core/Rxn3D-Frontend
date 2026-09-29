@@ -663,6 +663,10 @@ interface MandibularPanelProps {
   caseSubmitted?: boolean;
   /** Add-new-stage / edit-slip preload: auto-acknowledge extractions so Done is skipped on load. */
   preloadInitialSlipState?: boolean;
+  /** Swap the product on a product card (0 = initial product) while keeping shared field values. */
+  onEditProductCard?: (cardId: number) => void;
+  /** Removable card 0 was deleted on this arch. */
+  onCard0Removed?: () => void;
   /** When true, overlays the panel to prevent interaction until maxillary is complete */
   disabled?: boolean;
   /** When true, the other arch is in the add-product flow (distinct message from maxillary-incomplete). */
@@ -887,6 +891,8 @@ export function MandibularPanel({
   card0ProductPanelVisible = false,
   caseSubmitted = false,
   preloadInitialSlipState = false,
+  onEditProductCard,
+  onCard0Removed,
   disabled = false,
   blockedByOppositeAddProduct = false,
   mandibularTeeth,
@@ -1459,6 +1465,16 @@ export function MandibularPanel({
   }, [mandibularCard0IsRemovable, addedProducts]);
 
   const useMandibularArchSharedRemovable = false;
+
+  /** After deleting removable card 0: drop its leftover sentinel/product-only teeth on this arch. */
+  const clearCard0RemovableLeftovers = () => {
+    MANDIBULAR_ALL_TEETH.forEach((tn) => {
+      if (getToothProductCard("mandibular", tn) === 0 && getToothProduct("mandibular", tn)) {
+        clearToothProgress("mandibular", tn);
+      }
+    });
+    onCard0Removed?.();
+  };
 
   useEffect(() => {
     if (caseSubmitted || !card0SkipsLegacyDefaults) return;
@@ -2868,6 +2884,7 @@ export function MandibularPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedRemovableAccordionToggle(ap)}
+                          onEditProduct={onEditProductCard ? () => onEditProductCard(ap.id) : undefined}
                           onPlusClick={
                             apLabelOnlyHeader
                               ? undefined
@@ -3065,6 +3082,7 @@ export function MandibularPanel({
                           caseSubmitted={caseSubmitted}
                           hasRush={!!hasRushedAp}
                           onToggleExpand={() => handleAddedProductAccordionToggle(ap)}
+                          onEditProduct={onEditProductCard ? () => onEditProductCard(ap.id) : undefined}
                           onPlusClick={() => {
                             setActiveExtractionCode(null);
                             // Re-activating product selection resets Done so the button re-appears
@@ -3644,6 +3662,7 @@ export function MandibularPanel({
                         isExpanded={card0FixedExpanded}
                         caseSubmitted={caseSubmitted}
                         hasRush={hasRushed}
+                        onEditProduct={onEditProductCard ? () => onEditProductCard(0) : undefined}
                         onPlusClick={() => {
                           setActiveExtractionCode(null);
                           // Re-activating product selection resets Done so the button re-appears
@@ -4020,6 +4039,7 @@ export function MandibularPanel({
                       clearToothProgress("mandibular", tn);
                       handleMandibularToothDeselect(tn);
                     });
+                    clearCard0RemovableLeftovers();
                     const archStillHasTeeth = MANDIBULAR_ALL_TEETH.some((tn) =>
                       getToothProduct("mandibular", tn)
                     );
@@ -4034,6 +4054,7 @@ export function MandibularPanel({
                       caseSubmitted={caseSubmitted}
                       hasRush={!!hasRushedRemovables}
                       onToggleExpand={handleCard0RemovableAccordionToggle}
+                      onEditProduct={onEditProductCard ? () => onEditProductCard(0) : undefined}
                       onPlusClick={
                         card0LabelOnlyHeader
                           ? undefined
@@ -4088,6 +4109,7 @@ export function MandibularPanel({
                           clearToothProgress("mandibular", tn);
                           handleMandibularToothDeselect(tn);
                         });
+                        clearCard0RemovableLeftovers();
                         const archStillHasTeeth = MANDIBULAR_ALL_TEETH.some((tn) =>
                           getToothProduct("mandibular", tn)
                         );

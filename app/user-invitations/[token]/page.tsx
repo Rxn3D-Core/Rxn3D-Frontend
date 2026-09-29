@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import {
   useGetUserInvitation,
   acceptUserInvitation,
@@ -181,7 +182,7 @@ export default function UserInvitationPage() {
         description: `You now have access to ${invitation?.customer?.name || "your organization"}.`,
       })
       tryAutoLoginFromAccept(response)
-      router.replace("/dashboard")
+      router.replace(getActiveLandingPath())
     } catch (err: any) {
       setError(err?.message || "Failed to accept the invitation. Please try again.")
     } finally {
@@ -228,7 +229,7 @@ export default function UserInvitationPage() {
           title: "Account created",
           description: `Welcome! You're signed in to ${invitation?.customer?.name || "your organization"}.`,
         })
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath())
         return
       }
       setIsSuccess(true)

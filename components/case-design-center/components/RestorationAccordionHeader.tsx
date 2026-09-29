@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { DeleteProductConfirmModal } from "./DeleteProductConfirmModal";
 import {
   caseDesignInter,
@@ -38,6 +38,8 @@ export interface RestorationAccordionHeaderProps {
   estDaysText: string;
   canDelete?: boolean;
   onDelete?: () => void;
+  /** When set, shows a pencil next to the product name to change this card's product. */
+  onEditProduct?: () => void;
 
   isCurrentlyActive?: boolean;
   confirmDetailsChecked?: boolean;
@@ -92,6 +94,7 @@ export function RestorationAccordionHeader({
   estDaysText,
   canDelete = false,
   onDelete,
+  onEditProduct,
   isCurrentlyActive = false,
   confirmDetailsChecked = false,
   showHeaderContent = true,
@@ -115,6 +118,22 @@ export function RestorationAccordionHeader({
     !shouldSkipStageSelection(stageProduct ?? undefined);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const editProductButton =
+    onEditProduct && !caseSubmitted ? (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEditProduct();
+        }}
+        className="inline-flex items-center justify-center flex-shrink-0 cursor-pointer text-[#999999] hover:text-[#1162A8] transition-colors"
+        title="Change product"
+        aria-label="Change product"
+      >
+        <Pencil size={14} />
+      </button>
+    ) : null;
 
   return (
     <div
@@ -168,6 +187,7 @@ export function RestorationAccordionHeader({
                   {hasRush && (
                     <RushIcon className="inline w-[14px] h-[14px] ml-1 text-[#CF0202]" />
                   )}
+                  {editProductButton}
                 </p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <EstDaysLabel
@@ -231,7 +251,8 @@ export function RestorationAccordionHeader({
                     : "none"
                 }}
               >
-                {onPlusClick && !allArchTeethSelected && (isExtractionActive || !(showExtractionsDone && !extractionsAcknowledged)) && (
+                {/* Hidden: add-teeth plus icon — remove `false &&` to restore */}
+                {false && onPlusClick && !allArchTeethSelected && (isExtractionActive || !(showExtractionsDone && !extractionsAcknowledged)) && (
                   <div
                     className="absolute left-[16px] top-1/2 transform -translate-y-1/2 flex items-center justify-center cursor-pointer hover:scale-110 active:scale-95 transition-transform"
                     onClick={(e) => {
@@ -267,6 +288,7 @@ export function RestorationAccordionHeader({
                   {hasRush && (
                     <RushIcon className="inline w-[14px] h-[14px] ml-1 text-[#CF0202]" />
                   )}
+                  {editProductButton}
                 </legend>
                 {toothDisplay ? (
                   <p className={`${removableHeaderToothClass} text-[#666666]`}>{toothDisplay}</p>
