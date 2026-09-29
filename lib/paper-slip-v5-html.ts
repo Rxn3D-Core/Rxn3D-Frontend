@@ -578,8 +578,16 @@ async function renderPaperSlipV5Html(input: PaperSlipV5Input): Promise<string> {
   return buildPaperSlipV5Html(input, qr);
 }
 
+function assertSlipDataLoaded(input: PaperSlipV5Input): void {
+  const { slipNumber, caseNumber } = input.vm.header;
+  if (!slipNumber && !caseNumber) {
+    throw new Error("Slip details are not loaded yet. Please try again in a moment.");
+  }
+}
+
 /** Build the slip from data already on the page and open the browser print dialog. */
 export async function printPaperSlipV5(input: PaperSlipV5Input): Promise<void> {
+  assertSlipDataLoaded(input);
   const isIos =
     typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (isIos) {
@@ -593,6 +601,7 @@ export async function printPaperSlipV5(input: PaperSlipV5Input): Promise<void> {
 
 /** One print dialog, one letter page per slip. */
 export async function printPaperSlipV5Many(inputs: PaperSlipV5Input[]): Promise<void> {
+  inputs.forEach(assertSlipDataLoaded);
   const htmls = await Promise.all(inputs.map((input) => renderPaperSlipV5Html(input)));
   printPaperSlipV5Html(combinePaperSlipHtml(htmls));
 }

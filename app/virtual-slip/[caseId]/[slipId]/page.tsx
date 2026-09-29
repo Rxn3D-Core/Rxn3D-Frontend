@@ -548,6 +548,15 @@ export default function VirtualSlipV2Page() {
 
   const handlePrintPaperSlipV5 = useCallback(() => {
     if (!slipId || isNaN(slipId) || !vm) return;
+    const detailsId = Number((virtualSlipDetails as { id?: number } | null)?.id);
+    if (loading || detailsId !== slipId) {
+      toast({
+        title: "Slip is still loading",
+        description: "Please wait for the slip details to load, then print again.",
+        duration: 4000,
+      });
+      return;
+    }
     void printPaperSlipV5({
       vm,
       caseId: caseId || routeCaseId,
@@ -561,7 +570,7 @@ export default function VirtualSlipV2Page() {
         duration: 5000,
       });
     });
-  }, [slipId, vm, caseId, routeCaseId, virtualSlipDetails, toast]);
+  }, [slipId, vm, caseId, routeCaseId, virtualSlipDetails, loading, toast]);
 
   // A freshly created slip is marked by the submit flow; consuming the flag
   // auto-opens the paper slip print window once — reloads never re-trigger it.
