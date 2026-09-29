@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import Link from "next/link"
 import { Copy } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -37,6 +37,27 @@ const KEBAB_SVG = (
     <circle cx="12" cy="19" r="2" />
   </svg>
 )
+
+// Gradient id is per instance: the mobile list and desktop table are both in the
+// DOM with one hidden, and a url(#id) resolving into a display:none subtree
+// renders nothing.
+function ViewEyeIcon({ size }: { size: number }) {
+  const gradientId = `v3EyeStroke${useId().replace(/:/g, "")}`
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <defs>
+        <linearGradient id={gradientId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#16ADE1" />
+          <stop offset="1" stopColor="#6563AC" />
+        </linearGradient>
+      </defs>
+      <g stroke={`url(#${gradientId})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+      </g>
+    </svg>
+  )
+}
 
 export type SortDirection = "asc" | "desc"
 
@@ -267,6 +288,16 @@ export function V3CaseTable(props: Props) {
                         </div>
                       )}
                     </div>
+
+                    <Link
+                      href={virtualSlipHref}
+                      aria-label={openSlipLabel}
+                      title="View"
+                      className="shrink-0 rounded p-1 hover:bg-[#f3f4f6]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ViewEyeIcon size={32} />
+                    </Link>
 
                     {/* Kebab */}
                     <div className="relative shrink-0" data-row-interactive="true">
@@ -681,7 +712,8 @@ function DesktopCell({
   if (column.key === "patient") {
     return (
       <td className="px-0 py-0 align-middle overflow-hidden" style={{ width: cellWidth, maxWidth: cellWidth, backgroundColor: rowBg }}>
-        <div className="flex h-full w-full min-w-0 flex-col items-start justify-center overflow-hidden" style={{ padding: "5px 15px", gap: 2, height: 52 }}>
+        <div className="flex w-full min-w-0 items-center overflow-hidden" style={{ padding: "5px 10px 5px 15px", gap: 6, height: 52 }}>
+        <div className="flex h-full min-w-0 flex-1 flex-col items-start justify-center overflow-hidden" style={{ gap: 2 }}>
           <div className="flex items-center min-w-0 w-full" style={{ gap: 5 }}>
             <Link
               href={virtualSlipHref}
@@ -700,6 +732,16 @@ function DesktopCell({
             {row.slipNumber || `#${row.id}`}
             {showTimestamp && row.createdAt ? ` · ${formatCreatedAt(row.createdAt)}` : ""}
           </span>
+        </div>
+        <Link
+          href={virtualSlipHref}
+          aria-label={openSlipLabel}
+          title="View"
+          className="shrink-0 rounded p-1 hover:bg-[#f3f4f6]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ViewEyeIcon size={25} />
+        </Link>
         </div>
       </td>
     )
