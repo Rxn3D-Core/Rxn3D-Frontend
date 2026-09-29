@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Settings, QrCode, Building2 } from "lucide-react"
+import { Search, X, Settings, QrCode, Building2, Plus } from "lucide-react"
 import { searchSuperadminLabCustomers } from "@/lib/api/superadmin-customers"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import {
@@ -912,6 +912,11 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
     }
   }
 
+  const selectedLocationObj = typeof window !== 'undefined'
+    ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
+    : null
+  const logoCustomerId = selectedLocation || selectedLocationObj?.id || null
+
   return (
     <>
       <TrialBanner />
@@ -928,6 +933,19 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
             {/* Left Section - Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 flex-shrink-0">
               <HeaderWaffleLauncher />
+              {!isSuperAdmin && canCreateSlip && (
+                <Button
+                  className={`${NEW_SLIP_BUTTON_CLASS} sm:hidden w-10`}
+                  onClick={() => {
+                    clearSlipCreationStorage();
+                    clearCaseDesignCenterStateMutation.mutate();
+                    router.replace("/case-design-center");
+                  }}
+                  aria-label={t("header.newSlip", "+ New Slip")}
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              )}
               {isSuperAdmin ? (
                 <Image
                   src="/images/rxn3d-latest.png"
@@ -937,19 +955,13 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                   priority
                   className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0"
                 />
-              ) : (() => {
-                const selectedLocationObj = typeof window !== 'undefined'
-                  ? JSON.parse(localStorage.getItem("selectedLocation") || "null")
-                  : null
-                const customerId = selectedLocation || selectedLocationObj?.id || null
-                return customerId ? (
-                  <CustomerLogo
-                    customerId={customerId}
-                    alt="Company Logo"
-                    className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0 max-w-[160px] md:max-w-[200px] lg:max-w-[240px]"
-                  />
-                ) : null
-              })()}
+              ) : logoCustomerId ? (
+                <CustomerLogo
+                  customerId={logoCustomerId}
+                  alt="Company Logo"
+                  className="hidden sm:block h-10 sm:h-12 md:h-14 lg:h-16 w-auto object-contain flex-shrink-0 max-w-[160px] md:max-w-[200px] lg:max-w-[240px]"
+                />
+              ) : null}
               {!isSuperAdmin && canCreateSlip && (
                 <Button
                   className={`${NEW_SLIP_BUTTON_CLASS} hidden sm:inline-flex`}
@@ -1021,8 +1033,26 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
 
             {/* Center Section - Logo or Search */}
             <div className="flex-1 flex items-center justify-center min-w-0 mx-2 sm:mx-4 md:mx-6">
+              <div className="flex sm:hidden items-center justify-center min-w-0">
+                {isSuperAdmin ? (
+                  <Image
+                    src="/images/rxn3d-latest.png"
+                    alt="RXN3D"
+                    width={195}
+                    height={76}
+                    priority
+                    className="h-10 w-auto object-contain"
+                  />
+                ) : logoCustomerId ? (
+                  <CustomerLogo
+                    customerId={logoCustomerId}
+                    alt="Company Logo"
+                    className="h-10 w-auto object-contain max-w-[180px]"
+                  />
+                ) : null}
+              </div>
               {isSuperAdmin && (
-                <div className="w-full max-w-md lg:max-w-lg xl:max-w-xl">
+                <div className="hidden sm:block w-full max-w-md lg:max-w-lg xl:max-w-xl">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
@@ -1037,6 +1067,33 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
 
             {/* Right Section - Controls & User */}
             <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+              {!isSuperAdmin && canScanCode && (
+                <Button
+                  variant="ghost"
+                  className={`${SCAN_CODE_BUTTON_CLASS} sm:hidden w-10 relative`}
+                  onClick={openScanner}
+                  aria-label={t("header.openScanner", "Open QR code scanner")}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+                    <defs>
+                      <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#C9539F" />
+                        <stop offset="51.11%" stopColor="#82298D" />
+                        <stop offset="100%" stopColor="#2AA6DE" />
+                      </linearGradient>
+                    </defs>
+                    <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
+                  </svg>
+                  {activeTripCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="absolute -top-1.5 -right-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
+                    >
+                      {activeTripCount}
+                    </Badge>
+                  )}
+                </Button>
+              )}
               {/* Location Selector - Desktop */}
               {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
                 <div className="hidden md:block min-w-0">
@@ -1151,6 +1208,59 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                       <p className="text-xs text-muted-foreground">{getPrimaryRole()}</p>
                     </div>
                   </DropdownMenuLabel>
+                  {/* Location Selector - Mobile */}
+                  {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
+                    <div className="px-2 pb-2 sm:hidden" onKeyDown={(e) => e.stopPropagation()}>
+                      <Select
+                        value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
+                        onValueChange={handleLocationChange}
+                      >
+                        <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                          <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg shadow-lg">
+                          <SelectGroup>
+                            <SelectLabel className="font-medium text-gray-700">Labs</SelectLabel>
+                            {superAdminLabs.map((lab) => (
+                              <SelectItem
+                                key={lab.id}
+                                value={lab.id.toString()}
+                                className="hover:bg-blue-50"
+                              >
+                                {lab.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {!isSuperAdmin && safeLocations.length > 0 && (
+                    <div className="px-2 pb-2 sm:hidden" onKeyDown={(e) => e.stopPropagation()}>
+                      <Select
+                        value={selectedLocation !== null ? selectedLocation.toString() : ""}
+                        onValueChange={handleLocationChange}
+                      >
+                        <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
+                          <SelectValue placeholder={t("header.selectLocation", "Select location")} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-lg shadow-lg">
+                          <SelectGroup>
+                            <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
+                            {safeLocations.map((location) => (
+                              <SelectItem
+                                key={location.id}
+                                value={location.id.toString()}
+                                className="hover:bg-blue-50"
+                              >
+                                {location.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={async () => {
@@ -1183,113 +1293,6 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
-
-          {/* Secondary Row - Mobile Only */}
-          <div className="flex flex-col gap-2 pb-2 sm:hidden border-t border-gray-200 dark:border-gray-800 pt-2">
-            {/* Mobile action buttons: New Slip + Scan Code */}
-            {!isSuperAdmin && (
-              <div className="flex gap-2">
-                {canCreateSlip && (
-                  <Button
-                    className={`${NEW_SLIP_BUTTON_CLASS} flex-1 w-auto`}
-                    onClick={() => {
-                      clearSlipCreationStorage();
-                      clearCaseDesignCenterStateMutation.mutate();
-                      router.replace("/case-design-center");
-                    }}
-                  >
-                    <span>{t("header.newSlip", "+ New Slip")}</span>
-                  </Button>
-                )}
-                {canScanCode && (
-                  <Button
-                    variant="ghost"
-                    className={`${SCAN_CODE_BUTTON_CLASS} flex-1 w-auto`}
-                    onClick={openScanner}
-                    aria-label={t("header.openScanner", "Open QR code scanner")}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 mr-1.5">
-                      <defs>
-                        <linearGradient id="qr-grad-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#C9539F" />
-                          <stop offset="51.11%" stopColor="#82298D" />
-                          <stop offset="100%" stopColor="#2AA6DE" />
-                        </linearGradient>
-                      </defs>
-                      <path d="M3 3h7v7H3V3zm1 1v5h5V4H4zm1 1h3v3H5V5zm8-2h7v7h-7V3zm1 1v5h5V4h-5zm1 1h3v3h-3V5zM3 13h7v7H3v-7zm1 1v5h5v-5H4zm1 1h3v3H5v-3zm9-1h2v2h-2v-2zm2 2h2v2h-2v-2zm-2 2h2v2h-2v-2zm2 2h2v2h-2v-2zm-4-6h2v2h-2v-2zm0 4h2v2h-2v-2zm4-2h2v2h-2v-2z" fill="url(#qr-grad-mobile)" />
-                    </svg>
-                    <span style={{
-                      background: "linear-gradient(231.46deg, #2AA6DE -14.5%, #82298D 51.11%, #C9539F 116.71%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                      fontWeight: 700,
-                      fontSize: "16px",
-                      lineHeight: "21px",
-                      fontFamily: "Inter, sans-serif",
-                    }}>{t("header.scanCode", "Scan Code")}</span>
-                    {activeTripCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#82298D] text-white font-semibold rounded-full"
-                      >
-                        {activeTripCount}
-                      </Badge>
-                    )}
-                  </Button>
-                )}
-              </div>
-            )}
-            {/* Location Selector - Mobile */}
-            {(isSuperAdmin || isActingAsLabAdmin) && superAdminLabs.length > 0 && (
-              <Select
-                value={selectedCustomerId !== null ? selectedCustomerId!.toString() : ""}
-                onValueChange={handleLocationChange}
-              >
-                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
-                  <SelectValue placeholder={t("header.selectLab", "Select Lab")} />
-                </SelectTrigger>
-                <SelectContent className="rounded-lg shadow-lg">
-                  <SelectGroup>
-                    <SelectLabel className="font-medium text-gray-700">Labs</SelectLabel>
-                    {superAdminLabs.map((lab) => (
-                      <SelectItem
-                        key={lab.id}
-                        value={lab.id.toString()}
-                        className="hover:bg-blue-50"
-                      >
-                        {lab.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
-            {!isSuperAdmin && safeLocations.length > 0 && (
-              <Select
-                value={selectedLocation !== null ? selectedLocation.toString() : ""}
-                onValueChange={handleLocationChange}
-              >
-                <SelectTrigger className="w-full h-8 text-xs border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1162a8]">
-                  <SelectValue placeholder={t("header.selectLocation", "Select location")} />
-                </SelectTrigger>
-                <SelectContent className="rounded-lg shadow-lg">
-                  <SelectGroup>
-                    <SelectLabel className="font-medium text-gray-700">Locations</SelectLabel>
-                    {safeLocations.map((location) => (
-                      <SelectItem
-                        key={location.id}
-                        value={location.id.toString()}
-                        className="hover:bg-blue-50"
-                      >
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            )}
           </div>
         </div>
       </header>
