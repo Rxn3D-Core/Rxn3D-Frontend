@@ -47,9 +47,8 @@ function ViewEyeIcon({ size }: { size: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
       <defs>
         <linearGradient id={gradientId} x1="22" y1="2" x2="2" y2="22" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#2AA6DE" />
-          <stop offset="51.11%" stopColor="#82298D" />
-          <stop offset="100%" stopColor="#C9539F" />
+          <stop offset="0" stopColor="#16ADE1" />
+          <stop offset="1" stopColor="#6563AC" />
         </linearGradient>
       </defs>
       <g stroke={`url(#${gradientId})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -297,7 +296,7 @@ export function V3CaseTable(props: Props) {
                       className="shrink-0 rounded p-1 hover:bg-[#f3f4f6]"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <ViewEyeIcon size={22} />
+                      <ViewEyeIcon size={32} />
                     </Link>
 
                     {/* Kebab */}
@@ -741,7 +740,7 @@ function DesktopCell({
           className="shrink-0 rounded p-1 hover:bg-[#f3f4f6]"
           onClick={(e) => e.stopPropagation()}
         >
-          <ViewEyeIcon size={22} />
+          <ViewEyeIcon size={25} />
         </Link>
         </div>
       </td>

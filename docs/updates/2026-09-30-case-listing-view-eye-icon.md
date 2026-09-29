@@ -17,9 +17,10 @@ Both live in `app/lab-case-management/components/V3CaseTable.tsx` (`ViewEyeIcon`
 
 ## Styling
 
-The icon is a line icon stroked with the same blue → purple → pink gradient
-(`#2AA6DE` → `#82298D` → `#C9539F`) as the active Filter / Columns toolbar icons,
-and it is always shown in gradient.
+The icon is a line icon stroked with the same light-blue → indigo gradient
+(`#16ADE1` → `#6563AC`) as the paper-airplane action icon, and it is always shown
+in gradient. It is 25px on desktop, matching the row action icons, and 32px on
+mobile.
 
 Each icon defines its own gradient id. The mobile list and desktop table are both
 rendered with one hidden via CSS, and a shared id could resolve to the gradient
