@@ -212,23 +212,16 @@ function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string
   const viewBoxWidth = isMaxillary ? 695 : 624;
   const viewBoxHeight = toothHeight + 4;
   const numberY = Math.round(toothHeight * 0.68);
-  const prefix = isMaxillary ? "v5max" : "v5mand";
   const label = isMaxillary ? "MAXILLARY" : "MANDIBULAR";
   const willExtract = willExtractTeeth(arch);
   const display = arch?.extractionDisplay;
 
-  const patterns = rects
+  // Pattern fills are rasterized at screen size when printing, so teeth print blurry.
+  const fills = rects
     .map((rect) => {
       const href = esc(toothImageUrl(arch, rect.num));
-      return `<pattern id="${prefix}${rect.num}" patternContentUnits="objectBoundingBox" width="1" height="1"><image href="${href}" xlink:href="${href}" width="1" height="1" preserveAspectRatio="none" /></pattern>`;
+      return `<image href="${href}" xlink:href="${href}" x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" preserveAspectRatio="none" />`;
     })
-    .join("");
-
-  const fills = rects
-    .map(
-      (rect) =>
-        `<rect x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" fill="url(#${prefix}${rect.num})" />`
-    )
     .join("");
 
   const marks = rects
@@ -265,7 +258,7 @@ function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string
     )
     .join("");
 
-  return `<div class="chart-label">${label}</div><div class="teeth-row"><svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><defs>${patterns}</defs>${fills}${marks}${clasps}${numbers}</svg></div>`;
+  return `<div class="chart-label">${label}</div><div class="teeth-row"><svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${fills}${marks}${clasps}${numbers}</svg></div>`;
 }
 
 function productBoxes(products: ProductVM[]): string {
