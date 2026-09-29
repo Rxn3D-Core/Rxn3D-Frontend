@@ -115,8 +115,8 @@ export function V3FilterBar({
 
   return (
     <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-    <div className="flex items-center gap-2 border-b border-[#e5e7eb] bg-white px-4 py-3">
-        <div className="relative w-56 shrink-0">
+    <div className="flex flex-wrap items-center gap-2 border-b border-[#e5e7eb] bg-white px-4 py-3 md:flex-nowrap">
+        <div className="relative order-1 min-w-0 flex-1 md:order-none md:w-56 md:flex-none md:shrink-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
           <Input
             aria-label="Search cases"
@@ -129,8 +129,8 @@ export function V3FilterBar({
         </div>
 
       {/* Location pill tabs */}
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
-        <div className="flex shrink-0 items-center gap-1.5">
+      <div className="order-3 flex w-full min-w-0 flex-col gap-2 md:order-none md:w-auto md:flex-1 md:flex-row md:items-center md:overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar md:shrink-0 md:overflow-visible">
           {LOCATION_TABS.map((tab) => {
             const value = tab.id === 0 ? "All" : String(tab.id)
             const active = value === "All" ? locations.length === 0 : locations.includes(value)
@@ -140,7 +140,7 @@ export function V3FilterBar({
                 type="button"
                 aria-pressed={active}
                 onClick={() => onLocationChange(value)}
-                className="relative inline-flex h-7 items-center px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#82298D]"
+                className="relative inline-flex h-7 shrink-0 items-center whitespace-nowrap px-3 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#82298D]"
                 style={{
                   borderRadius: 24,
                   ...(active
@@ -181,7 +181,7 @@ export function V3FilterBar({
         </div>
 
         {/* Action icons */}
-        <div className="flex shrink-0 items-center gap-1 ml-2">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar md:ml-2 md:shrink-0 md:overflow-visible">
           <ActionIcon
             active={visibleColumns.has("timestamp")}
             aria-label="Show time stamp"
@@ -234,13 +234,14 @@ export function V3FilterBar({
             type="button"
             disabled={!hasQuickFilters}
             onClick={onClearQuickFilters}
-            className="ml-1 h-8 shrink-0 rounded-md border border-[#d1d5db] px-3 text-[11px] font-medium text-[#374151] transition-colors hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-50"
+            className="ml-auto h-8 shrink-0 rounded-md md:ml-1 border border-[#d1d5db] px-3 text-[11px] font-medium text-[#374151] transition-colors hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear Filter
           </button>
         </div>
       </div>
 
+        <div className="order-2 flex shrink-0 items-center gap-2 md:order-none">
         <IconBtn aria-label="Filters" tooltip="Filters" onClick={onAdvancedFilterClick}><Filter className="h-5 w-5" /></IconBtn>
 
         {/* Columns toggle button + panel */}
@@ -312,6 +313,7 @@ export function V3FilterBar({
               })}
             </div>
           )}
+        </div>
         </div>
     </div>
     </TooltipProvider>
