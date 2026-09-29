@@ -122,7 +122,7 @@ export function V3FilterBar({
             onKeyDown={(e) => e.key === "Enter" && onSearchEnter()}
           />
         </div>
-        <IconBtn aria-label="Filters" onClick={onAdvancedFilterClick}><Filter className="h-4 w-4" /></IconBtn>
+        <IconBtn aria-label="Filters" onClick={onAdvancedFilterClick}><Filter className="h-5 w-5" /></IconBtn>
 
         {/* Columns toggle button + panel */}
         <div ref={colPanelRef} style={{ position: "relative" }}>
@@ -131,7 +131,7 @@ export function V3FilterBar({
             onClick={() => setColPanelOpen((o) => !o)}
             style={{ background: colPanelOpen ? "#f3f4f6" : undefined }}
           >
-            <Columns className="h-4 w-4" />
+            <Columns className="h-5 w-5" />
           </IconBtn>
 
           {colPanelOpen && (
@@ -432,7 +432,7 @@ function DeletedActionIcon({ active }: { active: boolean }) {
   const inactiveFill = "#6B7280"
 
   return (
-    <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 20 20">
+    <svg aria-hidden="true" className="h-6 w-6" fill="none" viewBox="0 0 20 20">
       <defs>
         <linearGradient id="v3TrashBody" x1="4" y1="4" x2="16" y2="18" gradientUnits="userSpaceOnUse">
           <stop stopColor="#6B7280" />
@@ -442,7 +442,7 @@ function DeletedActionIcon({ active }: { active: boolean }) {
       <path
         d="M7.5 3.5h5M4.5 5.5h11M6.5 5.5l.7 10.2a1.2 1.2 0 0 0 1.2 1.1h3.2a1.2 1.2 0 0 0 1.2-1.1L13.5 5.5M8.5 8.2v5.6M11.5 8.2v5.6"
         stroke={active ? "url(#v3TrashBody)" : inactiveFill}
-        strokeWidth="1.4"
+        strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
         opacity={active ? 1 : 0.65}
