@@ -75,6 +75,11 @@ function esc(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Pan numbers mix digits and letters, so zero gets a stroke to tell it apart from the letter O. */
+function panHtml(value: string): string {
+  return esc(value).replace(/0/g, `<span class="ps-zero">0<span class="ps-zero-slash"></span></span>`);
+}
+
 function text(value: unknown): string {
   if (value == null) return "";
   return String(value).trim();
@@ -342,7 +347,7 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
           <span class="ps-head-k">Pt:</span><span class="ps-head-v">${esc(header.patientName)}</span>
         </div>
         <div class="ps-head-col">
-          <span class="ps-head-k">Pan #</span><span class="ps-head-v">${esc(header.panNumber || "----")}</span>
+          <span class="ps-head-k">Pan #</span><span class="ps-head-v">${panHtml(header.panNumber || "----")}</span>
           <span class="ps-head-k">Case #</span><span class="ps-head-v">${esc(header.caseNumber)}</span>
           <span class="ps-head-k">Slip #</span><span class="ps-head-v">${esc(header.slipNumber)}</span>
         </div>
@@ -377,7 +382,7 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
     <div class="ps-stub">
       <div class="ps-stub-top">
         ${qrHtml}
-        <div class="ps-pan">${esc(header.panNumber || "—")}</div>
+        <div class="ps-pan">${panHtml(header.panNumber || "—")}</div>
       </div>
       <div class="ps-stub-bottom">
         <div class="ps-stub-office">

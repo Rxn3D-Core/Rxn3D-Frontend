@@ -18,6 +18,7 @@ import {
   truncateTextToMaxLines,
   truncateTextToMaxWords,
 } from "@/lib/paper-slip-notes-display";
+import { SlashedZeroText } from "@/components/paper-slip-print/slashed-zero-text";
 import { VirtualSlipToothChart } from "@/components/virtual-slip/VirtualSlipToothChart";
 import { VirtualSlipExtractionStatusBoxes } from "@/components/virtual-slip/VirtualSlipExtractionStatusBoxes";
 import { VirtualSlipOpposingSection } from "@/components/virtual-slip/VirtualSlipOpposingSection";
@@ -535,7 +536,7 @@ function PaperSlipV2CasePanBlock({ slip }: { slip: PaperSlipPrintV2SlipVM }) {
           className="min-w-[177px] text-center font-normal text-[#0A0B0E]"
           style={{ fontFamily: "Inter, Arial, sans-serif", fontSize: 96, lineHeight: "116px" }}
         >
-          {slip.vm.header.panNumber || ""}
+          <SlashedZeroText value={slip.vm.header.panNumber || ""} />
         </div>
       </div>
     </div>

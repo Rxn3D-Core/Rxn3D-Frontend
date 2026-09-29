@@ -14,6 +14,7 @@ import {
   truncateTextToMaxWords,
 } from "@/lib/paper-slip-notes-display";
 import { VirtualSlipToothChart } from "@/components/virtual-slip/VirtualSlipToothChart";
+import { SlashedZeroText } from "@/components/paper-slip-print/slashed-zero-text";
 
 // Canonical row order down the center column of the detail grid, matching the
 // Figma paper-slip reference. Labels here must match the `label` values emitted
@@ -416,7 +417,7 @@ function PaperSlipCasePanBlock({ slip }: { slip: PaperSlipPrintableSlipVM }) {
           </div>
         )}
         <div className="text-center font-sans text-[96px] font-normal leading-[100%] tracking-[0] text-[#111827]">
-          {slip.header.casePanNumber || ""}
+          <SlashedZeroText value={slip.header.casePanNumber || ""} />
         </div>
       </div>
     </section>
