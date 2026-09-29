@@ -102,68 +102,65 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ps-delivery {
-  box-sizing: border-box;
+.ps-head {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 5px;
-  width: 156px;
-  height: 48px;
-  background: #fff;
-  border: 1px solid #000;
-  border-radius: 6px;
+  gap: 2px;
+  padding: 2px 4px 6px;
+  border-bottom: 1px dashed #80878C;
+  font-family: Verdana, Geneva, sans-serif;
+  color: #000;
   flex-shrink: 0;
 }
-.ps-delivery-label {
-  font-family: Inter, Arial, sans-serif;
-  font-weight: 700;
-  font-size: 12px;
-  line-height: 14px;
-}
-.ps-delivery-value {
-  font-family: Inter, Arial, sans-serif;
-  font-weight: 700;
-  font-size: 14px;
-  line-height: 17px;
-}
-.ps-ids {
-  box-sizing: border-box;
+.ps-head-ofc {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 6px 12px;
+  align-items: baseline;
   gap: 8px;
-  width: 100%;
-  border: 1px solid #B8BFC4;
-  border-radius: 5px;
-  flex-shrink: 0;
+  min-width: 0;
 }
-.ps-ids-row {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-}
-.ps-id {
+.ps-head-office {
   flex: 1;
   min-width: 0;
-  font-family: Inter, Arial, sans-serif;
-  font-weight: 600;
-  font-size: 11px;
-  line-height: 13px;
-  color: #3D3D3D;
+  padding-left: 24%;
+  font-size: 22px;
+  line-height: 26px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ps-id span {
-  display: block;
-  margin-top: 2px;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 16px;
-  color: #000;
+.ps-head-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1.1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+.ps-head-col {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 1px;
+  align-items: baseline;
+  min-width: 0;
+}
+.ps-head-col-people { column-gap: 14px; }
+.ps-head-k {
+  font-size: 10px;
+  line-height: 18px;
+  color: #333;
+  white-space: nowrap;
+}
+.ps-head-v {
+  min-width: 0;
+  font-size: 15px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ps-head-v-lg {
+  font-size: 19px;
+  line-height: 22px;
 }
 .ps-legend {
   display: flex;
@@ -497,7 +494,8 @@ body {
     overflow: hidden !important;
     zoom: 1 !important;
     transform-origin: top left !important;
-    transform: rotate(90deg) scale(calc(5.5in / 628px)) !important;
+    /* 5.5in / 628px = 528 / 628. Firefox rejects length ÷ length in calc(). */
+    transform: rotate(90deg) scale(0.8408) !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     page-break-after: avoid !important;
