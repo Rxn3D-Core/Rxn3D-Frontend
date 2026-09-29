@@ -1343,6 +1343,8 @@ export default function LabSlipPage() {
           reasonPlaceholder="Please provide a reason for cancellation."
           warning="Case cancel stops all arches. Arch cancel leaves the other arch active."
           enableScopePicker
+          officeName={selectedSlipForCancel?.officeCode}
+          patientName={selectedSlipForCancel?.patient}
         />
 
         <CaseActionModal
@@ -1369,6 +1371,8 @@ export default function LabSlipPage() {
           reasonPlaceholder="Please provide a reason for deleting."
           warning="Soft-deleted records stay recoverable via the Deleted filter."
           enableScopePicker
+          officeName={selectedSlipForDelete?.officeCode}
+          patientName={selectedSlipForDelete?.patient}
         />
 
         <CaseActionModal
@@ -1413,6 +1417,8 @@ export default function LabSlipPage() {
           buttonColor="warning"
           reasonPlaceholder="Please provide a reason for hold."
           enableScopePicker
+          officeName={selectedSlipForHold?.officeCode}
+          patientName={selectedSlipForHold?.patient}
         />
 
         {/* Driver History Modal */}

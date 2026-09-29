@@ -1132,6 +1132,8 @@ export default function VirtualSlipV2Page() {
         initialScope={actionModalScope}
         initialArch={actionModalArch}
         lockScopeSelection={actionModalScope === "arch" && !!actionModalArch}
+        officeName={vm.header.officeName}
+        patientName={vm.header.patientName}
       />
 
       <CaseActionModal
@@ -1191,6 +1193,8 @@ export default function VirtualSlipV2Page() {
         initialScope={actionModalScope}
         initialArch={actionModalArch}
         lockScopeSelection={actionModalScope === "arch" && !!actionModalArch}
+        officeName={vm.header.officeName}
+        patientName={vm.header.patientName}
       />
 
       <LabImplantSelectionModal

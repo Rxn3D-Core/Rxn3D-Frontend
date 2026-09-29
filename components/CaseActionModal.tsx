@@ -49,6 +49,9 @@ interface CaseActionModalProps {
    * and the arch dropdown are locked to the pre-selected values.
    */
   lockScopeSelection?: boolean;
+  /** Shown at the top so the user knows which case they are acting on. */
+  officeName?: string;
+  patientName?: string;
 }
 
 const buttonClassMap: Record<string, { bg: string, icon: string }> = {
@@ -86,6 +89,8 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
   initialScope = "case",
   initialArch,
   lockScopeSelection = false,
+  officeName,
+  patientName,
 }) => {
   const [reason, setReason] = useState("");
   const [scope, setScope] = useState<SlipActionScope>(initialScope);
@@ -213,6 +218,23 @@ const CaseActionModal: React.FC<CaseActionModalProps> = ({
               <div className="text-sm text-gray-600">{description}</div>
             </div>
           </div>
+
+          {(officeName || patientName) && (
+            <div className="mb-6 grid grid-cols-2 gap-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-gray-500">Office</div>
+                <div className="truncate text-sm font-semibold text-gray-900" title={officeName}>
+                  {officeName || "—"}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-gray-500">Patient</div>
+                <div className="truncate text-sm font-semibold text-gray-900" title={patientName}>
+                  {patientName || "—"}
+                </div>
+              </div>
+            </div>
+          )}
 
           {enableScopePicker && scopeQuestion && (
             <div className="mb-6">
