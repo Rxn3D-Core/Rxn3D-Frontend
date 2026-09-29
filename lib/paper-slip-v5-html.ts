@@ -300,8 +300,6 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
   const doctor = details?.case?.doctor ?? details?.doctor ?? {};
   const officeCode = text(office.code || office.unique_code);
   const license = text(doctor.license_number);
-  const genderAge = [header.gender, header.age ? `Age ${header.age}` : ""].filter(Boolean).join(", ");
-  const delivery = [header.dueDate, header.deliveryTime].filter(Boolean).join(" • ");
   const note = oldestNote(details, vm);
   const maxSummary = productSummary(maxillary);
   const mandSummary = productSummary(mandibular);
@@ -332,23 +330,27 @@ export function buildPaperSlipV5Html(input: PaperSlipV5Input, qrCodeUrl = ""): s
           <div class="ps-lab-name">${esc(header.labName || "Lab")}</div>
         </div>
       </div>
-      <div class="ps-delivery">
-        <div class="ps-delivery-label">Delivery Date</div>
-        <div class="ps-delivery-value">${esc(delivery || "—")}</div>
-      </div>
     </div>
-    <div class="ps-ids">
-      <div class="ps-ids-row">
-        <div class="ps-id">Office<br><span>${esc(header.officeName)}</span></div>
-        <div class="ps-id">Dr<br><span>${esc(header.doctorName)}</span></div>
-        <div class="ps-id">Patient<br><span>${esc(header.patientName)}</span></div>
-        <div class="ps-id">Gender<br><span>${esc(genderAge)}</span></div>
+    <div class="ps-head">
+      <div class="ps-head-ofc">
+        <span class="ps-head-k">Ofc:</span>
+        <span class="ps-head-office">${esc(header.officeName)}</span>
       </div>
-      <div class="ps-ids-row">
-        <div class="ps-id">Code<br><span>${esc(officeCode)}</span></div>
-        <div class="ps-id">Case #<br><span>${esc(header.caseNumber)}</span></div>
-        <div class="ps-id">Slip #<br><span>${esc(header.slipNumber)}</span></div>
-        <div class="ps-id">Pick up date<br><span>${esc(header.pickupDate)}</span></div>
+      <div class="ps-head-cols">
+        <div class="ps-head-col ps-head-col-people">
+          <span class="ps-head-k">Dr:</span><span class="ps-head-v">${esc(header.doctorName)}</span>
+          <span class="ps-head-k">Pt:</span><span class="ps-head-v">${esc(header.patientName)}</span>
+        </div>
+        <div class="ps-head-col">
+          <span class="ps-head-k">Pan #</span><span class="ps-head-v">${esc(header.panNumber || "----")}</span>
+          <span class="ps-head-k">Case #</span><span class="ps-head-v">${esc(header.caseNumber)}</span>
+          <span class="ps-head-k">Slip #</span><span class="ps-head-v">${esc(header.slipNumber)}</span>
+        </div>
+        <div class="ps-head-col">
+          <span class="ps-head-k">Pick up date</span><span class="ps-head-v">${esc(header.pickupDate)}</span>
+          <span class="ps-head-k">Delivery date</span><span class="ps-head-v ps-head-v-lg">${esc(header.dueDate)}</span>
+          <span class="ps-head-k">Delivery time</span><span class="ps-head-v ps-head-v-lg">${esc(header.deliveryTime)}</span>
+        </div>
       </div>
     </div>
     <div class="ps-legend">
