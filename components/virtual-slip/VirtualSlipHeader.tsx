@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import type { VirtualSlipHeaderVM } from "@/lib/virtual-slip-view-model";
 import { hasDisplayValue } from "@/lib/virtual-slip-display";
 import {
@@ -152,21 +153,29 @@ function HeaderActionButton({
   src,
   label,
   onClick,
+  loading = false,
 }: {
   src: string;
   label: string;
   onClick?: () => void;
+  loading?: boolean;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      aria-busy={loading || undefined}
+      title={loading ? "Preparing print…" : undefined}
       onClick={onClick}
-      disabled={!onClick}
-      className="flex h-[42px] w-[42px] shrink-0 items-center justify-center transition-opacity hover:opacity-85 disabled:cursor-default disabled:opacity-100"
+      disabled={!onClick || loading}
+      className="flex h-[42px] w-[42px] shrink-0 items-center justify-center transition-opacity hover:opacity-85 disabled:cursor-default disabled:opacity-100 aria-busy:cursor-wait"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" aria-hidden className="h-[38px] w-[38px] object-contain" />
+      {loading ? (
+        <Loader2 aria-hidden className="h-[28px] w-[28px] animate-spin text-[#1162A8]" />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" aria-hidden className="h-[38px] w-[38px] object-contain" />
+      )}
     </button>
   );
 }
@@ -174,6 +183,8 @@ function HeaderActionButton({
 export interface VirtualSlipHeaderProps {
   header: VirtualSlipHeaderVM;
   onPrint?: () => void;
+  /** Paper slip print is being prepared; shows a spinner and blocks repeat clicks. */
+  printing?: boolean;
   onPrintInvoice?: () => void;
   /** Prints Blade portrait-v4 HTML from API (base64 → iframe print). */
   onPrintPaperSlipV4?: () => void;
@@ -183,6 +194,7 @@ export interface VirtualSlipHeaderProps {
 export function VirtualSlipHeader({
   header,
   onPrint,
+  printing = false,
   onPrintInvoice,
   onPrintPaperSlipV4,
   locationAction,
@@ -238,6 +250,7 @@ export function VirtualSlipHeader({
                 src={`${HEADER_ICON_BASE}/printer.svg?v=1`}
                 label="Print"
                 onClick={onPrint}
+                loading={printing}
               />
               <HeaderActionButton
                 src={`${HEADER_ICON_BASE}/print-invoice.svg`}

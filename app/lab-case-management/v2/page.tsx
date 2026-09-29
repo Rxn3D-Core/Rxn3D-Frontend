@@ -682,7 +682,7 @@ export default function LabSlipPage() {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" });
       return;
     }
-    void printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+    return printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
       toast({
         title: "Unable to print paper slip",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -1343,6 +1343,8 @@ export default function LabSlipPage() {
           reasonPlaceholder="Please provide a reason for cancellation."
           warning="Case cancel stops all arches. Arch cancel leaves the other arch active."
           enableScopePicker
+          officeName={selectedSlipForCancel?.officeCode}
+          patientName={selectedSlipForCancel?.patient}
         />
 
         <CaseActionModal
@@ -1369,6 +1371,8 @@ export default function LabSlipPage() {
           reasonPlaceholder="Please provide a reason for deleting."
           warning="Soft-deleted records stay recoverable via the Deleted filter."
           enableScopePicker
+          officeName={selectedSlipForDelete?.officeCode}
+          patientName={selectedSlipForDelete?.patient}
         />
 
         <CaseActionModal
@@ -1413,6 +1417,8 @@ export default function LabSlipPage() {
           buttonColor="warning"
           reasonPlaceholder="Please provide a reason for hold."
           enableScopePicker
+          officeName={selectedSlipForHold?.officeCode}
+          patientName={selectedSlipForHold?.patient}
         />
 
         {/* Driver History Modal */}

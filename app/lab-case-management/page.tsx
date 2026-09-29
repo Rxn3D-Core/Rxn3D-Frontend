@@ -579,7 +579,7 @@ export default function LabSlipV3Page() {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
       return
     }
-    void printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+    return printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
       toast({
         title: "Unable to print paper slip",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -1114,6 +1114,8 @@ export default function LabSlipV3Page() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for case cancellation."
           warning="This action cannot be undone and will archive the case."
+          officeName={selectedSlipForCancel?.officeCode}
+          patientName={selectedSlipForCancel?.patient}
         />
 
         <CaseActionModal
@@ -1130,6 +1132,8 @@ export default function LabSlipV3Page() {
           buttonColor="error"
           reasonPlaceholder="Please provide a reason for deleting this slip."
           warning="Soft-deleted slips stay recoverable via the Deleted filter."
+          officeName={selectedSlipForDelete?.officeCode}
+          patientName={selectedSlipForDelete?.patient}
         />
 
         <CaseActionModal
@@ -1160,6 +1164,8 @@ export default function LabSlipV3Page() {
           buttonText={holdSlipSubmitting ? "Saving…" : "Put case on hold"}
           buttonColor="warning"
           reasonPlaceholder="Please provide a reason for putting case on hold."
+          officeName={selectedSlipForHold?.officeCode}
+          patientName={selectedSlipForHold?.patient}
         />
 
         <DriverHistoryModal

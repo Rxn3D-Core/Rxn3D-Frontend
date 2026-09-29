@@ -564,14 +564,14 @@ function combinePaperSlipHtml(documents: string[]): string {
   return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
 }
 
-function printPaperSlipV5Html(html: string): void {
+async function printPaperSlipV5Html(html: string): Promise<void> {
   const isIos =
     typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (isIos) {
     printHtmlInCurrentWindow(html);
     return;
   }
-  printHtmlViaHiddenIframe(html);
+  await printHtmlViaHiddenIframe(html);
 }
 
 async function renderPaperSlipV5Html(input: PaperSlipV5Input): Promise<string> {
@@ -598,12 +598,12 @@ export async function printPaperSlipV5(input: PaperSlipV5Input): Promise<void> {
     printHtmlInCurrentWindow(buildPaperSlipV5Html(input, qr));
     return;
   }
-  printPaperSlipV5Html(await renderPaperSlipV5Html(input));
+  await printPaperSlipV5Html(await renderPaperSlipV5Html(input));
 }
 
 /** One print dialog, one letter page per slip. */
 export async function printPaperSlipV5Many(inputs: PaperSlipV5Input[]): Promise<void> {
   inputs.forEach(assertSlipDataLoaded);
   const htmls = await Promise.all(inputs.map((input) => renderPaperSlipV5Html(input)));
-  printPaperSlipV5Html(combinePaperSlipHtml(htmls));
+  await printPaperSlipV5Html(combinePaperSlipHtml(htmls));
 }
