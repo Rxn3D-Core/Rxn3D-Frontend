@@ -579,7 +579,7 @@ export default function LabSlipV3Page() {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
       return
     }
-    void printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+    return printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
       toast({
         title: "Unable to print paper slip",
         description: error instanceof Error ? error.message : "Please try again.",

@@ -546,8 +546,9 @@ export default function VirtualSlipV2Page() {
     }
   }, [slipId, printingV4, toast]);
 
+  const [printingV5, setPrintingV5] = useState(false);
   const handlePrintPaperSlipV5 = useCallback(() => {
-    if (!slipId || isNaN(slipId) || !vm) return;
+    if (!slipId || isNaN(slipId) || !vm || printingV5) return;
     const detailsId = Number((virtualSlipDetails as { id?: number } | null)?.id);
     if (loading || detailsId !== slipId) {
       toast({
@@ -557,20 +558,23 @@ export default function VirtualSlipV2Page() {
       });
       return;
     }
+    setPrintingV5(true);
     void printPaperSlipV5({
       vm,
       caseId: caseId || routeCaseId,
       slipId,
       details: virtualSlipDetails,
-    }).catch((error: unknown) => {
-      toast({
-        title: "Unable to print paper slip",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-        duration: 5000,
-      });
-    });
-  }, [slipId, vm, caseId, routeCaseId, virtualSlipDetails, loading, toast]);
+    })
+      .catch((error: unknown) => {
+        toast({
+          title: "Unable to print paper slip",
+          description: error instanceof Error ? error.message : "Please try again.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      })
+      .finally(() => setPrintingV5(false));
+  }, [slipId, vm, caseId, routeCaseId, virtualSlipDetails, loading, printingV5, toast]);
 
   // A freshly created slip is marked by the submit flow; consuming the flag
   // auto-opens the paper slip print window once — reloads never re-trigger it.
@@ -749,6 +753,7 @@ export default function VirtualSlipV2Page() {
       <VirtualSlipHeader
         header={vm.header}
         onPrint={handlePrintPaperSlipV5}
+        printing={printingV5}
         onPrintInvoice={handlePrintInvoice}
         onPrintPaperSlipV4={handlePrintPaperSlipV4}
         locationAction={{

@@ -10,6 +10,7 @@ import { ConditionalClientLayout } from "@/components/conditional-client-layout"
 import ReactQueryProvider from '@/components/ReactQueryProvider'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import { OnboardingCheck } from '@/components/onboarding-check'
+import { AppFooter } from '@/components/app-footer'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
 import { inter, islandMoments, windSong } from "@/lib/fonts"
 import { getSiteUrl } from "@/lib/site-url"
@@ -159,6 +160,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </RouteAwareProviders>
         </ReactQueryProvider>
         <Toaster />
+        <AppFooter />
         {process.env.NODE_ENV === 'development' && <PerformanceMonitor />}
       </body>
     </html>

@@ -34,7 +34,7 @@ export function decryptPaperSlipHtml(base64Html: string): string {
  * Print raw HTML the same way driver labels do: hidden iframe + window.print().
  * Waits for chart/logo images so the tooth chart is not blank/blurry mid-decode.
  */
-export function printHtmlViaHiddenIframe(html: string): void {
+export function printHtmlViaHiddenIframe(html: string): Promise<void> {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText =
@@ -60,12 +60,18 @@ export function printHtmlViaHiddenIframe(html: string): void {
     }, 60_000);
   };
 
+  let resolvePrinted!: () => void;
+  const printed = new Promise<void>((resolve) => {
+    resolvePrinted = resolve;
+  });
+
   const doPrint = () => {
     try {
       win.focus();
       win.print();
     } finally {
       cleanup();
+      resolvePrinted();
     }
   };
 
@@ -99,7 +105,10 @@ export function printHtmlViaHiddenIframe(html: string): void {
     ).then(() => undefined);
   };
 
+  let started = false;
   const start = () => {
+    if (started) return;
+    started = true;
     waitForImages().then(() => {
       window.setTimeout(doPrint, 200);
     });
@@ -111,6 +120,8 @@ export function printHtmlViaHiddenIframe(html: string): void {
     win.addEventListener("load", start, { once: true });
     window.setTimeout(start, 1500);
   }
+
+  return printed;
 }
 
 /**
