@@ -445,6 +445,20 @@ body {
   overflow: hidden;
   white-space: nowrap;
 }
+.ps-zero {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+}
+.ps-zero-slash {
+  position: absolute;
+  left: 50%;
+  top: 0.12em;
+  width: 0.07em;
+  height: 0.76em;
+  background: currentColor;
+  transform: translateX(-50%) rotate(25deg);
+}
 .ps-stub-office,
 .ps-stub-arches {
   min-width: 0;
