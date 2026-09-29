@@ -443,6 +443,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 onInlineAddProductCancel={wizard.cancelInlineAddProduct}
                 labCustomerId={labCustomerId}
                 onBackToProducts={wizard.handleBackToProducts}
+                onEditProductCard={wizard.handleEditProductCard}
                 onBackToCategories={wizard.handleBackToCategories}
                 selectedProductId={wizard.selectedProductId}
                 selectedProductName={wizard.selectedProductName}
@@ -456,7 +457,7 @@ export function EditSlipFlow({ slipId }: Props) {
                 initialArch={wizard.initialArch}
                 initialSlipState={initialSlipState}
                 preloadInitialSlipState
-                suppressFieldAutoOpen
+                suppressFieldAutoOpen={!wizard.hasSwappedProduct}
                 slipCollectorRef={slipCollectorRef}
                 lockedCaseSummaryNotes={lockedCaseSummaryNotes}
                 confirmDetailsChecked={confirmDetailsChecked}

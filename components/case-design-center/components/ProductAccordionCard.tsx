@@ -62,6 +62,7 @@ export interface ProductAccordionCardProps {
 }
 
 export function ProductAccordionCard({
+  arch,
   isExpanded,
   onToggle,
   productName,
@@ -94,12 +95,28 @@ export function ProductAccordionCard({
       <DeleteProductConfirmModal
         open={showDeleteConfirm}
         productName={productName}
+        arch={arch}
+        toothDisplay={toothDisplay}
         onCancel={() => setShowDeleteConfirm(false)}
         onConfirm={() => {
           setShowDeleteConfirm(false);
           onDelete?.();
         }}
       />
+      {customHeader && canDelete && !caseSubmitted && onDelete && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDeleteConfirm(true);
+          }}
+          className="absolute top-3 -right-8 z-10 flex items-center justify-center w-8 h-8 rounded-full cursor-pointer text-[#999999] hover:text-red-500 hover:bg-gray-100 transition-colors"
+          title="Remove product"
+          aria-label="Remove product"
+        >
+          <Trash2 size={18} />
+        </button>
+      )}
       <div className="rounded-lg bg-white overflow-hidden">
         {customHeader ? (
           <div className={headerExtension || isExpanded ? "" : "rounded-b-[5.4px]"}>

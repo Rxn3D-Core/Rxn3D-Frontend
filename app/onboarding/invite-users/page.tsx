@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { useBusinessSettings } from "@/contexts/business-settings-context"
 import { buildLabOnboardCompleteBody } from "@/lib/lab-onboard-complete-payload"
 import { postLabOnboardComplete } from "@/lib/api-lab-onboarding"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 interface Practice {
   id: number
@@ -91,7 +92,7 @@ export default function InvitePracticesPage() {
           return
         }
         hasRedirectedRef.current = true
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])

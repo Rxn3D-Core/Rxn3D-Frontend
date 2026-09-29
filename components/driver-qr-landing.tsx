@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing";
 import { useSlipContext } from "@/app/lab-case-management/SlipContext";
 import { useToast } from "@/hooks/use-toast";
 import DriverHistoryModal from "@/components/driver-history-modal";
@@ -264,8 +265,8 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
         <h1 className="text-xl font-semibold">Unable to open slip</h1>
         <p className="text-muted-foreground">{error}</p>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => router.replace("/dashboard")}>
-            Go to dashboard
+          <Button variant="outline" onClick={() => router.replace(getActiveLandingPath(user))}>
+            Go to case list
           </Button>
           <Button
             onClick={() => {
@@ -302,7 +303,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
         onClose={() => {
           if (chooserLoading || chooserIdentifying) return;
           setShowChooser(false);
-          router.replace("/dashboard");
+          router.replace(getActiveLandingPath(user));
         }}
       />
 
@@ -311,7 +312,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
         onClose={() => {
           if (!readyToSendSubmitting) {
             setShowReadyToSend(false);
-            router.replace("/dashboard");
+            router.replace(getActiveLandingPath(user));
           }
         }}
         onConfirm={handleReadyToSend}
@@ -333,7 +334,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
             setQrScanData(null);
             clearSession();
             clearDriverScanBatch();
-            router.replace("/dashboard");
+            router.replace(getActiveLandingPath(user));
           }}
           qrScanData={qrScanData.data}
           onRequestScan={() => {
@@ -344,7 +345,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
           onSubmitted={() => {
             clearSession();
             clearDriverScanBatch();
-            router.replace("/dashboard");
+            router.replace(getActiveLandingPath(user));
           }}
           onQrBatchChange={(remaining) => {
             if (!remaining.length) {
@@ -367,7 +368,7 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
             setQrScanData(null);
             clearSession();
             clearDriverScanBatch();
-            router.replace("/dashboard");
+            router.replace(getActiveLandingPath(user));
           }}
         />
       ) : null}

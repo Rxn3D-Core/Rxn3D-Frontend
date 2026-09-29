@@ -11,10 +11,12 @@ export function countProductsOnArch(
     addedProducts?: AddedProduct[];
   }
 ): number {
-  const added = (options.addedProducts ?? []).filter((ap) => ap.arch === arch).length;
+  const addedOnArch = (options.addedProducts ?? []).filter((ap) => ap.arch === arch);
+  const added = addedOnArch.length;
   const initialOnArch =
     !!options.selectedProductId &&
-    (options.initialArch === arch || options.initialArch === "both");
+    (options.initialArch === arch || options.initialArch === "both") &&
+    !addedOnArch.some((ap) => ap.replacesInitialProduct);
   return added + (initialOnArch ? 1 : 0);
 }
 

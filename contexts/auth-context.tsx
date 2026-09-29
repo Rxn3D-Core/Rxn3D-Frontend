@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast"
 import { clearSessionStorage } from "@/lib/clear-session-storage"
 import { clearDriverQrLocalSession } from "@/lib/driver-qr-scan"
 import { isCustomerProfileOnboardingWizardComplete } from "@/lib/customer-onboarding-complete"
-import { getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
+import { getActiveLandingPath, getPostLoginLandingPath } from "@/lib/auth/post-login-landing"
 import { appendCustomerIdQuery, getActiveCustomerId } from "@/lib/customer-scope"
 import { reloadAppAfterProfileSwitch } from "@/lib/profile-switch"
 import {
@@ -745,14 +745,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (shouldSeeMultiLocation && hasMultipleLocations) {
             router.replace("/multiple-location")
           } else {
-            // Single location or no multi-location role - go directly to dashboard
+            // Single location or no multi-location role - go directly to landing page
             if (shouldSeeMultiLocation && customers.length === 1) {
               // Set the single location automatically via API
               handleSingleLocation(customers[0]).then(() => {
-                router.replace("/dashboard")
+                router.replace(getPostLoginLandingPath(userRoles))
               })
             } else {
-              router.replace("/dashboard")
+              router.replace(getPostLoginLandingPath(userRoles))
             }
           }
           return true
@@ -977,7 +977,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     setIsActingAsLabAdmin(false)
     setSelectedCustomerId(null)
     setProfileRole(null)
-    window.location.href = "/dashboard"
+    window.location.href = getActiveLandingPath()
   }
 
   const forgotPassword = async (email: string): Promise<boolean> => {
@@ -1512,7 +1512,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
           }
 
           if (shouldReload) {
-            reloadAppAfterProfileSwitch(options?.redirectTo ?? "/dashboard")
+            reloadAppAfterProfileSwitch(options?.redirectTo ?? getActiveLandingPath())
           }
 
           return true
@@ -1582,8 +1582,10 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
         variant: "default",
       })
 
-      // Navigate to dashboard to see user's perspective
-      router.push("/dashboard")
+      // Navigate to the user's landing page to see their perspective
+      const impersonatedRoles =
+        impersonatedUser.roles || (impersonatedUser.role ? [impersonatedUser.role] : [])
+      router.push(getPostLoginLandingPath(impersonatedRoles))
 
       return true
     } catch (error: any) {

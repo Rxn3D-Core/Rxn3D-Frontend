@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useClearCaseDesignCenterStateMutation } from "@/hooks/use-case-design-center-state"
 import { Search, Filter, Camera } from "lucide-react"
@@ -735,8 +736,8 @@ export default function ChooseDoctorPage() {
                 router.push(`/choose-lab`)
               }
             } else {
-              // Otherwise go back to dashboard
-              router.push("/dashboard")
+              // Otherwise go back to the case list
+              router.push(getActiveLandingPath())
             }
           }}
         />

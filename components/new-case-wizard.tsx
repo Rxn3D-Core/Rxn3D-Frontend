@@ -15,6 +15,7 @@ import {
 import { useDebounce } from "@/lib/performance-utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing";
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal";
 import { AddNewLabModal } from "@/components/add-new-lab-modal";
 import { AddDoctorModal } from "@/components/add-doctor-modal";
@@ -2797,7 +2798,7 @@ export default function NewCaseWizard({
 
   const handleConfirmCancel = () => {
     setShowCancelModal(false);
-    router.push("/dashboard");
+    router.push(getActiveLandingPath());
   };
 
   return (

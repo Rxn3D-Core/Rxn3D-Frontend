@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
@@ -68,7 +69,7 @@ export function SlipCreationStepFooter({
   const handleCancelConfirm = () => {
     setShowCancelModal(false)
     setTimeout(() => {
-      router.replace("/dashboard")
+      router.replace(getActiveLandingPath())
     }, 100)
   }
 

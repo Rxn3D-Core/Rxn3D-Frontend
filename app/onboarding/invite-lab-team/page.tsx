@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AuthHeader } from "@/components/auth-header"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { useCreateUserInvitation } from "@/hooks/use-user-invitations"
 
 const LAB_ROLE_OPTIONS = [
@@ -42,7 +43,7 @@ export default function InviteLabTeamPage() {
     if (!onboardingLoading && user && isOnboardingComplete) {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])

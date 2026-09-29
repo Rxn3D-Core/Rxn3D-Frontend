@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { AuthHeader } from "@/components/auth-header"
 import { useOnboardingStatus } from "@/hooks/use-onboarding-status"
 import { useAuth } from "@/contexts/auth-context"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 
 export default function AttachmentsPage() {
   const router = useRouter()
@@ -151,7 +152,7 @@ export default function AttachmentsPage() {
     if (!onboardingLoading && user && isOnboardingComplete) {
       const isSuperAdmin = user.roles?.includes("superadmin")
       if (!isSuperAdmin) {
-        router.replace("/dashboard")
+        router.replace(getActiveLandingPath(user))
       }
     }
   }, [onboardingLoading, user, isOnboardingComplete, router])

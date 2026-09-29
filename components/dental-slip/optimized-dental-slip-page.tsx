@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, Dispatch, SetStateAction, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { getActiveLandingPath } from "@/lib/auth/post-login-landing"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { FileText, X, Search, Calendar, Clock, Star, Zap, Filter, Info, Lightbulb, RefreshCw, Edit } from "lucide-react"
@@ -1916,7 +1917,7 @@ export function OptimizedDentalSlipPageContent({
               if (isModal && onClose) {
                 onClose()
               } else {
-                router.replace("/dashboard")
+                router.replace(getActiveLandingPath())
               }
             }, 100)
           }}

@@ -1675,6 +1675,53 @@ export function useCaseDesignState(props: CaseDesignProps) {
     [toothFieldProgress, selectedAddonsByTooth, setSelectedAddonsByTooth]
   );
 
+  // Create-slip "edit product" on card 0: hand card 0's user-configured teeth on that arch
+  // to the replacement card so tooth-keyed field values carry over.
+  const card0HandoverDoneRef = useRef<Set<number>>(new Set());
+  /** The guided both-arch flow waits on card 0 of each arch — end it once card 0 leaves an arch. */
+  const endGuidedBothArchFlow = useCallback(() => {
+    if (!guidedBothArches) return;
+    crossArchFlowRef.current = {
+      upperDoneJumped: true,
+      lowerDoneJumped: true,
+      upperFieldsDoneJumped: true,
+      lowerFieldsDoneJumped: true,
+    };
+    setGuidedBothArchPhase("both-active");
+  }, [guidedBothArches]);
+  useEffect(() => {
+    for (const ap of props.addedProducts ?? []) {
+      if (!ap.replacesInitialProduct || card0HandoverDoneRef.current.has(ap.id)) continue;
+      if (ap.arch !== "maxillary" && ap.arch !== "mandibular") continue;
+      const arch = ap.arch as Arch;
+      card0HandoverDoneRef.current.add(ap.id);
+      // Teeth already carry the user's selections — skip the new product's default auto-select.
+      addedProductSetupDoneRef.current.add(`${arch}_${ap.id}`);
+      const selected = arch === "maxillary" ? teeth.maxillaryTeeth : teeth.mandibularTeeth ?? [];
+      const retention =
+        arch === "maxillary" ? teeth.maxillaryRetentionTypes : teeth.mandibularRetentionTypes ?? {};
+      const extractionMap =
+        arch === "maxillary" ? teeth.maxillaryToothExtractionMap : teeth.mandibularToothExtractionMap ?? {};
+      for (const tn of arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL) {
+        if (toothFieldProgress.getToothProductCard(arch, tn) !== 0) continue;
+        if (!selected.includes(tn) && !retention[tn]?.length && !extractionMap[tn]) continue;
+        toothFieldProgress.setToothProductCard(arch, tn, ap.id);
+      }
+      endGuidedBothArchFlow();
+    }
+  }, [
+    props.addedProducts,
+    teeth.maxillaryTeeth,
+    teeth.mandibularTeeth,
+    teeth.maxillaryRetentionTypes,
+    teeth.mandibularRetentionTypes,
+    teeth.maxillaryToothExtractionMap,
+    teeth.mandibularToothExtractionMap,
+    toothFieldProgress.getToothProductCard,
+    toothFieldProgress.setToothProductCard,
+    endGuidedBothArchFlow,
+  ]);
+
   // Added products — cache detail; apply default-extraction auto-select per card when applicable.
   useEffect(() => {
     if (props.caseSubmitted) return;
@@ -1722,6 +1769,14 @@ export function useCaseDesignState(props: CaseDesignProps) {
         if (cardTeethOnArch.length > 0) {
           const repTooth = Math.min(...cardTeethOnArch);
           autoPopulateDefaultAddons(arch, repTooth, product, [virtualTooth]);
+        }
+        if (!props.preloadInitialSlipState) {
+          for (const tn of cardTeethOnArch) {
+            const existingOnTooth = toothFieldProgress.getToothProduct(arch, tn);
+            if (existingOnTooth && existingOnTooth.id !== product.id) {
+              toothFieldProgress.setToothProduct(arch, tn, product);
+            }
+          }
         }
         if (props.preloadInitialSlipState) {
           const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
@@ -3554,6 +3609,7 @@ export function useCaseDesignState(props: CaseDesignProps) {
     triggerLowerFieldsPhase,
     guidedBothArches,
     guidedBothArchPhase,
+    endGuidedBothArchFlow,
     // Expansion
     expandedCard,
     setExpandedCard,
