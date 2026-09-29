@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Loader2, Upload, X } from "lucide-react";
+import { Camera, Loader2, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getCaseDriverHistory,
@@ -313,6 +313,8 @@ export function ImageDropzone({
   autoOpenCamera?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  // Android's photo picker (accept="image/*") has no camera option; capture forces the camera.
+  const cameraRef = useRef<HTMLInputElement>(null);
   const autoOpenedRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -336,10 +338,25 @@ export function ImageDropzone({
     if (!autoOpenCamera || image || busy || autoOpenedRef.current) return;
     autoOpenedRef.current = true;
     const timer = window.setTimeout(() => {
-      inputRef.current?.click();
+      cameraRef.current?.click();
     }, 350);
     return () => window.clearTimeout(timer);
   }, [autoOpenCamera, image, busy]);
+
+  const cameraInput = (
+    <input
+      ref={cameraRef}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      className="hidden"
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        if (e.target.files?.length) void addFiles(e.target.files);
+        e.target.value = "";
+      }}
+    />
+  );
 
   useEffect(() => {
     if (!image) autoOpenedRef.current = false;
@@ -356,6 +373,15 @@ export function ImageDropzone({
           <p className="truncate text-sm font-medium text-[#111827]">{image.name}</p>
           <p className="text-xs text-[#6B7280]">{(image.size / 1024).toFixed(0)} KB</p>
         </div>
+        <button
+          type="button"
+          onClick={() => cameraRef.current?.click()}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-[#D1D5DB] text-[#374151] hover:bg-gray-100"
+          aria-label="Retake photo"
+          title="Retake photo"
+        >
+          <Camera className="h-4 w-4" />
+        </button>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -381,6 +407,7 @@ export function ImageDropzone({
             e.target.value = "";
           }}
         />
+        {cameraInput}
       </div>
     );
   }
@@ -427,16 +454,44 @@ export function ImageDropzone({
         {required ? "Required · " : ""}
         Image only (JPG, PNG, GIF, WEBP, SVG) · max 10MB
       </p>
+      <div className="mt-1 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            cameraRef.current?.click();
+          }}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#0E66B2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B5594]"
+        >
+          <Camera className="h-3.5 w-3.5" aria-hidden />
+          Take photo
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
+        >
+          <Upload className="h-3.5 w-3.5" aria-hidden />
+          Choose photo
+        </button>
+      </div>
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
         className="hidden"
+        onClick={(e) => e.stopPropagation()}
         onChange={(e) => {
           if (e.target.files?.length) void addFiles(e.target.files);
           e.target.value = "";
         }}
       />
+      {cameraInput}
     </div>
   );
 }
@@ -461,6 +516,7 @@ export function RowImageUpload({
   autoOpenCamera?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const autoOpenedRef = useRef(false);
   const [busy, setBusy] = useState(false);
 
@@ -482,7 +538,7 @@ export function RowImageUpload({
     if (!autoOpenCamera || image || disabled || busy || autoOpenedRef.current) return;
     autoOpenedRef.current = true;
     const timer = window.setTimeout(() => {
-      inputRef.current?.click();
+      cameraRef.current?.click();
     }, 350);
     return () => window.clearTimeout(timer);
   }, [autoOpenCamera, image, disabled, busy]);
@@ -536,7 +592,22 @@ export function RowImageUpload({
   }
 
   return (
-    <>
+    <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => cameraRef.current?.click()}
+        disabled={busy}
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors",
+          required
+            ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] hover:border-[#D97706]"
+            : "border-[#CBD5E1] bg-[#F9FAFB] text-[#9CA3AF] hover:border-[#0E66B2] hover:text-[#0E66B2]"
+        )}
+        title={`Take ${label.toLowerCase()}`}
+        aria-label={`Take ${label.toLowerCase()}`}
+      >
+        <Camera className="h-4 w-4" aria-hidden />
+      </button>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -566,7 +637,18 @@ export function RowImageUpload({
           e.target.value = "";
         }}
       />
-    </>
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) void addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </span>
   );
 }
 
