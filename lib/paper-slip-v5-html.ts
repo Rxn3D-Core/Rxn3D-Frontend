@@ -437,12 +437,71 @@ function cleanupIosPrintRoot(): void {
   document.getElementById(`${IOS_PRINT_ROOT_ID}-style`)?.remove();
 }
 
+const PRINT_LOADER_ID = "paper-slip-v5-print-loader";
+
+function showPrintLoader(): () => void {
+  const el = document.createElement("div");
+  el.id = PRINT_LOADER_ID;
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  el.style.cssText =
+    "position:fixed;inset:0;z-index:2147483647;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(255,255,255,0.85);font:500 15px/1.4 system-ui,sans-serif;color:#1F2937;touch-action:none";
+  el.innerHTML = `<style>@keyframes ${PRINT_LOADER_ID}-spin{to{transform:rotate(360deg)}}@media print{#${PRINT_LOADER_ID}{display:none!important}}</style><div style="width:40px;height:40px;border:4px solid #D6E4F2;border-top-color:#1162A8;border-radius:50%;animation:${PRINT_LOADER_ID}-spin .8s linear infinite"></div><span>Preparing paper slip…</span>`;
+  document.body.appendChild(el);
+  return () => el.remove();
+}
+
+let printInFlight = false;
+
+/**
+ * One paper slip print at a time, behind a full-screen loader. A second tap
+ * would replace the hidden iPhone slip while the first print sheet is open,
+ * which prints the page underneath instead.
+ */
+async function runExclusivePrint(job: () => Promise<void>): Promise<void> {
+  if (printInFlight) return;
+  printInFlight = true;
+  const hideLoader = showPrintLoader();
+  try {
+    await job();
+  } finally {
+    hideLoader();
+    printInFlight = false;
+  }
+}
+
+function pendingImages(root: HTMLElement): HTMLImageElement[] {
+  const svgHrefs = Array.from(root.querySelectorAll("svg image"))
+    .map((el) => el.getAttribute("href") || el.getAttribute("xlink:href") || "")
+    .filter(Boolean);
+  const svgImages = Array.from(new Set(svgHrefs)).map((href) => {
+    const img = new Image();
+    img.src = href;
+    return img;
+  });
+  return [...Array.from(root.querySelectorAll("img")), ...svgImages].filter((img) => !img.complete);
+}
+
+function waitForImages(images: HTMLImageElement[]): Promise<void> {
+  return Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+          window.setTimeout(resolve, 4000);
+        })
+    )
+  ).then(() => undefined);
+}
+
 /**
  * Print on this page. The slip is invisible on screen, so cancel or print
  * leaves the virtual slip in place. Slip CSS is print-only so it does not
- * restyle the page underneath.
+ * restyle the page underneath. The slip stays mounted until the next print:
+ * iOS can re-render the preview while its print sheet is open.
  */
-function printHtmlInCurrentWindow(html: string): void {
+async function printHtmlInCurrentWindow(html: string): Promise<void> {
   cleanupIosPrintRoot();
 
   const parsed = new DOMParser().parseFromString(html, "text/html");
@@ -495,28 +554,11 @@ function printHtmlInCurrentWindow(html: string): void {
   root.innerHTML = parsed.body.innerHTML;
   document.body.appendChild(root);
   root.getBoundingClientRect();
-  window.print();
 
-  const media = window.matchMedia("print");
-  let sawPrint = media.matches;
-  let removed = false;
-  const finish = () => {
-    if (removed) return;
-    removed = true;
-    media.removeEventListener("change", onChange);
-    window.removeEventListener("afterprint", onAfterPrint);
-    cleanupIosPrintRoot();
-  };
-  const onChange = (event: MediaQueryListEvent) => {
-    if (event.matches) sawPrint = true;
-    else if (sawPrint) finish();
-  };
-  const onAfterPrint = () => {
-    if (sawPrint && !media.matches) finish();
-  };
-  media.addEventListener("change", onChange);
-  window.addEventListener("afterprint", onAfterPrint);
-  window.setTimeout(finish, 120_000);
+  // Print synchronously when images are already loaded so iPhone keeps the tap gesture.
+  const pending = pendingImages(root);
+  if (pending.length > 0) await waitForImages(pending);
+  window.print();
 }
 
 const MULTI_SHEET_PRINT_CSS = `
@@ -568,7 +610,7 @@ async function printPaperSlipV5Html(html: string): Promise<void> {
   const isIos =
     typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (isIos) {
-    printHtmlInCurrentWindow(html);
+    await printHtmlInCurrentWindow(html);
     return;
   }
   await printHtmlViaHiddenIframe(html);
@@ -587,23 +629,36 @@ function assertSlipDataLoaded(input: PaperSlipV5Input): void {
   }
 }
 
-/** Build the slip from data already on the page and open the browser print dialog. */
-export async function printPaperSlipV5(input: PaperSlipV5Input): Promise<void> {
-  assertSlipDataLoaded(input);
-  const isIos =
-    typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
-  if (isIos) {
-    const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
-    const qr = existingQr(details) || qrDataUrlSync(input.caseId, input.slipId);
-    printHtmlInCurrentWindow(buildPaperSlipV5Html(input, qr));
-    return;
-  }
-  await printPaperSlipV5Html(await renderPaperSlipV5Html(input));
+/**
+ * Build the slip and open the browser print dialog once it is ready.
+ * Pass a loader to fetch slip data behind the same loader and single-print lock.
+ */
+export function printPaperSlipV5(
+  source: PaperSlipV5Input | (() => Promise<PaperSlipV5Input>)
+): Promise<void> {
+  return runExclusivePrint(async () => {
+    const input = typeof source === "function" ? await source() : source;
+    assertSlipDataLoaded(input);
+    const isIos =
+      typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIos) {
+      const details = input.details as { print_qr_code_url?: string; qr_code_url?: string; qr_code?: string } | undefined;
+      const qr = existingQr(details) || qrDataUrlSync(input.caseId, input.slipId);
+      await printHtmlInCurrentWindow(buildPaperSlipV5Html(input, qr));
+      return;
+    }
+    await printPaperSlipV5Html(await renderPaperSlipV5Html(input));
+  });
 }
 
 /** One print dialog, one letter page per slip. */
-export async function printPaperSlipV5Many(inputs: PaperSlipV5Input[]): Promise<void> {
-  inputs.forEach(assertSlipDataLoaded);
-  const htmls = await Promise.all(inputs.map((input) => renderPaperSlipV5Html(input)));
-  await printPaperSlipV5Html(combinePaperSlipHtml(htmls));
+export function printPaperSlipV5Many(
+  source: PaperSlipV5Input[] | (() => Promise<PaperSlipV5Input[]>)
+): Promise<void> {
+  return runExclusivePrint(async () => {
+    const inputs = typeof source === "function" ? await source() : source;
+    inputs.forEach(assertSlipDataLoaded);
+    const htmls = await Promise.all(inputs.map((input) => renderPaperSlipV5Html(input)));
+    await printPaperSlipV5Html(combinePaperSlipHtml(htmls));
+  });
 }
