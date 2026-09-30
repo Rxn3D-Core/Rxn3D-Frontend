@@ -414,7 +414,8 @@ body {
   column-gap: 12px;
   row-gap: 4px;
   width: 100%;
-  padding: 8px 0 0;
+  /* padding-left → shifts QR stub down on the rotated half-page print view */
+  padding: 8px 0 0 50px;
 }
 .ps-stub-top,
 .ps-stub-bottom {

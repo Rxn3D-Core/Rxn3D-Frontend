@@ -22,6 +22,7 @@ import { useCaseSubmissionFlow } from "./hooks/useCaseSubmissionFlow";
 import { CaseSubmissionOverlays } from "./components/CaseSubmissionOverlays";
 import { DoctorEditModal } from "./components/DoctorEditModal";
 import { caseDesignInter } from "./case-design-inter-font";
+import { useCaseEstimatedDueDate } from "./hooks/useCaseEstimatedDueDate";
 
 export default function Page() {
   const { createSlip, uploadSlipAttachment } = useSlipCreation();
@@ -93,6 +94,13 @@ export default function Page() {
   const [rushCasesEnabled, setRushCasesEnabled] = useState(true);
   const [rushCaseSchedule, setRushCaseSchedule] = useState<CaseSchedule | null>(null);
   const [labBusinessHours, setLabBusinessHours] = useState<BusinessHour[] | null>(null);
+
+  const productIdsForDueDate = [
+    selectedProductId,
+    ...addedProducts.map((p) => p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)),
+  ];
+  const { displayDate: headerDueDate, isLoading: headerDueDateLoading } =
+    useCaseEstimatedDueDate(productIdsForDueDate);
 
   const {
     submissionState,
@@ -175,6 +183,9 @@ export default function Page() {
               labLogoUrl={completedLab?.logo}
               labName={completedLab?.name}
               onEditLab={handleTopBarEditLab}
+              estimatedDueDate={caseSubmitted ? null : headerDueDate}
+              estimatedDueDateLoading={!caseSubmitted && headerDueDateLoading}
+              cutoffTime={caseSubmitted ? null : rushCaseSchedule?.default_pickup_time}
             />
             <CaseDesignCenter
               // Remount with fresh product configuration when the user goes back and

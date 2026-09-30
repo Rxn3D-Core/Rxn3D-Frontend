@@ -355,31 +355,33 @@ export function ImageDropzone({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[#111827]">{image.name}</p>
           <p className="text-xs text-[#6B7280]">{(image.size / 1024).toFixed(0)} KB</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#0E66B2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B5594]"
+            >
+              <Camera className="h-3.5 w-3.5" aria-hidden />
+              Take Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
+            >
+              <Upload className="h-3.5 w-3.5" aria-hidden />
+              Upload Photo
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+              Remove
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => cameraRef.current?.click()}
-          className="flex h-7 w-7 items-center justify-center rounded-md border border-[#D1D5DB] text-[#374151] hover:bg-gray-100"
-          aria-label="Retake photo"
-          title="Retake photo"
-        >
-          <Camera className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="rounded-md border border-[#D1D5DB] px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
-        >
-          Replace
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-[#9CA3AF] hover:bg-gray-200 hover:text-[#4B5563]"
-          aria-label="Remove image"
-        >
-          <X className="h-4 w-4" />
-        </button>
         <input
           ref={inputRef}
           type="file"
@@ -397,15 +399,14 @@ export function ImageDropzone({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={() => inputRef.current?.click()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          inputRef.current?.click();
-        }
-      }}
+      className={cn(
+        "flex min-h-[110px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-6 text-center transition-colors",
+        dragOver
+          ? "border-[#0E66B2] bg-blue-50"
+          : required
+            ? "border-[#F59E0B] bg-[#FFFBEB]"
+            : "border-[#CBD5E1] bg-[#F9FAFB]"
+      )}
       onDragOver={(e) => {
         e.preventDefault();
         setDragOver(true);
@@ -416,51 +417,35 @@ export function ImageDropzone({
         setDragOver(false);
         if (e.dataTransfer.files?.length) void addFiles(e.dataTransfer.files);
       }}
-      className={cn(
-        "flex min-h-[110px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-6 text-center transition-colors",
-        dragOver
-          ? "border-[#0E66B2] bg-blue-50"
-          : required
-            ? "border-[#F59E0B] bg-[#FFFBEB] hover:border-[#D97706]"
-            : "border-[#CBD5E1] bg-[#F9FAFB] hover:border-[#0E66B2]"
-      )}
     >
       {busy ? (
         <Loader2 className="h-6 w-6 animate-spin text-[#0E66B2]" />
-      ) : (
-        <Upload className="h-6 w-6 text-[#9CA3AF]" aria-hidden />
-      )}
+      ) : null}
       <p className="text-sm text-[#6B7280]">
-        {hint ?? "Upload a proof photo"}
+        {hint ?? "Add a proof photo"}
       </p>
       <p className="text-xs text-[#9CA3AF]">
         {required ? "Required · " : ""}
         Image only (JPG, PNG, GIF, WEBP, SVG) · max 10MB
       </p>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            cameraRef.current?.click();
-          }}
+          onClick={() => cameraRef.current?.click()}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-md bg-[#0E66B2] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0B5594]"
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#0E66B2] px-4 py-2 text-sm font-medium text-white hover:bg-[#0B5594] disabled:opacity-60"
         >
-          <Camera className="h-3.5 w-3.5" aria-hidden />
-          Take photo
+          <Camera className="h-4 w-4" aria-hidden />
+          Take Photo
         </button>
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            inputRef.current?.click();
-          }}
+          onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-3 py-1.5 text-xs font-medium text-[#374151] hover:bg-gray-100"
+          className="inline-flex items-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-gray-100 disabled:opacity-60"
         >
-          <Upload className="h-3.5 w-3.5" aria-hidden />
-          Choose photo
+          <Upload className="h-4 w-4" aria-hidden />
+          Upload Photo
         </button>
       </div>
       <input
@@ -468,7 +453,6 @@ export function ImageDropzone({
         type="file"
         accept="image/*"
         className="hidden"
-        onClick={(e) => e.stopPropagation()}
         onChange={(e) => {
           if (e.target.files?.length) void addFiles(e.target.files);
           e.target.value = "";
@@ -517,82 +501,41 @@ export function RowImageUpload({
     return <span className="inline-block h-9 w-9" aria-hidden />;
   }
 
-  if (image) {
-    return (
-      <div className="relative inline-flex">
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="block h-9 w-9 overflow-hidden rounded-md border border-[#E5E7EB] transition-opacity hover:opacity-80"
-          title={`Replace ${label.toLowerCase()}`}
-          disabled={busy}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={image.dataUrl}
-            alt={image.name}
-            className="h-full w-full object-cover"
-          />
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#9CA3AF] shadow ring-1 ring-[#E5E7EB] hover:bg-red-50 hover:text-red-600"
-          aria-label={`Remove ${label.toLowerCase()}`}
-          title="Remove photo"
-        >
-          <X className="h-2.5 w-2.5" />
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.length) void addFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-      </div>
-    );
-  }
+  const takePhotoButton = (
+    <button
+      type="button"
+      onClick={() => cameraRef.current?.click()}
+      disabled={busy}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60",
+        required && !image
+          ? "bg-[#0E66B2] text-white hover:bg-[#0B5594]"
+          : "border border-[#D1D5DB] bg-white text-[#374151] hover:bg-gray-100"
+      )}
+    >
+      <Camera className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      Take Photo
+    </button>
+  );
 
-  return (
-    <span className="inline-flex items-center gap-1">
-      <button
-        type="button"
-        onClick={() => cameraRef.current?.click()}
-        disabled={busy}
-        className={cn(
-          "inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors",
-          required
-            ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] hover:border-[#D97706]"
-            : "border-[#CBD5E1] bg-[#F9FAFB] text-[#9CA3AF] hover:border-[#0E66B2] hover:text-[#0E66B2]"
-        )}
-        title={`Take ${label.toLowerCase()}`}
-        aria-label={`Take ${label.toLowerCase()}`}
-      >
-        <Camera className="h-4 w-4" aria-hidden />
-      </button>
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={busy}
-        className={cn(
-          "inline-flex h-9 w-9 items-center justify-center rounded-md border border-dashed transition-colors",
-          required
-            ? "border-[#F59E0B] bg-[#FFFBEB] text-[#D97706] hover:border-[#D97706]"
-            : "border-[#CBD5E1] bg-[#F9FAFB] text-[#9CA3AF] hover:border-[#0E66B2] hover:text-[#0E66B2]"
-        )}
-        title={required ? `${label} required` : `Upload ${label.toLowerCase()}`}
-        aria-label={required ? `${label} required` : `Upload ${label.toLowerCase()}`}
-      >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <Upload className="h-4 w-4" aria-hidden />
-        )}
-      </button>
+  const uploadPhotoButton = (
+    <button
+      type="button"
+      onClick={() => inputRef.current?.click()}
+      disabled={busy}
+      className="inline-flex items-center justify-center gap-1.5 rounded-md border border-[#D1D5DB] bg-white px-2.5 py-1.5 text-xs font-medium text-[#374151] transition-colors hover:bg-gray-100 disabled:opacity-60"
+    >
+      {busy ? (
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+      ) : (
+        <Upload className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      )}
+      Upload Photo
+    </button>
+  );
+
+  const fileInputs = (
+    <>
       <input
         ref={inputRef}
         type="file"
@@ -614,6 +557,46 @@ export function RowImageUpload({
           e.target.value = "";
         }}
       />
+    </>
+  );
+
+  if (image) {
+    return (
+      <div className="inline-flex flex-wrap items-center gap-1.5">
+        <div className="relative inline-flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={image.dataUrl}
+            alt={image.name}
+            className="h-12 w-12 rounded-md border border-[#E5E7EB] object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[#9CA3AF] shadow ring-1 ring-[#E5E7EB] hover:bg-red-50 hover:text-red-600"
+            aria-label={`Remove ${label.toLowerCase()}`}
+            title="Remove photo"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </div>
+        {takePhotoButton}
+        {uploadPhotoButton}
+        {fileInputs}
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "inline-flex flex-wrap items-center gap-1.5 rounded-md p-1",
+        required ? "bg-[#FFFBEB]" : undefined
+      )}
+    >
+      {takePhotoButton}
+      {uploadPhotoButton}
+      {fileInputs}
     </span>
   );
 }

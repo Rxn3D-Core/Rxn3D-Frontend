@@ -189,6 +189,9 @@ export function RestorationAccordionHeader({
                   )}
                   {editProductButton}
                 </p>
+                {toothDisplay ? (
+                  <p className={`${removableHeaderToothClass} text-[#666666]`}>{toothDisplay}</p>
+                ) : null}
                 <div className="flex items-center gap-2 flex-wrap">
                   <EstDaysLabel
                     rushed={hasRush}
