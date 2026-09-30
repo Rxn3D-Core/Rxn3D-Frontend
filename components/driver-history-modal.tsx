@@ -982,17 +982,6 @@ export default function DriverHistoryModal({
     singleListedSlipId ??
     (typeof photoEligibleSlipIds[0] === "number" ? photoEligibleSlipIds[0] : undefined)
 
-  /**
-   * Auto-open the upload picker when there is only one slip that still needs
-   * a photo (mobile OS then offers Camera or Gallery).
-   */
-  const autoOpenCameraSlipId =
-    singleListedSlipId != null &&
-    showPhotoColumn &&
-    !imagesBySlipId[singleListedSlipId]
-      ? singleListedSlipId
-      : null
-
   return (
     <Dialog
       open={isOpen}
@@ -1051,9 +1040,6 @@ export default function DriverHistoryModal({
                     onRejected={handleRejectedImages}
                     required={photoRequired}
                     hint={proofPhotoHint}
-                    autoOpenCamera={
-                      autoOpenCameraSlipId === singleSlipPhotoId
-                    }
                   />
                   {isDropoff ? (
                     signatureRequired ? (
@@ -1186,9 +1172,6 @@ export default function DriverHistoryModal({
                                 onRejected={handleRejectedImages}
                                 required={
                                   entry.isChecked && entryPhotoRequired(entry)
-                                }
-                                autoOpenCamera={
-                                  autoOpenCameraSlipId === entry.slip_id
                                 }
                                 label="Proof photo"
                               />
@@ -1419,9 +1402,6 @@ export default function DriverHistoryModal({
                                     onRejected={handleRejectedImages}
                                     required={
                                       entry.isChecked && entryPhotoRequired(entry)
-                                    }
-                                    autoOpenCamera={
-                                      autoOpenCameraSlipId === entry.slip_id
                                     }
                                     label="Proof photo"
                                   />
