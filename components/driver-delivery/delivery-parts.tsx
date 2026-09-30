@@ -300,7 +300,6 @@ export function ImageDropzone({
   onRejected,
   required = false,
   hint,
-  autoOpenCamera = false,
 }: {
   image: UploadedImage | null;
   onChange: (image: UploadedImage | null) => void;
@@ -309,13 +308,10 @@ export function ImageDropzone({
   required?: boolean;
   /** Optional helper line under the main drop text. */
   hint?: string;
-  /** When true and no image yet, open the device picker once (camera/gallery on mobile). */
-  autoOpenCamera?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // Android's photo picker (accept="image/*") has no camera option; capture forces the camera.
   const cameraRef = useRef<HTMLInputElement>(null);
-  const autoOpenedRef = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -334,15 +330,6 @@ export function ImageDropzone({
     [onChange, onRejected]
   );
 
-  useEffect(() => {
-    if (!autoOpenCamera || image || busy || autoOpenedRef.current) return;
-    autoOpenedRef.current = true;
-    const timer = window.setTimeout(() => {
-      cameraRef.current?.click();
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [autoOpenCamera, image, busy]);
-
   const cameraInput = (
     <input
       ref={cameraRef}
@@ -357,10 +344,6 @@ export function ImageDropzone({
       }}
     />
   );
-
-  useEffect(() => {
-    if (!image) autoOpenedRef.current = false;
-  }, [image]);
 
   if (image) {
     return (
@@ -504,7 +487,6 @@ export function RowImageUpload({
   required = false,
   disabled = false,
   label = "Photo",
-  autoOpenCamera = false,
 }: {
   image: UploadedImage | null;
   onChange: (image: UploadedImage | null) => void;
@@ -512,12 +494,9 @@ export function RowImageUpload({
   required?: boolean;
   disabled?: boolean;
   label?: string;
-  /** When true and no image yet, open the device picker once (camera/gallery on mobile). */
-  autoOpenCamera?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
-  const autoOpenedRef = useRef(false);
   const [busy, setBusy] = useState(false);
 
   const addFiles = useCallback(
@@ -533,19 +512,6 @@ export function RowImageUpload({
     },
     [onChange, onRejected]
   );
-
-  useEffect(() => {
-    if (!autoOpenCamera || image || disabled || busy || autoOpenedRef.current) return;
-    autoOpenedRef.current = true;
-    const timer = window.setTimeout(() => {
-      cameraRef.current?.click();
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [autoOpenCamera, image, disabled, busy]);
-
-  useEffect(() => {
-    if (!image) autoOpenedRef.current = false;
-  }, [image]);
 
   if (disabled) {
     return <span className="inline-block h-9 w-9" aria-hidden />;
