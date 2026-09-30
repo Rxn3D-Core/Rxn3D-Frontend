@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import CancelSlipCreationModal from "@/components/cancel-slip-creation-modal"
 import { SubmitSlipButton } from "@/components/submit-slip-button"
+import { SubmitCutoffBanner } from "@/components/submit-cutoff-banner"
 
 interface SlipCreationStepFooterProps {
   /** Footer mode: "navigation" for step pages, "submit" for final case-design step */
@@ -35,6 +36,8 @@ interface SlipCreationStepFooterProps {
   onConfirmDetailsChange?: (checked: boolean) => void
   /** Handler for submit popover change */
   onShowSubmitPopoverChange?: (show: boolean) => void
+  /** Lab cut-off time (`case_schedule.default_pickup_time`); shows a banner next to Submit when set */
+  cutoffTime?: string | null
 
   // Shared props
   /** Custom handler for cancel slip - if not provided, shows CancelSlipCreationModal */
@@ -54,6 +57,7 @@ export function SlipCreationStepFooter({
   onConfirmDetailsChange,
   onShowSubmitPopoverChange,
   onCancelSlip,
+  cutoffTime,
 }: SlipCreationStepFooterProps) {
   const router = useRouter()
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -174,6 +178,12 @@ export function SlipCreationStepFooter({
                       onSubmit?.()
                     }}
                   />
+                </div>
+              )}
+
+              {mode === "submit" && isAccordionComplete?.() && !hasToothStatusValidation && cutoffTime && (
+                <div className="static sm:absolute sm:left-[calc(50%+105px)] sm:right-6 sm:top-1/2 sm:-translate-y-1/2 flex items-center">
+                  <SubmitCutoffBanner cutoffTime={cutoffTime} />
                 </div>
               )}
             </div>

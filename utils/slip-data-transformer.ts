@@ -2,6 +2,7 @@
 // Transforms frontend data structure to API format
 
 import { groupProductsIntoSlips, normalizeRush } from "@/components/case-design-center/utils/slipPayloadMappers";
+import { isLabSlipCreateContext } from "@/lib/role-utils";
 import type {
   SlipCreationPayload,
   SlipCreationCase,
@@ -204,19 +205,19 @@ export function transformToSlipCreationPayload(
     throw new Error("User information is required");
   }
 
-  // Determine office_id and lab_id based on user role
+  // Lab profile: customerId is the lab; selectedLab is the office.
+  // Office profile: customerId is the office; selectedLab is the lab.
   const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
   const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null;
-  
+  const isLabContext = isLabSlipCreateContext(role);
+
   let office_id: number;
   let lab_id: number;
 
-  if (role === "lab_admin") {
-    // For lab_admin: lab_id = customerId, office_id = selectedLab.id (which is actually an office)
+  if (isLabContext) {
     lab_id = customerId ? Number(customerId) : selectedLab.id;
     office_id = selectedLab.id;
   } else {
-    // For office_admin/doctor: office_id = customerId, lab_id = selectedLab.id
     office_id = customerId ? Number(customerId) : selectedLab.id;
     lab_id = selectedLab.id;
   }

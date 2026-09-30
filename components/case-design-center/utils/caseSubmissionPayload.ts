@@ -7,6 +7,7 @@ import type {
 import type { ProductImplant } from "@/services/implant-api";
 import type { Arch, SlipProductSnapshot } from "../types";
 import { getPreferredLabTeethShade } from "@/lib/product-shade-preferences";
+import { isLabSlipCreateContext } from "@/lib/role-utils";
 import { hasRetentionOptions, resolveStageIdFromSelection } from "./categoryHelpers";
 import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
@@ -784,7 +785,7 @@ export async function buildCaseSubmissionPayloadAsync(
 
   const implantCustomerId =
     labCustomerId ??
-    (role === "lab_admin" ? customerId : completedLabId ?? customerId);
+    (isLabSlipCreateContext(role) ? customerId : completedLabId ?? customerId);
   const implantCatalogs = await prefetchImplantCatalogsForSnapshots(
     filteredSnapshots,
     implantCustomerId
@@ -814,8 +815,11 @@ export async function buildCaseSubmissionPayloadAsync(
     }
   });
 
-  const labId = role === "lab_admin" ? customerId : completedLabId ?? 0;
-  const officeId = role === "lab_admin" ? completedLabId ?? 0 : customerId;
+  // Lab profile: customerId is the lab; completedLabId is the selected office.
+  // Office profile: customerId is the office; completedLabId is the selected lab.
+  const isLabContext = isLabSlipCreateContext(role);
+  const labId = isLabContext ? customerId : completedLabId ?? 0;
+  const officeId = isLabContext ? completedLabId ?? 0 : customerId;
 
   const slips = slipProductGroups.map((slipProducts, slipIndex) => ({
     status: "In Progress" as const,
@@ -858,9 +862,9 @@ export function buildCaseSubmissionPayload(
   const products = filteredSnapshots.map((snap) => snapshotToProduct(snap));
   const slipProductGroups = groupProductsIntoSlips(products);
   const totalSlips = slipProductGroups.length;
-  const labId = params.role === "lab_admin" ? params.customerId : params.completedLabId ?? 0;
-  const officeId =
-    params.role === "lab_admin" ? params.completedLabId ?? 0 : params.customerId;
+  const isLabContext = isLabSlipCreateContext(params.role);
+  const labId = isLabContext ? params.customerId : params.completedLabId ?? 0;
+  const officeId = isLabContext ? params.completedLabId ?? 0 : params.customerId;
   const orderedProducts = slipProductGroups.flat();
   clearProductNotesWhenUsingCaseSummary(orderedProducts, params.caseSummaryNotes, totalSlips);
 

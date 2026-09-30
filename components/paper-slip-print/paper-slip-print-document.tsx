@@ -404,7 +404,7 @@ function PaperSlipCasePanBlock({ slip }: { slip: PaperSlipPrintableSlipVM }) {
       <div className="mt-4 text-center text-[10px] uppercase tracking-[0.14em] text-[#4c4d55]">
         Case Pan #
       </div>
-      <div className="mt-3 flex items-center justify-center gap-6">
+      <div className="mt-3 ml-[50px] flex items-center justify-center gap-6">
         {slip.header.qrCodeUrl ? (
           <img
             alt="Paper slip QR code"

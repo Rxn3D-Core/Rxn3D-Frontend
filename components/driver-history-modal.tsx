@@ -1161,29 +1161,28 @@ export default function DriverHistoryModal({
                               {[entry.office, entry.labName].filter(Boolean).join(" · ") || "—"}
                             </p>
                           </div>
-                          <div className="flex shrink-0 items-start gap-2">
-                            {typeof entry.slip_id === "number" &&
-                            showPhotoColumn ? (
-                              <RowImageUpload
-                                image={imagesBySlipId[entry.slip_id] ?? null}
-                                onChange={(next) =>
-                                  setSlipImage(entry.slip_id as number, next)
-                                }
-                                onRejected={handleRejectedImages}
-                                required={
-                                  entry.isChecked && entryPhotoRequired(entry)
-                                }
-                                label="Proof photo"
-                              />
-                            ) : null}
-                            <Checkbox
-                              checked={entry.isChecked}
-                              onCheckedChange={() => handleCheckboxToggle(entry.id)}
-                              className="mt-1 h-5 w-5 border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8]"
-                              aria-label={`Select ${entry.patientName || "entry"}`}
+                          <Checkbox
+                            checked={entry.isChecked}
+                            onCheckedChange={() => handleCheckboxToggle(entry.id)}
+                            className="mt-1 h-5 w-5 border-[#1162A8] data-[state=checked]:border-[#1162A8] data-[state=checked]:bg-[#1162A8]"
+                            aria-label={`Select ${entry.patientName || "entry"}`}
+                          />
+                        </div>
+                        {typeof entry.slip_id === "number" && showPhotoColumn ? (
+                          <div className="mb-3">
+                            <RowImageUpload
+                              image={imagesBySlipId[entry.slip_id] ?? null}
+                              onChange={(next) =>
+                                setSlipImage(entry.slip_id as number, next)
+                              }
+                              onRejected={handleRejectedImages}
+                              required={
+                                entry.isChecked && entryPhotoRequired(entry)
+                              }
+                              label="Proof photo"
                             />
                           </div>
-                        </div>
+                        ) : null}
                         <div className="flex items-center gap-2 text-sm text-[#374151]">
                           {rowAction ? (
                             <Image
@@ -1270,7 +1269,7 @@ export default function DriverHistoryModal({
                       <th className="w-[88px] px-3 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-4">Office</th>
                       <th className="min-w-[140px] px-4 py-3 text-[12px] font-semibold uppercase tracking-wide text-[#6B7280] sm:px-5">Patient Name</th>
                       {showPhotoColumn ? (
-                        <th className="w-[56px] px-2 py-3 text-center text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">
+                        <th className="min-w-[120px] px-2 py-3 text-center text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">
                           Photo
                         </th>
                       ) : null}
@@ -1478,7 +1477,7 @@ export default function DriverHistoryModal({
                     ) : (
                       <Trash2 className="mr-2 h-4 w-4" />
                     )}
-                    Clear batch
+                    Clear Batch
                   </Button>
                 ) : null}
               </div>

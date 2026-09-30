@@ -7,6 +7,7 @@ import { useCreatedByUser } from "@/hooks/use-created-by-user";
 import { isLabCustomerContext } from "@/lib/role-utils";
 import { DOCTOR_PLACEHOLDER_IMAGE, doctorDisplayImageUrl } from "@/utils/avatar-utils";
 import { resolveSlipDeliveryTimeDisplay } from "@/utils/time-utils";
+import { SubmitCutoffBanner, useIsWithinCutoffWarningWindow } from "@/components/submit-cutoff-banner";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -52,6 +53,13 @@ export interface PatientHeaderProps {
   createdByName?: string | null;
   /** Override the "Created By" image URL (falls back to localStorage user). */
   createdByImageUrl?: string | null;
+  /** Pre-submit estimated delivery date label (e.g. "Oct 9, 2026"); shown only in cut-off warning window. */
+  estimatedDueDate?: string | null;
+  /** When true, show a loading placeholder for the estimated delivery date. */
+  estimatedDueDateLoading?: boolean;
+  /** Lab cut-off time(s); delivery date + banner show only within 10 minutes before cut-off. */
+  cutoffTime?: string | null;
+  cutoffTime2?: string | null;
 }
 
 function SkeletonField({ label, width = "w-[160px]" }: { label: string; width?: string }) {
@@ -145,9 +153,14 @@ export function PatientHeader({
   onEditLab,
   createdByName: createdByNameProp,
   createdByImageUrl: createdByImageUrlProp,
+  estimatedDueDate,
+  estimatedDueDateLoading = false,
+  cutoffTime,
+  cutoffTime2,
 }: PatientHeaderProps = {}) {
   const displayName = doctorName && doctorName.trim() !== "" ? doctorName : DEFAULT_DOCTOR_NAME;
   const doctorImgSrc = doctorDisplayImageUrl(doctorImageUrl);
+  const showCutoffWarning = useIsWithinCutoffWarningWindow(cutoffTime, cutoffTime2);
   const isEditable = !caseSubmitted;
   const displayPatientName = isEditable ? (patientName ?? "") : (patientName && patientName.trim() !== "" ? patientName : DEFAULT_PATIENT_NAME);
   const displayGender = gender && gender.trim() !== "" ? gender : "";
@@ -345,6 +358,27 @@ export function PatientHeader({
                     type="number"
                   />
                 )}
+                <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
+                  {showCutoffWarning &&
+                    (estimatedDueDateLoading && !estimatedDueDate ? (
+                      <p className="text-xs text-[#9CA3AF]">Estimating delivery date…</p>
+                    ) : estimatedDueDate ? (
+                      <p
+                        className="text-sm leading-snug text-[#666666]"
+                        title="Calendar delivery date from the lab delivery-date API."
+                      >
+                        Estimated delivery date:{" "}
+                        <span className="font-semibold text-[#374151]">{estimatedDueDate}</span>
+                      </p>
+                    ) : null)}
+                  {showCutoffWarning && (cutoffTime || cutoffTime2) && (
+                    <SubmitCutoffBanner
+                      cutoffTime={cutoffTime}
+                      cutoffTime2={cutoffTime2}
+                      compact
+                    />
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex w-full flex-col gap-3">
