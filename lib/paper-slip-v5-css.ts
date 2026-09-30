@@ -445,11 +445,15 @@ body {
   color: #0A0B0E;
   overflow: hidden;
   white-space: nowrap;
+  /* Flex keeps .ps-zero inside the clip box (inline-block baseline was clipped). */
+  display: flex;
+  align-items: center;
 }
 .ps-zero {
   position: relative;
   display: inline-block;
   line-height: 1;
+  flex-shrink: 0;
 }
 .ps-zero-slash {
   position: absolute;
