@@ -11,6 +11,8 @@ function extractDatePart(value: string | null | undefined): string {
 /**
  * Fetches delivery dates for each product id and returns the latest calendar due date.
  * Used by the slip header (case-level estimate).
+ * Also surfaces the effective pickup cutoff (case pan override or lab default) for the
+ * product that owns the latest due date.
  */
 export function useCaseEstimatedDueDate(productIds: Array<number | null | undefined>) {
   const uniqueIds = Array.from(
@@ -28,12 +30,16 @@ export function useCaseEstimatedDueDate(productIds: Array<number | null | undefi
     })),
   });
 
-  const isoDates = queries
-    .map((q) => extractDatePart(q.data?.delivery_date))
-    .filter(Boolean)
-    .sort();
+  const datedResults = queries
+    .map((q) => ({
+      iso: extractDatePart(q.data?.delivery_date),
+      cutoff: q.data?.effective_pickup_cutoff_time ?? null,
+    }))
+    .filter((row) => row.iso)
+    .sort((a, b) => a.iso.localeCompare(b.iso));
 
-  const latestIso = isoDates.length > 0 ? isoDates[isoDates.length - 1] : null;
+  const latest = datedResults.length > 0 ? datedResults[datedResults.length - 1] : null;
+  const latestIso = latest?.iso ?? null;
   const isLoading =
     uniqueIds.length > 0 && queries.some((q) => q.isLoading) && !latestIso;
 
@@ -41,5 +47,6 @@ export function useCaseEstimatedDueDate(productIds: Array<number | null | undefi
     isoDate: latestIso,
     displayDate: latestIso ? formatEstimatedDueDate(latestIso) : null,
     isLoading,
+    effectivePickupCutoffTime: latest?.cutoff ?? null,
   };
 }
