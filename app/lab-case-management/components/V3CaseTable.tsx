@@ -18,9 +18,9 @@ import type { V2CaseRowData, V2RowActions } from "@/app/lab-case-management/v2/c
 import { LabLocationIcon } from "@/app/lab-case-management/v2/components/V2CaseIcons"
 import { V3RowActionsPopover } from "./V3RowActionsPopover"
 import type { ColumnKey } from "./V3FilterBar"
+import { formatPanAssigneeName } from "@/lib/slip-pan-color"
 
 const AMBER = "#FFE2A1"
-const PAN_ROW_HIGHLIGHT = "#FFE4FC"
 const OVERDUE_RED = "#DC2626"
 const PAN_BG = "#FF5733"
 const VS = "/icons/virtual-slip-center"
@@ -76,8 +76,12 @@ interface Props {
   canDeleteCase?: boolean
   /** Lab admin only — undo one location step from the ⋯ menu. */
   allowUndoLocation?: boolean
-  /** Lab admin only — click pan chip to toggle row highlight. */
+  /** Lab listing — click pan chip to toggle shared pan color. */
   allowPanToggle?: boolean
+  /** Current user may replace another user's pan color. */
+  canOverridePanColor?: boolean
+  /** Authenticated user id (for own vs other assignment UX). */
+  currentUserId?: number | null
   /**
    * Office profile listing: the counterparty column reads "Lab", driver
    * actions are withheld, and rush rows lose the amber highlight (a
@@ -129,6 +133,30 @@ function buildDesktopColumns(visibleColumns: Set<ColumnKey>, officeProfile: bool
     // is looking at labs, a lab user at offices.
     column.key === "office" && officeProfile ? { ...column, label: "Lab" } : column
   )
+}
+
+function panChipTitle(
+  row: V2CaseRowData,
+  currentUserId: number | null | undefined,
+  canOverride: boolean,
+): string {
+  const assignment = row.panColorAssignment
+  if (!assignment) return "Assign your pan color to this row"
+  const name = formatPanAssigneeName(assignment.assignedBy)
+  if (currentUserId && assignment.assignedBy.id === currentUserId) {
+    return "Remove your pan color"
+  }
+  if (canOverride) {
+    return `Assigned to ${name} — click to override.`
+  }
+  return `Assigned to ${name}.`
+}
+
+function isPanColorLocked(
+  row: V2CaseRowData,
+  highlightRushRows: boolean,
+): boolean {
+  return Boolean(row.panColorAssignment) || (Boolean(row.rush) && highlightRushRows)
 }
 
 /** Safari can mis-hit absolute overlays / pointer-events-none table cells — ignore real controls. */
@@ -230,10 +258,11 @@ export function V3CaseTable(props: Props) {
             )
           : props.rows.map((row) => {
               const dueDateColor = dueDateTextColor(row)
-              // The amber rush highlight is a lab-visibility cue — office
-              // profiles keep the rush bolt icon but not the tinted row.
-              const cardBg = row.panToggled
-                ? PAN_ROW_HIGHLIGHT
+              // Shared pan color paints the whole card; rush amber is lab-only
+              // and loses to an active pan assignment. Office profiles keep the
+              // rush bolt icon but not the tinted row.
+              const cardBg = row.panColorAssignment?.color
+                ? row.panColorAssignment.color
                 : row.rush && highlightRushRows
                   ? AMBER
                   : "#FFFFFF"
@@ -397,11 +426,20 @@ export function V3CaseTable(props: Props) {
                           <button
                             type="button"
                             data-row-interactive="true"
-                            aria-label={row.panToggled ? "Remove pan highlight" : "Highlight pan row"}
-                            aria-pressed={Boolean(row.panToggled)}
+                            aria-label={panChipTitle(row, props.currentUserId, Boolean(props.canOverridePanColor))}
+                            aria-pressed={Boolean(row.panColorAssignment)}
                             className="flex items-center justify-center shrink-0 rounded-[6px] px-3 border-0"
-                            title={row.panToggled ? "Remove row highlight" : "Highlight this row"}
-                            style={{ ...panChipStyle, cursor: "pointer" }}
+                            title={panChipTitle(row, props.currentUserId, Boolean(props.canOverridePanColor))}
+                            style={{
+                              ...panChipStyle,
+                              cursor:
+                                row.panColorAssignment &&
+                                props.currentUserId &&
+                                row.panColorAssignment.assignedBy.id !== props.currentUserId &&
+                                !props.canOverridePanColor
+                                  ? "not-allowed"
+                                  : "pointer",
+                            }}
                             onClick={(e) => {
                               e.stopPropagation()
                               props.rowActions.onTogglePan?.(row)
@@ -572,16 +610,14 @@ export function V3CaseTable(props: Props) {
             </tr>
           ) : (
             props.rows.map((row) => {
-              const rowBg = row.panToggled
-                ? PAN_ROW_HIGHLIGHT
+              const rowBg = row.panColorAssignment?.color
+                ? row.panColorAssignment.color
                 : row.rush && highlightRushRows
                   ? AMBER
                   : "#FFFFFF"
               const dueDateColor = dueDateTextColor(row)
-              // Only lab rush rows lock hover (amber stays put). Office rush rows
-              // use normal zebra + hover like every other row. Pan-toggled rows
-              // also lock so the blue highlight stays visible.
-              const isLocked = !!row.panToggled || (!!row.rush && highlightRushRows)
+              // Lock hover so shared pan color / lab rush amber stay visible.
+              const isLocked = isPanColorLocked(row, highlightRushRows)
               const virtualSlipHref = buildVirtualSlipV2Path(row.caseId, row.id)
               const openSlipLabel = `Open virtual slip for ${row.patient || row.slipNumber || row.id}`
 
@@ -643,6 +679,8 @@ export function V3CaseTable(props: Props) {
                       showTimestamp={props.visibleColumns.has("timestamp")}
                       allowDriverActions={!officeProfile}
                       allowPanToggle={!officeProfile && Boolean(props.allowPanToggle)}
+                      canOverridePanColor={Boolean(props.canOverridePanColor)}
+                      currentUserId={props.currentUserId}
                       highlightRushRows={highlightRushRows}
                       virtualSlipHref={virtualSlipHref}
                       openSlipLabel={openSlipLabel}
@@ -690,6 +728,8 @@ function DesktopCell({
   showTimestamp,
   allowDriverActions,
   allowPanToggle,
+  canOverridePanColor,
+  currentUserId,
   highlightRushRows,
   virtualSlipHref,
   openSlipLabel,
@@ -699,6 +739,8 @@ function DesktopCell({
   showTimestamp: boolean
   allowDriverActions: boolean
   allowPanToggle: boolean
+  canOverridePanColor: boolean
+  currentUserId?: number | null
   highlightRushRows: boolean
   row: V2CaseRowData
   rowActions: V2RowActions
@@ -748,6 +790,12 @@ function DesktopCell({
   }
 
   if (column.key === "panProduct") {
+    const chipTitle = panChipTitle(row, currentUserId, canOverridePanColor)
+    const blockedOther =
+      Boolean(row.panColorAssignment) &&
+      Boolean(currentUserId) &&
+      row.panColorAssignment!.assignedBy.id !== currentUserId &&
+      !canOverridePanColor
     const panChip = (
       <div
         className="flex items-center justify-center"
@@ -762,7 +810,7 @@ function DesktopCell({
           ...(row.rush && highlightRushRows && rushCasePanColor
             ? { backgroundColor: rushCasePanColor }
             : null),
-          ...(allowPanToggle ? { cursor: "pointer" } : null),
+          ...(allowPanToggle ? { cursor: blockedOther ? "not-allowed" : "pointer" } : null),
         }}
       >
         <span style={{ fontSize: 16, lineHeight: "18px", fontWeight: 700, color: "#F7F7F7" }}>
@@ -778,10 +826,10 @@ function DesktopCell({
             <button
               type="button"
               data-row-interactive="true"
-              aria-label={row.panToggled ? "Remove pan highlight" : "Highlight pan row"}
-              aria-pressed={Boolean(row.panToggled)}
+              aria-label={chipTitle}
+              aria-pressed={Boolean(row.panColorAssignment)}
               className="p-0 border-0 bg-transparent"
-              title={row.panToggled ? "Remove row highlight" : "Highlight this row"}
+              title={chipTitle}
               onClick={(e) => {
                 e.stopPropagation()
                 rowActions.onTogglePan?.(row)

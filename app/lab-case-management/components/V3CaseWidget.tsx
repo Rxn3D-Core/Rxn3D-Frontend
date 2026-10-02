@@ -43,8 +43,10 @@ interface Props {
   canDeleteCase?: boolean
   /** Lab admin only — undo one location step from the ⋯ menu. */
   allowUndoLocation?: boolean
-  /** Lab admin only — click pan chip to toggle row highlight. */
+  /** Lab listing — click pan chip to toggle shared pan color. */
   allowPanToggle?: boolean
+  canOverridePanColor?: boolean
+  currentUserId?: number | null
   /**
    * Office profile listing: counterparty column reads "Lab", driver actions and
    * rush-submit icons are withheld (rush status bolt still shows), and rush rows
@@ -144,6 +146,8 @@ export function V3CaseWidget(props: Props) {
         canDeleteCase={props.canDeleteCase}
         allowUndoLocation={props.allowUndoLocation}
         allowPanToggle={props.allowPanToggle}
+        canOverridePanColor={props.canOverridePanColor}
+        currentUserId={props.currentUserId}
         officeProfile={props.officeProfile}
         printMenuRow={props.printMenuRow}
         moreMenuRow={props.moreMenuRow}

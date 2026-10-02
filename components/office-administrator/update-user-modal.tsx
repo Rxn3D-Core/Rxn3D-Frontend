@@ -31,6 +31,7 @@ import {
   type UserCustomerRoleLink,
 } from "@/lib/user-customer-roles"
 import { fetchBackendRoles, type BackendRole } from "@/lib/api/role-permissions-api"
+import { ColorPicker } from "@/components/ui/color-picker"
 import { Check, Pencil, Plus, Trash2, Upload, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -47,6 +48,10 @@ const updateUserSchema = z.object({
   is_also_admin: z.boolean().default(false),
   license_number: z.string().optional(),
   signature: z.any().optional(),
+  pan_color: z
+    .string()
+    .optional()
+    .refine((v) => !v || /^#[0-9A-Fa-f]{6}$/.test(v), "Use a HEX color like #2563EB"),
 })
 
 type UpdateUserFormValues = z.infer<typeof updateUserSchema>
@@ -64,6 +69,7 @@ interface StaffUser {
   role?: string
   customerName?: string
   customerRoles?: UserCustomerRoleLink[]
+  pan_color?: string | null
 }
 
 interface CustomerOption {
@@ -148,6 +154,7 @@ export function UpdateUserModal({
       is_also_admin: false,
       license_number: "",
       signature: null,
+      pan_color: "",
     },
     mode: "onChange",
     reValidateMode: "onChange",
@@ -276,6 +283,7 @@ export function UpdateUserModal({
         is_also_admin: isOfficeAdminRole(user.role) || isDoctorAdminRole(user.role),
         license_number: "",
         signature: null,
+        pan_color: user.pan_color || "",
       })
 
       setProfileRole(user.role || "")
@@ -302,6 +310,7 @@ export function UpdateUserModal({
             const roleName = scoped?.role?.name || detail?.role?.name || user.role || ""
             setProfileRole(roleName)
             form.setValue("role", roleName, { shouldDirty: false })
+            form.setValue("pan_color", detail?.pan_color || "", { shouldDirty: false })
           } catch {
             // keep listing role fallback
           }
@@ -499,6 +508,13 @@ export function UpdateUserModal({
           ? { email: data.email.trim().toLowerCase() }
           : {}),
         ...(isLabCustomer ? { department_ids: selectedDepartments } : {}),
+        ...(isLabCustomer
+          ? {
+              pan_color: data.pan_color && /^#[0-9A-Fa-f]{6}$/.test(data.pan_color)
+                ? data.pan_color.toUpperCase()
+                : null,
+            }
+          : {}),
         ...(canChangeUserRole && data.role
           ? { role: data.role }
           : {}),
@@ -513,6 +529,12 @@ export function UpdateUserModal({
       }
 
       await authContext.updateUserDetails(user.id, payload)
+
+      if (user.id === authContext.user?.id && isLabCustomer) {
+        authContext.updateSessionUser({
+          pan_color: (payload as { pan_color?: string | null }).pan_color ?? null,
+        })
+      }
 
       toast({
         title: "Success",
@@ -685,6 +707,46 @@ export function UpdateUserModal({
               <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
                 Role: <span className="font-medium">{getRoleDisplayLabel(profileRole || selectedEditRole)}</span>
               </div>
+            )}
+
+            {isLabCustomer && (
+              <FormField
+                control={form.control}
+                name="pan_color"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pan Color</FormLabel>
+                    <FormControl>
+                      <div className="flex items-center gap-3">
+                        <ColorPicker
+                          value={field.value || "#2563EB"}
+                          onChange={(color) => field.onChange(color.toUpperCase())}
+                        />
+                        <Input
+                          value={field.value || ""}
+                          onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                          placeholder="#2563EB"
+                          className="max-w-[140px] font-mono text-sm"
+                        />
+                        {field.value ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => field.onChange("")}
+                          >
+                            Clear
+                          </Button>
+                        ) : null}
+                      </div>
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Used to mark case listing rows. Each lab user should have a unique color.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             {isOfficeCustomer && profileRole && (

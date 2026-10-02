@@ -65,6 +65,8 @@ type User = {
   image?: string
   avatar?: string
   status: string
+  /** Lab listing shared pan-row color (HEX). */
+  pan_color?: string | null
   username?: string
   description?: string
   department_id?: number
@@ -167,6 +169,7 @@ type AuthContextType = {
     is_doctor?: boolean
     license_number?: string
     signature?: File | null
+    pan_color?: string | null
   }) => Promise<any>
   /** Per-organization membership status only — does not change global users.status */
   updateMembershipStatus: (
@@ -199,6 +202,7 @@ type AuthContextType = {
     is_doctor?: boolean;
     license_number?: string;
     signature?: File | null;
+    pan_color?: string | null;
   }) => Promise<any>
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
@@ -1078,6 +1082,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     is_doctor?: boolean
     license_number?: string
     signature?: File | null
+    pan_color?: string | null
   }): Promise<any> => {
     try {
       const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
@@ -1413,6 +1418,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     is_doctor?: boolean;
     license_number?: string;
     signature?: File | null;
+    pan_color?: string | null;
   }): Promise<any> => {
     // Delegate to updateUser so customer_id / FormData signature uploads stay consistent
     return updateUser(userId, userData)

@@ -8,9 +8,9 @@ export function canUndoSlipLocation(role: string | null | undefined): boolean {
   return role === "lab_admin" || role === "superadmin"
 }
 
-/** Pan row highlight toggle on lab listing — lab admins only for now. */
+/** Lab roles may use pan color toggle when they have a pan_color assigned. */
 export function canToggleSlipPan(role: string | null | undefined): boolean {
-  return role === "lab_admin" || role === "superadmin"
+  return isLabSlipUserRole(role) || role === "superadmin"
 }
 
 /**

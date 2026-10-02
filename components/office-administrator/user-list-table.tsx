@@ -41,6 +41,7 @@ interface ApiUser {
   phone: string
   work_number?: string
   status: string
+  pan_color?: string | null
   is_email_verified: boolean
   email_verified_at?: string
   roles: any[]
@@ -74,6 +75,7 @@ interface StaffUser {
   avatarColor?: string
   role?: string
   customerName?: string
+  pan_color?: string | null
 }
 
 interface UserListTableProps {
@@ -150,6 +152,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
       avatarColor: avatarColors[index % avatarColors.length],
       role: scopedCustomer?.role?.name || "Unknown",
       customerName: scopedCustomer?.name || "Unknown",
+      pan_color: apiUser.pan_color || null,
     }
   }
 

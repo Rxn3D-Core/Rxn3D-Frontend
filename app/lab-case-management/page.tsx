@@ -46,6 +46,8 @@ import {
   canToggleSlipPan,
   getStoredSlipUserRole,
 } from "@/lib/slip-user-role"
+import { formatPanAssigneeName } from "@/lib/slip-pan-color"
+import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities"
@@ -177,6 +179,7 @@ function normalizeStatusFilterValue(status: string): string {
 
 export default function LabSlipV3Page() {
   const { toast } = useToast()
+  const { user, hasPermission } = useAuth()
   const searchParams = useSearchParams()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
   const urlLocationParam = searchParams.get("location")
@@ -253,7 +256,11 @@ export default function LabSlipV3Page() {
   const [undoLocationSubmitting, setUndoLocationSubmitting] = useState(false)
 
   const allowUndoLocation = canUndoSlipLocation(getStoredSlipUserRole())
-  const allowPanToggle = canToggleSlipPan(getStoredSlipUserRole())
+  const canOverridePanColor = hasPermission("override_pan_color")
+  const allowPanToggle =
+    canToggleSlipPan(getStoredSlipUserRole()) &&
+    typeof user?.pan_color === "string" &&
+    /^#[0-9A-Fa-f]{6}$/.test(user.pan_color)
 
   const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
 
@@ -758,6 +765,56 @@ export default function LabSlipV3Page() {
     }
   }
 
+  const handleTogglePan = async (row: V2CaseRowData) => {
+    const assignment = row.panColorAssignment
+    const assigneeName = formatPanAssigneeName(assignment?.assignedBy)
+    const isOwn =
+      Boolean(assignment) &&
+      Boolean(user?.id) &&
+      assignment!.assignedBy.id === user!.id
+
+    if (assignment && !isOwn && !canOverridePanColor) {
+      toast({ title: `Assigned to ${assigneeName}.`, duration: 3000 })
+      return
+    }
+
+    const previousName = assigneeName
+    const result = await toggleSlipPan(row.id)
+    if (!result) {
+      toast({
+        title: "Unable to update pan color",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (result.action === "blocked") {
+      toast({
+        title: `Assigned to ${formatPanAssigneeName(result.pan_color?.assignedBy)}.`,
+        duration: 3000,
+      })
+      return
+    }
+
+    if (!result.success) {
+      toast({
+        title: "Unable to update pan color",
+        description: result.message || "Please try again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (result.action === "overridden") {
+      const nextName = formatPanAssigneeName(result.pan_color?.assignedBy)
+      toast({
+        title: `Reassigned: ${formatPanAssigneeName(result.previous_assigned_by) || previousName} → ${nextName}`,
+        duration: 3000,
+      })
+    }
+  }
+
   const openDriverLabelModal = async (rowIds: number[]) => {
     if (!rowIds.length) {
       toast({ title: "No slips selected", description: "Please select slips to print.", variant: "destructive" })
@@ -965,7 +1022,7 @@ export default function LabSlipV3Page() {
               ? (slip) => { setSelectedSlipForUndoLocation(slip); setUndoLocationModalOpen(true) }
               : undefined,
             onTogglePan: allowPanToggle
-              ? (slip) => { void toggleSlipPan(slip.id) }
+              ? (slip) => { void handleTogglePan(slip) }
               : undefined,
           }}
           canPrintStatement={canPrintStatement}
@@ -974,6 +1031,8 @@ export default function LabSlipV3Page() {
           canDeleteCase={canDeleteCase}
           allowUndoLocation={allowUndoLocation}
           allowPanToggle={allowPanToggle}
+          canOverridePanColor={canOverridePanColor}
+          currentUserId={user?.id ?? null}
           onBulkPrintDriverLabel={() => void openDriverLabelModal(selected)}
           // Multiple paper slip print disabled from listing
           // onBulkPrintPaperSlip={handleBulkPrintPaperSlip}
