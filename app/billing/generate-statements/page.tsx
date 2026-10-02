@@ -1059,7 +1059,10 @@ export default function GenerateStatementsPage() {
                       className="h-20 w-auto object-contain"
                     />
                   ) : null}
-                  <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
+                  <h3 className="mt-4 text-2xl font-bold text-black sm:text-3xl">
+                    {activePreviewStatement?.lab?.name || "Lab"}
+                  </h3>
+                  <div className="mt-2 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
                     <p className="whitespace-pre-line">{formatStatementPartyAddress(activePreviewStatement?.lab)}</p>
                     <p>
                       Phone: {activePreviewStatement?.lab?.phone || "—"} | Email {activePreviewStatement?.lab?.email || "—"}

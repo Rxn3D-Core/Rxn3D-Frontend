@@ -261,6 +261,9 @@ function StatementPreviewContent({
               className="mb-3 h-auto w-[120px] object-contain"
             />
           ) : null}
+          <h3 className="mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-2xl font-bold leading-tight text-black">
+            {statement.lab?.name || "Lab"}
+          </h3>
           <div className="space-y-0.5 text-[13px] leading-5 text-slate-800">
             <p className="whitespace-pre-line">{formatStatementPartyAddress(statement.lab)}</p>
             <p>
