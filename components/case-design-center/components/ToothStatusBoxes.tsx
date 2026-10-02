@@ -194,8 +194,6 @@ export function ToothStatusBoxes({
     }
   }, [shouldAutoSelectDefaultTeeth, allArchTeeth, onSelectAllTeeth, selectedTeeth.length]);
 
-  if (activeExtractions.length === 0) return null;
-
   const getTeethForBox = (extraction: ProductExtraction): number[] =>
     getStatusBoxTeeth({
       selectedTeeth,
@@ -222,12 +220,16 @@ export function ToothStatusBoxes({
   // const supportsHover = useSupportsHover();
   // const [tooltipState, setTooltipState] = useState<{ label: string; x: number; y: number } | null>(null);
 
+  // Hooks must run unconditionally — empty extractions still take this path when
+  // edit-slip swaps products (product A has boxes, product B does not).
   const prevRequiredValidationRef = useRef<boolean | null>(null);
   useEffect(() => {
     if (prevRequiredValidationRef.current === hasRequiredValidation) return;
     prevRequiredValidationRef.current = hasRequiredValidation;
     onRequiredValidationChange?.(hasRequiredValidation);
   }, [hasRequiredValidation, onRequiredValidationChange]);
+
+  if (activeExtractions.length === 0) return null;
 
   const isInteractive = !submitted && !grayed;
   const showDoneButton =
