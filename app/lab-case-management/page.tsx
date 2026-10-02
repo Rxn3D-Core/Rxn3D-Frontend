@@ -397,12 +397,10 @@ export default function LabSlipV3Page() {
   )
 
   const slipsPage = useMemo(() => {
-    const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
+    // Status is server-filtered (slip OR product status). Do not re-filter by
+    // slip.status alone — mixed-arch hold/progress cases would be dropped.
     const filtered = slips.filter((slip) => {
       if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
-        return false
-      }
-      if (selectedStatusSet.size > 0 && !selectedStatusSet.has(normalizeStatusFilterValue(slip.status || ""))) {
         return false
       }
       if (doctorFilter !== "All" && slip.doctor !== doctorFilter) {
@@ -414,7 +412,7 @@ export default function LabSlipV3Page() {
       return true
     })
     return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
-  }, [selectedLocations, selectedStatuses, slips, doctorFilter, stageFilter, sortKey, sortDirection])
+  }, [selectedLocations, slips, doctorFilter, stageFilter, sortKey, sortDirection])
 
   const handleSortChange = useCallback((key: ColumnKey) => {
     if (sortKey === key) {

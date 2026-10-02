@@ -294,17 +294,15 @@ function OfficeCaseManagementPage() {
   )
 
   const slipsPage = useMemo(() => {
+    // Status is server-filtered (slip OR product status). Do not re-filter by
+    // slip.status alone — mixed-arch hold/progress cases would be dropped.
     const q = debouncedSearch.trim().toLowerCase()
-    const selectedStatusSet = new Set(selectedStatuses.map(normalizeStatusFilterValue))
     const filtered = slips.filter((slip) => {
       if (q) {
         const haystack = `${slip.patient} ${slip.product} ${slip.doctor ?? ""} ${slip.caseNumber ?? ""} ${slip.slipNumber ?? ""}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
       if (selectedLocations.length > 0 && !selectedLocations.includes(String(slip.locationId ?? ""))) {
-        return false
-      }
-      if (selectedStatusSet.size > 0 && !selectedStatusSet.has(normalizeStatusFilterValue(slip.status || ""))) {
         return false
       }
       if (officeFilter !== "All" && slip.officeCode !== officeFilter) return false
@@ -315,7 +313,7 @@ function OfficeCaseManagementPage() {
       return true
     })
     return sortRows(filtered, sortKey, sortDirection, selectedLocations.length === 0)
-  }, [slips, debouncedSearch, selectedLocations, selectedStatuses, officeFilter, doctorFilter, stageFilter, productType, showWithAttachments, sortKey, sortDirection])
+  }, [slips, debouncedSearch, selectedLocations, officeFilter, doctorFilter, stageFilter, productType, showWithAttachments, sortKey, sortDirection])
 
   const handleSortChange = useCallback((key: ColumnKey) => {
     if (sortKey === key) {
