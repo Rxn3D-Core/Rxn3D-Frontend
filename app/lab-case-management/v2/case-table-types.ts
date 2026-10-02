@@ -9,7 +9,12 @@ export interface V2CaseRowData {
   slipNumber?: string
   pan: string
   panColorStyle?: CSSProperties
-  /** Current user's pan-row highlight (lab listing only). */
+  /** Shared pan-row color assignment (lab listing). */
+  panColorAssignment?: {
+    color: string
+    assignedBy: { id: number; first_name: string; last_name: string }
+  }
+  /** @deprecated Prefer panColorAssignment */
   panToggled?: boolean
   officeCode: string
   patient: string

@@ -8,6 +8,10 @@ import { applySlipAttachmentState } from "./attachment-state.mjs";
 import { formatSlipListingProducts } from "./slip-listing-product-label.mjs";
 import { formatSlipListingTimestamp } from "@/lib/slip-listing-timestamp";
 import { resolveListingCustomerId } from "@/lib/customer-scope";
+import {
+  mapApiPanColorAssignment,
+  type SlipPanColorAssignment,
+} from "@/lib/slip-pan-color";
 
 type Slip = {
   id: number;
@@ -20,7 +24,9 @@ type Slip = {
   pan: string;
   panColor: string;
   panColorStyle?: React.CSSProperties;
-  /** Current user's pan-row highlight (lab listing). */
+  /** Shared pan-row color assignment (lab listing). */
+  panColorAssignment?: SlipPanColorAssignment;
+  /** @deprecated Prefer panColorAssignment */
   panToggled?: boolean;
   officeCode: string;
   patient: string;
@@ -148,7 +154,13 @@ type SlipContextType = {
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
   readyToSend: (slipId: number, signature?: string) => Promise<ReadyToSendResponse | null>;
   updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
-  toggleSlipPan: (slipId: number) => Promise<{ success: boolean; pan_toggled?: boolean; message?: string } | null>;
+  toggleSlipPan: (slipId: number) => Promise<{
+    success: boolean;
+    action?: string;
+    pan_color?: SlipPanColorAssignment | null;
+    previous_assigned_by?: { id: number; first_name: string; last_name: string } | null;
+    message?: string;
+  } | null>;
 };
 
 const SlipContext = createContext<SlipContextType | undefined>(undefined);
@@ -206,7 +218,8 @@ export function SlipProvider({ children }: { children: ReactNode }) {
     panColorStyle: apiSlip.casepan?.color_code
       ? { backgroundColor: apiSlip.casepan.color_code }
       : undefined,
-    panToggled: Boolean(apiSlip.pan_toggled),
+    panColorAssignment: mapApiPanColorAssignment(apiSlip.pan_color),
+    panToggled: Boolean(apiSlip.pan_color?.color || apiSlip.pan_toggled),
     officeCode: apiSlip.office?.code || "",
     patient: apiSlip.case?.patient_name || "",
     product: formatSlipListingProducts(apiSlip.products),
@@ -375,17 +388,7 @@ export function SlipProvider({ children }: { children: ReactNode }) {
 
   const toggleSlipPan = useCallback(async (slipId: number) => {
     const token = getToken();
-    let previous = false;
-    let next = false;
-
-    // Flip UI immediately — do not wait for the server round-trip.
-    setSlips((current) => {
-      previous = Boolean(current.find((s) => s.id === slipId)?.panToggled);
-      next = !previous;
-      return current.map((s) =>
-        s.id === slipId ? { ...s, panToggled: next } : s,
-      );
-    });
+    let previousAssignment: SlipPanColorAssignment | undefined;
 
     try {
       const res = await fetch(buildApiUrl(`/slip/action/${slipId}/toggle-pan`), {
@@ -397,35 +400,62 @@ export function SlipProvider({ children }: { children: ReactNode }) {
       });
 
       if (res.status === 401) {
-        setSlips((current) =>
-          current.map((s) => (s.id === slipId ? { ...s, panToggled: previous } : s)),
-        );
         handleUnauthorized();
         return null;
       }
 
       const body = await res.json().catch(() => null);
+      const action = body?.data?.action as string | undefined;
+      const mapped = mapApiPanColorAssignment(body?.data?.pan_color);
+      const previousAssignedBy = body?.data?.previous_assigned_by
+        ? {
+            id: Number(body.data.previous_assigned_by.id) || 0,
+            first_name: String(body.data.previous_assigned_by.first_name ?? ""),
+            last_name: String(body.data.previous_assigned_by.last_name ?? ""),
+          }
+        : null;
+
+      if (action === "blocked") {
+        return {
+          success: false,
+          action: "blocked",
+          pan_color: mapped ?? null,
+          message: body?.message || "Pan color is assigned to another user",
+        };
+      }
+
       if (!res.ok || !body?.success) {
-        setSlips((current) =>
-          current.map((s) => (s.id === slipId ? { ...s, panToggled: previous } : s)),
-        );
         return {
           success: false,
           message: body?.message || `Request failed (${res.status})`,
         };
       }
 
-      // Trust optimistic state on success — avoid a second paint from the response.
+      setSlips((current) => {
+        previousAssignment = current.find((s) => s.id === slipId)?.panColorAssignment;
+        void previousAssignment;
+        const nextAssignment =
+          action === "cleared" ? undefined : mapped ?? undefined;
+        return current.map((s) =>
+          s.id === slipId
+            ? {
+                ...s,
+                panColorAssignment: nextAssignment,
+                panToggled: Boolean(nextAssignment),
+              }
+            : s,
+        );
+      });
+
       return {
         success: true,
-        pan_toggled: next,
+        action,
+        pan_color: mapped ?? null,
+        previous_assigned_by: previousAssignedBy,
         message: body?.message,
       };
     } catch (error) {
-      console.error("Error toggling slip pan highlight:", error);
-      setSlips((current) =>
-        current.map((s) => (s.id === slipId ? { ...s, panToggled: previous } : s)),
-      );
+      console.error("Error toggling slip pan color:", error);
       return null;
     }
   }, []);

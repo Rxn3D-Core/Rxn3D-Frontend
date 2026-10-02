@@ -149,15 +149,6 @@ export function UserPermissions() {
   const effectiveCustomerId = needsCustomerPicker ? permissionCustomerId : activeCustomerId ?? ""
 
   const openPermissionsDialog = async (staff: StaffRow) => {
-    if (staff.role === "lab_admin" && !isSuperadmin) {
-      toast({
-        title: "Cannot edit permissions",
-        description: "lab_admin users cannot receive per-user overrides.",
-        variant: "destructive",
-      })
-      return
-    }
-
     setSelectedUser(staff)
     setSelectedOverrides([])
     setPermissionCustomerId("")
@@ -252,7 +243,7 @@ export function UserPermissions() {
         <p className="text-sm text-muted-foreground mt-1">
           {isSuperadmin
             ? "Pick the user's lab or office profile, then assign override permissions for that profile only."
-            : `Assign override permissions for users on this ${scopeLabel.toLowerCase()} profile (lab_admin excluded). Role template grants cannot be removed here.`}
+            : `Assign override permissions for users on this ${scopeLabel.toLowerCase()} profile. Role template grants cannot be removed here.`}
         </p>
       </div>
 
@@ -334,7 +325,7 @@ export function UserPermissions() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={!canEdit || (staff.role === "lab_admin" && !isSuperadmin)}
+                          disabled={!canEdit}
                           onClick={() => openPermissionsDialog(staff)}
                         >
                           <Shield className="h-4 w-4 mr-2" />
