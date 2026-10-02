@@ -200,3 +200,32 @@ export function saveChargeManagementFilters(
   if (customerId == null || !Number.isFinite(customerId)) return
   writeJson(storageKey(customerId), prefs)
 }
+
+const SCROLL_STORAGE_PREFIX = "rxn3d.charge-management.scroll"
+
+/** Remembers the list scroll offset (per tab) so returning via browser Back can restore it. */
+export function saveChargeManagementScroll(
+  customerId: number | null | undefined,
+  scrollTop: number,
+): void {
+  if (typeof window === "undefined" || customerId == null || !Number.isFinite(customerId)) return
+  try {
+    sessionStorage.setItem(`${SCROLL_STORAGE_PREFIX}.${customerId}`, String(Math.max(0, Math.round(scrollTop))))
+  } catch {
+    // Ignore quota / private-mode errors.
+  }
+}
+
+/** Reads and clears the saved scroll offset; null when nothing was saved. */
+export function takeChargeManagementScroll(customerId: number | null | undefined): number | null {
+  if (typeof window === "undefined" || customerId == null || !Number.isFinite(customerId)) return null
+  try {
+    const key = `${SCROLL_STORAGE_PREFIX}.${customerId}`
+    const raw = sessionStorage.getItem(key)
+    sessionStorage.removeItem(key)
+    const n = raw == null ? NaN : Number(raw)
+    return Number.isFinite(n) && n > 0 ? n : null
+  } catch {
+    return null
+  }
+}

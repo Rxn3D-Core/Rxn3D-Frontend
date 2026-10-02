@@ -12,6 +12,8 @@ import {
   defaultChargeManagementFilters,
   loadChargeManagementFilters,
   saveChargeManagementFilters,
+  saveChargeManagementScroll,
+  takeChargeManagementScroll,
   type ChargeManagementFiltersPrefs,
   type ChargeManagementPerPage,
   type ChargeManagementSortBy,
@@ -524,6 +526,15 @@ function billingInvoiceToRows(inv: BillingInvoice): ChargeRow[] {
   })
 }
 
+/** The page scrolls inside the billing layout's overflow container, not the window. */
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
+    const { overflowY } = window.getComputedStyle(node)
+    if (overflowY === "auto" || overflowY === "scroll") return node
+  }
+  return null
+}
+
 export default function ChargeManagementPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
@@ -603,6 +614,9 @@ export default function ChargeManagementPage() {
   const pdfViewerBlobUrlRef = useRef<string | null>(null)
   const statementPreviewCacheRef = useRef<Map<number, StatementRecord>>(new Map())
   const pdfIframeRef = useRef<HTMLIFrameElement | null>(null)
+  const pageRootRef = useRef<HTMLDivElement | null>(null)
+  const pendingScrollRestoreRef = useRef<number | null>(null)
+  const advancedSearchSeqRef = useRef(0)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400)
@@ -680,6 +694,8 @@ export default function ChargeManagementPage() {
     setAdvancedResult(null)
     setAdvancedBody(null)
     setAdvancedPage(1)
+    const savedScroll = takeChargeManagementScroll(customerId)
+    if (savedScroll != null) pendingScrollRestoreRef.current = savedScroll
     setFiltersReady(true)
   }, [customerId])
 
@@ -1196,6 +1212,7 @@ export default function ChargeManagementPage() {
 
   const runAdvancedSearch = useCallback(
     async (body: AdvancedBillingSearchBody) => {
+      const seq = ++advancedSearchSeqRef.current
       try {
         const merged: AdvancedBillingSearchBody = {
           ...body,
@@ -1207,12 +1224,15 @@ export default function ChargeManagementPage() {
           merged.lab_name = merged.lab_name ?? customerProfile.name
         }
         const result = await advancedSearch(merged).unwrap()
+        // Overlapping searches (e.g. on mount) can resolve out of order; keep only the latest.
+        if (seq !== advancedSearchSeqRef.current) return
         setAdvancedResult(result)
         setAdvancedBody(merged)
         setActiveSource("advanced")
         setAdvancedPage(merged.page ?? 1)
         setPage(1)
       } catch (e: unknown) {
+        if (seq !== advancedSearchSeqRef.current) return
         toast({
           title: "Search failed",
           description: e instanceof Error ? e.message : "Request failed",
@@ -1225,11 +1245,39 @@ export default function ChargeManagementPage() {
 
   useEffect(() => {
     if (!customerId || !filtersReady || activeSource !== "advanced") return
+    // office_name is resolved from the connected-offices list; searching before it loads drops the office filter.
+    if (isLabScope && officeFilter !== "all" && officesLoading) return
     const timer = setTimeout(() => {
       void runAdvancedSearch(advancedSearchRequestBody)
     }, 350)
     return () => clearTimeout(timer)
-  }, [customerId, filtersReady, activeSource, advancedSearchRequestBody, runAdvancedSearch])
+  }, [
+    customerId,
+    filtersReady,
+    activeSource,
+    isLabScope,
+    officeFilter,
+    officesLoading,
+    advancedSearchRequestBody,
+    runAdvancedSearch,
+  ])
+
+  useEffect(() => {
+    const target = pendingScrollRestoreRef.current
+    if (target == null || isLoading || charges.length === 0) return
+    const container = findScrollParent(pageRootRef.current)
+    if (container) container.scrollTop = target
+  }, [isLoading, charges])
+
+  useEffect(() => {
+    // Later searches on mount can re-render the rows; keep re-applying the saved offset until the user takes over.
+    const cancel = () => {
+      pendingScrollRestoreRef.current = null
+    }
+    const events = ["wheel", "touchstart", "keydown", "mousedown"] as const
+    events.forEach((name) => window.addEventListener(name, cancel, { passive: true }))
+    return () => events.forEach((name) => window.removeEventListener(name, cancel))
+  }, [])
 
   const clearAllAdvancedFilters = useCallback(() => {
     setAdvCategoryId(null)
@@ -2103,7 +2151,7 @@ export default function ChargeManagementPage() {
   const actionDisabled = !customerId || bulkLoading || sendEmailLoading || generatingStatements
 
   return (
-    <div className="w-full min-h-full bg-white">
+    <div ref={pageRootRef} className="w-full min-h-full bg-white">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
         <LabBillingPageHeader />
 
@@ -2260,7 +2308,7 @@ export default function ChargeManagementPage() {
 
               {isLabScope && (
                 <SearchableSelect
-                  className="w-[200px] shrink-0 h-10 text-sm bg-white font-normal"
+                  className="w-[240px] shrink-0 h-10 text-sm bg-white focus:ring-0 focus:ring-offset-0 focus:border-input"
                   value={officeFilter}
                   onValueChange={(v) => {
                     setOfficeFilter(v === "" ? "all" : v)
@@ -2626,7 +2674,13 @@ export default function ChargeManagementPage() {
                           type="button"
                           disabled={!charge.slipId}
                           title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
-                          onClick={() => router.push(buildVirtualSlipV2Path(charge.caseId, charge.slipId))}
+                          onClick={() => {
+                            saveChargeManagementScroll(
+                              customerId,
+                              findScrollParent(pageRootRef.current)?.scrollTop ?? 0,
+                            )
+                            router.push(buildVirtualSlipV2Path(charge.caseId, charge.slipId))
+                          }}
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
