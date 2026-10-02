@@ -42,6 +42,7 @@ interface ApiUser {
   work_number?: string
   status: string
   pan_color?: string | null
+  can_override_pan_color?: boolean
   is_email_verified: boolean
   email_verified_at?: string
   roles: any[]
@@ -76,6 +77,7 @@ interface StaffUser {
   role?: string
   customerName?: string
   pan_color?: string | null
+  can_override_pan_color?: boolean
 }
 
 interface UserListTableProps {
@@ -153,6 +155,7 @@ export function UserListTable({ roleFilter, title, description }: UserListTableP
       role: scopedCustomer?.role?.name || "Unknown",
       customerName: scopedCustomer?.name || "Unknown",
       pan_color: apiUser.pan_color || null,
+      can_override_pan_color: Boolean(apiUser.can_override_pan_color),
     }
   }
 

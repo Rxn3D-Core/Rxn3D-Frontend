@@ -52,6 +52,7 @@ const updateUserSchema = z.object({
     .string()
     .optional()
     .refine((v) => !v || /^#[0-9A-Fa-f]{6}$/.test(v), "Use a HEX color like #2563EB"),
+  can_override_pan_color: z.boolean().default(false),
 })
 
 type UpdateUserFormValues = z.infer<typeof updateUserSchema>
@@ -70,6 +71,7 @@ interface StaffUser {
   customerName?: string
   customerRoles?: UserCustomerRoleLink[]
   pan_color?: string | null
+  can_override_pan_color?: boolean
 }
 
 interface CustomerOption {
@@ -155,6 +157,7 @@ export function UpdateUserModal({
       license_number: "",
       signature: null,
       pan_color: "",
+      can_override_pan_color: false,
     },
     mode: "onChange",
     reValidateMode: "onChange",
@@ -284,6 +287,7 @@ export function UpdateUserModal({
         license_number: "",
         signature: null,
         pan_color: user.pan_color || "",
+        can_override_pan_color: Boolean(user.can_override_pan_color),
       })
 
       setProfileRole(user.role || "")
@@ -311,6 +315,11 @@ export function UpdateUserModal({
             setProfileRole(roleName)
             form.setValue("role", roleName, { shouldDirty: false })
             form.setValue("pan_color", detail?.pan_color || "", { shouldDirty: false })
+            form.setValue(
+              "can_override_pan_color",
+              Boolean(detail?.can_override_pan_color),
+              { shouldDirty: false },
+            )
           } catch {
             // keep listing role fallback
           }
@@ -513,6 +522,7 @@ export function UpdateUserModal({
               pan_color: data.pan_color && /^#[0-9A-Fa-f]{6}$/.test(data.pan_color)
                 ? data.pan_color.toUpperCase()
                 : null,
+              can_override_pan_color: Boolean(data.can_override_pan_color),
             }
           : {}),
         ...(canChangeUserRole && data.role
@@ -533,6 +543,9 @@ export function UpdateUserModal({
       if (user.id === authContext.user?.id && isLabCustomer) {
         authContext.updateSessionUser({
           pan_color: (payload as { pan_color?: string | null }).pan_color ?? null,
+          can_override_pan_color: Boolean(
+            (payload as { can_override_pan_color?: boolean }).can_override_pan_color,
+          ),
         })
       }
 
@@ -744,6 +757,29 @@ export function UpdateUserModal({
                       Used to mark case listing rows. Each lab user should have a unique color.
                     </p>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {isLabCustomer && (
+              <FormField
+                control={form.control}
+                name="can_override_pan_color"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-gray-200 p-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={Boolean(field.value)}
+                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Can Override Pan Color</FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Allow this user to replace another user’s pan color on the lab listing.
+                      </p>
+                    </div>
                   </FormItem>
                 )}
               />

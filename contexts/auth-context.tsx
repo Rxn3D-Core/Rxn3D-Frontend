@@ -67,6 +67,8 @@ type User = {
   status: string
   /** Lab listing shared pan-row color (HEX). */
   pan_color?: string | null
+  /** Allow replacing another user's pan color on the lab listing. */
+  can_override_pan_color?: boolean
   username?: string
   description?: string
   department_id?: number
@@ -170,6 +172,7 @@ type AuthContextType = {
     license_number?: string
     signature?: File | null
     pan_color?: string | null
+    can_override_pan_color?: boolean
   }) => Promise<any>
   /** Per-organization membership status only — does not change global users.status */
   updateMembershipStatus: (
@@ -203,6 +206,7 @@ type AuthContextType = {
     license_number?: string;
     signature?: File | null;
     pan_color?: string | null;
+    can_override_pan_color?: boolean;
   }) => Promise<any>
   deleteUser: (userId: number) => Promise<any>
   fetchUserById: (userId: number, customerId?: string) => Promise<any>
@@ -1083,6 +1087,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     license_number?: string
     signature?: File | null
     pan_color?: string | null
+    can_override_pan_color?: boolean
   }): Promise<any> => {
     try {
       const customerId = data.customer_id ?? (localStorage.getItem("customerId") ? Number(localStorage.getItem("customerId")) : undefined)
@@ -1419,6 +1424,7 @@ if (shouldSeeMultiLocation && hasMultipleLocations) {
     license_number?: string;
     signature?: File | null;
     pan_color?: string | null;
+    can_override_pan_color?: boolean;
   }): Promise<any> => {
     // Delegate to updateUser so customer_id / FormData signature uploads stay consistent
     return updateUser(userId, userData)

@@ -2,23 +2,26 @@
 
 ## Summary
 
-Lab users with an assigned HEX `pan_color` can click the pan badge to paint the entire listing row. The color is shared across the lab, stores who assigned it, and supports `override_pan_color` for replacing another user’s color.
+Lab users with an assigned HEX `pan_color` can click the pan badge to paint the entire listing row. Override is a simple user flag: `can_override_pan_color`.
 
 Office listings do not show this control.
 
 ## Setup
 
-1. Lab admin sets **Pan Color** on each lab user (Update User modal).
-2. Optionally grant **Override Pan Color** (`override_pan_color`) via Permissions — on by default for lab admins.
-3. User must re-login (or refresh session) after receiving a pan color so listing toggle unlocks.
+1. Open the lab user → **Update User**
+2. Set **Pan Color** (HEX)
+3. Optionally enable **Can Override Pan Color** (e.g. Belen only)
+4. That user should re-login if they are currently signed in
 
-## UX
+## Example (all lab admins)
 
-| Situation | Result |
-|-----------|--------|
-| Empty row | Row uses current user’s color |
-| Own color | Clears |
-| Other user’s color, no override | Toast `Assigned to {Name}.` — no change |
-| Other user’s color, has override | Replaces; toast `Reassigned: A → B` |
+| User | Color | Can Override |
+|------|-------|--------------|
+| Heide | Blue | Off |
+| Stella | Green | Off |
+| Belen | Red | On |
 
-Desktop tooltips match the same copy (`… — click to override.` when permitted).
+- Heide empty row → blue  
+- Stella on Heide’s row → “Assigned to Heide.”  
+- Belen on Heide’s row → red + “Reassigned: Heide → Belen”  
+- Belen again → cleared  

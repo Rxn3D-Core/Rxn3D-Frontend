@@ -179,7 +179,7 @@ function normalizeStatusFilterValue(status: string): string {
 
 export default function LabSlipV3Page() {
   const { toast } = useToast()
-  const { user, hasPermission } = useAuth()
+  const { user } = useAuth()
   const searchParams = useSearchParams()
   const initialLocation = parseLocationFilterFromUrl(searchParams.get("location"))
   const urlLocationParam = searchParams.get("location")
@@ -256,7 +256,7 @@ export default function LabSlipV3Page() {
   const [undoLocationSubmitting, setUndoLocationSubmitting] = useState(false)
 
   const allowUndoLocation = canUndoSlipLocation(getStoredSlipUserRole())
-  const canOverridePanColor = hasPermission("override_pan_color")
+  const canOverridePanColor = Boolean(user?.can_override_pan_color)
   const allowPanToggle =
     canToggleSlipPan(getStoredSlipUserRole()) &&
     typeof user?.pan_color === "string" &&
