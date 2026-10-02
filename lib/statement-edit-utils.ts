@@ -70,6 +70,14 @@ export function statementPartyNeedsLocationEnrichment(
   return !city || !state;
 }
 
+/** True when statement party lacks a logo URL (preview should load it from the customer profile). */
+export function statementPartyNeedsLogoEnrichment(
+  party: StatementParty | null | undefined,
+): boolean {
+  if (!party) return true;
+  return !(party.logo_url ?? "").trim();
+}
+
 /**
  * Fills missing address parts on a statement party from a customer profile
  * (`GET /customers/{id}`). Existing party values win.
@@ -89,6 +97,7 @@ export function mergeStatementPartyWithProfile(
       address: profile.address ?? null,
       city: profile.city ?? null,
       postal_code: profile.postal_code ?? null,
+      logo_url: profile.logo_url ?? null,
       state: profile.state ?? null,
       country: profile.country ?? null,
     };
@@ -99,6 +108,7 @@ export function mergeStatementPartyWithProfile(
     address: (party.address ?? "").trim() || profile.address || party.address,
     city: (party.city ?? "").trim() || profile.city || party.city,
     postal_code: (party.postal_code ?? "").trim() || profile.postal_code || party.postal_code,
+    logo_url: (party.logo_url ?? "").trim() || profile.logo_url || party.logo_url || null,
     state: namedRefText(party.state) ? party.state : (profile.state ?? party.state),
     country: namedRefText(party.country) ? party.country : (profile.country ?? party.country),
   };

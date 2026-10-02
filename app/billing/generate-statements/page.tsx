@@ -555,6 +555,7 @@ export default function GenerateStatementsPage() {
             th, td { padding: 10px 12px; font-size: 13px; vertical-align: top; }
             thead th { border-bottom: 1px solid #d1d5db; text-align: left; }
             tbody tr:nth-child(odd) { background: #eaf4ff; }
+            img { max-height: 80px; width: auto; object-fit: contain; }
           </style>
         </head>
         <body>${markup}</body>
@@ -562,7 +563,26 @@ export default function GenerateStatementsPage() {
     `)
     printWindow.document.close()
     printWindow.focus()
-    window.setTimeout(() => printWindow.print(), 250)
+
+    const images = Array.from(printWindow.document.images)
+    const waitForImages =
+      images.length === 0
+        ? Promise.resolve()
+        : Promise.all(
+            images.map(
+              (img) =>
+                img.complete
+                  ? Promise.resolve()
+                  : new Promise<void>((resolve) => {
+                      img.onload = () => resolve()
+                      img.onerror = () => resolve()
+                    }),
+            ),
+          )
+
+    void waitForImages.then(() => {
+      window.setTimeout(() => printWindow.print(), 100)
+    })
   }
 
   const previewItems = useMemo<StatementPreviewBillingItem[]>(
@@ -1032,7 +1052,13 @@ export default function GenerateStatementsPage() {
             <div ref={previewContentRef} className="mx-auto max-w-[78rem]">
               <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
                 <div>
-                  <img src="/images/hmc.svg" alt="RXN3D logo" className="h-20 w-auto object-contain" />
+                  {activePreviewStatement?.lab?.logo_url ? (
+                    <img
+                      src={activePreviewStatement.lab.logo_url}
+                      alt={`${activePreviewStatement.lab.name || "Lab"} logo`}
+                      className="h-20 w-auto object-contain"
+                    />
+                  ) : null}
                   <div className="mt-4 space-y-1 text-[15px] text-slate-700 sm:text-[17px]">
                     <p className="whitespace-pre-line">{formatStatementPartyAddress(activePreviewStatement?.lab)}</p>
                     <p>
@@ -1146,7 +1172,12 @@ export default function GenerateStatementsPage() {
                           <tr key={item.id ?? `${item.patient_name}-${index}`} className={index % 2 === 0 ? "bg-[#eaf4ff]" : "bg-white"}>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{item.patient_name || "—"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{item.product_type || "—"}</td>
-                            <td className="px-4 py-4 text-[15px] text-slate-900">{item.product_name || "—"}</td>
+                            <td className="px-4 py-4 text-[15px] leading-snug text-slate-900">
+                              {item.product_name || "—"}
+                              {item.variation_name?.trim() ? (
+                                <div className="text-[12px] leading-snug text-slate-500">{item.variation_name.trim()}</div>
+                              ) : null}
+                            </td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{item.grade_name || "—"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{item.stage_name || "—"}</td>
                             <td className="px-4 py-4 text-[15px] text-slate-900">{formatMoney(item.base_total)}</td>

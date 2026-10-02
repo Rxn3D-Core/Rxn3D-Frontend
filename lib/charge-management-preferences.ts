@@ -143,7 +143,8 @@ export function defaultChargeManagementFilters(): ChargeManagementFiltersPrefs {
     sortBy: CHARGE_MANAGEMENT_DEFAULT_SORT_BY,
     sortDirection: CHARGE_MANAGEMENT_DEFAULT_SORT_DIRECTION,
     advDateRange: "today",
-    advItemStatus: "all",
+    // Default to work queue (unbilled); "all" / Any shows every status including billed.
+    advItemStatus: "unbilled",
     showAdvancedFilters: false,
     activeSource: "list",
     advCategoryId: null,
@@ -178,7 +179,7 @@ export function loadChargeManagementFilters(
     sortBy: asSortBy(o.sortBy),
     sortDirection: asSortDirection(o.sortDirection),
     advDateRange: DATE_RANGES.has(advDateRange) ? advDateRange : defaults.advDateRange,
-    advItemStatus: asString(o.advItemStatus, "all") || "all",
+    advItemStatus: asString(o.advItemStatus, defaults.advItemStatus) || defaults.advItemStatus,
     showAdvancedFilters: Boolean(o.showAdvancedFilters),
     activeSource: activeSource === "advanced" ? "advanced" : "list",
     advCategoryId: asNullableNumber(o.advCategoryId),

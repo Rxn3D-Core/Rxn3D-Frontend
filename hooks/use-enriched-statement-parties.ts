@@ -6,6 +6,7 @@ import type { StatementParty, StatementRecord } from "@/lib/redux/api/billingApi
 import {
   mergeStatementPartyWithProfile,
   statementPartyNeedsLocationEnrichment,
+  statementPartyNeedsLogoEnrichment,
 } from "@/lib/statement-edit-utils"
 
 function resolvePartyCustomerId(
@@ -17,8 +18,8 @@ function resolvePartyCustomerId(
 }
 
 /**
- * When statement `office` / `lab` lack city/state, fetch customer profiles and merge
- * address parts for on-screen statement previews.
+ * When statement `office` / `lab` lack city/state/logo, fetch customer profiles and merge
+ * those fields for on-screen statement previews.
  */
 export function useEnrichedStatementParties(statement: StatementRecord | null | undefined): {
   office: StatementParty | null
@@ -27,8 +28,12 @@ export function useEnrichedStatementParties(statement: StatementRecord | null | 
   const officeId = resolvePartyCustomerId(statement?.office, statement?.office_id)
   const labId = resolvePartyCustomerId(statement?.lab, statement?.lab_id)
 
-  const needsOfficeEnrichment = statementPartyNeedsLocationEnrichment(statement?.office)
-  const needsLabEnrichment = statementPartyNeedsLocationEnrichment(statement?.lab)
+  const needsOfficeEnrichment =
+    statementPartyNeedsLocationEnrichment(statement?.office) ||
+    statementPartyNeedsLogoEnrichment(statement?.office)
+  const needsLabEnrichment =
+    statementPartyNeedsLocationEnrichment(statement?.lab) ||
+    statementPartyNeedsLogoEnrichment(statement?.lab)
 
   const { data: officeProfile } = useGetCustomerByIdQuery(officeId ?? 0, {
     skip: officeId == null || !needsOfficeEnrichment,

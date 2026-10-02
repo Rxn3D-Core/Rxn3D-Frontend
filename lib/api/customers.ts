@@ -8,6 +8,7 @@ export interface CustomerAddressProfile {
   address?: string | null
   city?: string | null
   postal_code?: string | null
+  logo_url?: string | null
   state?: string | { id?: number; name?: string | null } | null
   country?: string | { id?: number; name?: string | null } | null
 }
