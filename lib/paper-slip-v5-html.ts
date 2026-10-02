@@ -199,6 +199,20 @@ function toothImageUrl(arch: ArchVM | null, tooth: number): string {
   return defaultToothUrl(tooth);
 }
 
+/** Color-mode extraction tint for a tooth with no photo, matching the CDC teeth SVG filter. */
+function toothColorFilter(arch: ArchVM | null, tooth: number): string | null {
+  const display = arch?.extractionDisplay;
+  const code = display?.toothExtractionMap?.[tooth];
+  if (!code || display?.extractionImagesByCode?.[code]?.[tooth]) return null;
+  if (arch?.toothChartSelectionsByTooth?.[tooth]?.imageUrl) return null;
+  const meta = display?.extractionsByCode?.[code];
+  if (meta?.visibility_type !== "Color" || !meta.color) return null;
+  const hex = meta.color.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
+  const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(",");
+  return `opacity(0.35) drop-shadow(rgb(${rgb}) 0px 0px 0px)`;
+}
+
 function willExtractTeeth(arch: ArchVM | null): Set<number> {
   const teeth = new Set<number>();
   for (const tooth of arch?.teeth ?? []) {
@@ -225,7 +239,9 @@ function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string
   const fills = rects
     .map((rect) => {
       const href = esc(toothImageUrl(arch, rect.num));
-      return `<image href="${href}" xlink:href="${href}" x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" preserveAspectRatio="none" />`;
+      const filter = toothColorFilter(arch, rect.num);
+      const style = filter ? ` style="filter:${filter}"` : "";
+      return `<image href="${href}" xlink:href="${href}" x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" preserveAspectRatio="none"${style} />`;
     })
     .join("");
 

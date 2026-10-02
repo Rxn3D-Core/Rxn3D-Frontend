@@ -128,8 +128,10 @@ function imageUrlForToothFromCatalogRow(
   toothNumber: number,
 ): string | null {
   if (!catalogRow) return null;
+  // Only per-tooth `images[]`: catalog `image_url` is the status-box icon, and using it
+  // here would hide the Color tint that create slip shows for teeth without a photo.
   const fromImages = catalogRow.images?.find((img) => img.tooth_number === toothNumber)?.image_url;
-  return nonEmptyUrl(fromImages) ?? nonEmptyUrl(catalogRow.image_url);
+  return nonEmptyUrl(fromImages);
 }
 
 function imageUrlFromToothChartRow(
