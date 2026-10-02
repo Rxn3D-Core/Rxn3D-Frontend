@@ -555,7 +555,7 @@ export default function ChargeManagementPage() {
   const [advSubcategoryId, setAdvSubcategoryId] = useState<number | null>(null)
   const [advProductId, setAdvProductId] = useState<number | null>(null)
   const [advStageId, setAdvStageId] = useState<number | null>(null)
-  const [advItemStatus, setAdvItemStatus] = useState<string>("all")
+  const [advItemStatus, setAdvItemStatus] = useState<string>("unbilled")
   const [advAttachment, setAdvAttachment] = useState<"all" | "yes" | "no">("all")
   const [showCasesWithAddon, setShowCasesWithAddon] = useState(false)
   const [showOnlyChecked, setShowOnlyChecked] = useState(false)
@@ -785,6 +785,11 @@ export default function ChargeManagementPage() {
       const oid = parseInt(officeFilter, 10)
       if (!Number.isNaN(oid)) params.office_id = oid
     }
+    if (showOnlyChecked) {
+      params.status = "checked"
+    } else if (advItemStatus !== "all") {
+      params.status = advItemStatus
+    }
     return params
   }, [
     scopeFilter,
@@ -798,6 +803,8 @@ export default function ChargeManagementPage() {
     advDateRange,
     officeFilter,
     isLabScope,
+    showOnlyChecked,
+    advItemStatus,
   ])
 
   /** Summary cards follow the same filters as the list (no pagination). */
@@ -933,20 +940,15 @@ export default function ChargeManagementPage() {
   const isError = activeSource === "advanced" ? false : listError
   const error = listErr
 
-  // Billed items clutter the default view, so hide them unless the user is
-  // actively searching or has explicitly asked to see billed items.
-  const isSearchingOrFilteringBilled =
-    debouncedSearch.trim().length > 0 || advItemStatus === "billed"
-
+  // Status filter is applied by the API (list `status` / advanced `item_status`).
+  // "Any" (`all`) omits that filter so every status — including billed — is shown.
   const charges: ChargeRow[] = useMemo(() => {
     if (!displayResult?.data?.length) return []
-    const rows = displayResult.data
+    return displayResult.data
       .filter((inv) => !isDeletedLikeStatus(inv.status))
       .flatMap((inv) => billingInvoiceToRows(inv))
       .filter((row) => !isDeletedLikeStatus(row.status))
-    if (isSearchingOrFilteringBilled) return rows
-    return rows.filter((row) => row.status !== "Billed")
-  }, [displayResult, isSearchingOrFilteringBilled])
+  }, [displayResult])
   const sendToOfficeCharge = useMemo(
     () => charges.find((charge) => charge.billingInvoiceId === sendToOfficeBillingId) ?? null,
     [charges, sendToOfficeBillingId],
@@ -955,6 +957,32 @@ export default function ChargeManagementPage() {
     sendToOfficeEmail.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sendToOfficeEmail.trim())
 
   const pagination = displayResult?.pagination
+
+  /**
+   * When the full filtered set fits on the current page, derive Total / Average
+   * from the same rows the table shows (Gross column). Backend /statistics can
+   * diverge when invoice.total_amount is stale vs product line totals, or when
+   * advanced search filters aren't mirrored on the stats request.
+   */
+  const displayedSummary = useMemo(() => {
+    const invoices = displayResult?.data ?? []
+    if (!pagination || pagination.total <= 0 || invoices.length < pagination.total) {
+      return null
+    }
+
+    const total = charges.reduce((sum, charge) => sum + statementSignedAmount(charge), 0)
+    const invoiceCount =
+      new Set(charges.map((charge) => charge.billingInvoiceId)).size || invoices.length
+    return {
+      total_amount: total,
+      average_invoice_amount: invoiceCount > 0 ? Math.round((total / invoiceCount) * 100) / 100 : 0,
+    }
+  }, [displayResult, pagination, charges])
+
+  const summaryTotalAmount = displayedSummary?.total_amount ?? stats?.total_amount
+  const summaryAverageAmount =
+    displayedSummary?.average_invoice_amount ?? stats?.average_invoice_amount
+  const summaryFetching = displayedSummary == null && statsFetching
 
   const selectedBillingIds = useMemo(() => {
     const set = new Set<number>()
@@ -1208,7 +1236,7 @@ export default function ChargeManagementPage() {
     setAdvSubcategoryId(null)
     setAdvProductId(null)
     setAdvStageId(null)
-    setAdvItemStatus("all")
+    setAdvItemStatus("unbilled")
     setAdvAttachment("all")
     setShowCasesWithAddon(false)
     setShowOnlyChecked(false)
@@ -1381,9 +1409,8 @@ export default function ChargeManagementPage() {
     await refetchList()
   }, [activeSource, advancedBody, advancedPage, advancedSearch, refetchList, toast])
 
-  // ponytail: this only flips local intent — auto_mark_billed is carried
-  // through generate and only applied server-side once the statement is
-  // actually sent, so flipping the switch never mutates data on its own.
+  // Local UI intent only until Generate / Generate & send; the API then
+  // marks SlipBilling rows billed when auto_mark_billed is true.
   const handleStatementAutoMarkBilledToggle = useCallback(() => {
     setStatementAutoMarkBilled((value) => !value)
   }, [])
@@ -2104,7 +2131,7 @@ export default function ChargeManagementPage() {
                 {t("chargeManagement.statsTotalAmount", { defaultValue: "Total amount" })}
               </p>
               <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                {statsFetching ? "—" : formatMoney(stats?.total_amount as number | string | undefined)}
+                {summaryFetching ? "—" : formatMoney(summaryTotalAmount as number | string | undefined)}
               </p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -2112,7 +2139,7 @@ export default function ChargeManagementPage() {
                 {t("chargeManagement.statsAverage", { defaultValue: "Average invoice" })}
               </p>
               <p className="text-2xl font-bold text-gray-900 tabular-nums">
-                {statsFetching ? "—" : formatMoney(stats?.average_invoice_amount as number | string | undefined)}
+                {summaryFetching ? "—" : formatMoney(summaryAverageAmount as number | string | undefined)}
               </p>
             </div>
           </div>

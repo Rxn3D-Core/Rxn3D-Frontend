@@ -247,6 +247,8 @@ export interface StatementParty {
   address?: string | null
   city?: string | null
   postal_code?: string | null
+  /** Lab/office profile logo from `customers.logo_url` (used on statement headers). */
+  logo_url?: string | null
   /** API may return a plain string or `{ name }` object (same shape as customer profiles). */
   state?: string | StatementPartyNamedRef | null
   country?: string | StatementPartyNamedRef | null
@@ -267,6 +269,7 @@ export interface StatementBillingItem {
   status?: string | null
   patient_name?: string | null
   product_name?: string | null
+  variation_name?: string | null
 }
 
 export interface StatementRecord {
