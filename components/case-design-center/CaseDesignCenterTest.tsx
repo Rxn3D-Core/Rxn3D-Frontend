@@ -99,8 +99,11 @@ export default function Page() {
     selectedProductId,
     ...addedProducts.map((p) => p.productId ?? (typeof p.product?.id === "number" ? p.product.id : null)),
   ];
-  const { displayDate: headerDueDate, isLoading: headerDueDateLoading } =
-    useCaseEstimatedDueDate(productIdsForDueDate);
+  const {
+    displayDate: headerDueDate,
+    isLoading: headerDueDateLoading,
+    effectivePickupCutoffTime,
+  } = useCaseEstimatedDueDate(productIdsForDueDate);
 
   const {
     submissionState,
@@ -185,7 +188,11 @@ export default function Page() {
               onEditLab={handleTopBarEditLab}
               estimatedDueDate={caseSubmitted ? null : headerDueDate}
               estimatedDueDateLoading={!caseSubmitted && headerDueDateLoading}
-              cutoffTime={caseSubmitted ? null : rushCaseSchedule?.default_pickup_time}
+              cutoffTime={
+                caseSubmitted
+                  ? null
+                  : effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
+              }
             />
             <CaseDesignCenter
               // Remount with fresh product configuration when the user goes back and

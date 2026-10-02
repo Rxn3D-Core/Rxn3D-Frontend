@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ColorPicker } from "@/components/ui/color-picker"
 import { useTranslation } from "react-i18next"
 import { useCaseTracking } from "@/contexts/case-tracking-context"
+import { TimePicker } from "@/components/onboarding/time-picker"
+import { convertTo12Hour, convertTo24Hour } from "@/lib/api-business-settings"
+import { DEFAULT_PICKUP_TIME_12, parseBusinessHourTime } from "@/utils/time-utils"
 
 interface AddCasePanModalProps {
   isOpen: boolean
@@ -45,12 +48,15 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
     color: "#1E88E5",
     activeStatus: true,
     setAsRushGroup: false,
+    pickupCutoffTime: "",
   })
 
   const [hasChanges, setHasChanges] = useState(false)
 
   useEffect(() => {
     if (editData && mode === "edit") {
+      const existingCutoff =
+        editData.pickup_cutoff_time ?? editData.lab_case_pan?.pickup_cutoff_time ?? null
       setFormData({
         name: editData.name || "",
         prefixLetter: editData.code || "",
@@ -59,6 +65,9 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
         color: editData.color_code || "#1E88E5",
         activeStatus: editData.status === "Active",
         setAsRushGroup: editData.set_as_rush_group || editData.isRushGroup || false,
+        pickupCutoffTime: existingCutoff
+          ? parseBusinessHourTime(existingCutoff, DEFAULT_PICKUP_TIME_12) || convertTo12Hour(existingCutoff) || ""
+          : "",
       })
     } else {
       resetForm()
@@ -74,6 +83,7 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
       color: "#1E88E5",
       activeStatus: true,
       setAsRushGroup: false,
+      pickupCutoffTime: "",
     })
     setHasChanges(false)
   }
@@ -114,6 +124,9 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
         type: "Both" as "Upper" | "Lower" | "Both",
         status: (formData.activeStatus ? "Active" : "Inactive") as "Active" | "Inactive",
         set_as_rush_group: formData.setAsRushGroup,
+        pickup_cutoff_time: formData.pickupCutoffTime.trim()
+          ? convertTo24Hour(formData.pickupCutoffTime)
+          : null,
       }
 
       let success: boolean
@@ -220,6 +233,40 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
                   <SelectItem value="alphanumeric">{t("caseTracking.alphanumeric", "Alphanumeric (A01 - Z99)")}</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Pick up cut off time */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                {t("caseTracking.pickupCutoffTime", "Pick up cut off time")}
+              </label>
+              <p className="text-sm text-gray-500 mb-2">
+                {t(
+                  "caseTracking.pickupCutoffTimeHint",
+                  "Optional. Leave empty to use the lab default pickup cut off time."
+                )}
+              </p>
+              <div className="flex items-center gap-3">
+                <TimePicker
+                  value={formData.pickupCutoffTime || DEFAULT_PICKUP_TIME_12}
+                  onChange={(value) => handleInputChange("pickupCutoffTime", value)}
+                  className="w-36 h-11"
+                />
+                {formData.pickupCutoffTime ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-9 px-2 text-sm text-gray-600"
+                    onClick={() => handleInputChange("pickupCutoffTime", "")}
+                  >
+                    {t("caseTracking.clearPickupCutoff", "Use lab default")}
+                  </Button>
+                ) : (
+                  <span className="text-sm text-gray-500">
+                    {t("caseTracking.usingLabDefaultCutoff", "Using lab default")}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Color */}

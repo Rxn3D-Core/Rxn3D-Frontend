@@ -53,6 +53,8 @@ export interface CasePan {
   color_code: string
   code_format?: "Numeric" | "Alphanumeric" | null
   set_as_rush_group?: boolean
+  /** Lab-specific pickup cutoff (HH:mm). Null = use lab default. */
+  pickup_cutoff_time?: string | null
   type?: "Upper" | "Lower" | "Both"
   status: "Active" | "Inactive"
   connected_items?: string[] // Combined subcategories and products
@@ -70,6 +72,7 @@ export interface CasePan {
     id: number
     code_format?: "Numeric" | "Alphanumeric" | null
     set_as_rush_group?: boolean
+    pickup_cutoff_time?: string | null
     quantity: number
     color_code: string
     status: "Active" | "Inactive"
@@ -128,7 +131,12 @@ type CaseTrackingContextType = {
 
   // Assignment operations
   getAssignments: (customerId: number) => Promise<any>
-  setAssignments: (customerId: number, casePanIds: number[], assignments: { subcategories?: number[], products?: number[], stages?: number[] }) => Promise<void>
+  setAssignments: (
+    customerId: number,
+    casePanIds: number[],
+    assignments: { subcategories?: number[], products?: number[], stages?: number[] },
+    options?: { silent?: boolean },
+  ) => Promise<boolean>
 
   // UI state
   setSelectedCasePan: (casePan: CasePan | null) => void
@@ -219,6 +227,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
         color_code: pan.color_code || pan.lab_case_pan?.color_code,
         code_format: pan.code_format || pan.lab_case_pan?.code_format,
         set_as_rush_group: pan.set_as_rush_group ?? pan.lab_case_pan?.set_as_rush_group ?? false,
+        pickup_cutoff_time: pan.pickup_cutoff_time ?? pan.lab_case_pan?.pickup_cutoff_time ?? null,
         status: pan.lab_case_pan?.status || pan.status || "Active",
         connected_items: pan.connected_items || [],
         linkedCategories: pan.connected_items?.filter((item: string) => item) || [],
@@ -289,6 +298,9 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       if (data.set_as_rush_group !== undefined) {
         payload.set_as_rush_group = data.set_as_rush_group
+      }
+      if (data.pickup_cutoff_time !== undefined) {
+        payload.pickup_cutoff_time = data.pickup_cutoff_time
       }
 
       const response = await fetch(`${API_BASE_URL}/library/case-pans`, {
@@ -370,6 +382,7 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       if (data.code_format !== undefined) payload.code_format = data.code_format
       if (data.set_as_rush_group !== undefined) payload.set_as_rush_group = data.set_as_rush_group
+      if (data.pickup_cutoff_time !== undefined) payload.pickup_cutoff_time = data.pickup_cutoff_time
 
       const response = await fetch(`${API_BASE_URL}/library/case-pans/${id}`, {
         method: "PUT",
@@ -520,22 +533,27 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const setAssignments = useCallback(async (
     customerId: number,
     casePanIds: number[],
-    assignments: { subcategories?: number[], products?: number[], stages?: number[] }
-  ): Promise<void> => {
+    assignments: { subcategories?: number[], products?: number[], stages?: number[] },
+    options?: { silent?: boolean },
+  ): Promise<boolean> => {
     setIsLoading(true)
     try {
       const token = getAuthToken()
+      const payload: Record<string, unknown> = {
+        customer_id: customerId,
+        assignments,
+      }
+      // Omit empty case_pan_ids so the API can clear assignments (null case pan)
+      if (casePanIds.length > 0) {
+        payload.case_pan_ids = casePanIds
+      }
       const response = await fetch(`${API_BASE_URL}/library/case-pans/assignments`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          customer_id: customerId,
-          case_pan_ids: casePanIds,
-          assignments,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -543,18 +561,22 @@ export const CaseTrackingProvider: React.FC<{ children: React.ReactNode }> = ({ 
         throw new Error(errorData.message || t("caseTracking.failedToSetAssignments", "Failed to set assignments"))
       }
 
-      toast({
-        title: t("success") || "Success",
-        description: t("caseTracking.assignmentsUpdated", "Assignments updated successfully"),
-      })
+      if (!options?.silent) {
+        toast({
+          title: t("success") || "Success",
+          description: t("caseTracking.assignmentsUpdated", "Assignments updated successfully"),
+        })
+      }
 
       await fetchCasePans(customerId)
+      return true
     } catch (err: any) {
       toast({
         title: t("error") || "Error",
         description: err.message,
         variant: "destructive",
       })
+      return false
     } finally {
       setIsLoading(false)
     }

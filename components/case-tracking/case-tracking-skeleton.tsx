@@ -19,7 +19,7 @@ export function CaseTrackingSkeleton() {
               <Skeleton className="h-4 w-20" />
             </th>
             <th className="px-4 py-3 text-left">
-              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-28" />
             </th>
             <th className="px-4 py-3 text-left">
               <Skeleton className="h-4 w-40" />
@@ -45,13 +45,16 @@ export function CaseTrackingSkeleton() {
                 <Skeleton className="h-5 w-32" />
               </td>
               <td className="px-4 py-3">
-                <Skeleton className="h-6 w-20" />
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-5 rounded" />
+                  <Skeleton className="h-6 w-12" />
+                </div>
               </td>
               <td className="px-4 py-3">
                 <Skeleton className="h-4 w-12" />
               </td>
               <td className="px-4 py-3">
-                <Skeleton className="h-8 w-12 rounded" />
+                <Skeleton className="h-4 w-20" />
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
