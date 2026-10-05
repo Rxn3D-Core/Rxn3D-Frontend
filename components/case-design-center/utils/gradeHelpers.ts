@@ -214,6 +214,15 @@ export function mergeEnrichedProductFromDonor(
   if (next.has_gum_shade == null && donor.has_gum_shade != null) {
     next = { ...next, has_gum_shade: donor.has_gum_shade };
   }
+  if (
+    (!next.variations || next.variations.length === 0) &&
+    (donor.variations?.length ?? 0) > 0
+  ) {
+    next = { ...next, variations: donor.variations };
+  }
+  if (next.has_variation == null && donor.has_variation != null) {
+    next = { ...next, has_variation: donor.has_variation };
+  }
   return next;
 }
 
