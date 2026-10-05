@@ -651,9 +651,13 @@ export function ProductDetailsSection({
   // is_teeth_based_price and show_jaw_photo also need explicit sync since their Controllers may not pick up reset values.
   useEffect(() => {
     if (editingProduct && setValue) {
-      if (editingProduct.is_teeth_based_price) {
-        setValueWithOptions("is_teeth_based_price", editingProduct.is_teeth_based_price, { shouldDirty: false })
-      }
+      const teethBased =
+        editingProduct.is_teeth_based_price === "Yes" ||
+        editingProduct.is_teeth_based_price === true ||
+        editingProduct.is_teeth_based_price === "yes"
+          ? "Yes"
+          : "No"
+      setValueWithOptions("is_teeth_based_price", teethBased, { shouldDirty: false })
       // Auto-toggle show_jaw_photo ON if the product has any jaw photos, regardless of stored flag
       const effectiveShowJawPhoto = productHasAnyJawPhotoUrls(editingProduct)
         ? "Yes"
