@@ -1675,7 +1675,12 @@ export function AddLabProductModal({
         office_grade_pricing: editingProduct.office_grade_pricing || [],
         office_stage_pricing: editingProduct.office_stage_pricing || [],
         office_stage_grade_pricing: editingProduct.office_stage_grade_pricing || [],
-        is_teeth_based_price: editingProduct.is_teeth_based_price || "No",
+        is_teeth_based_price:
+          editingProduct.is_teeth_based_price === "Yes" ||
+          editingProduct.is_teeth_based_price === true ||
+          editingProduct.is_teeth_based_price === "yes"
+            ? "Yes"
+            : "No",
         show_jaw_photo: productHasAnyJawPhotoUrls(editingProduct)
           ? "Yes"
           : (editingProduct.show_jaw_photo || "No"),
@@ -2191,8 +2196,17 @@ export function AddLabProductModal({
       payload,
     )
     
-    // Ensure is_teeth_based_price is always set to "Yes" or "No"
-    payload.is_teeth_based_price = data.is_teeth_based_price === "Yes" ? "Yes" : "No"
+    // Preserve persisted Yes if form value was lost (undefined) during another-tab save
+    const teethFromForm = data.is_teeth_based_price
+    const teethFromProduct = editingProduct?.is_teeth_based_price
+    const teethOn =
+      teethFromForm === "Yes" ||
+      teethFromForm === true ||
+      teethFromForm === "yes" ||
+      ((teethFromForm === undefined || teethFromForm === null || teethFromForm === "") &&
+        (teethFromProduct === "Yes" || teethFromProduct === true || teethFromProduct === "yes"))
+    payload.is_teeth_based_price = teethOn ? "Yes" : "No"
+    data.is_teeth_based_price = payload.is_teeth_based_price
 
     // show_jaw_photo
     payload.show_jaw_photo = (data as any).show_jaw_photo === "Yes" ? "Yes" : "No"
@@ -2510,7 +2524,7 @@ export function AddLabProductModal({
   // Map tab IDs to their corresponding form fields
   const getSectionFields = (tabId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "is_splinted", "gender_required", "age_required", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days"],
+      details: ["name", "code", "subcategory_id", "base_price", "type", "status", "sequence", "description", "is_single_stage", "is_splinted", "gender_required", "age_required", "min_days_to_process", "max_days_to_process", "enable_auto_billing", "auto_billing_days", "is_teeth_based_price", "teeth_pricing_type", "teeth_price_per_tooth", "teeth_first_tooth_price", "teeth_additional_tooth_price", "teeth_custom_prices"],
       variation: ["enable_tooth_count_variation", "tooth_count_variations"],
       grades: ["grades", "has_grade_based_pricing", "default_grade_id"],
       stages: ["stages"],
@@ -2950,7 +2964,17 @@ export function AddLabProductModal({
       const payload: any = { ...formData }
       delete payload.category_id
 
-      payload.is_teeth_based_price = formData.is_teeth_based_price === "Yes" ? "Yes" : "No"
+      // Preserve persisted Yes if form value was lost (undefined) during another-tab save
+      const teethFromForm = formData.is_teeth_based_price
+      const teethFromProduct = editingProduct?.is_teeth_based_price
+      const teethOn =
+        teethFromForm === "Yes" ||
+        teethFromForm === true ||
+        teethFromForm === "yes" ||
+        ((teethFromForm === undefined || teethFromForm === null || teethFromForm === "") &&
+          (teethFromProduct === "Yes" || teethFromProduct === true || teethFromProduct === "yes"))
+      payload.is_teeth_based_price = teethOn ? "Yes" : "No"
+      formData.is_teeth_based_price = payload.is_teeth_based_price
       payload.show_jaw_photo = (formData as any).show_jaw_photo === "Yes" ? "Yes" : "No"
       payload.opposite_impression = formData.request_opposing_extraction ? "Yes" : "No"
 
