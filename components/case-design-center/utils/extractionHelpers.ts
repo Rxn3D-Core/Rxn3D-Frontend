@@ -263,14 +263,10 @@ export function requiresExtractionsAcknowledgement(
 }
 
 /** Product flag: hide reference teeth / tooth status boxes on slip creation. */
-export function shouldHideReferenceTeethSelection(
-  product?: Record<string, unknown> | null,
-): boolean {
-  if (!product) return false;
-  return String(product.hide_reference_teeth_selection ?? "")
-    .trim()
-    .toLowerCase() === "yes";
-}
+export {
+  shouldHideReferenceTeethSelection,
+  isNoToothChartProduct,
+} from "./noToothChartProduct.ts";
 
 export function shouldAutoSelectArchForDefaultExtraction(
   extractions: ReadonlyArray<ExtractionLike> | undefined | null

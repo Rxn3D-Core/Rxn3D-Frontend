@@ -18,6 +18,28 @@ export function addedProductAppliesToArch(
   return apArch === arch;
 }
 
+/**
+ * `activeProductCardId` is shared across both arch panels. The empty opposite
+ * arch must not treat the other arch's focused card as locally active (e.g.
+ * Hard Reline on upper must not flash "SELECT TEETH TO REPLACE" on lower).
+ */
+export function activeProductCardBelongsToArch({
+  activeProductCardId,
+  arch,
+  addedProducts,
+  hasCard0OnArch,
+}: {
+  activeProductCardId: number | null;
+  arch: Arch;
+  addedProducts: readonly AddedProduct[] | undefined;
+  hasCard0OnArch: boolean;
+}): boolean {
+  if (activeProductCardId === null) return false;
+  if (activeProductCardId === 0) return hasCard0OnArch;
+  const ap = (addedProducts ?? []).find((p) => p.id === activeProductCardId);
+  return addedProductAppliesToArch(ap, arch);
+}
+
 function resolveAddedProduct(
   arch: Arch,
   activeProductCardId: number,
