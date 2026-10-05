@@ -2,6 +2,7 @@
 
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import type { CaseDesignProps } from "../types";
+import type { Arch } from "../types";
 import type { ImplantDetailData } from "./ImplantDetailSection";
 import { useCaseDesignState } from "../hooks/useCaseDesignState";
 import { IMPRESSION_STEP_NAMES, getRetentionFieldChain } from "../hooks/useToothFieldProgress";
@@ -164,16 +165,59 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     onAnyModalOpenChangeRef.current?.(isAnyModalOpen);
   }, [isAnyModalOpen]);
 
+  const isAddStageImpressionCompleteForArch = useCallback(
+    (arch: Arch) => {
+      if ((state.selectedImpressions[arch]?.length ?? 0) > 0) return true;
+      const retentionTypes =
+        arch === "maxillary"
+          ? state.maxillaryRetentionTypes
+          : state.mandibularRetentionTypes ?? {};
+      for (const tn of Object.keys(retentionTypes).map(Number)) {
+        if (
+          state.isFieldCompleted(arch, tn, "fixed_impression") ||
+          state.isFieldCompleted(arch, tn, "impression")
+        ) {
+          return true;
+        }
+      }
+      const archTeeth = arch === "maxillary" ? state.maxillaryTeeth : state.mandibularTeeth;
+      for (const tn of archTeeth) {
+        if (
+          state.isFieldCompleted(arch, tn, "fixed_impression") ||
+          state.isFieldCompleted(arch, tn, "impression")
+        ) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [
+      state.selectedImpressions,
+      state.maxillaryRetentionTypes,
+      state.mandibularRetentionTypes,
+      state.maxillaryTeeth,
+      state.mandibularTeeth,
+      state.isFieldCompleted,
+    ]
+  );
+
   useAddStageStagePrompt({
     enabled: Boolean(
-      props.preloadInitialSlipState && props.addStageContext?.promptStagesOnLoad
+      props.preloadInitialSlipState &&
+        (props.addStageContext?.promptStagesOnLoad ||
+          props.addStageContext?.promptImpressionChoice)
     ),
+    promptStages: Boolean(props.addStageContext?.promptStagesOnLoad),
+    promptImpressions: Boolean(props.addStageContext?.promptImpressionChoice),
     addedProducts: props.addedProducts ?? [],
     maxillaryTeeth: state.maxillaryTeeth,
     mandibularTeeth: state.mandibularTeeth,
     focusAccordion: state.focusAccordion,
     handleOpenStageModal: state.handleOpenStageModal,
+    handleOpenImpressionModal: state.handleOpenImpressionModal,
     isStageModalOpen: state.isStageModalOpen,
+    showImpressionModal: state.showImpressionModal,
+    isImpressionCompleteForArch: isAddStageImpressionCompleteForArch,
     getToothProduct: state.getToothProduct,
   });
 
@@ -1005,35 +1049,26 @@ export function CaseDesignCenter(props: CaseDesignProps) {
   const hasMandibularProducts =
     Object.keys(state.mandibularRetentionTypes || {}).length > 0 || mandibularHasRemovablesTeeth;
 
+  // Include confirmed "No Impression" (field completed, no cards) so validation
+  // accepts either New Impression cards or an explicit No Impression choice.
   const hasMaxillaryArchImpressionSelected =
-    (state.selectedImpressions.maxillary?.length ?? 0) > 0;
+    isAddStageImpressionCompleteForArch("maxillary");
   const hasMandibularArchImpressionSelected =
-    (state.selectedImpressions.mandibular?.length ?? 0) > 0;
+    isAddStageImpressionCompleteForArch("mandibular");
 
-  // Add-new-stage: impressions are optional (New / No Impression prompt is informational).
-  // Create-slip / edit still require main-arch impressions when products are present.
-  const impressionsOptionalForValidation = Boolean(
-    props.addStageContext?.promptImpressionChoice
-  );
-
-  /** Add-stage empty state shows "No Impression" instead of a blank red field. */
   const getImpressionDisplayText = useCallback(
     (productId: string, arch: "maxillary" | "mandibular", toothNumber?: number) => {
-      const text = state.getImpressionDisplayText(productId, arch, toothNumber)?.trim();
-      if (text) return text;
-      if (impressionsOptionalForValidation) return "No Impression";
-      return "";
+      return state.getImpressionDisplayText(productId, arch, toothNumber)?.trim() || "";
     },
-    [state.getImpressionDisplayText, impressionsOptionalForValidation]
+    [state.getImpressionDisplayText]
   );
 
   // Main-side validation only: opposing impressions are optional and never blocking.
+  // Add-stage still requires an explicit New Impression or No Impression choice.
   const requireMaxillaryImpression =
-    !impressionsOptionalForValidation &&
     hasMaxillaryProducts &&
     (props.initialArch === "maxillary" || props.initialArch === "both");
   const requireMandibularImpression =
-    !impressionsOptionalForValidation &&
     hasMandibularProducts &&
     (props.initialArch === "mandibular" || props.initialArch === "both");
 
@@ -1603,7 +1638,15 @@ export function CaseDesignCenter(props: CaseDesignProps) {
 
         {/* Main two-panel layout - responsive */}
         <div className="relative">
-        <AutoOpenSuppressionContext.Provider value={Boolean(props.suppressFieldAutoOpen)}>
+        <AutoOpenSuppressionContext.Provider
+          value={
+            Boolean(props.suppressFieldAutoOpen) ||
+            Boolean(
+              props.addStageContext?.promptStagesOnLoad ||
+                props.addStageContext?.promptImpressionChoice
+            )
+          }
+        >
         <div className="flex flex-col lg:flex-row">
           {/* LEFT PANEL - MAXILLARY */}
         <MaxillaryPanel

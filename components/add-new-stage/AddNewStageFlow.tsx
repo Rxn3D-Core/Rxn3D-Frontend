@@ -225,7 +225,8 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
           historyByArch,
           // Send-back remake: autofill (repeat stage / skip single-stage); no forced picker.
           promptStagesOnLoad: !remakeViaSendBack,
-          // Every new stage must choose New Impression / No Impression (never reuse prior).
+          // Every new stage must choose New Impression / No Impression after stage
+          // selection (never reuse prior, never default to No Impression).
           promptImpressionChoice: true,
         });
         setBootstrap({

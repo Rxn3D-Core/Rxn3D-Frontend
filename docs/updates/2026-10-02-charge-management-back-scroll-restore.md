@@ -9,10 +9,12 @@ Lab opens Charge Management, sets e.g. Custom date (Sep 1 – Oct 1) + Office, o
 
 ## Change
 
-- Clicking **View virtual slip** saves the list scroll offset to `sessionStorage` (`rxn3d.charge-management.scroll.<customerId>`, per tab).
+- Clicking **View virtual slip** previously saved the list scroll offset to `sessionStorage` (`rxn3d.charge-management.scroll.<customerId>`, per tab) before same-tab navigation.
 - On return, the offset is read once and re-applied whenever rows finish rendering, until the user scrolls / clicks / types.
 - Advanced search waits for the connected-offices list when an office is selected, so the first request already includes `office_name`.
 - Only the latest advanced search response is applied; stale responses (and their error toasts) are ignored.
+
+**Update (2026-10-05):** View virtual slip opens in a new tab, so scroll is no longer saved on that click. Restore-on-return still works if a scroll offset is present in `sessionStorage` from an older session.
 
 No API changes.
 

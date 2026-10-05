@@ -739,7 +739,7 @@ export function RetentionProductFields({
   ]);
 
   useEffect(() => {
-    if (caseSubmitted) return;
+    if (caseSubmitted || autoOpenSuppressed) return;
     if (!isExpanded) {
       hasAutoOpenedImpressionRef.current = false;
       if (impressionTimerRef.current) {
@@ -768,6 +768,7 @@ export function RetentionProductFields({
     }, 150);
   }, [
     arch,
+    autoOpenSuppressed,
     caseSubmitted,
     firstToothNumber,
     handleOpenImpressionModal,

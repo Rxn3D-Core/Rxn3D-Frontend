@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { LabBillingPageHeader } from "@/components/billing/lab-billing-page-header"
 import { buildVirtualSlipV2Path } from "@/lib/virtual-slip-routes"
 import {
@@ -12,7 +11,6 @@ import {
   defaultChargeManagementFilters,
   loadChargeManagementFilters,
   saveChargeManagementFilters,
-  saveChargeManagementScroll,
   takeChargeManagementScroll,
   type ChargeManagementFiltersPrefs,
   type ChargeManagementPerPage,
@@ -538,7 +536,6 @@ function findScrollParent(el: HTMLElement | null): HTMLElement | null {
 export default function ChargeManagementPage() {
   const { t } = useTranslation()
   const { toast } = useToast()
-  const router = useRouter()
   const [selectedItems, setSelectedItems] = useState<string[]>([])
   const { user } = useAuth()
   const { fetchCustomerProfile, customerProfile } = useCustomer()
@@ -2675,11 +2672,11 @@ export default function ChargeManagementPage() {
                           disabled={!charge.slipId}
                           title={t("chargeManagement.viewVirtualSlip", { defaultValue: "View virtual slip" })}
                           onClick={() => {
-                            saveChargeManagementScroll(
-                              customerId,
-                              findScrollParent(pageRootRef.current)?.scrollTop ?? 0,
+                            window.open(
+                              buildVirtualSlipV2Path(charge.caseId, charge.slipId),
+                              "_blank",
+                              "noopener,noreferrer",
                             )
-                            router.push(buildVirtualSlipV2Path(charge.caseId, charge.slipId))
                           }}
                         >
                           <Eye className="h-3.5 w-3.5" />
