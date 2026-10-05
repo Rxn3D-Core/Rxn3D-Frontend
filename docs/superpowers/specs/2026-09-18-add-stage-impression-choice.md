@@ -2,7 +2,7 @@
 
 ## Goal
 
-When creating a **new stage** on an existing case, do **not** reuse the previous slip’s impressions. The impression modal must prompt:
+When creating a **new stage** on an existing case, do **not** reuse the previous slip’s impressions. After the user selects the stage, prompt for impressions:
 
 - **New Impression** — select impression type(s) from the same model box (cards start unselected)
 - **No Impression** — complete the impression step with no selections for this stage
@@ -13,18 +13,20 @@ This applies to every newly created stage slip.
 
 1. `buildAddStagePreload` clears `selectedImpressions` and strips `impression` / `fixed_impression` from preloaded field completion so cards are not pre-checked.
 2. `AddStageDesignContext.promptImpressionChoice` is set when entering the add-new-stage design center.
-3. `ImpressionSelectionModal` (same impression model box) shows the New / No Impression choice above the arch grids.
-4. Default: no choice selected, no impression cards selected.
-5. Choosing a card implies **New Impression**. Choosing **No Impression** clears any picks, marks the step complete as `"No Impression"`, and closes the modal.
-6. Dual-arch opposing grid keeps the full option list after a selection (does not collapse to the selected card only).
-7. **Validation:** impressions are **optional** for add-stage submit readiness (`requireMaxillaryImpression` / `requireMandibularImpression` are off when `promptImpressionChoice` is set). The footer is not blocked by a missing impression.
-8. **Empty display:** when nothing is selected on add-stage, the Impression field shows **"No Impression"** (green complete) instead of a blank red field.
+3. `useAddStageStagePrompt` walks each arch: open stage picker (when `promptStagesOnLoad`), then open the impression modal so the user must choose New / No Impression.
+4. `ImpressionSelectionModal` shows the New / No Impression choice above the arch grids.
+5. Default: no choice selected, no impression cards selected — the Impression field stays empty (incomplete) until the user chooses.
+6. Choosing a card implies **New Impression**. Choosing **No Impression** clears any picks, marks the step complete as `"No Impression"`, and closes the modal.
+7. Dual-arch opposing grid keeps the full option list after a selection (does not collapse to the selected card only).
+8. **Validation:** add-stage requires an explicit impression choice (New with cards, or No Impression). Empty impressions do not count as complete.
+9. Field-level auto-open is suppressed during the guided stage → impression prompts so the two modals do not race.
 
 ## Key files
 
 - `lib/add-stage/preload-state.ts` — clear prior impressions on preload
 - `lib/add-stage/session.ts` — `promptImpressionChoice` flag
 - `components/add-new-stage/AddNewStageFlow.tsx` — enables the flag
+- `components/add-new-stage/useAddStageStagePrompt.ts` — stage then impression prompts
 - `components/impression-selection-modal.tsx` — choice UI
 - `components/case-design-center/components/ModalOrchestrator.tsx` — No Impression commit
 - `components/case-design-center/components/CaseDesignCenter.tsx` — wires add-stage context
