@@ -94,6 +94,32 @@ export function resolveVariationDays(
   return null;
 }
 
+/**
+ * Catalog variation id for the selected teeth count.
+ * Matches when `has_variation` is on, or when the product already has variation rows
+ * (stubs sometimes omit the flag).
+ */
+export function resolveVariationId(
+  product: {
+    has_variation?: string | boolean | null;
+    variations?: ReadonlyArray<ProductVariation> | null;
+  } | null | undefined,
+  teethCount: number,
+): number | undefined {
+  if (teethCount <= 0) return undefined;
+
+  const hasVariationOn =
+    product?.has_variation === true ||
+    product?.has_variation === "Yes" ||
+    product?.has_variation === "yes";
+
+  if (!hasVariationOn && !(product?.variations?.length)) return undefined;
+
+  const matched = findVariationByTeethCount(product?.variations ?? null, teethCount);
+  const variationId = Number(matched?.id ?? 0);
+  return variationId > 0 ? variationId : undefined;
+}
+
 /** Replace `[x tooth/teeth]` token with `{count} tooth|teeth`. */
 export function renderVariationLabel(
   nameTemplate: string | null | undefined,

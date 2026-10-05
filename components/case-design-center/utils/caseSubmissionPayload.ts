@@ -11,7 +11,7 @@ import { isLabSlipCreateContext } from "@/lib/role-utils";
 import { hasRetentionOptions, resolveStageIdFromSelection } from "./categoryHelpers";
 import { buildProductNoteFromSnapshot } from "./caseNoteBuilder";
 import { buildShadeSelectionKey, getShadeFieldType, getShadeGuideAdvanceFields } from "./shadeGuideAdvanceFields";
-import { findVariationByTeethCount } from "./variationHelpers";
+import { resolveVariationId } from "./variationHelpers";
 import {
   buildImplantAndAbutmentDetails,
   buildProductExtractions,
@@ -327,25 +327,6 @@ function resolveFixedGumShadeIds(
     }
   }
   return null;
-}
-
-function resolveVariationId(
-  product: SlipProductSnapshot["productApiData"],
-  selectedTeethCount: number
-): number | undefined {
-  if (!product || selectedTeethCount <= 0) return undefined;
-  const hasVariationEnabled =
-    product.has_variation === true ||
-    product.has_variation === "Yes" ||
-    product.has_variation === "yes";
-  if (!hasVariationEnabled) return undefined;
-
-  const matchedVariation = findVariationByTeethCount(
-    product.variations ?? [],
-    selectedTeethCount
-  );
-  const variationId = Number(matchedVariation?.id ?? 0);
-  return variationId > 0 ? variationId : undefined;
 }
 
 export function snapshotToProduct(
