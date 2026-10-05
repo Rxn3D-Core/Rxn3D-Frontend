@@ -47,6 +47,7 @@ import {
   shouldAutoSelectArchForDefaultExtraction,
 } from "../utils/extractionHelpers";
 import { shouldSkipLegacyDefaultExtractionAutoSelect } from "@/lib/product-default-tooth-chart";
+import { isNoToothChartProduct } from "../utils/noToothChartProduct";
 import {
   implantOnlySelectionModeForArch,
   resolveDefaultToothChartSlipAssignmentForArch,
@@ -2438,6 +2439,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
   const backfillRemovableFromExistingCard = useCallback(
     (arch: Arch, targetCardId: number, targetTooth: number) => {
       if (targetCardId === 0) return;
+      const targetProduct = toothFieldProgress.getToothProduct(arch, targetTooth);
+      // Impression-only / no tooth-chart products must not inherit grade/shade/stage
+      // from another removable on the arch.
+      if (isNoToothChartProduct(targetProduct)) return;
       const allTeeth = arch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
       const cardIds = listRemovableCardIdsOnArch(
         arch,
@@ -2530,6 +2535,12 @@ export function useCaseDesignState(props: CaseDesignProps) {
    */
   const backfillRemovableFromOppositeArch = useCallback(
     (arch: Arch, targetTooth: number) => {
+      const targetProductEarly = toothFieldProgress.getToothProduct(arch, targetTooth);
+      // Impression-only / no tooth-chart products must not inherit upper↔lower
+      // grade, stage, or shades from the opposite arch.
+      if (isNoToothChartProduct(targetProductEarly)) {
+        return;
+      }
       const oppositeArch: Arch = arch === "maxillary" ? "mandibular" : "maxillary";
       const sourceAllTeeth = oppositeArch === "maxillary" ? MAXILLARY_ALL : MANDIBULAR_ALL;
       const sourceCardIds = listRemovableCardIdsOnArch(
@@ -2642,6 +2653,10 @@ export function useCaseDesignState(props: CaseDesignProps) {
       if (!hasVirtualProduct) continue;
 
       seededRemovableVirtualRef.current.add(seedKey);
+      const virtualProduct = toothFieldProgress.getToothProduct(arch, virtualTooth);
+      if (isNoToothChartProduct(virtualProduct)) {
+        continue;
+      }
       backfillRemovableFromExistingCard(arch, ap.id, virtualTooth);
       backfillRemovableFromOppositeArch(arch, virtualTooth);
     }

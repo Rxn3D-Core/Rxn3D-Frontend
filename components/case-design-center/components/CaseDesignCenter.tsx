@@ -48,7 +48,7 @@ import {
   getRepToothForRemovableCard,
   listRemovableCardIdsOnArch,
 } from "../utils/archSharedRemovable";
-import { canShowAddProductButton } from "../utils/archAddProductReadiness";
+import { canShowAddProductButton, archHasSingleDefaultOnlyProduct } from "../utils/archAddProductReadiness";
 import { computeSlipValidationComplete } from "../utils/caseSummaryVisibility";
 import { isArchAtProductLimit } from "../utils/archProductLimits";
 import { shouldShowOpposingProductMirror } from "../utils/oppositeArchDedicatedProduct";
@@ -1474,6 +1474,21 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     addedProducts: props.addedProducts,
   });
 
+  const maxillaryHasSingleDefaultOnlyProduct = archHasSingleDefaultOnlyProduct("maxillary", {
+    initialArch: props.initialArch,
+    initialProductDetails: state.initialProductDetails,
+    selectedProductId: props.selectedProductId,
+    addedProducts: props.addedProducts,
+    card0Removed: card0RemovedArches.maxillary,
+  });
+  const mandibularHasSingleDefaultOnlyProduct = archHasSingleDefaultOnlyProduct("mandibular", {
+    initialArch: props.initialArch,
+    initialProductDetails: state.initialProductDetails,
+    selectedProductId: props.selectedProductId,
+    addedProducts: props.addedProducts,
+    card0Removed: card0RemovedArches.mandibular,
+  });
+
   const showMaxillaryProductButton = canShowAddProductButton({
     arch: "maxillary",
     initialArch: props.initialArch,
@@ -1486,6 +1501,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     inlineAddProductArch: props.inlineAddProductArch ?? null,
     caseSubmitted: props.caseSubmitted,
     atProductLimit: maxillaryAtProductLimit,
+    hasSingleDefaultOnlyProduct: maxillaryHasSingleDefaultOnlyProduct,
   });
 
   const showMandibularProductButton = canShowAddProductButton({
@@ -1500,6 +1516,7 @@ export function CaseDesignCenter(props: CaseDesignProps) {
     inlineAddProductArch: props.inlineAddProductArch ?? null,
     caseSubmitted: props.caseSubmitted,
     atProductLimit: mandibularAtProductLimit,
+    hasSingleDefaultOnlyProduct: mandibularHasSingleDefaultOnlyProduct,
   });
 
   const maxillaryExcludedProductIds = useMemo(() => {

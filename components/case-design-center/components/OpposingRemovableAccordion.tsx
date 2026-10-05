@@ -6,7 +6,7 @@ import { Check } from "@/components/ui/custom-check";
 import type { Arch, ProductApiData, ProductExtraction, ShadeFieldType } from "../types";
 import type { FieldStep } from "../hooks/useToothFieldProgress";
 import { AccordionBadge, EstDaysLabel } from "./AccordionBadge";
-import { ProductImagePreview, productAccordionLargeImageContainerClass } from "./ProductImagePreview";
+import { ProductImagePreview, productAccordionLargeImageContainerClass, productAccordionLargeImageImgClass } from "./ProductImagePreview";
 import { ToothStatusBoxes } from "./ToothStatusBoxes";
 import { RushIcon } from "./CenterActionIcons";
 import { parseAddonDisplayItems, productSupportsAddons } from "../utils/addonDisplayHelpers";
@@ -321,7 +321,7 @@ export function OpposingRemovableAccordion({
                 imageUrl={productImage}
                 altText={productName}
                 containerClassName={productAccordionLargeImageContainerClass}
-                imgClassName="w-full h-full object-contain"
+                imgClassName={productAccordionLargeImageImgClass}
                 fallback={
                   <PanelDiv className="w-full h-full flex items-center justify-center">
                     <span className="text-[10px] text-gray-400">No img</span>

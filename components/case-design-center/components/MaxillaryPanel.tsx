@@ -94,6 +94,8 @@ import { useCaseDesignStore } from "@/stores/caseDesignStore";
 import {
   isSingleDefaultOnlyExtractionList,
   hasConfiguredExtractions,
+  canSkipExtractionToothSelection,
+  isNoToothChartProduct,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
@@ -1045,20 +1047,41 @@ export function MaxillaryPanel({
       )
     : 0;
 
+  const activeRemovableProductForHint = (() => {
+    if (!activeProductIsRemovables) return null;
+    if (activeProductCardId !== 0) {
+      const ap = addedProducts.find((p) => p.id === activeProductCardId && p.arch === "maxillary");
+      return (
+        (ap?.product as ProductApiData | undefined) ??
+        getToothProduct("maxillary", -activeProductCardId) ??
+        null
+      );
+    }
+    const card0Tooth = MAXILLARY_ALL_TEETH.find((tn) => getToothProductCard("maxillary", tn) === 0);
+    return (
+      (card0Tooth ? getToothProduct("maxillary", card0Tooth) : null) ??
+      card0InitialProduct ??
+      null
+    );
+  })();
   const activeRemovableExtractionsForHint = (() => {
     if (!activeProductIsRemovables) return undefined;
-    if (activeProductCardId !== 0) {
-      return addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "maxillary")
-        ?.product?.extractions;
+    if (activeRemovableProductForHint?.extractions?.length) {
+      return activeRemovableProductForHint.extractions;
     }
-    if (card0Extractions?.length) return card0Extractions;
-    const card0Tooth = MAXILLARY_ALL_TEETH.find((tn) => getToothProductCard("maxillary", tn) === 0);
-    return card0Tooth
-      ? getToothProduct("maxillary", card0Tooth)?.extractions
-      : card0InitialProduct?.extractions;
+    if (activeProductCardId === 0 && card0Extractions?.length) return card0Extractions;
+    return undefined;
   })();
+  // No tooth chart / no retention / single-default-only / optional tooth pick —
+  // don't prompt "SELECT TEETH TO REPLACE".
   const skipsRemovableToothSelectionHint =
-    activeProductIsRemovables && !hasConfiguredExtractions(activeRemovableExtractionsForHint);
+    activeProductIsRemovables &&
+    (isNoToothChartProduct(activeRemovableProductForHint as Record<string, unknown> | null) ||
+      canSkipExtractionToothSelection(
+        activeRemovableExtractionsForHint,
+        activeRemovableProductForHint as Record<string, unknown> | null
+      ) ||
+      !hasConfiguredExtractions(activeRemovableExtractionsForHint));
 
   // Hide until card-0 product details resolve — otherwise the header flashes
   // "SELECT TEETH TO REPLACE" before we know product type / custom label.
@@ -2061,6 +2084,15 @@ export function MaxillaryPanel({
             getToothProduct("maxillary", -activeProductCardId) ??
             hintActiveAp?.product
           );
+      if (
+        isNoToothChartProduct(hintProduct as Record<string, unknown> | null) ||
+        canSkipExtractionToothSelection(
+          hintExtractions,
+          hintProduct as Record<string, unknown> | null
+        )
+      ) {
+        return null;
+      }
       const baseProductName = hintProduct?.name ?? "";
       const hintCustomLabel = resolveProductCustomLabel(
         hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
@@ -2867,7 +2899,9 @@ export function MaxillaryPanel({
                     useMaxillaryArchSharedRemovable ? maxillaryMergedExtractions : apProduct?.extractions
                   );
                 const apSlotId = addedProductSlotId(ap.id);
-                const isExpanded = apLabelOnlyHeader || isCardAccordionExpanded(apSlotId);
+                // Impression-only / no-extraction products still need normal expand/collapse
+                // (labelOnlyHeader skips plus/Done; bordered name box matches other cards).
+                const isExpanded = isCardAccordionExpanded(apSlotId);
 
                 return (
                   <ProductAccordionCard
@@ -4041,7 +4075,7 @@ export function MaxillaryPanel({
               const card0LabelOnlyHeader = !hasConfiguredExtractions(
                 useMaxillaryArchSharedRemovable ? maxillaryMergedExtractions : cardExtractions
               );
-              const card0Expanded = card0LabelOnlyHeader || isCardAccordionExpanded(SLOT_ID);
+              const card0Expanded = isCardAccordionExpanded(SLOT_ID);
 
               return (
                 <ProductAccordionCard

@@ -158,6 +158,12 @@ function resolveRemovableTeethShadeIds(
     if (fromCatalog) return fromCatalog;
   }
 
+  // Impression-only / no teeth_selection products must not inherit a catalog preferred
+  // shade — that incorrectly copies upper-arch looks onto products like Hard Reline.
+  if ((snap.teethNumbers?.length ?? 0) === 0) {
+    return null;
+  }
+
   const pref = getPreferredLabTeethShade(product);
   if (pref) {
     const preferredId = Number(pref.teeth_shade_id ?? pref.id ?? 0);
@@ -714,9 +720,11 @@ export function snapshotToProduct(
     } as SlipCreationProduct;
   }
 
+  const noTeethSelection = (snap.teethNumbers?.length ?? 0) === 0;
   const gradeRaw = snap.fieldValues["grade"] ?? "";
   let grade_id: number | undefined;
-  if (gradeRaw) {
+  // Impression-only (no teeth): never emit mirrored grade unless this product enables grade.
+  if (gradeRaw && !(noTeethSelection && product?.has_grade !== "Yes")) {
     try {
       const id = Number(JSON.parse(gradeRaw).grade_id ?? 0);
       if (id > 0) grade_id = id;
@@ -728,8 +736,14 @@ export function snapshotToProduct(
     }
   }
 
-  const teethShadeIds = resolveRemovableTeethShadeIds(snap, product);
-  const gumShadeIds = resolveGumShadeIds(snap, product);
+  const teethShadeIds =
+    noTeethSelection && !snap.fieldValues["teeth_shade"]
+      ? null
+      : resolveRemovableTeethShadeIds(snap, product);
+  const gumShadeIds =
+    noTeethSelection && !snap.fieldValues["gum_shade"]
+      ? null
+      : resolveGumShadeIds(snap, product);
 
   return {
     ...sharedProductFields,

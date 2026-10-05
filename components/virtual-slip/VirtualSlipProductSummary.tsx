@@ -71,29 +71,31 @@ export function VirtualSlipProductSummary({
   onEditLabImplants?: () => void;
 }) {
   const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const showImplantColumn = product.isImplant && product.implants.length > 0;
   const statusBoxProps = buildVirtualSlipStatusBoxProps(
     product.extractionDisplay,
     product.arch,
     { apiProduct: product.apiProduct },
   );
+  const productImage = product.image;
 
   return (
     <div className="mt-1">
       {/* Thumbnail | title + status boxes (virtual slip wireframe layout) */}
       <div className="flex items-stretch gap-[10px]">
-        <div className="relative w-[150px] shrink-0 self-stretch overflow-hidden rounded-[6px] bg-black min-h-[72px]">
-          {product.image ? (
+        <div className="relative flex w-[150px] shrink-0 self-stretch items-center justify-center overflow-hidden rounded-[6px] border border-[rgb(217,217,217)] bg-white p-0 min-h-[72px]">
+          {productImage && !imageFailed ? (
             <Image
-              src={product.image}
+              src={productImage}
               alt={product.title}
               fill
               className="object-contain"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
+              onError={() => setImageFailed(true)}
             />
-          ) : null}
+          ) : (
+            <span className="text-[10px] text-gray-400">No img</span>
+          )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
           <div className={`relative flex min-h-[72px] flex-1 flex-col items-center justify-center gap-3 rounded-[7px] border pb-3 py-0 text-center ${product.isRush ? "border-red-400 bg-red-50" : "border-[#D3D3D3]"}`}>

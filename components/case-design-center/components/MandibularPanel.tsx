@@ -87,6 +87,8 @@ import {
 import {
   isSingleDefaultOnlyExtractionList,
   hasConfiguredExtractions,
+  canSkipExtractionToothSelection,
+  isNoToothChartProduct,
   requiresExtractionsAcknowledgement,
   isOverlayExtractionCode,
   shouldAutoSelectArchForDefaultExtraction,
@@ -1029,20 +1031,41 @@ export function MandibularPanel({
       )
     : 0;
 
+  const activeRemovableProductForHint = (() => {
+    if (!activeProductIsRemovables) return null;
+    if (activeProductCardId !== 0) {
+      const ap = addedProducts.find((p) => p.id === activeProductCardId && p.arch === "mandibular");
+      return (
+        (ap?.product as ProductApiData | undefined) ??
+        getToothProduct("mandibular", -activeProductCardId) ??
+        null
+      );
+    }
+    const card0Tooth = MANDIBULAR_ALL_TEETH.find((tn) => getToothProductCard("mandibular", tn) === 0);
+    return (
+      (card0Tooth ? getToothProduct("mandibular", card0Tooth) : null) ??
+      card0InitialProduct ??
+      null
+    );
+  })();
   const activeRemovableExtractionsForHint = (() => {
     if (!activeProductIsRemovables) return undefined;
-    if (activeProductCardId !== 0) {
-      return addedProducts.find((ap) => ap.id === activeProductCardId && ap.arch === "mandibular")
-        ?.product?.extractions;
+    if (activeRemovableProductForHint?.extractions?.length) {
+      return activeRemovableProductForHint.extractions;
     }
-    if (card0Extractions?.length) return card0Extractions;
-    const card0Tooth = MANDIBULAR_ALL_TEETH.find((tn) => getToothProductCard("mandibular", tn) === 0);
-    return card0Tooth
-      ? getToothProduct("mandibular", card0Tooth)?.extractions
-      : card0InitialProduct?.extractions;
+    if (activeProductCardId === 0 && card0Extractions?.length) return card0Extractions;
+    return undefined;
   })();
+  // No tooth chart / no retention / single-default-only / optional tooth pick —
+  // don't prompt "SELECT TEETH TO REPLACE".
   const skipsRemovableToothSelectionHint =
-    activeProductIsRemovables && !hasConfiguredExtractions(activeRemovableExtractionsForHint);
+    activeProductIsRemovables &&
+    (isNoToothChartProduct(activeRemovableProductForHint as Record<string, unknown> | null) ||
+      canSkipExtractionToothSelection(
+        activeRemovableExtractionsForHint,
+        activeRemovableProductForHint as Record<string, unknown> | null
+      ) ||
+      !hasConfiguredExtractions(activeRemovableExtractionsForHint));
 
   // Hide until card-0 product details resolve — otherwise the header flashes
   // "SELECT TEETH TO REPLACE" before we know product type / custom label.
@@ -2022,6 +2045,15 @@ export function MandibularPanel({
             getToothProduct("mandibular", -activeProductCardId) ??
             hintActiveAp?.product
           );
+      if (
+        isNoToothChartProduct(hintProduct as Record<string, unknown> | null) ||
+        canSkipExtractionToothSelection(
+          hintExtractions,
+          hintProduct as Record<string, unknown> | null
+        )
+      ) {
+        return null;
+      }
       const baseProductName = hintProduct?.name ?? "";
       const hintCustomLabel = resolveProductCustomLabel(
         hintProduct ?? (hintUsesArchCard0 ? card0InitialProduct : undefined),
@@ -2821,7 +2853,7 @@ export function MandibularPanel({
                   isFieldCompleted("mandibular", apRepTn, "fixed_impression")
                 );
                 const apSlotId = addedProductSlotId(ap.id);
-                const isExpanded = apLabelOnlyHeader || isCardAccordionExpanded(apSlotId);
+                const isExpanded = isCardAccordionExpanded(apSlotId);
 
                 return (
                   <ProductAccordionCard
@@ -4004,7 +4036,7 @@ export function MandibularPanel({
               const card0LabelOnlyHeader = !hasConfiguredExtractions(
                 useMandibularArchSharedRemovable ? mandibularMergedExtractions : cardExtractions
               );
-              const card0Expanded = card0LabelOnlyHeader || isCardAccordionExpanded(SLOT_ID);
+              const card0Expanded = isCardAccordionExpanded(SLOT_ID);
 
               return (
                 <ProductAccordionCard
