@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Paper slip tooth numbers</title>
+<style>
+  body { margin: 24px; background: #f4f4f4; font-family: Verdana, sans-serif; color: #222; }
+  h1 { font-size: 16px; margin: 0 0 16px; }
+  h2 { font-size: 13px; margin: 20px 0 8px; }
+  .sheet {
+    width: 612px;
+    background: #fff;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+  .row { display: flex; gap: 16px; }
+  .arch { flex: 1; min-width: 0; text-align: center; }
+  .label { font-weight: 700; font-size: 14px; color: #4C4D55; margin-bottom: 2px; }
+  .teeth-row { height: 54px; display: flex; justify-content: center; overflow: hidden; }
+  .teeth-row svg { height: 54px; width: auto; display: block; }
+  .big { width: 920px; max-width: 100%; background: #fff; padding: 16px; box-sizing: border-box; }
+  .big .row { flex-direction: column; gap: 20px; }
+  .big .teeth-row { height: 200px; }
+  .big .teeth-row svg { height: 200px; }
+</style>
+</head>
+<body>
+<h1>Paper slip tooth numbers</h1>
+<h2>Print size</h2>
+<div class="sheet"><div class="row" id="print"></div></div>
+<h2>Larger</h2>
+<div class="big"><div class="row" id="big"></div></div>
+<script>
+const MAX = [[0,44,1],[44,50,2],[94,54,3],[148,38,4],[186,37,5],[223,40,6],[263,36,7],[299,49,8],[348,49,9],[397,36,10],[433,40,11],[473,37,12],[510,37,13],[547,54,14],[601,50,15],[651,44,16]];
+const slots = [[0,43,17],[43,51,18],[94,54,19],[148,38,20],[186,36,21],[222,34,22],[256,31,23],[287,26,24],[313,26,25],[339,30,26],[369,34,27],[403,36,28],[439,38,29],[477,53,30],[530,51,31],[581,43,32]];
+const rev = slots.map((s) => s[2]).reverse();
+const MAND = slots.map((s, i) => [s[0], s[1], rev[i]]);
+
+function chart(type, rects, w, h) {
+  const viewBoxH = h + 4;
+  const lowerShift = 28 + Math.round((5 * viewBoxH) / 54);
+  const numberY = Math.round(h * 0.68) + (type === "maxillary" ? 16 : -lowerShift);
+  const arch = type === "maxillary" ? "maxillary" : "mandibular";
+  const images = rects.map(([x, width, num]) =>
+    `<image href="/images/teeth/${arch}/tooth-${num}.png" x="${x}" y="0" width="${width}" height="${h}" preserveAspectRatio="none" />`
+  ).join("");
+  const numbers = rects.map(([x, width, num]) => {
+    const tx = Math.round((x + width / 2 - 2.2) * 10) / 10;
+    return `<text x="${tx}" y="${numberY}" font-family="Verdana, sans-serif" font-size="25" font-weight="500" letter-spacing="-6" fill="#4C4D55" text-anchor="middle">${num}</text>`;
+  }).join("");
+  const label = type === "maxillary" ? "MAXILLARY" : "MANDIBULAR";
+  return `<div class="arch"><div class="label">${label}</div><div class="teeth-row"><svg viewBox="0 0 ${w} ${h + 4}" xmlns="http://www.w3.org/2000/svg">${images}${numbers}</svg></div></div>`;
+}
+const both = chart("maxillary", MAX, 695, 141) + chart("mandibular", MAND, 624, 135);
+document.getElementById("print").innerHTML = both;
+document.getElementById("big").innerHTML = both;
+</script>
+</body>
+</html>
