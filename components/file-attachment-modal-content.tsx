@@ -27,6 +27,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useSlipCreation } from "../contexts/slip-creation-context"
 import {
   validateSlipAttachmentFile,
+  SLIP_ATTACHMENT_ACCEPT,
+  isSlipAttachment3dExtension,
 } from "@/services/slip-attachments-service"
 
 
@@ -339,7 +341,7 @@ export default function FileAttachmentModalContent({
       }
       const url = URL.createObjectURL(file)
       let type: "stl" | "image" | "3dobject" | "other" = "other"
-      if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+      if (isSlipAttachment3dExtension(file.name)) type = "stl"
       else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
       else if (file.type.startsWith("image/")) type = "image"
       newUploads.push({
@@ -370,7 +372,7 @@ export default function FileAttachmentModalContent({
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
         let type: "stl" | "image" | "3dobject" | "other" = "other"
-        if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        if (isSlipAttachment3dExtension(file.name)) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
         return { file, url, type, stage: targetStage }
@@ -400,7 +402,7 @@ export default function FileAttachmentModalContent({
       const newUploads = Array.from(files).map(file => {
         const url = URL.createObjectURL(file)
         let type: "stl" | "image" | "3dobject" | "other" = "other"
-        if (file.name.toLowerCase().endsWith(".stl")) type = "stl"
+        if (isSlipAttachment3dExtension(file.name)) type = "stl"
         else if (file.name.toLowerCase().endsWith(".3dobject")) type = "3dobject"
         else if (file.type.startsWith("image/")) type = "image"
         return { file, url, type, stage: targetStage }
@@ -428,7 +430,7 @@ export default function FileAttachmentModalContent({
         const mapped = data.map((a: any) => {
           const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
           let type: "stl" | "image" | "3dobject" | "other" = "other"
-          if (a.is_stl || fileName.endsWith(".stl")) type = "stl"
+          if (a.is_stl || a.is_3d || isSlipAttachment3dExtension(fileName)) type = "stl"
           else if (fileName.endsWith(".3dobject") || a.is_3d) type = "3dobject"
           else if (a.is_image) type = "image"
           else if (a.is_pdf) type = "other"
@@ -512,7 +514,7 @@ export default function FileAttachmentModalContent({
           const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase()
           const mime = (a.mime_type || a.file_type || "").toLowerCase()
           let type: "stl" | "image" | "3dobject" | "other" = "other"
-          if (a.is_stl || fileName.endsWith(".stl") || mime === "model/stl" || mime === "application/sla") type = "stl"
+          if (a.is_stl || a.is_3d || isSlipAttachment3dExtension(fileName) || mime === "model/stl" || mime === "application/sla") type = "stl"
           else if (a.is_image || mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/.test(fileName)) type = "image"
           return {
             file: {
@@ -878,7 +880,7 @@ export default function FileAttachmentModalContent({
     // Add selected STL/3D files
     selectedStlUrls.forEach(url => {
       const item = simulatedUploads.find(u => u.url === url)
-      if (item && (item.type === "stl" || item.file?.name?.toLowerCase().endsWith(".stl"))) {
+      if (item && (item.type === "stl" || isSlipAttachment3dExtension(item.file?.name ?? ""))) {
         newItems.push({ url, type: "stl" })
       }
     })
@@ -1384,7 +1386,7 @@ export default function FileAttachmentModalContent({
       </div>
 
       {/* Hidden file input */}
-      <input type="file" style={{ display: "none" }} onChange={handleFileChange} multiple ref={fileInputRef} accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx" />
+      <input type="file" style={{ display: "none" }} onChange={handleFileChange} multiple ref={fileInputRef} accept={SLIP_ATTACHMENT_ACCEPT} />
 
       {/* Cancel Confirmation Modal */}
       <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>

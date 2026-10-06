@@ -194,6 +194,16 @@ function ImpressionGrid({
     setSelectedSTLImpression(null)
   }
 
+  /** Select STL impression without attaching files; slip will prompt for upload later. */
+  const handleSTLUploadLater = () => {
+    if (!selectedSTLImpression) return
+    const key = getKey(selectedSTLImpression)
+    onSetArchQty(arch, selectedSTLImpression, Math.max(1, getQty(selectedSTLImpression)))
+    touchKey(key)
+    setShowSTLModal(false)
+    setSelectedSTLImpression(null)
+  }
+
   const renderImpressionImage = (
     impression: ImpressionOption,
     className: string,
@@ -450,6 +460,7 @@ function ImpressionGrid({
             setSelectedSTLImpression(null)
           }}
           onConfirm={handleSTLConfirmed}
+          onUploadLater={handleSTLUploadLater}
           productId={productId}
           arch={arch}
           impressionName={getImpressionLabel(selectedSTLImpression)}

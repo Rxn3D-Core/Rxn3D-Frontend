@@ -34,6 +34,7 @@ export type SlipAttachmentRecord = {
   is_image: boolean;
   is_pdf: boolean;
   is_stl: boolean;
+  is_3d?: boolean;
   uploaded_by: SlipAttachmentUser | null;
   archived_by: SlipAttachmentUser | null;
 };
@@ -110,13 +111,28 @@ export type SlipAttachmentUploadOptions = {
 
 export const SLIP_ATTACHMENT_MAX_BYTES = 500 * 1024 * 1024;
 
+/** Mesh / scan formats labs attach for digital impressions. */
+export const SLIP_ATTACHMENT_3D_EXTENSIONS = [
+  "stl",
+  "ply",
+  "obj",
+  "3mf",
+  "glb",
+  "gltf",
+  "fbx",
+  "dae",
+  "off",
+  "3ds",
+  "3dobject",
+] as const;
+
 export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "jpg",
   "jpeg",
   "png",
   "gif",
   "pdf",
-  "stl",
+  ...SLIP_ATTACHMENT_3D_EXTENSIONS,
   "zip",
   "rar",
   "doc",
@@ -124,6 +140,16 @@ export const SLIP_ATTACHMENT_ALLOWED_EXTENSIONS = [
   "xls",
   "xlsx",
 ] as const;
+
+export const SLIP_ATTACHMENT_ACCEPT =
+  SLIP_ATTACHMENT_ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",");
+
+export function isSlipAttachment3dExtension(extOrName: string): boolean {
+  const ext = extOrName.includes(".")
+    ? (extOrName.split(".").pop() ?? "").toLowerCase()
+    : extOrName.toLowerCase();
+  return (SLIP_ATTACHMENT_3D_EXTENSIONS as readonly string[]).includes(ext);
+}
 
 function toQueryString(params: Record<string, string | number | boolean | undefined>) {
   const search = new URLSearchParams();
@@ -230,7 +256,7 @@ export function validateSlipAttachmentFile(file: File): string | null {
 export function mapSlipAttachmentToLocalItem(a: SlipAttachmentRecord) {
   const fileName = (a.file_name || a.download_url?.split("/").pop() || "remote-file").toLowerCase();
   let type: "stl" | "image" | "3dobject" | "other" = "other";
-  if (a.is_stl || fileName.endsWith(".stl")) type = "stl";
+  if (a.is_stl || a.is_3d || isSlipAttachment3dExtension(fileName)) type = "stl";
   else if (fileName.endsWith(".3dobject")) type = "3dobject";
   else if (a.is_image) type = "image";
 

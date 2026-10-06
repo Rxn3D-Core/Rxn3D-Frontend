@@ -22,7 +22,7 @@ import { Check as UploadCheck } from "@/components/ui/custom-check"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { SlipAttachmentsService, validateSlipAttachmentFile } from "@/services/slip-attachments-service"
+import { SlipAttachmentsService, validateSlipAttachmentFile, SLIP_ATTACHMENT_ACCEPT } from "@/services/slip-attachments-service"
 import {
   forgetPendingAttachment,
   rememberPendingAttachment,
@@ -44,7 +44,7 @@ function isStlFile(name: string) {
   return /\.(stl)$/i.test(name)
 }
 function is3dFile(name: string) {
-  return /\.(obj|3dobject|ply|glb|gltf)$/i.test(name)
+  return /\.(stl|obj|3dobject|ply|glb|gltf|3mf|fbx|dae|off|3ds)$/i.test(name)
 }
 function isPdfFile(name: string) {
   return /\.pdf$/i.test(name)
@@ -1129,7 +1129,7 @@ export default function SlipAttachmentBrowserDialog({
                       type="file"
                       multiple
                       className="hidden"
-                      accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx,.obj"
+                      accept={SLIP_ATTACHMENT_ACCEPT}
                       onChange={handleFileInputChange}
                     />
                   </div>
@@ -1246,7 +1246,7 @@ export default function SlipAttachmentBrowserDialog({
                       type="file"
                       multiple
                       className="hidden"
-                      accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx,.obj"
+                      accept={SLIP_ATTACHMENT_ACCEPT}
                       onChange={handleFileInputChange}
                     />
                   </div>

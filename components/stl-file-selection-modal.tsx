@@ -21,6 +21,8 @@ interface STLFileSelectionModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: (files: STLFile[]) => void
+  /** Select the STL impression without uploading files yet. */
+  onUploadLater?: () => void
   productId: string
   arch: "maxillary" | "mandibular"
   impressionName: string
@@ -31,6 +33,7 @@ export function STLFileSelectionModal({
   isOpen,
   onClose,
   onConfirm,
+  onUploadLater,
   productId,
   arch,
   impressionName,
@@ -131,6 +134,18 @@ export function STLFileSelectionModal({
     onClose()
   }
 
+  const handleUploadLater = () => {
+    stlFiles.forEach(({ url }) => {
+      if (url.startsWith("blob:") && !existingFiles.find(ef => ef.url === url)) {
+        URL.revokeObjectURL(url)
+      }
+    })
+    setStlFiles(existingFiles)
+    setDescription("")
+    onUploadLater?.()
+    onClose()
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={handleCancel}>
       <DialogContent className="max-w-2xl p-0">
@@ -159,7 +174,7 @@ export function STLFileSelectionModal({
             </Button>
           </div>
           <p className="text-sm text-gray-600 mt-2">
-            Upload STL files, scans, photos or documents related to this treatment.
+            Upload STL, PLY, OBJ, or other 3D scan files, photos or documents related to this treatment.
           </p>
         </DialogHeader>
 
@@ -224,6 +239,15 @@ export function STLFileSelectionModal({
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t">
+            {onUploadLater ? (
+              <Button
+                variant="outline"
+                onClick={handleUploadLater}
+                className="px-6"
+              >
+                Upload later
+              </Button>
+            ) : null}
             <Button
               variant="outline"
               onClick={handleCancel}
@@ -248,6 +272,7 @@ export function STLFileSelectionModal({
           style={{ display: "none" }}
           onChange={handleFileChange}
           multiple
+          accept=".stl,.ply,.obj,.3mf,.glb,.gltf,.fbx,.dae,.off,.3ds,.3dobject"
           ref={fileInputRef}
         />
       </DialogContent>

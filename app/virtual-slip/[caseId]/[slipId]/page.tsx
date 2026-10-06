@@ -199,6 +199,9 @@ export default function VirtualSlipV2Page() {
     [vm]
   );
   const hasPendingLabImplants = pendingLabImplants.length > 0;
+  const needsStlUpload = Boolean(
+    (virtualSlipDetails as { needs_stl_upload?: boolean } | null)?.needs_stl_upload
+  );
 
   const openLabImplantModal = (implants: ImplantVM[]) => {
     if (implants.length === 0) return;
@@ -827,6 +830,20 @@ export default function VirtualSlipV2Page() {
             </div>
           </>
         ) : null}
+        {needsStlUpload && !caseBlocked ? (
+          <div className="relative z-10 mx-6 mt-3 flex items-center justify-between gap-3 rounded-md border border-[#f3d48a] bg-[#fff8e8] px-4 py-3">
+            <p className="text-sm font-medium text-[#4C4D55]">
+              Please upload STL file
+            </p>
+            <button
+              type="button"
+              className="shrink-0 rounded-md bg-[#1162a8] px-3 py-1.5 text-sm font-medium text-white"
+              onClick={() => setShowAttachModal(true)}
+            >
+              Upload STL
+            </button>
+          </div>
+        ) : null}
         {canRunLabDriverActions && slipInLab && hasPendingLabImplants ? (
           <div className="relative z-10 mx-6 mt-3 flex items-center justify-between gap-3 rounded-md border border-[#f3d48a] bg-[#fff8e8] px-4 py-3">
             <p className="text-sm text-[#4C4D55]">
@@ -1239,6 +1256,9 @@ export default function VirtualSlipV2Page() {
         doctorName={vm.header.doctorName}
         patientName={vm.header.patientName}
         isCaseSubmitted={false}
+        onAttached={() => {
+          void fetchVirtualSlipDetails(slipId);
+        }}
       />
     </div>
   );
