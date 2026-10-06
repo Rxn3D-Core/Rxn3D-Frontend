@@ -557,6 +557,7 @@ export function useCaseWizardSession({
     doctorsError,
     wizardStartStep,
     setCompletedLab,
+    setCompletedDoctor,
     setCompletedPatientName,
     setCompletedGender,
     setCompletedAge,

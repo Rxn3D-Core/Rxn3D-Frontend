@@ -380,6 +380,7 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             key={wizard.wizardKey}
             onComplete={wizard.handleWizardComplete}
             onLabSelect={(lab) => wizard.setCompletedLab(lab)}
+            onDoctorSelect={(doctor) => wizard.setCompletedDoctor(doctor)}
             startStep={wizard.wizardStartStep}
             mode={
               wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"

@@ -353,6 +353,7 @@ export function EditSlipFlow({ slipId }: Props) {
             key={wizard.wizardKey}
             onComplete={wizard.handleWizardComplete}
             onLabSelect={(lab) => wizard.setCompletedLab(lab)}
+            onDoctorSelect={(doctor) => wizard.setCompletedDoctor(doctor)}
             startStep={wizard.wizardStartStep}
             mode={
               wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
@@ -360,7 +361,8 @@ export function EditSlipFlow({ slipId }: Props) {
                 : wizard.wizardMode
             }
             initialLabId={
-              (wizard.wizardMode === "backToProducts" ||
+              (wizard.labEditMode ||
+                wizard.wizardMode === "backToProducts" ||
                 wizard.wizardMode === "addProduct") &&
               wizard.completedLab
                 ? wizard.completedLab.id
@@ -368,22 +370,29 @@ export function EditSlipFlow({ slipId }: Props) {
             }
             officeId={wizard.officeId}
             initialPatientName={
-              wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
+              wizard.labEditMode ||
+              wizard.wizardMode === "backToProducts" ||
+              wizard.wizardMode === "addProduct"
                 ? wizard.completedPatientName
                 : ""
             }
             initialGender={
-              wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
+              wizard.labEditMode ||
+              wizard.wizardMode === "backToProducts" ||
+              wizard.wizardMode === "addProduct"
                 ? wizard.completedGender
                 : ""
             }
             initialAge={
-              wizard.wizardMode === "backToProducts" || wizard.wizardMode === "addProduct"
+              wizard.labEditMode ||
+              wizard.wizardMode === "backToProducts" ||
+              wizard.wizardMode === "addProduct"
                 ? wizard.completedAge
                 : ""
             }
             initialDoctor={
-              (wizard.wizardMode === "backToProducts" ||
+              (wizard.labEditMode ||
+                wizard.wizardMode === "backToProducts" ||
                 wizard.wizardMode === "addProduct") &&
               wizard.completedDoctor
                 ? wizard.completedDoctor
