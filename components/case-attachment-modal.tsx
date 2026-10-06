@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import {
   SlipAttachmentsService,
   validateSlipAttachmentFile,
+  SLIP_ATTACHMENT_ACCEPT,
 } from "@/services/slip-attachments-service"
 import type {
   CaseAttachmentsData,
@@ -257,7 +258,7 @@ export default function CaseAttachmentModal({
         ref={(el) => {
           fileInputRefs.current[slip.id] = el
         }}
-        accept=".jpg,.jpeg,.png,.gif,.pdf,.stl,.zip,.rar,.doc,.docx,.xls,.xlsx"
+        accept={SLIP_ATTACHMENT_ACCEPT}
         onChange={(e) => void handleUpload(slip.id, e.target.files)}
       />
     </div>
