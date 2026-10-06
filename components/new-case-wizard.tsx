@@ -2291,6 +2291,7 @@ function PatientMiniHeader({
 export default function NewCaseWizard({
   onComplete,
   onLabSelect,
+  onDoctorSelect,
   startStep = 1,
   mode = "initial",
   initialLabId = null,
@@ -2307,6 +2308,8 @@ export default function NewCaseWizard({
 }: {
   onComplete: (result: WizardResult) => void;
   onLabSelect?: (lab: WizardLabShape) => void;
+  /** Called when the selected doctor changes (including clear-to-null after an office change). */
+  onDoctorSelect?: (doctor: WizardDoctorShape | null) => void;
   startStep?: number;
   mode?: "initial" | "addProduct";
   initialLabId?: number | null;
@@ -2438,14 +2441,17 @@ export default function NewCaseWizard({
     enabled: step === 5 && selectedCategory != null,
   });
 
-  // Office ID for doctors: explicit officeId (edit/add-stage) wins. office_admin uses
-  // their customerId. lab_admin create uses selectedLab because that picker is offices.
+  // Office ID for doctors: during lab/office edit for lab_admin, always use the
+  // selected office so doctors refresh after an office switch. Otherwise explicit
+  // officeId (edit/add-stage) wins. office_admin uses their customerId. lab_admin
+  // create uses selectedLab because that picker is offices.
   const officeIdForDoctors = useMemo(() => {
+    if (editTarget === "lab" && isLabAdmin && selectedLab != null) return selectedLab;
     if (typeof officeId === "number" && officeId > 0) return officeId;
     if (isOfficeAdmin && customerId != null) return customerId;
     if (isLabAdmin && selectedLab != null) return selectedLab;
     return undefined;
-  }, [officeId, isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
+  }, [editTarget, officeId, isOfficeAdmin, isLabAdmin, customerId, selectedLab]);
 
   const {
     data: officeDoctorsRaw = [],
@@ -2669,14 +2675,18 @@ export default function NewCaseWizard({
   const isStepLab = (s: number) => (s === 1 && role !== "office_admin") || (s === 2 && role === "office_admin");
 
   // Step 2 offers a way back to step 1 so a wrong doctor/lab can be re-picked.
-  // Single-step edit mode opens straight onto its own step, so there is nothing to go back to.
+  // Single-step edit mode opens straight onto its own step, so there is nothing to go back to —
+  // except lab_admin office edit, which advances to the doctor step after an office change.
   const stepOneBackLabel = isStepDoctor(1)
     ? "Back to doctor selection"
     : role === "office_admin"
       ? "Back to lab selection"
       : "Back to office selection";
   const handleBackToStepOne =
-    !editTarget && startStep < 2 ? () => setStep(1) : undefined;
+    (!editTarget && startStep < 2) ||
+    (editTarget === "lab" && role !== "office_admin" && step === 2)
+      ? () => setStep(1)
+      : undefined;
 
   // When there is only one doctor, auto-select and proceed to next step
   const didAutoAdvanceDoctorRef = useRef(false);
@@ -2695,13 +2705,14 @@ export default function NewCaseWizard({
     ) {
       didAutoAdvanceDoctorRef.current = true;
       setSelectedDoctor(oneDoctor.id);
-      if (editTarget === "doctor" && onEditDone) {
+      if ((editTarget === "doctor" || editTarget === "lab") && onEditDone) {
+        onDoctorSelect?.(oneDoctor);
         onEditDone();
       } else {
         setStep((s) => s + 1);
       }
     }
-  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor, editTarget, onEditDone]);
+  }, [step, role, doctorsSuccess, doctorsForWizard, selectedDoctor, editTarget, onEditDone, onDoctorSelect]);
 
   // Office profile: when only one lab is connected, auto-select and proceed to patient info
   const didAutoAdvanceLabRef = useRef(false);
@@ -2816,7 +2827,9 @@ export default function NewCaseWizard({
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              if (editTarget === "doctor" && onEditDone) {
+              const selected = doctorsForWizard.find((d) => d.id === id);
+              if (selected) onDoctorSelect?.(selected);
+              if ((editTarget === "doctor" || editTarget === "lab") && onEditDone) {
                 setTimeout(() => onEditDone(), 300);
               } else {
                 setTimeout(() => setStep(2), 300);
@@ -2838,7 +2851,17 @@ export default function NewCaseWizard({
               const selected = officesAsLabs.find((l) => l.id === id);
               if (selected) onLabSelect?.(selected);
               if (editTarget === "lab" && onEditDone) {
-                setTimeout(() => onEditDone(), 300);
+                // lab_admin office edit: doctors belong to the office — re-pick when office changes.
+                // office_admin lab edit: doctors are unchanged — finish immediately.
+                const officeChanged = role !== "office_admin" && id !== initialLabId;
+                if (officeChanged) {
+                  setSelectedDoctor(null);
+                  onDoctorSelect?.(null);
+                  didAutoAdvanceDoctorRef.current = false;
+                  setTimeout(() => setStep(2), 300);
+                } else {
+                  setTimeout(() => onEditDone(), 300);
+                }
               } else {
                 setTimeout(() => setStep(2), 300);
               }
@@ -2856,7 +2879,9 @@ export default function NewCaseWizard({
             selected={selectedDoctor}
             onSelect={(id) => {
               setSelectedDoctor(id);
-              if (editTarget === "doctor" && onEditDone) {
+              const selected = doctorsForWizard.find((d) => d.id === id);
+              if ((editTarget === "doctor" || editTarget === "lab") && onEditDone) {
+                if (selected) onDoctorSelect?.(selected);
                 setTimeout(() => onEditDone(), 300);
               } else {
                 setTimeout(() => setStep(3), 300);

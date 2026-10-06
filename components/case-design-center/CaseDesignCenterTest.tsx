@@ -56,6 +56,7 @@ export default function Page() {
     doctorsError,
     wizardStartStep,
     setCompletedLab,
+    setCompletedDoctor,
     setCompletedPatientName,
     setCompletedGender,
     setCompletedAge,
@@ -152,6 +153,7 @@ export default function Page() {
             key={wizardKey}
             onComplete={handleWizardComplete}
             onLabSelect={(lab) => setCompletedLab(lab)}
+            onDoctorSelect={(doctor) => setCompletedDoctor(doctor)}
             startStep={wizardStartStep}
             mode={wizardMode === "backToProducts" || wizardMode === "addProduct" ? "addProduct" : wizardMode}
             initialLabId={(labEditMode || wizardMode === "backToProducts" || wizardMode === "addProduct") && completedLab ? completedLab.id : null}
