@@ -230,7 +230,10 @@ function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string
   const toothHeight = isMaxillary ? 141 : 135;
   const viewBoxWidth = isMaxillary ? 695 : 624;
   const viewBoxHeight = toothHeight + 4;
-  const numberY = Math.round(toothHeight * 0.68);
+  // Upper crown body is the lower bulb; lower crown body is the upper bulb.
+  // The chart prints at 54px, so 5px is 5 * viewBoxHeight / 54 user units.
+  const lowerBodyShift = 28 + Math.round((5 * viewBoxHeight) / 54);
+  const numberY = Math.round(toothHeight * 0.68) + (isMaxillary ? 16 : -lowerBodyShift);
   const label = isMaxillary ? "MAXILLARY" : "MANDIBULAR";
   const willExtract = willExtractTeeth(arch);
   const display = arch?.extractionDisplay;
@@ -273,10 +276,11 @@ function chartSvg(type: "maxillary" | "mandibular", arch: ArchVM | null): string
     .join("");
 
   const numbers = rects
-    .map(
-      (rect) =>
-        `<text x="${rect.tx}" y="${numberY}" font-family="Verdana, sans-serif" font-size="16" font-weight="700" fill="#4C4D55" text-anchor="middle">${rect.num}</text>`
-    )
+    .map((rect) => {
+      // letter-spacing pulls the ink right of text-anchor middle; 2.2 puts it back on the tooth.
+      const x = Math.round((rect.x + rect.w / 2 - 2.2) * 10) / 10;
+      return `<text x="${x}" y="${numberY}" font-family="Verdana, sans-serif" font-size="25" font-weight="500" letter-spacing="-6" fill="#4C4D55" text-anchor="middle">${rect.num}</text>`;
+    })
     .join("");
 
   return `<div class="chart-label">${label}</div><div class="teeth-row"><svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${fills}${marks}${clasps}${numbers}</svg></div>`;
