@@ -1,8 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Shield, FileText, AlertTriangle, CheckCircle } from "lucide-react"
+import { FileText } from "lucide-react"
 
 export default function TermsOfServicePage() {
   return (
@@ -15,12 +14,8 @@ export default function TermsOfServicePage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Terms of Service</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Terms and conditions for using our HIPAA-compliant dental laboratory management system
+            Terms and conditions for using the Rxn3D dental laboratory management system. These terms are not a certification of HIPAA compliance.
           </p>
-          <Badge variant="secondary" className="mt-4">
-            <CheckCircle className="h-4 w-4 mr-2" />
-            HIPAA Compliant
-          </Badge>
         </div>
 
         <div className="space-y-6">

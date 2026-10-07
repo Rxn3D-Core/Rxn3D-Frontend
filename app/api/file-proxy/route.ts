@@ -107,8 +107,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     "Content-Type": contentType,
     // Force inline rendering — overrides S3's Content-Disposition: attachment
     "Content-Disposition": "inline",
-    // Cache the file for reasonable duration (1 hour)
-    "Cache-Control": "public, max-age=3600",
+    "Cache-Control": "private, max-age=900",
     // Security headers
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -179,7 +178,7 @@ export async function HEAD(request: NextRequest): Promise<NextResponse> {
     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Range",
     "Content-Type": contentType,
-    "Cache-Control": "public, max-age=3600",
+    "Cache-Control": "private, max-age=900",
     "X-Content-Type-Options": "nosniff",
   };
 
