@@ -3,8 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Shield, Lock, Eye, FileText, AlertTriangle, CheckCircle } from "lucide-react"
+import { Shield, Lock, Eye, FileText, AlertTriangle } from "lucide-react"
 
 export default function PrivacyPolicyPage() {
   const [activeSection, setActiveSection] = useState("notice")
@@ -27,12 +26,8 @@ export default function PrivacyPolicyPage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Privacy & Security</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            We are committed to protecting your health information in accordance with HIPAA regulations
+            We design our safeguards with the HIPAA Privacy and Security Rules in mind. This page is not a certification of HIPAA compliance.
           </p>
-          <Badge variant="secondary" className="mt-4">
-            <CheckCircle className="h-4 w-4 mr-2" />
-            HIPAA Compliant
-          </Badge>
         </div>
 
         {/* Navigation */}

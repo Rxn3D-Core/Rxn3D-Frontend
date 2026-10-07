@@ -257,4 +257,4 @@ For questions about HIPAA compliance implementation:
 
 **Last Updated**: January 2024
 **Version**: 1.0
-**Status**: Implemented and Ready for Production 
+**Status**: Not a certification. Public pages must not claim the product is HIPAA compliant. 

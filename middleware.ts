@@ -50,11 +50,13 @@ export function middleware(request: NextRequest) {
   // Enable XSS protection (legacy but still useful)
   response.headers.set('X-XSS-Protection', '1; mode=block');
 
-  // Enforce HTTPS
-  response.headers.set(
-    'Strict-Transport-Security',
-    'max-age=31536000; includeSubDomains; preload'
-  );
+  // Production only. HSTS on http://localhost makes the browser refuse local HTTP.
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    );
+  }
 
   // Control referrer information
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');

@@ -12,7 +12,7 @@ The RXN3D LMS is a full-featured laboratory management system designed specifica
 - **User Management**: Multi-role system (Lab Administrators, Office Administrators, Technicians)
 - **Product Library**: Comprehensive dental product catalog
 - **Analytics**: Business intelligence and reporting tools
-- **HIPAA Compliance**: Built-in compliance features for healthcare data
+- **Health data safeguards**: Access control and HTTPS. This is not a certification of HIPAA compliance.
 - **Multi-language Support**: Internationalization support
 - **Real-time Notifications**: Live updates and communication tools
 
