@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomer } from "@/contexts/customer-context"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
-import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -628,7 +628,7 @@ export default function OverviewTab({ labData, onLogoUpdate, onProfileUpdate }: 
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.width} × {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.height} px (displays in header center).
+                  {TOP_BAR_LOGO_UPLOAD_HINT}
                 </p>
               </div>
             </div>

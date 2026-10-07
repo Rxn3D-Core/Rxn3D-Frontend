@@ -4,7 +4,7 @@ import { Upload, X, AlertCircle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect, ChangeEvent } from "react"
-import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
 
 interface Country {
   id: number
@@ -273,7 +273,7 @@ export function LabProfileForm({
             ) : (
               <div className="text-sm text-[#a19d9d] text-center mt-2 space-y-0.5">
                 <p>Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).</p>
-                <p>Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.left.md.width} × {TOP_BAR_RECOMMENDED_LOGO_SIZES.left.md.height} px for best display in the case design header.</p>
+                <p>{TOP_BAR_LOGO_UPLOAD_HINT}</p>
               </div>
             )}
           </div>

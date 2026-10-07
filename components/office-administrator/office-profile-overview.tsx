@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
-import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
 import { EditCustomerProfileModal } from "@/components/lab-office-management/edit-customer-profile-modal"
 
 interface OverviewTabProps {
@@ -264,7 +264,7 @@ export default function OverviewTab({ officeData, onLogoUpdate, onProfileUpdate 
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.width} × {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.height} px (displays in header center).
+                  {TOP_BAR_LOGO_UPLOAD_HINT}
                 </p>
               </div>
             </div>
