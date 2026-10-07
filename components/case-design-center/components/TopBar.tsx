@@ -25,6 +25,10 @@ export const TOP_BAR_RECOMMENDED_LOGO_SIZES = {
   },
 } as const;
 
+/** Helper copy for logo upload UIs — ask for a high-res rectangular asset (no fixed px size). */
+export const TOP_BAR_LOGO_UPLOAD_HINT =
+  "Please upload a high-resolution logo in a rectangle (landscape) format for a sharp header display."
+
 export interface TopBarSelectedLab {
   logo: string | null;
   name?: string;

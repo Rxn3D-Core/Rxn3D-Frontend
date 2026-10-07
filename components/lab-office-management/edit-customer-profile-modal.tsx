@@ -17,7 +17,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useToast } from "@/hooks/use-toast"
 import { useCustomer } from "@/contexts/customer-context"
 import { useCustomerLogoStore } from "@/stores/customer-logo-store"
-import { TOP_BAR_RECOMMENDED_LOGO_SIZES } from "@/components/case-design-center/components/TopBar"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || ""
 
@@ -494,8 +494,7 @@ export function EditCustomerProfileModal({
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Recommended: {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.width} ×{" "}
-                  {TOP_BAR_RECOMMENDED_LOGO_SIZES.center.md.height} px
+                  {TOP_BAR_LOGO_UPLOAD_HINT}
                 </p>
               </div>
             </div>

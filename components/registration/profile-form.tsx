@@ -8,6 +8,7 @@ import { Command, CommandInput, CommandItem, CommandList, CommandEmpty } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { TOP_BAR_LOGO_UPLOAD_HINT } from "@/components/case-design-center/components/TopBar"
 
 type Country = { id: number | string; name: string }
 type State = { id: number | string; name: string }
@@ -148,13 +149,14 @@ export function ProfileForm({
           />
         </label>
         {!fileSizeError && !inline ? (
-          <div className={cn("text-[#a19d9d]", dense ? "text-xs text-left max-w-xs" : "text-sm text-center mt-2")}>
-            Note: Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).
+          <div className={cn("text-[#a19d9d] space-y-0.5", dense ? "text-xs text-left max-w-xs" : "text-sm text-center mt-2")}>
+            <p>Note: Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).</p>
+            <p>{TOP_BAR_LOGO_UPLOAD_HINT}</p>
           </div>
         ) : null}
         {!fileSizeError && inline ? (
           <p className="text-center text-[10px] leading-tight text-[#a19d9d] px-1">
-            PNG, SVG, or JPEG. Max 1MB.
+            High-resolution rectangle logo. PNG, SVG, or JPEG. Max 1MB.
           </p>
         ) : null}
       </div>
@@ -312,10 +314,6 @@ export function ProfileForm({
           <div className="flex items-center text-red-500 text-sm mt-2">
             <AlertCircle className="h-4 w-4 mr-1" />
             {fileSizeError}
-          </div>
-        ) : !dense ? (
-          <div className="text-sm text-[#a19d9d] text-center mt-2">
-            Note: Logo files must be in PNG, SVG, or JPEG format, maximum of 1MB (1024KB).
           </div>
         ) : null}
       </div>
