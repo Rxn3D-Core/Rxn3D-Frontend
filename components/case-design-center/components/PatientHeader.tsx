@@ -53,11 +53,11 @@ export interface PatientHeaderProps {
   createdByName?: string | null;
   /** Override the "Created By" image URL (falls back to localStorage user). */
   createdByImageUrl?: string | null;
-  /** Pre-submit estimated delivery date label (e.g. "Oct 9, 2026"); shown only in cut-off warning window. */
+  /** Pre-submit estimated delivery date label (e.g. "Oct 9, 2026"); always shown when available. */
   estimatedDueDate?: string | null;
   /** When true, show a loading placeholder for the estimated delivery date. */
   estimatedDueDateLoading?: boolean;
-  /** Lab cut-off time(s); delivery date + banner show only within 10 minutes before cut-off. */
+  /** Lab cut-off time(s); cutoff warning banner shows only within 10 minutes before cut-off. */
   cutoffTime?: string | null;
   cutoffTime2?: string | null;
 }
@@ -359,18 +359,17 @@ export function PatientHeader({
                   />
                 )}
                 <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
-                  {showCutoffWarning &&
-                    (estimatedDueDateLoading && !estimatedDueDate ? (
-                      <p className="text-xs text-[#9CA3AF]">Estimating delivery date…</p>
-                    ) : estimatedDueDate ? (
-                      <p
-                        className="text-sm leading-snug text-[#666666]"
-                        title="Calendar delivery date from the lab delivery-date API."
-                      >
-                        Estimated delivery date:{" "}
-                        <span className="font-semibold text-[#374151]">{estimatedDueDate}</span>
-                      </p>
-                    ) : null)}
+                  {estimatedDueDateLoading && !estimatedDueDate ? (
+                    <p className="text-xs text-[#9CA3AF]">Estimating delivery date…</p>
+                  ) : estimatedDueDate ? (
+                    <p
+                      className="text-sm leading-snug text-[#666666]"
+                      title="Calendar delivery date from the lab delivery-date API."
+                    >
+                      Estimated delivery date:{" "}
+                      <span className="font-semibold text-[#374151]">{estimatedDueDate}</span>
+                    </p>
+                  ) : null}
                   {showCutoffWarning && (cutoffTime || cutoffTime2) && (
                     <SubmitCutoffBanner
                       cutoffTime={cutoffTime}

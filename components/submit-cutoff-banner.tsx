@@ -8,7 +8,7 @@ import {
   parseClockParts,
 } from "@/utils/time-utils"
 
-/** Show the banner / delivery date only inside this many minutes before cut-off. */
+/** Show the cutoff warning banner only inside this many minutes before cut-off. */
 export const CUTOFF_WARNING_WINDOW_MINUTES = 10
 /** Lab cut-off is always evaluated in Las Vegas / Los Angeles Pacific time. */
 const CUTOFF_TIMEZONE = "America/Los_Angeles"

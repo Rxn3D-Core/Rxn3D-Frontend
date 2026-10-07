@@ -4,10 +4,14 @@
 
 ## Behavior
 
-| When (Pacific Time) | Slip header |
-| --- | --- |
-| Within **10 minutes before** cut-off | **Estimated delivery date** + amber cut-off banner |
-| Outside that 10-minute window | Nothing (no date, no banner) — including after cut-off |
+| Element | When (Pacific Time) | Slip header |
+| --- | --- | --- |
+| **Estimated delivery date** | Always (pre-submit) | Shown whenever available / loading |
+| **Cut-off warning banner** | Within **10 minutes before** cut-off | Amber cut-off banner |
+| **Cut-off warning banner** | Outside that 10-minute window | Hidden (including after cut-off) |
+
+> **Updated 2026-10-07:** delivery date is no longer gated on the cut-off window.
+> See `2026-10-07-always-show-header-due-date.md`.
 
 Cut-off source: `GET /business-settings?customer_id={labId}` →
 `case_schedule.default_pickup_time` (lab “Pick up cut off time”). Optional second
