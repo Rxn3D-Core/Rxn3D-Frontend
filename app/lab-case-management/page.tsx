@@ -262,7 +262,11 @@ export default function LabSlipV3Page() {
     typeof user?.pan_color === "string" &&
     /^#[0-9A-Fa-f]{6}$/.test(user.pan_color)
 
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendModal)
 
   const { officesAsLabs: connectedOffices } = useConnectedOffices({ enabled: showAdvancedFilter })
 
@@ -561,11 +565,11 @@ export default function LabSlipV3Page() {
 
   // --- Row action handlers ---
   const handleOpenReadyToSend = (slip: V2CaseRowData) => { setReadyToSendSlip(slip); setShowReadyToSendModal(true) }
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: { signature: string; image?: File | null }) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id, signature)
+      const res = await readyToSend(readyToSendSlip.id, payload)
       if (res?.success) {
         toast({ title: "Success", description: res.message || "Slip marked as ready to send.", duration: 3000 })
         setShowReadyToSendModal(false); setReadyToSendSlip(null)
@@ -1101,6 +1105,8 @@ export default function LabSlipV3Page() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
+          photoEnabled={readyToSendPhotoEnabled}
+          photoRequired={readyToSendPhotoRequired}
         />
 
         {(() => {

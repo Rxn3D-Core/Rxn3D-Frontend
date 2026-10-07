@@ -14,6 +14,8 @@ export interface SlipSettingsFormState {
   require_signature_drop_at_lab: boolean
   require_signature_drop_at_office: boolean
   require_signature_ready_to_send: boolean
+  enable_photo_ready_to_send: boolean
+  require_photo_ready_to_send: boolean
   enable_photo_pickup_from_office: boolean
   require_photo_pickup_from_office: boolean
   enable_photo_pickup_from_lab: boolean
@@ -41,6 +43,8 @@ export const DEFAULT_SLIP_SETTINGS_FORM: SlipSettingsFormState = {
   require_signature_drop_at_lab: true,
   require_signature_drop_at_office: true,
   require_signature_ready_to_send: false,
+  enable_photo_ready_to_send: false,
+  require_photo_ready_to_send: false,
   enable_photo_pickup_from_office: false,
   require_photo_pickup_from_office: false,
   enable_photo_pickup_from_lab: false,
@@ -88,6 +92,8 @@ export function slipSettingsToForm(settings: SlipSettings): SlipSettingsFormStat
       settings.require_signature_drop_at_office ?? true,
     require_signature_ready_to_send:
       settings.require_signature_ready_to_send ?? false,
+    enable_photo_ready_to_send: settings.enable_photo_ready_to_send ?? false,
+    require_photo_ready_to_send: settings.require_photo_ready_to_send ?? false,
     enable_photo_pickup_from_office:
       settings.enable_photo_pickup_from_office ?? false,
     require_photo_pickup_from_office:
@@ -123,6 +129,8 @@ export function formToSlipSettingsUpdate(
     require_signature_drop_at_lab: form.require_signature_drop_at_lab,
     require_signature_drop_at_office: form.require_signature_drop_at_office,
     require_signature_ready_to_send: form.require_signature_ready_to_send,
+    enable_photo_ready_to_send: form.enable_photo_ready_to_send,
+    require_photo_ready_to_send: form.require_photo_ready_to_send,
     enable_photo_pickup_from_office: form.enable_photo_pickup_from_office,
     require_photo_pickup_from_office: form.require_photo_pickup_from_office,
     enable_photo_pickup_from_lab: form.enable_photo_pickup_from_lab,

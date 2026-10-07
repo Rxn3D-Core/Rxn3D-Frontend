@@ -152,7 +152,10 @@ type SlipContextType = {
   fetchPickupDeliverySlips: (slipId: number) => Promise<any | null>;
   createCustomDeliveryDate: (slipId: number, delivery_date: string, delivery_time: string, notes?: string) => Promise<any | null>;
   fetchCustomDeliveryDates: (slipId: number) => Promise<any | null>;
-  readyToSend: (slipId: number, signature?: string) => Promise<ReadyToSendResponse | null>;
+  readyToSend: (
+    slipId: number,
+    payload?: { signature?: string; image?: File | null; notes?: string } | string
+  ) => Promise<ReadyToSendResponse | null>;
   updateSlipAttachmentState: (slipId: number, hasAttachment: boolean) => void;
   toggleSlipPan: (slipId: number) => Promise<{
     success: boolean;
@@ -844,24 +847,62 @@ export function SlipProvider({ children }: { children: ReactNode }) {
   }, [API_BASE_URL])
 
   /**
-   * POST /slip/action/{slipId}/ready-to-send. When a signature is captured
-   * (lab's require_signature_ready_to_send setting), it is sent as
-   * { signature }; without it, no body is sent.
+   * POST /slip/action/{slipId}/ready-to-send.
+   * Signature / photo follow lab slip settings. Image uses multipart.
    */
-  const readyToSend = useCallback(async (slipId: number, signature?: string): Promise<ReadyToSendResponse | null> => {
+  const readyToSend = useCallback(async (
+    slipId: number,
+    payload?: { signature?: string; image?: File | null; notes?: string } | string
+  ): Promise<ReadyToSendResponse | null> => {
     setLoading(true);
     try {
       const token = getToken();
-      const trimmedSignature = signature?.trim();
-      const hasBody = Boolean(trimmedSignature);
-      const res = await fetch(buildApiUrl(`/slip/action/${slipId}/ready-to-send`), {
-        method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(hasBody ? { "Content-Type": "application/json" } : {}),
-        },
-        ...(hasBody ? { body: JSON.stringify({ signature: trimmedSignature }) } : {}),
-      });
+      const normalized =
+        typeof payload === "string" ? { signature: payload } : payload ?? {};
+      const trimmedSignature = normalized.signature?.trim();
+      const image = normalized.image ?? null;
+      const notes = normalized.notes?.trim();
+      const hasImage = Boolean(image);
+      const hasBody = Boolean(trimmedSignature) || hasImage || Boolean(notes);
+
+      let requestInit: RequestInit;
+      if (hasImage) {
+        const form = new FormData();
+        if (trimmedSignature) form.append("signature", trimmedSignature);
+        if (notes) form.append("notes", notes);
+        form.append("image", image as File);
+        requestInit = {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: form,
+        };
+      } else if (hasBody) {
+        requestInit = {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...(trimmedSignature ? { signature: trimmedSignature } : {}),
+            ...(notes ? { notes } : {}),
+          }),
+        };
+      } else {
+        requestInit = {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        };
+      }
+
+      const res = await fetch(
+        buildApiUrl(`/slip/action/${slipId}/ready-to-send`),
+        requestInit
+      );
 
       if (res.status === 401) {
         handleUnauthorized();

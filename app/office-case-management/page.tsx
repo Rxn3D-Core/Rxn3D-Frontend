@@ -199,7 +199,11 @@ function OfficeCaseManagementPage() {
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<V2CaseRowData | null>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
 
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendModal)
 
   // Office listing always loads connected labs (non-lab_admin role path).
   const { officesAsLabs: connectedLabs } = useConnectedOfficesOrLabs("office_admin", {
@@ -401,11 +405,11 @@ function OfficeCaseManagementPage() {
   }, [])
 
   const handleOpenReadyToSend = (slip: V2CaseRowData) => { setReadyToSendSlip(slip); setShowReadyToSendModal(true) }
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: { signature: string; image?: File | null }) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id, signature)
+      const res = await readyToSend(readyToSendSlip.id, payload)
       if (res?.success) {
         toast({ title: "Success", description: res.message || "Slip marked as ready to send.", duration: 3000 })
         setShowReadyToSendModal(false); setReadyToSendSlip(null)
@@ -810,6 +814,8 @@ function OfficeCaseManagementPage() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
+          photoEnabled={readyToSendPhotoEnabled}
+          photoRequired={readyToSendPhotoRequired}
         />
 
         <CaseActionModal

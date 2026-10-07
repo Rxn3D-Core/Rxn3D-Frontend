@@ -9,16 +9,23 @@ import {
   DeliveryModalHeader,
   DeliveryPills,
   DeliveryTimeline,
+  ImageDropzone,
   SignaturePad,
   useSlipDriverTimeline,
   type DeliveryInfoField,
 } from "@/components/driver-delivery/delivery-parts";
+import type { UploadedImage } from "@/lib/image-to-base64";
+import { useToast } from "@/hooks/use-toast";
+
+export interface ReadyToSendConfirmPayload {
+  signature: string;
+  image?: File | null;
+}
 
 export interface ReadyToSendModalProps {
   open: boolean;
   onClose: () => void;
-  /** Receives the captured signature (UI now; backend wiring pending). */
-  onConfirm: (signature: string) => void | Promise<void>;
+  onConfirm: (payload: ReadyToSendConfirmPayload) => void | Promise<void>;
   submitting?: boolean;
   slipId: number;
   office?: string;
@@ -28,6 +35,10 @@ export interface ReadyToSendModalProps {
   title?: string;
   /** When true, a signature must be captured before confirming. Default false. */
   signatureRequired?: boolean;
+  /** When true, show the proof photo upload. Default false. */
+  photoEnabled?: boolean;
+  /** When true (and photoEnabled), a photo is required. Default false. */
+  photoRequired?: boolean;
 }
 
 export default function ReadyToSendModal({
@@ -42,16 +53,25 @@ export default function ReadyToSendModal({
   location,
   title = "Ready to send",
   signatureRequired = false,
+  photoEnabled = false,
+  photoRequired = false,
 }: ReadyToSendModalProps) {
+  const { toast } = useToast();
   const [signature, setSignature] = useState("");
-  const canConfirm = !signatureRequired || Boolean(signature.trim());
+  const [image, setImage] = useState<UploadedImage | null>(null);
+  const signatureOk = !signatureRequired || Boolean(signature.trim());
+  const photoOk = !photoRequired || Boolean(image);
+  const canConfirm = signatureOk && photoOk;
   const timeline = useSlipDriverTimeline(
     Number.isFinite(slipId) ? slipId : null,
     open
   );
 
   useEffect(() => {
-    if (!open) setSignature("");
+    if (!open) {
+      setSignature("");
+      setImage(null);
+    }
   }, [open]);
 
   const infoFields: DeliveryInfoField[] = [
@@ -60,6 +80,14 @@ export default function ReadyToSendModal({
     { label: "Location", value: location },
     { label: "Slip #", value: slipNumber },
   ].filter((f) => Boolean(f.value));
+
+  const submit = () => {
+    if (!canConfirm || submitting) return;
+    void onConfirm({
+      signature: signature.trim(),
+      image: image?.file ?? null,
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -91,23 +119,46 @@ export default function ReadyToSendModal({
             error={timeline.error}
           />
 
-          {signatureRequired && (
-            <div className="pt-2">
-              <SignaturePad
-                value={signature}
-                onChange={setSignature}
-                onSubmit={() => {
-                  if (canConfirm && !submitting) void onConfirm(signature.trim());
-                }}
-                placeholder="Signature"
-              />
+          {(photoEnabled || signatureRequired) && (
+            <div className="space-y-3 pt-2">
+              {photoEnabled ? (
+                <ImageDropzone
+                  image={image}
+                  onChange={setImage}
+                  onRejected={(names) => {
+                    toast({
+                      title: "Only images are allowed",
+                      description:
+                        names.length > 0
+                          ? `Skipped: ${names.join(", ")}`
+                          : "Please choose an image file.",
+                      variant: "destructive",
+                    });
+                  }}
+                  required={photoRequired}
+                  hint={
+                    photoRequired
+                      ? "A proof photo is required before confirming."
+                      : "Optional proof photo for this ready-to-send action."
+                  }
+                />
+              ) : null}
+
+              {signatureRequired ? (
+                <SignaturePad
+                  value={signature}
+                  onChange={setSignature}
+                  onSubmit={submit}
+                  placeholder="Signature"
+                />
+              ) : null}
             </div>
           )}
         </div>
 
         <DeliveryModalFooter
           onCancel={onClose}
-          onConfirm={() => void onConfirm(signature.trim())}
+          onConfirm={submit}
           confirmLabel="Confirm"
           confirmDisabled={!canConfirm}
           submitting={submitting}

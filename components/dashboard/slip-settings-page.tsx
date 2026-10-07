@@ -114,7 +114,6 @@ export function SlipSettingsPage() {
         title: "Settings saved",
         description: "Driver signature, photo, and multi-slip settings were updated.",
       })
-      router.push("/dashboard")
     }
   }
 
@@ -287,22 +286,97 @@ export function SlipSettingsPage() {
                     })}
 
                     <div className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <span className="text-sm font-medium text-gray-900">
-                            Ready to send
-                          </span>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            Require a signature on the lab “Ready to Send” action. Off by default.
-                          </p>
+                      <div className="mb-3">
+                        <span className="text-sm font-medium text-gray-900">
+                          Ready to send
+                        </span>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Lab “Ready to Send” action. Signature and photo are off by default.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3 border-t border-gray-100 pt-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <span className="text-sm text-gray-900">
+                              Signature required
+                            </span>
+                          </div>
+                          <Switch
+                            checked={form.require_signature_ready_to_send}
+                            disabled={isSaving}
+                            onCheckedChange={(checked) =>
+                              patchForm({ require_signature_ready_to_send: checked })
+                            }
+                          />
                         </div>
-                        <Switch
-                          checked={form.require_signature_ready_to_send}
-                          disabled={isSaving}
-                          onCheckedChange={(checked) =>
-                            patchForm({ require_signature_ready_to_send: checked })
-                          }
-                        />
+
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <span className="text-sm text-gray-900">
+                              Photo upload
+                            </span>
+                          </div>
+                          <Switch
+                            checked={form.enable_photo_ready_to_send}
+                            disabled={isSaving}
+                            onCheckedChange={(checked) =>
+                              patchForm({
+                                enable_photo_ready_to_send: checked,
+                                ...(!checked
+                                  ? { require_photo_ready_to_send: false }
+                                  : {}),
+                              })
+                            }
+                          />
+                        </div>
+
+                        {form.enable_photo_ready_to_send ? (
+                          <div className="ml-0 sm:ml-4 pl-0 sm:pl-1">
+                            <p className="text-xs font-medium text-gray-700 mb-2">
+                              Photo requirement
+                            </p>
+                            <RadioGroup
+                              value={
+                                form.require_photo_ready_to_send
+                                  ? "required"
+                                  : "optional"
+                              }
+                              onValueChange={(next) =>
+                                patchForm({
+                                  require_photo_ready_to_send: next === "required",
+                                })
+                              }
+                              className="flex flex-col sm:flex-row gap-3 sm:gap-6"
+                              disabled={isSaving}
+                            >
+                              <div className="flex items-center gap-2">
+                                <RadioGroupItem
+                                  value="optional"
+                                  id="ready-to-send-photo-optional"
+                                />
+                                <Label
+                                  htmlFor="ready-to-send-photo-optional"
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  Optional
+                                </Label>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <RadioGroupItem
+                                  value="required"
+                                  id="ready-to-send-photo-required"
+                                />
+                                <Label
+                                  htmlFor="ready-to-send-photo-required"
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  Required
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>

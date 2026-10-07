@@ -158,8 +158,12 @@ export default function LabSlipPage() {
   const [selectedSlipForHold, setSelectedSlipForHold] = useState<any>(null)
   const [holdSlipSubmitting, setHoldSlipSubmitting] = useState(false)
 
-  // Lab signature requirement for the "Ready to Send" action (loaded while the modal is open).
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendModal)
+  // Lab signature / photo requirements for "Ready to Send" (loaded while the modal is open).
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendModal)
 
   const {
     slips,
@@ -325,11 +329,11 @@ export default function LabSlipPage() {
     setShowReadyToSendModal(true)
   }
 
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: { signature: string; image?: File | null }) => {
     if (!readyToSendSlip) return
     setReadyToSendSubmitting(true)
     try {
-      const res = await readyToSend(readyToSendSlip.id, signature)
+      const res = await readyToSend(readyToSendSlip.id, payload)
       if (res?.success) {
         toast({
           title: "Success",
@@ -1263,6 +1267,8 @@ export default function LabSlipPage() {
           location={readyToSendSlip?.location}
           title="Ready to send"
           signatureRequired={readyToSendRequired}
+          photoEnabled={readyToSendPhotoEnabled}
+          photoRequired={readyToSendPhotoRequired}
         />
 
         {(() => {
