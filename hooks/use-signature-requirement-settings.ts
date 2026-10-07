@@ -21,6 +21,10 @@ export interface SignatureRequirementSettings {
   allowMultipleSettings: DriverAllowMultipleSettings
   /** Whether the lab "Ready to Send" action requires a signature. */
   readyToSendRequired: boolean
+  /** Whether photo upload is shown on "Ready to Send". */
+  readyToSendPhotoEnabled: boolean
+  /** Whether a proof photo is required on "Ready to Send" (only when enabled). */
+  readyToSendPhotoRequired: boolean
   loading: boolean
 }
 
@@ -28,8 +32,10 @@ const SAFE_DEFAULTS: SignatureRequirementSettings = {
   driverSettings: DEFAULT_DRIVER_SIGNATURE_SETTINGS,
   photoSettings: DEFAULT_DRIVER_PHOTO_SETTINGS,
   allowMultipleSettings: DEFAULT_DRIVER_ALLOW_MULTIPLE_SETTINGS,
-  // Ready-to-send signature defaults OFF (preserve current behavior).
+  // Ready-to-send signature/photo default OFF (preserve current behavior).
   readyToSendRequired: false,
+  readyToSendPhotoEnabled: false,
+  readyToSendPhotoRequired: false,
   loading: false,
 }
 
@@ -58,6 +64,7 @@ export function useSignatureRequirementSettings(
     getSlipSettings(labId)
       .then((settings) => {
         if (cancelled) return
+        const photoEnabled = settings.enable_photo_ready_to_send ?? false
         setState({
           driverSettings: {
             require_signature_pickup_from_office:
@@ -97,6 +104,9 @@ export function useSignatureRequirementSettings(
               settings.allow_multiple_drop_at_office ?? false,
           },
           readyToSendRequired: settings.require_signature_ready_to_send ?? false,
+          readyToSendPhotoEnabled: photoEnabled,
+          readyToSendPhotoRequired:
+            photoEnabled && (settings.require_photo_ready_to_send ?? false),
           loading: false,
         })
       })

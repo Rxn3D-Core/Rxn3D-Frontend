@@ -20,6 +20,10 @@ export interface SlipSettings {
   require_signature_drop_at_office: boolean
   /** Signature required on the lab "Ready to Send" action. Default false. */
   require_signature_ready_to_send: boolean
+  /** Show photo upload on lab "Ready to Send". Default false. */
+  enable_photo_ready_to_send: boolean
+  /** Require photo when ready-to-send photo is enabled. Default false. */
+  require_photo_ready_to_send: boolean
   /** Show photo upload when picking up from office. Default false. */
   enable_photo_pickup_from_office: boolean
   /** Require photo when enabled for office pickup. Default false. */

@@ -181,7 +181,11 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   } | null>(null)
   const [showReadyToSendFromQr, setShowReadyToSendFromQr] = useState(false)
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false)
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSendFromQr)
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSendFromQr)
 
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
   // When acting as lab admin, treat the session as non-superadmin across the whole UI
@@ -540,11 +544,11 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
   )
 
   const handleReadyToSendFromQr = useCallback(
-    async (signature: string) => {
+    async (payload: { signature: string; image?: File | null }) => {
       if (!qrIdentify) return
       setReadyToSendSubmitting(true)
       try {
-        const res = await readyToSend(qrIdentify.slipId, signature)
+        const res = await readyToSend(qrIdentify.slipId, payload)
         if (res?.success !== false) {
           toast({
             title: "Success",
@@ -1450,6 +1454,8 @@ export function Header({ toggleSidebar, onNewSlip }: HeaderProps) {
         location={qrIdentify?.location}
         title="Mark Ready to Pick Up"
         signatureRequired={readyToSendRequired}
+        photoEnabled={readyToSendPhotoEnabled}
+        photoRequired={readyToSendPhotoRequired}
       />
 
       {/* Driver History Modal */}

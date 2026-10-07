@@ -61,7 +61,11 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
   const [chooserActions, setChooserActions] = useState<QrScanChooserAction[]>([]);
   const [showReadyToSend, setShowReadyToSend] = useState(false);
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false);
-  const { readyToSendRequired } = useSignatureRequirementSettings(showReadyToSend);
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(showReadyToSend);
 
   const sessionRef = useRef<string | null>(loadDriverSessionKey());
   const hasBootedRef = useRef(false);
@@ -214,11 +218,11 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
   );
 
   const handleReadyToSend = useCallback(
-    async (signature: string) => {
+    async (payload: { signature: string; image?: File | null }) => {
       if (!identify) return;
       setReadyToSendSubmitting(true);
       try {
-        const res = await readyToSend(identify.slipId, signature);
+        const res = await readyToSend(identify.slipId, payload);
         if (res?.success !== false) {
           toast({
             title: "Success",
@@ -324,6 +328,8 @@ export function DriverQrLanding({ caseId, slipIds }: DriverQrLandingProps) {
         location={identify?.location}
         title="Mark Ready to Pick Up"
         signatureRequired={readyToSendRequired}
+        photoEnabled={readyToSendPhotoEnabled}
+        photoRequired={readyToSendPhotoRequired}
       />
 
       {qrScanData?.data?.length ? (

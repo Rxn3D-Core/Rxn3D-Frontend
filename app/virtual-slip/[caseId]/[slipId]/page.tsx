@@ -107,7 +107,11 @@ export default function VirtualSlipV2Page() {
   const [fabRushOpen, setFabRushOpen] = useState(false);
   const [readyToSendOpen, setReadyToSendOpen] = useState(false);
   const [readyToSendSubmitting, setReadyToSendSubmitting] = useState(false);
-  const { readyToSendRequired } = useSignatureRequirementSettings(readyToSendOpen);
+  const {
+    readyToSendRequired,
+    readyToSendPhotoEnabled,
+    readyToSendPhotoRequired,
+  } = useSignatureRequirementSettings(readyToSendOpen);
   const [caseStatusModal, setCaseStatusModal] = useState<CaseStatusModal>(null);
   const [caseStatusSubmitting, setCaseStatusSubmitting] = useState(false);
   const [actionModalScope, setActionModalScope] = useState<"case" | "arch">("case");
@@ -358,11 +362,14 @@ export default function VirtualSlipV2Page() {
     })();
   }, [generateVirtualStatement, toast, virtualSlipDetails]);
 
-  const handleConfirmReadyToSend = async (signature?: string) => {
+  const handleConfirmReadyToSend = async (payload: {
+    signature: string;
+    image?: File | null;
+  }) => {
     if (!slipId || isNaN(slipId)) return;
     setReadyToSendSubmitting(true);
     try {
-      const res = await postSlipReadyToSend(slipId, signature);
+      const res = await postSlipReadyToSend(slipId, payload);
       if (res?.success) {
         toast({
           title: "Success",
@@ -1246,6 +1253,8 @@ export default function VirtualSlipV2Page() {
         slipNumber={vm.header.slipNumber}
         location={vm.header.location}
         signatureRequired={readyToSendRequired}
+        photoEnabled={readyToSendPhotoEnabled}
+        photoRequired={readyToSendPhotoRequired}
       />
 
       <SlipAttachmentBrowserDialog
