@@ -23,6 +23,12 @@ export default function LoginForm() {
   const [passwordError, setPasswordError] = useState("")
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [showPassword, setShowPassword] = useState(false)
+  const [signedOutForIdle, setSignedOutForIdle] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setSignedOutForIdle(params.get("idle") === "1")
+  }, [])
 
   // TanStack Query hooks
   const loginMutation = useLoginMutation()
@@ -186,6 +192,14 @@ export default function LoginForm() {
               <p className="text-slate-600 text-sm sm:text-base">
                 Sign in to your account to continue
               </p>
+              {signedOutForIdle ? (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  {t(
+                    "You were signed out after a period of inactivity. Please sign in again.",
+                    "You were signed out after a period of inactivity. Please sign in again.",
+                  )}
+                </p>
+              ) : null}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
