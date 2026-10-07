@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ImpersonationBanner } from "@/components/impersonation-banner"
+import { IdleSessionWatcher } from "@/components/idle-session-watcher"
 import { ChatSupportBox } from "@/components/chat-support-box"
 import { useAuth } from "@/contexts/auth-context"
 import { useDashboardSettings } from "@/hooks/use-dashboard-settings"
@@ -36,6 +37,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      <IdleSessionWatcher />
       <ImpersonationBanner />
       <AnimatePresence mode="wait">
         {showContent && (
