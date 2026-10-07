@@ -66,7 +66,7 @@ import {
 } from "@/lib/slip-user-role";
 import { isOfficeCustomerContext } from "@/lib/role-utils";
 import { printPortraitV4PaperSlips } from "@/lib/print-paper-slip-v4-html";
-import { printPaperSlipV5 } from "@/lib/paper-slip-v5-html";
+import { printPaperSlipV6 } from "@/lib/paper-slip-v6-html";
 import { consumeSlipAutoPrint } from "@/lib/paper-slip-auto-print";
 import { usePermissionCapabilities } from "@/hooks/use-permission-capabilities";
 import { useBusinessSettingsQuery } from "@/hooks/use-business-settings";
@@ -562,7 +562,7 @@ export default function VirtualSlipV2Page() {
       return;
     }
     setPrintingV5(true);
-    void printPaperSlipV5({
+    void printPaperSlipV6({
       vm,
       caseId: caseId || routeCaseId,
       slipId,
@@ -591,7 +591,7 @@ export default function VirtualSlipV2Page() {
     );
     if (!Number.isFinite(detailsId) || detailsId !== slipId) return;
     if (consumeSlipAutoPrint(slipId)) {
-      void printPaperSlipV5({
+      void printPaperSlipV6({
         vm,
         caseId: caseId || routeCaseId,
         slipId,

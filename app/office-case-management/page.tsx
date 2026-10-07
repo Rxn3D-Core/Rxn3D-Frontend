@@ -41,9 +41,9 @@ import {
   saveSlipListingLocationFilters,
   saveSlipListingStatusFilters,
 } from "@/lib/slip-listing-preferences"
-import { printPaperSlipV5ForSlip } from "@/lib/print-paper-slip-v5-from-slip"
+import { printPaperSlipV6ForSlip } from "@/lib/print-paper-slip-v6-from-slip"
 // Multiple paper slip print disabled from listing
-// import { printPaperSlipV5ForSlips } from "@/lib/print-paper-slip-v5-from-slip"
+// import { printPaperSlipV6ForSlips } from "@/lib/print-paper-slip-v6-from-slip"
 import {
   resolveListingPaperSlipId,
   // resolveListingPaperSlipJobs,
@@ -425,7 +425,7 @@ function OfficeCaseManagementPage() {
       toast({ title: "No valid slip", description: "This slip does not have a valid slip ID.", variant: "destructive" })
       return
     }
-    return printPaperSlipV5ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
+    return printPaperSlipV6ForSlip(idToSend, slip.caseId ?? undefined).catch((error: unknown) => {
       toast({
         title: "Unable to print paper slip",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -575,7 +575,7 @@ function OfficeCaseManagementPage() {
   //     toast({ title: "No valid slips", description: "Please select slips with valid slip IDs.", variant: "destructive" })
   //     return
   //   }
-  //   void printPaperSlipV5ForSlips(jobs).catch((error: unknown) => {
+  //   void printPaperSlipV6ForSlips(jobs).catch((error: unknown) => {
   //     toast({
   //       title: "Unable to print paper slip",
   //       description: error instanceof Error ? error.message : "Please try again.",
