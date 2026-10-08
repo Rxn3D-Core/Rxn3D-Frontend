@@ -537,9 +537,6 @@ export function AddNewStageFlow({ sourceSlipId }: Props) {
             onConfirmDetailsChange={setConfirmDetailsChecked}
             onSubmit={() => void submitAddStage()}
             onCancelSlip={goBackToVirtualSlip}
-            cutoffTime={
-              effectivePickupCutoffTime || rushCaseSchedule?.default_pickup_time
-            }
           />
         )}
 
